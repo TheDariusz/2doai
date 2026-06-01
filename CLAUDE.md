@@ -24,12 +24,14 @@ Frontend (run from `frontend/`):
 - `npm run dev` — Vite dev server (HMR)
 - `npm run build` — `tsc` typecheck + Vite build
 - `npm run lint` — ESLint (flat config)
+- `npm test` — Vitest (single run); `npm run test:watch` for watch mode
+- `npx vitest run src/App.test.tsx` — single test file; append `-t "name"` for one test
 
-`/check` runs the full gate (backend tests + frontend lint + build) in one shot.
+`/check` runs the full gate (backend tests + frontend test + lint + build) in one shot.
 
 ## Conventions
 
-- **TDD — write the failing test first**, then implement. Backend uses JUnit 5; frontend has no test runner yet (add Vitest + React Testing Library when writing the first frontend test).
+- **TDD — write the failing test first**, then implement. Backend uses JUnit 5; frontend uses Vitest + React Testing Library (jsdom env, globals enabled; matchers from `@testing-library/jest-dom`). Co-locate tests as `*.test.tsx` next to the code; shared setup is `src/test/setup.ts`.
 - **Backend base package is `com.thedariusz.todoai`** (groupId `com.thedariusz`, artifactId `todoai`). Never use a digit-leading package like `com.example.2doai` — it's invalid Java.
 - Persistence: **PostgreSQL via Spring Data JPA / Hibernate.**
 - TypeScript runs strict (`noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`). ESLint flat config in `eslint.config.js`; no Prettier — `eslint --fix` is the formatter.
