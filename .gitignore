@@ -1,0 +1,14 @@
+# OS
+.DS_Store
+
+# Environment / secrets (never commit these)
+.env
+.env.local
+.env.*.local
+*.env
+
+# Local, per-developer Claude Code settings (settings.json IS committed)
+.claude/settings.local.json
+
+# Logs
+*.log
