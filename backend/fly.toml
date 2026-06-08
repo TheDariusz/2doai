@@ -1,0 +1,30 @@
+# Fly.io config for the 2do AI Spring Boot backend.
+#
+# These settings are the scheduler-safe NON-defaults (see
+# context/foundation/infrastructure.md risk register). Fly's defaults optimise
+# for scale-to-zero web apps — the opposite of this always-on, scheduler-driven
+# app (FR-011). Do not "simplify" them back to defaults.
+
+app = "2doai"
+primary_region = "ams"
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"      # never stop — keeps the FR-011 scheduler alive
+  auto_start_machines = false
+  min_machines_running = 1        # always-on; avoids cold-start 502s on /api
+  processes = ["app"]
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/actuator/health"
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "30s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"                # pinned so a redeploy can't silently revert to 256MB
