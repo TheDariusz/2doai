@@ -12,3 +12,10 @@
 
 # Logs
 *.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
