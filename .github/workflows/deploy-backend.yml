@@ -1,0 +1,46 @@
+name: Deploy backend (Fly.io)
+
+# Path-filtered: a frontend-only change never redeploys the JVM.
+on:
+  push:
+    branches: [master]
+    paths: ['backend/**', '.github/workflows/deploy-backend.yml']
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Test
+        run: mvn -B test
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Record current image (for rollback)
+        # Fly has no one-shot rollback — log the live image so a bad deploy can be
+        # reverted with: fly deploy --image <recorded-image>
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          echo "Current image before deploy:"
+          flyctl status --json | jq -r '.ImageRef // "unknown"' || true
+
+      - name: Deploy
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --remote-only

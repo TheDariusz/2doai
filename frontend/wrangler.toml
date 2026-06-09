@@ -1,0 +1,8 @@
+name = "2doai-web"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-06-08"
+
+# Non-secret config: the Fly backend hostname the /api/* Pages Function proxies to.
+# Swap to the custom domain later if desired.
+[vars]
+BACKEND_ORIGIN = "https://2doai.fly.dev"
