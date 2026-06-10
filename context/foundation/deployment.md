@@ -10,7 +10,7 @@ hosts), but expose them to the browser under a **single public origin** via a
 Cloudflare reverse proxy. This is "Pattern B — decoupled deploys, unified origin."
 
 ```
-                         app.2doai.com  (single public origin)
+                           2doai.app  (single public origin)
                                 │
                      ┌──────────┴───────────┐
          /api/*  →   backend  (Spring Boot on Fly)
@@ -33,7 +33,7 @@ Cloudflare reverse proxy. This is "Pattern B — decoupled deploys, unified orig
 
 - **Hosting:** frontend → Cloudflare Pages; backend → Fly. Unchanged from the
   tech-stack hand-offs.
-- **Public origin:** one hostname (e.g. `app.2doai.com`); Cloudflare routes
+- **Public origin:** one hostname (`2doai.app`); Cloudflare routes
   `/api/*` to the Fly backend, everything else to the Pages static build.
 - **CORS:** not needed in production once same-origin routing is in place. (Local
   dev still uses the Vite dev proxy to localhost:8080.)

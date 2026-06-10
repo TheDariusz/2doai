@@ -102,7 +102,7 @@ Versions assumed: Spring Boot 4.x / Java 25 / Maven (backend), React 19 + Vite (
 2. **Provision Fly** — from `backend/`: `fly launch --no-deploy --region ams` (generates `fly.toml`; pick app name e.g. `2doai`). Then edit `fly.toml` to set `[[vm]] memory = 512`, `auto_stop_machines = "off"`, and `[http_service] min_machines_running = 1` **before first deploy** (these are the non-default, scheduler-safe settings).
 3. **External Postgres + secrets** — create a Neon (or Supabase) project in an EU region; then `fly secrets set SPRING_DATASOURCE_URL=… SPRING_DATASOURCE_USERNAME=… SPRING_DATASOURCE_PASSWORD=…` and any AI provider key. Deploy: `fly deploy`. Verify: `fly status` + `fly logs`.
 4. **Frontend on Cloudflare Pages** — connect the repo (Pages → Git) or `npx wrangler pages deploy dist` after `npm run build` in `frontend/`. Configure build: command `npm run build`, output `dist`. For local dev, keep the Vite dev proxy pointing `/api` → `http://localhost:8080`.
-5. **Wire Pattern B reverse proxy** — add a Cloudflare Pages Function (or a small Worker) that forwards `/api/*` to the Fly backend's hostname, giving one same-origin domain (`app.2doai.com`) with no CORS. Add the custom domain + TLS in Cloudflare; protect preview URLs with Cloudflare Access.
+5. **Wire Pattern B reverse proxy** — add a Cloudflare Pages Function (or a small Worker) that forwards `/api/*` to the Fly backend's hostname, giving one same-origin domain (`2doai.app`) with no CORS. Add the custom domain + TLS in Cloudflare; protect preview URLs with Cloudflare Access.
 
 ## Out of Scope
 
