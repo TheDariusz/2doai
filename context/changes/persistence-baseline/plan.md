@@ -467,30 +467,30 @@ DB. `fly status` healthy; `fly logs` shows the Flyway summary.
 
 #### Automated
 
-- [x] 1.1 Build succeeds: `cd backend && mvn package`
-- [x] 1.2 Full test suite passes on Testcontainers Postgres: `cd backend && mvn test`
-- [x] 1.3 `PingControllerTest` still passes unchanged (no datasource in the slice)
-- [x] 1.4 Schema diagram exists: `context/foundation/data-model.md` with a `category` `erDiagram`
+- [x] 1.1 Build succeeds: `cd backend && mvn package` — d3895e6
+- [x] 1.2 Full test suite passes on Testcontainers Postgres: `cd backend && mvn test` — d3895e6
+- [x] 1.3 `PingControllerTest` still passes unchanged (no datasource in the slice) — d3895e6
+- [x] 1.4 Schema diagram exists: `context/foundation/data-model.md` with a `category` `erDiagram` — d3895e6
 
 #### Manual
 
-- [x] 1.5 `mvn spring-boot:run` auto-starts Compose Postgres; liveness + readiness both `UP`
-- [x] 1.6 DB container stopped → liveness stays `UP`, readiness `DOWN` (decoupling confirmed)
-- [x] 1.7 Schema diagram renders and matches intended `category` model + convention
+- [x] 1.5 `mvn spring-boot:run` auto-starts Compose Postgres; liveness + readiness both `UP` — d3895e6
+- [x] 1.6 DB container stopped → liveness stays `UP`, readiness `DOWN` (decoupling confirmed) — d3895e6
+- [x] 1.7 Schema diagram renders and matches intended `category` model + convention — d3895e6
 
 ### Phase 2: Category reference data + project conventions
 
 #### Automated
 
-- [ ] 2.1 Migration applies + seed verified: `cd backend && mvn test` (incl. `CategorySeedTest`)
-- [ ] 2.2 `ddl-auto=validate` passes — `Category` mapping matches `V1`
-- [ ] 2.3 Full build passes: `cd backend && mvn package`
+- [x] 2.1 Migration applies + seed verified: `cd backend && mvn test` (incl. `CategorySeedTest`)
+- [x] 2.2 `ddl-auto=validate` passes — `Category` mapping matches `V1`
+- [x] 2.3 Full build passes: `cd backend && mvn package`
 
 #### Manual
 
-- [ ] 2.4 Fresh DB: Flyway applies V1+V2; 11 domains present in canonical order
-- [ ] 2.5 Drift guard fails boot fast when DB ≠ enum (then reverted)
-- [ ] 2.6 CLAUDE.md "Persistence" convention reads clearly and matches the diagram
+- [x] 2.4 Fresh DB: Flyway applies V1+V2; 11 domains present in canonical order
+- [x] 2.5 Drift guard fails boot fast when DB ≠ enum (then reverted)
+- [x] 2.6 CLAUDE.md "Persistence" convention reads clearly and matches the diagram
 
 ### Phase 3: Provision Neon + wire Fly + deploy
 

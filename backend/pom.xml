@@ -50,6 +50,14 @@
 			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
 		</dependency>
+		<!-- Boot 4 split autoconfigure into per-integration modules:
+		     spring-boot-flyway carries FlywayAutoConfiguration and runs migrations
+		     before Hibernate validation. flyway-core alone gives the library but
+		     no Spring wiring, so migrations never run. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-flyway</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-core</artifactId>

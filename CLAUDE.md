@@ -37,6 +37,18 @@ Frontend (run from `frontend/`):
 - TypeScript runs strict (`noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`). ESLint flat config in `eslint.config.js`; no Prettier — `eslint --fix` is the formatter.
 - Git: project targets GitHub. Use feature branches, conventional commit messages, and PRs to merge.
 
+### Persistence
+
+Project-wide rules every slice inherits (canonical schema diagram: `context/foundation/data-model.md`):
+
+- **Schema is owned by Flyway** — versioned migrations in `backend/src/main/resources/db/migration` (`V<n>__*.sql`), backward-compatible / expand-only (safe under an image rollback; destructive changes follow expand/contract). Boot 4 needs the `spring-boot-flyway` integration module, not just `flyway-core`.
+- **Hibernate runs `ddl-auto=validate`** — it never alters the schema, only validates mappings against it (a free drift guard).
+- **Domain aggregates use UUID v7 surrogate PKs** via Hibernate `@UuidGenerator` (RFC 9562, `UuidVersion7Strategy` — time-ordered, index-friendly). Applied when the first real entity lands (S-01); not yet used.
+- **Every domain table has `created_at` / `updated_at` `timestamptz` audit columns.**
+- **Columns are `snake_case`** (Java `namePl` ↔ column `name_pl`).
+- **Reference tables may use a stable natural key** instead of a surrogate PK and omit audit columns (e.g. `category.code`, mirrored by the `LifeDomain` enum; a startup `CategorySyncCheck` fails fast on table/enum drift).
+- **Postgres 18** across dev (`compose.yaml`), tests (Testcontainers), and prod (Neon) — keep all three on the same major.
+
 ## Deployment (Pattern B — unified origin)
 
 - Frontend → Cloudflare Pages (static build); Backend → Fly.io (JVM).

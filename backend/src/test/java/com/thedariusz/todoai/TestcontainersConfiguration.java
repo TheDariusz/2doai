@@ -13,7 +13,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * are unaffected.
  */
 @TestConfiguration(proxyBeanMethods = false)
-class TestcontainersConfiguration {
+public class TestcontainersConfiguration {
 
 	@Bean
 	@ServiceConnection
