@@ -1,0 +1,19 @@
+# Local dev Postgres. `spring-boot-docker-compose` auto-starts this for
+# `mvn spring-boot:run` and derives the dev datasource from it — no manual
+# setup, no SPRING_DATASOURCE_* needed locally. Skipped in tests (Testcontainers
+# owns the test DB). Not used in production (Neon, via Fly secrets).
+services:
+  postgres:
+    image: 'postgres:18'
+    environment:
+      POSTGRES_DB: 'todoai'
+      POSTGRES_USER: 'todoai'
+      POSTGRES_PASSWORD: 'todoai'
+    ports:
+      - '5432:5432'
+    healthcheck:
+      # Spring waits for "healthy" before connecting.
+      test: ['CMD-SHELL', 'pg_isready -U todoai -d todoai']
+      interval: 5s
+      timeout: 3s
+      retries: 5
