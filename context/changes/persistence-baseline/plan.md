@@ -496,14 +496,14 @@ DB. `fly status` healthy; `fly logs` shows the Flyway summary.
 
 #### Automated
 
-- [ ] 3.1 Backend GitHub Actions deploy workflow completes green
-- [ ] 3.2 `fly status` reports a healthy, running machine after deploy
+- [x] 3.1 Backend GitHub Actions deploy workflow completes green — 899db47
+- [x] 3.2 `fly status` reports a healthy, running machine after deploy — 899db47
 
 #### Manual
 
-- [ ] 3.3 `fly logs` shows Flyway "Successfully applied 2 migrations" against Neon
-- [ ] 3.4 Prod `/actuator/health/readiness` `UP`; `/actuator/health/liveness` `UP`
-- [ ] 3.5 Neon `SELECT count(*) FROM category` = 11, ordered list correct
-- [ ] 3.6 Prior release image digest recorded before deploy
-- [ ] 3.7 Fly machine stays `UP` across a brief Neon sleep/wake (observational)
-- [ ] 3.8 `fly secrets list` shows the 3 datasource secrets as digests only
+- [x] 3.3 `fly logs` shows Flyway "Successfully applied 2 migrations" against Neon — 899db47
+- [x] 3.4 Prod `/actuator/health/readiness` `UP`; `/actuator/health/liveness` `UP` — 899db47
+- [x] 3.5 Neon `SELECT count(*) FROM category` = 11, ordered list correct — 899db47
+- [x] 3.6 Prior release image digest recorded before deploy — 899db47
+- [x] 3.7 Fly machine stays `UP` across a brief Neon sleep/wake (observational) — 899db47
+- [x] 3.8 `fly secrets list` shows the 3 datasource secrets as digests only — 899db47
