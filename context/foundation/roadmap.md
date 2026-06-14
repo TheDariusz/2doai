@@ -3,7 +3,7 @@ project: "2do AI"
 version: 1
 status: draft
 created: 2026-06-13
-updated: 2026-06-13
+updated: 2026-06-14
 prd_version: 1
 main_goal: market-feedback
 top_blocker: decisions
@@ -30,7 +30,7 @@ Osoby planujące długoterminowo wpisują cele i marzenia raz, a potem rzadko do
 
 | ID   | Change ID                  | Outcome (użytkownik może …)                                          | Prerequisites      | PRD refs                     | Status   |
 | ---- | -------------------------- | -------------------------------------------------------------------- | ------------------ | ---------------------------- | -------- |
-| F-01 | persistence-baseline       | (fundament) trwała warstwa danych + zasiane 11 kategorii             | —                  | NFR (trwałość), FR-007       | ready    |
+| F-01 | persistence-baseline       | (fundament) trwała warstwa danych + zasiane 11 kategorii             | —                  | NFR (trwałość), FR-007       | done     |
 | F-02 | ai-memory-integration      | (fundament) klient LLM + zrębowy mechanizm pamięci + polityka prywatności | F-01          | NFR (prywatność), Open Q2    | ready    |
 | S-01 | account-and-auth           | założyć konto, zalogować/wylogować się; trasy bramkowane             | F-01               | FR-001, FR-002               | proposed |
 | S-02 | goals-and-dreams           | tworzyć/edytować/kończyć cel długoterminowy i marzenie + kategoria   | S-01, F-01         | FR-004, FR-005, FR-007       | proposed |
@@ -77,7 +77,7 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Bez warstwy danych żadna pozycja nie jest trwała — cała roadmapa stoi na tym fundamencie. Zakres minimalny (połączenie + migracje + seed kategorii), bez encji domenowych — te definiuje pierwszy slice, który integruje DB przez realne zachowanie użytkownika.
-- **Status:** ready
+- **Status:** done
 
 ### F-02: Fundament integracji AI + pamięci
 
@@ -265,3 +265,5 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 (Pusta przy pierwszej generacji. `/10x-archive` dopisuje tu wpis — i przełącza `Status` pozycji na `done` — gdy archiwizowana zmiana ma pasujący `Change ID`. Format:)
 
 - **<Slice ID>: <Outcome>** — Archived <YYYY-MM-DD> → `context/archive/<YYYY-MM-DD-change-id>/`. Lesson: <wskaźnik do lessons.md jeśli jest, lub `—`>.
+
+- **F-01: (fundament) Postgres + Spring Data JPA/Hibernate + narzędzie migracji (Flyway) podłączone do istniejącego backendu; zasiana stała lista 11 kategorii jako dane referencyjne. Brak efektu widocznego dla użytkownika.** — Archived 2026-06-14 → `context/archive/2026-06-13-persistence-baseline/`. Lesson: —.
