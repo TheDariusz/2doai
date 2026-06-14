@@ -7,6 +7,9 @@
 .env.*.local
 *.env
 
+# Neon CLI project linkage (may reference project/connection details)
+.neon
+
 # Local, per-developer Claude Code settings (settings.json IS committed)
 .claude/settings.local.json
 

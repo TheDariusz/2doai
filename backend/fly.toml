@@ -20,7 +20,11 @@ primary_region = "ams"
 
   [[http_service.checks]]
     method = "GET"
-    path = "/actuator/health"
+    # Liveness only — NOT the /actuator/health aggregate. The aggregate includes the
+    # `db` indicator once a datasource exists, so a sleeping/transient Neon (free tier)
+    # would flap this always-on machine and silently kill the FR-011 scheduler. DB health
+    # lives in readiness; Fly probes liveness. (see infrastructure.md risk register)
+    path = "/actuator/health/liveness"
     interval = "15s"
     timeout = "2s"
     grace_period = "30s"

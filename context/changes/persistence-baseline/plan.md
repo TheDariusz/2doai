@@ -482,15 +482,15 @@ DB. `fly status` healthy; `fly logs` shows the Flyway summary.
 
 #### Automated
 
-- [x] 2.1 Migration applies + seed verified: `cd backend && mvn test` (incl. `CategorySeedTest`)
-- [x] 2.2 `ddl-auto=validate` passes — `Category` mapping matches `V1`
-- [x] 2.3 Full build passes: `cd backend && mvn package`
+- [x] 2.1 Migration applies + seed verified: `cd backend && mvn test` (incl. `CategorySeedTest`) — a753748
+- [x] 2.2 `ddl-auto=validate` passes — `Category` mapping matches `V1` — a753748
+- [x] 2.3 Full build passes: `cd backend && mvn package` — a753748
 
 #### Manual
 
-- [x] 2.4 Fresh DB: Flyway applies V1+V2; 11 domains present in canonical order
-- [x] 2.5 Drift guard fails boot fast when DB ≠ enum (then reverted)
-- [x] 2.6 CLAUDE.md "Persistence" convention reads clearly and matches the diagram
+- [x] 2.4 Fresh DB: Flyway applies V1+V2; 11 domains present in canonical order — a753748
+- [x] 2.5 Drift guard fails boot fast when DB ≠ enum (then reverted) — a753748
+- [x] 2.6 CLAUDE.md "Persistence" convention reads clearly and matches the diagram — a753748
 
 ### Phase 3: Provision Neon + wire Fly + deploy
 
