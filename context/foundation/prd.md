@@ -179,7 +179,7 @@ Niezalogowany użytkownik na bramkowanej trasie → przekierowanie do logowania/
 ## Open Questions
 
 1. **Jaki ballpark skali (`target_scale.users`, `target_scale.qps`, `target_scale.data_volume`)?** — Frontmatter pozostawiony jako TODO; shape-notes nie zawiera explicit szacunków. Owner: autor. Block: nie (PRD wewnętrznie spójny), ale wpływ na decyzje stack-selection.
-2. **Jaki dostawca AI dla auto-tagowania (FR-008) oraz propozycji proaktywnych (FR-011-FR-014)?** — Wpływa na koszt, latencję, jakość polskiego. Decyzja w `/10x-tech-stack-selector`. Owner: autor.
+2. ~~**Jaki dostawca AI dla auto-tagowania (FR-008) oraz propozycji proaktywnych (FR-011-FR-014)?**~~ — **ROZSTRZYGNIĘTE (2026-06-13).** OpenRouter (brama) przed first-party Anthropic; modele rozdzielone: `anthropic/claude-haiku-4.5` dla auto-tagu (FR-008), `anthropic/claude-sonnet-4.6` dla propozycji proaktywnych (FR-011–014); prywatność w konfiguracji „no-training" (spełnia twardy guardrail); pamięć AI jako profil strukturalny + log epizodyczny wstrzykiwany do kontekstu. Szczegóły i uzasadnienie: `context/foundation/ai-provider.md`.
 3. **Czy "naturalny rytm" proaktywnych propozycji to algorytm losowy z biasem, ML, czy reguły heurystyczne?** — Implementation detail; nie blokuje PRD. Owner: autor (faza implementacji).
 4. **Jak konkretnie kategorie priorytetowe (FR-016) wpływają na bilansowanie (FR-012)?** — Algorytmiczna decyzja; może być zwykła waga ×N na propozycje z kategorii priorytetowych. Owner: autor.
 5. **Czy onboarding-pytania (FR-009) generuje AI dynamicznie, czy są stałą listą?** — Można zacząć od stałych 4 pytań i iterować. Owner: autor.
