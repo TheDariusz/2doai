@@ -2,7 +2,7 @@
 id: persistence-baseline
 title: "Persistence baseline — Postgres + JPA + Flyway + 11 seeded categories"
 roadmap_id: F-01
-status: implemented
+status: impl_reviewed
 created: 2026-06-13
 updated: 2026-06-14
 prd_refs:
