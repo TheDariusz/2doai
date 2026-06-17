@@ -43,8 +43,9 @@ Project-wide rules every slice inherits (canonical schema diagram: `context/foun
 
 - **Schema is owned by Flyway** — versioned migrations in `backend/src/main/resources/db/migration` (`V<n>__*.sql`), backward-compatible / expand-only (safe under an image rollback; destructive changes follow expand/contract). Boot 4 needs the `spring-boot-flyway` integration module, not just `flyway-core`.
 - **Hibernate runs `ddl-auto=validate`** — it never alters the schema, only validates mappings against it (a free drift guard).
-- **Domain aggregates use UUID v7 surrogate PKs** via Hibernate `@UuidGenerator` (RFC 9562, `UuidVersion7Strategy` — time-ordered, index-friendly). Applied when the first real entity lands (S-01); not yet used.
-- **Every domain table has `created_at` / `updated_at` `timestamptz` audit columns.**
+- **Domain aggregates use UUID v7 surrogate PKs** via Hibernate `@UuidGenerator(style = Style.VERSION_7)` (RFC 9562 `UuidVersion7Strategy` — time-ordered, index-friendly). Use `VERSION_7`, **not** `Style.TIME` (that is RFC 4122 **v1**). First applied by the F-02 AI-memory aggregate (`ai/memory/AiMemory`).
+- **Every domain table has `created_at` / `updated_at` `timestamptz` audit columns** — populated by Hibernate `@CreationTimestamp` / `@UpdateTimestamp` on `OffsetDateTime` fields (maps cleanly to `timestamptz`).
+- **`jsonb` columns** map via `@JdbcTypeCode(SqlTypes.JSON)`; storing a raw JSON `String` (vs a POJO) keeps the mapping free of any Jackson coupling (used by `ai_memory_episode.payload`).
 - **Columns are `snake_case`** (Java `namePl` ↔ column `name_pl`).
 - **Reference tables may use a stable natural key** instead of a surrogate PK and omit audit columns (e.g. `category.code`, mirrored by the `LifeDomain` enum; a startup `CategorySyncCheck` fails fast on table/enum drift).
 - **Postgres 18** across dev (`compose.yaml`), tests (Testcontainers), and prod (Neon) — keep all three on the same major.
@@ -59,3 +60,18 @@ Project-wide rules every slice inherits (canonical schema diagram: `context/foun
 
 - No `.env` files exist yet; environment config is not implemented. Never read or print `.env` contents.
 - Backend and frontend are still mostly scaffold (skeleton `Application.java`, demo `App.tsx`) — expect to build domain code from scratch.
+
+
+## Learning notes
+
+When I ask you a question about your code, or when you completed task and generated a code and there is a new concept/framework/library/code that I've never seen before, follow these rules:
+
+1. Intuition First: When explaining concepts, make sure they're understandable to someone who's just learning.
+2. Concrete and Practical: Support any complex, abstract concepts (formulas, architecture) with a simple, concrete example or scenario.
+3. "Why": Don't just explain how it works; explain why we chose this approach, the trade-offs involved, and potential errors/pitfalls.
+4. Broader Perspective: Compare the concepts discussed with other technologies, languages (especially in Java as I'm Java developer), and frameworks that approach similar problems differently, so I can explore alternative approaches to architecture and patterns.
+5. Active Learning Principle: Never end an answer with just a period. ALWAYS end with a specific question, a "what if" scenario, or a small problem to solve to test my understanding. Don't continue until I get the answer right — if I get it wrong, explain why and ask again in a different way.
+
+When you complete generates code and there is a new concept/framework/library/code that I've never seen before, follow these rules:
+
+Goal: Building intuition and active understanding, not just passive knowledge
