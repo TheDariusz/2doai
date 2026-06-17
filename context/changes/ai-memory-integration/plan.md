@@ -19,6 +19,20 @@ model split Haiku/Sonnet; no-training privacy; memory = structured profile +
 episodic log, no vector DB). This plan is execution + the solution-design choices
 confirmed during planning.
 
+> **⟳ Revised 2026-06-15 — LLM transport is now Spring AI 2.0, not a hand-rolled
+> `RestClient`.** Spring AI 2.0.0 GA (2026-06-12) requires Spring Boot 4.0, so it fits
+> this backend. The `LlmClient` port and the four provider-neutral types are unchanged;
+> only the adapter changed: `OpenRouterLlmClient` → **`SpringAiLlmClient`**, delegating to
+> Spring AI's auto-configured `ChatModel` (OpenAI client pointed at OpenRouter via
+> `spring.ai.openai.base-url`). Consequences that supersede the Phase-2 detail below:
+> transport/timeout/**retry (429/5xx, fail-fast on other 4xx) are owned by the OpenAI
+> client** (`spring.ai.openai.timeout` / `spring.ai.openai.max-retries`), so the adapter
+> writes no retry code; the no-training `provider` block rides on every request via
+> `OpenAiChatOptions.extraBody(...)` → OpenAI `additionalBodyProperties`; structured output
+> uses `OpenAiChatModel.ResponseFormat(JSON_SCHEMA)` (Spring AI forces `strict:true`); the
+> adapter is unit-tested against a mocked `ChatModel` (`SpringAiLlmClientTest`) since there
+> is no Spring `RestClient` to intercept. `LlmProperties` shrank to just the model slugs.
+
 ## Current State Analysis
 
 The backend is Spring Boot **4.0.6** / Java **25** with the F-01 persistence baseline
@@ -106,7 +120,7 @@ with the LLM config present and the Fly `OPENROUTER_API_KEY` secret set.
   the persistent episodic rows are the future RAG seam.
 - **No user-facing export endpoint** — only the render-to-markdown domain seam; exposing
   it needs auth + UI (later slice).
-- **No Anthropic Java SDK** — OpenRouter is OpenAI-compatible; we use Spring `RestClient`.
+- **No Anthropic Java SDK** — OpenRouter is OpenAI-compatible; we reach it through Spring AI 2.0's OpenAI client (see the revision note above; originally a hand-rolled `RestClient`).
 - **No prompt engineering for proposals/auto-tag** — prompts belong to the slices that
   own those features.
 
@@ -509,11 +523,11 @@ considering F-02 done.
 
 #### Automated
 
-- [ ] 1.1 Project compiles (`mvn -q -DskipTests compile`)
-- [ ] 1.2 Adapter unit tests pass — free-text, structured shape + deserialization, no-training routing present, retry to maxAttempts, fail-fast on other 4xx (`OpenRouterLlmClientTest`)
-- [ ] 1.3 `LlmProperties` binds from `application.properties`
-- [ ] 1.4 Full suite green (`mvn test`)
-- [ ] 1.5 No secret in repo (`git grep` check returns nothing)
+- [x] 1.1 Project compiles (`mvn -q -DskipTests compile`)
+- [x] 1.2 Adapter unit tests pass — free-text, structured shape + deserialization, no-training routing present, retry to maxAttempts, fail-fast on other 4xx (`OpenRouterLlmClientTest`)
+- [x] 1.3 `LlmProperties` binds from `application.properties`
+- [x] 1.4 Full suite green (`mvn test`)
+- [x] 1.5 No secret in repo (`git grep` check returns nothing)
 
 #### Manual
 

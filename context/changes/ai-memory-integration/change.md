@@ -2,7 +2,7 @@
 id: ai-memory-integration
 title: "AI + memory integration — LlmClient (OpenRouter) + AI-memory aggregate + no-training guardrail"
 roadmap_id: F-02
-status: planned
+status: implementing
 created: 2026-06-15
 updated: 2026-06-15
 prd_refs:
@@ -15,8 +15,9 @@ prd_refs:
 
 Second foundation of the 2do AI roadmap: connect a swappable LLM client and a
 skeletal AI-memory mechanism onto the persistence baseline (F-01). Establishes a
-`LlmClient` port + OpenRouter adapter (OpenAI-compatible Chat Completions via
-Spring `RestClient`, not the Anthropic SDK), a DDD AI-memory aggregate (semantic
+`LlmClient` port + `SpringAiLlmClient` adapter (OpenRouter's OpenAI-compatible Chat
+Completions via **Spring AI 2.0**'s OpenAI client, not a hand-rolled `RestClient` or
+the Anthropic SDK), a DDD AI-memory aggregate (semantic
 profile facts + bounded episodic log) persisted to Postgres, a render-to-context
 seam, and the PRD "no-training" privacy guardrail enforced in code. No
 user-visible effect — onboarding/enrichment (S-03), proposals (S-04/S-05) and
