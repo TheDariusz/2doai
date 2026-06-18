@@ -2,7 +2,7 @@
 id: ai-memory-integration
 title: "AI + memory integration — LlmClient (OpenRouter) + AI-memory aggregate + no-training guardrail"
 roadmap_id: F-02
-status: implementing
+status: implemented
 created: 2026-06-15
 updated: 2026-06-18
 prd_refs:

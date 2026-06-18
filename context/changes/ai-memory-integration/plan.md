@@ -569,5 +569,5 @@ considering F-02 done.
 
 - [x] 4.3 `fly secrets list` shows `OPENROUTER_API_KEY`; no key value in repo — 9518864
 - [x] 4.4 Dashboard no-training/no-logging confirmed live; runbook line dated — 9518864
-- [ ] 4.5 Deployed app boots; liveness `UP`; live call against prod config succeeds
+- [x] 4.5 Deployed app boots; liveness `UP`; live call against prod config succeeds
 - [x] 4.6 `ai-provider.md` items (a), (b-on-Sonnet), (d) resolved; (c) + Haiku strict deferred to S-09 — 9518864
