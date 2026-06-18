@@ -1,6 +1,7 @@
 package com.thedariusz.todoai.ai.memory;
 
 import java.time.OffsetDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
 import jakarta.persistence.Column;
@@ -57,8 +58,8 @@ public class ProfileFact {
 
 	ProfileFact(AiMemory memory, String kind, String content, String provenance) {
 		this.memory = memory;
-		this.kind = kind;
-		this.content = content;
+		this.kind = Objects.requireNonNull(kind, "kind");
+		this.content = Objects.requireNonNull(content, "content");
 		this.provenance = provenance;
 	}
 

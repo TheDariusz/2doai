@@ -1,6 +1,7 @@
 package com.thedariusz.todoai.ai.memory;
 
 import java.time.OffsetDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
 import jakarta.persistence.Column;
@@ -59,9 +60,9 @@ public class Episode {
 
 	Episode(AiMemory memory, String eventType, String payload, OffsetDateTime occurredAt) {
 		this.memory = memory;
-		this.eventType = eventType;
-		this.payload = payload;
-		this.occurredAt = occurredAt;
+		this.eventType = Objects.requireNonNull(eventType, "eventType");
+		this.payload = Objects.requireNonNull(payload, "payload");
+		this.occurredAt = Objects.requireNonNull(occurredAt, "occurredAt");
 	}
 
 	// Identity-based equals/hashCode (see ProfileFact for the rationale): constant hashCode +
