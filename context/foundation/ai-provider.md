@@ -52,10 +52,22 @@ Dla przyszłego `/10x-plan ai-memory-integration` — żeby nie wyprowadzać teg
 
 ## Do zweryfikowania przy implementacji
 
-- **(a)** Aktualna stawka opłaty OpenRouter przy doładowaniu kredytów (%) — niezweryfikowana w research.
-- **(b)** Wsparcie `json_schema` `strict` dla **Haiku 4.5** na OpenRouter — dokumentacja wymienia jawnie Sonnet 4.5 / Opus 4.1+, Haiku 4.5 nie jest nazwany. Fallback jeśli brak: tool-calling, prompted JSON, albo skierowanie auto-tagu na Sonnet.
-- **(c)** Tania **A/B jakości polskiego** Haiku vs Sonnet na ~30 pozycjach tagowania przed zablokowaniem warstwy auto-tagu.
-- **(d)** Potwierdzić na żywo, że przełączniki no-training/logowania są wyłączone na koncie.
+> **Status po F-02 (2026-06-18):** (a) i (d) rozstrzygnięte w kodzie/runbooku; (b) potwierdzone
+> **na Sonnet** żywym round-tripem (`OpenRouterLiveTest`); **(b) dla Haiku** + **(c)** świadomie
+> **odłożone do S-09** (tam ląduje auto-tag). Szczegóły ops: `deployment-runbook.md` → Faza 7.
+
+- **(a)** Stawka opłaty OpenRouter przy doładowaniu kredytów — **mechanizm potwierdzony**: opłata
+  naliczana przy *doładowaniu kredytów* (nie marża per-token), ceny Anthropic pass-through; dokładny
+  % do wpisania z ekranu kredytów (placeholder w runbooku Faza 7.1) — nie blokuje F-02.
+- **(b)** Wsparcie `json_schema` `strict`: **potwierdzone na Sonnet 4.6** (strukturalny round-trip w
+  `OpenRouterLiveTest` przechodzi). Dla **Haiku 4.5** nadal niezweryfikowane — **odłożone do S-09**
+  (fallback jeśli brak: tool-calling, prompted JSON, albo skierowanie auto-tagu na Sonnet).
+- **(c)** Tania **A/B jakości polskiego** Haiku vs Sonnet na ~30 pozycjach tagowania — **odłożone do
+  S-09** (przed zablokowaniem warstwy auto-tagu).
+- **(d)** No-training/logowanie: **rozstrzygnięte w kodzie** — `provider: { data_collection: "deny" }`
+  na każdym żądaniu (zweryfikowane żywym round-tripem), wsparte domyślnym routingiem OpenRouter (nie
+  kieruje do dostawców trenujących) i warunkami komercyjnymi Anthropic. Dashboard domyślnie bezpieczny
+  (patrz runbook Faza 7.2).
 
 ## Related
 

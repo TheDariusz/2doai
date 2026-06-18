@@ -168,6 +168,99 @@ curl -I https://2doai.app/             # → 200, serves the SPA from the CDN
 
 ---
 
+## Phase 7 — LLM provider (OpenRouter): key, privacy & live verification
+
+Added for **F-02 (`ai-memory-integration`)**: the backend now reaches an LLM through the
+`LlmClient` port (Spring AI's OpenAI client pointed at OpenRouter). This is everything that
+could **not** be committed — the key, the Fly secret, the one-time dashboard privacy config,
+and the live round-trip that turns the hermetic build into a live-verified one. The authoritative
+decision is [`ai-provider.md`](./ai-provider.md); the steps below resolve its *"Do zweryfikowania
+przy implementacji"* items **(a)**, **(b-on-Sonnet)** and **(d)**. Item **(c)** (Haiku Polish A/B)
+and Haiku's `json_schema strict` support stay **deferred to S-09**, where auto-tag actually lands.
+
+### 7.1 — Create the key (budget backstop)
+
+OpenRouter dashboard → **Keys → Create Key**. Pre-pay a small credit balance and set a **low
+per-key credit limit** — prepaid credits are a hard spend ceiling and the per-key cap is the
+second budget backstop (`ai-provider.md` Rationale). Copy the key once (`sk-or-...`).
+
+> **(a) credit-fee rate** — OpenRouter's revenue is a fee charged **when you top up credits**
+> (not a per-token margin); Anthropic list prices pass through. Record the current top-up fee at
+> provisioning: `____ %` (verify on the credits page).
+
+### 7.2 — Privacy config (one-time, OpenRouter dashboard)
+
+The PRD hard guardrail — *data and memory never train external models* — is enforced in **two
+halves**:
+
+- **In code (every request) — the load-bearing half:** the adapter sends
+  `provider: { data_collection: "deny" }` on every call (`SpringAiLlmClient.NO_TRAINING_PROVIDER`),
+  so OpenRouter routes **only** to providers that do not collect/train on the data, regardless of
+  any account setting. Proven by the live test below. This alone satisfies the guardrail.
+- **In the dashboard (account-wide) — belt-and-suspenders confirmation, not a hunt:** OpenRouter's
+  defaults are **already safe** — it will **not** route to providers that train (or whose policy it
+  can't confirm) **unless you switch the model-training toggle ON**. So this step is confirming you
+  have *not opted in*, not flipping something off. Account menu → **Settings → Privacy** (the path
+  is workspace-scoped now, e.g. `https://openrouter.ai/settings/privacy`, which may land you on
+  `…/workspaces/default/settings`):
+  - **Model training / "allow providers that may train on your data"** — separate **paid** and
+    **free** model toggles → leave **OFF** (the default). Account-wide twin of the per-request
+    `data_collection: deny`; the two merge.
+  - **"OpenRouter Use of Inputs/Outputs"** (the 1% usage-discount opt-in that lets OpenRouter use
+    your prompts/completions to improve the product) → **OFF** (the default).
+  - If you don't see any training toggle switched on, that **is** the correct state — there's
+    nothing to flip; the in-code `data_collection: deny` enforces it either way.
+
+> **ZDR is deliberately NOT enabled.** The guardrail is about *training*, not *retention*;
+> no-training satisfies it while keeping prompt caching. ZDR would cost caching and add
+> price/latency variance via Bedrock/Vertex routing (`ai-provider.md` decision 3).
+
+> **(d) no-training/logging — satisfied by code (verified 2026-06-18).** Enforcement is the
+> per-request `data_collection: deny`, proven by the live Sonnet round-trip (`OpenRouterLiveTest`),
+> backed by OpenRouter's default of not routing to training/unconfirmed providers and Anthropic's
+> no-train-on-API commercial terms. The account-wide dashboard toggles were **not** separately
+> dated — their defaults are no-training and the in-code routing holds regardless (see the
+> two-halves note above). If a future operator wants the belt-and-suspenders dashboard glance,
+> the navigation is in 7.2.
+
+### 7.3 — Fly secret
+
+```bash
+cd backend
+fly secrets set OPENROUTER_API_KEY=sk-or-...   # value never committed, never echoed in logs
+fly secrets list                                # shows the name + a digest, never the value
+```
+
+`application.properties` binds it as `spring.ai.openai.api-key=${OPENROUTER_API_KEY:}` — the
+empty default keeps boot and the hermetic suite green when the key is absent (the OpenAI client
+runs key-less), so CI never needs the secret.
+
+### 7.4 — Live verification (gated test)
+
+`OpenRouterLiveTest` is **disabled unless `OPENROUTER_API_KEY` is set** (so CI stays hermetic).
+Run it locally with the key injected via env — **never** a committed `.env` — to prove a real
+round-trip on **Sonnet**, both free-text and `json_schema strict` structured:
+
+```bash
+cd backend
+OPENROUTER_API_KEY=sk-or-... mvn test -Dtest=OpenRouterLiveTest   # Docker must be running (Testcontainers)
+```
+
+Both tests green confirms **(b-on-Sonnet)**: `json_schema strict` works for Sonnet through
+OpenRouter. (Without the key the same command reports `Tests run: 2 … Skipped: 2`.)
+
+### 7.5 — Deploy
+
+Merge to `master` touching `backend/**` → the path-filtered `deploy-backend.yml` redeploys Fly
+with the new config. No user-visible change; confirm the app boots with the secret resolvable:
+
+```bash
+curl https://2doai.fly.dev/actuator/health    # → {"status":"UP"}  (liveness stays UP)
+curl https://2doai.app/api/v1/ping             # → {"status":"ok"}  (full chain still green)
+```
+
+---
+
 ## Verification checklist (the full chain)
 
 | Check | Command | Expected |
