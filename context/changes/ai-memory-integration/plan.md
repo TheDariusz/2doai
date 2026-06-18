@@ -54,8 +54,8 @@ in place:
 - **Config** is flat `application.properties` with env-var secrets in prod; **no
   `@ConfigurationProperties` class exists yet** (this change introduces the first).
 - **Tests**: Testcontainers Postgres 18 (`@ServiceConnection`) + `@SpringBootTest`;
-  `@WebMvcTest` for web slices. `MockRestServiceServer` is **not yet used** (this
-  change introduces it for the adapter).
+  `@WebMvcTest` for web slices. `MockRestServiceServer` is **not yet used** (the adapter
+  is instead unit-tested against a mocked Spring AI `ChatModel`).
 - **Secrets/deploy**: prod datasource via Fly secrets (Neon); `fly.toml` always-on;
   Cloudflare Pattern B. `OPENROUTER_API_KEY` will follow the same Fly-secret pattern.
 
@@ -84,10 +84,10 @@ A backend that:
 
 1. Exposes an `LlmClient` port with a `complete(...)` (free text) and a
    `completeStructured(...)` (JSON via `response_format: json_schema, strict`) method,
-   implemented by an OpenRouter `RestClient` adapter that is model-agnostic at the
-   call site (model slug passed per call), enforces no-training provider routing in
-   the request body, applies configurable timeouts + one transient retry, and surfaces
-   failures as a typed `LlmException`.
+   implemented by a Spring AI adapter (`SpringAiLlmClient`, over the auto-configured
+   `ChatModel`) that is model-agnostic at the call site (model slug passed per call),
+   enforces no-training provider routing in the request body, and surfaces failures as a
+   typed `LlmException` (timeouts + retry are owned by the OpenAI client).
 2. Persists a per-user **AI-memory aggregate** — an `ai_memory` root (keyed by a
    `user_id` UUID, FK deferred to S-01) holding **profile facts** (typed `kind` +
    `content` + provenance) and an **episodic log** (generic `event_type` + `payload` +
@@ -96,7 +96,7 @@ A backend that:
 3. Renders an `AiMemory` to a deterministic markdown/text block (all profile facts +
    the last *N* episodes) — the seam used both for prompt injection (S-04) and future
    user-facing export.
-4. Is verified: hermetic `MockRestServiceServer` unit tests run in CI; a live
+4. Is verified: hermetic unit tests (mocked `ChatModel`) run in CI; a live
    integration test (gated on `OPENROUTER_API_KEY`) round-trips real Sonnet for both
    free-text and structured output; the no-training switches are confirmed live and
    the secret ships to Fly.
@@ -130,7 +130,7 @@ De-risk-first ordering, four phases mirroring the F-01 shape (plumbing → data 
 seam → provision/verify/deploy):
 
 1. **LLM client first** — it carries the genuine unknowns (external contract, SB4/Java25
-   `RestClient`, OpenRouter request/response shape, structured output, provider routing).
+   Spring AI, OpenRouter request/response shape, structured output, provider routing).
    Proving it hermetically (mock) early means the rest is conventional Spring/JPA work.
 2. **Memory aggregate** — conventional JPA, but the *first* UUIDv7 + audit-column entity,
    so it also exercises the documented convention end-to-end.
@@ -169,10 +169,10 @@ gateway is swappable and the memory model is a real domain object, not a data ba
 
 ### Overview
 
-A swappable `LlmClient` port and an OpenRouter `RestClient` adapter with typed config,
-free-text + structured methods, in-code no-training routing, timeouts + one retry, and
-a typed exception — proven hermetically with `MockRestServiceServer` plus a key-gated
-live test stub.
+A swappable `LlmClient` port and a Spring AI adapter (`SpringAiLlmClient`, over the
+auto-configured `ChatModel`) with typed config, free-text + structured methods, in-code
+no-training routing, and a typed exception (timeouts + retry owned by the OpenAI client)
+— proven hermetically against a mocked `ChatModel` plus a key-gated live test.
 
 ### Changes Required:
 
@@ -198,45 +198,44 @@ type callers handle. No Spring/HTTP types leak across this boundary.
 **File**: `backend/src/main/java/com/thedariusz/todoai/ai/LlmProperties.java` +
 additions to `application.properties`
 
-**Intent**: First `@ConfigurationProperties` in the project — holds base URL, the two
-model slugs, timeouts (connect/read), retry attempt count, and the API key reference.
-Keeps the adapter free of magic strings and lets ops tune behavior without code.
+**Intent**: First `@ConfigurationProperties` in the project. *As shipped* (per the
+revision note) it holds only the two model slugs; base URL, key, timeouts and retries
+live under Spring AI's `spring.ai.openai.*`. Keeps the adapter free of magic strings.
 
-**Contract**: `@ConfigurationProperties(prefix = "llm")` record/class with fields:
-`baseUrl`, `model.haiku`, `model.sonnet` (or a map), `timeout.connect`, `timeout.read`,
-`retry.maxAttempts`, `apiKey`. `application.properties` binds them, with `apiKey` from
+**Contract**: `@ConfigurationProperties(prefix = "llm")` record with `model.haiku` /
+`model.sonnet`. Connection settings (`spring.ai.openai.base-url` / `api-key` / `timeout` /
+`max-retries`) bind to Spring AI's own properties, with the key from
 `${OPENROUTER_API_KEY}` (env, never committed). Register via
-`@EnableConfigurationProperties` (or `@ConfigurationPropertiesScan`).
+`@EnableConfigurationProperties`.
 
-#### 3. OpenRouter adapter
+#### 3. Spring AI adapter
 
-**File**: `backend/src/main/java/com/thedariusz/todoai/ai/OpenRouterLlmClient.java` +
-a `RestClient` bean (config class in the same package)
+**File**: `backend/src/main/java/com/thedariusz/todoai/ai/SpringAiLlmClient.java` + an
+`LlmConfig` enabling `LlmProperties` (same package). *(Revised: a Spring AI adapter over
+the auto-configured `ChatModel`, not a hand-rolled `RestClient`.)*
 
-**Intent**: Implement `LlmClient` against OpenRouter's OpenAI-compatible
-`/chat/completions`. Build the request body (model, messages, optional
-`response_format` for structured calls, and the `provider` no-training routing block),
-send via `RestClient`, map the response back to text or the typed object, translate
-transport/HTTP errors into `LlmException`, and apply timeouts + one transient retry.
+**Intent**: Implement `LlmClient` over Spring AI's `ChatModel` (the OpenAI client pointed
+at OpenRouter via `spring.ai.openai.base-url`). Shape the request (model slug, messages,
+the `provider` no-training block, and — for structured calls — the strict `json_schema`
+response format), map the response back to text or the typed object, and translate
+failures into `LlmException`. Transport, timeouts and retry are the OpenAI client's job.
 
-**Contract**: `@Component` implementing `LlmClient`; constructor-injected `RestClient`
-(built from `LlmProperties` timeouts + bearer auth) and `LlmProperties`. Structured
-calls set `response_format: {type:"json_schema", json_schema:{strict:true, schema}}`.
-Every request body includes the `provider` no-training routing field. Retry: configured
-`maxAttempts` on 429/5xx with short backoff; no retry on other 4xx. The Jackson
-(de)serialization of the structured payload is the only non-obvious bit — keep the
-response→DTO mapping centralized.
+**Contract**: `@Component` implementing `LlmClient`; constructor-injected `ChatModel`.
+The no-training block rides every request via `OpenAiChatOptions.extraBody(...)`.
+Structured calls use `OpenAiChatModel.ResponseFormat(JSON_SCHEMA)` (Spring AI forces
+`strict:true`). The Jackson (de)serialization of the structured payload is the only
+non-obvious bit — keep the response→DTO mapping centralized.
 
 ### Success Criteria:
 
 #### Automated Verification:
 
 - Project compiles: `mvn -q -DskipTests compile`
-- Adapter unit tests pass against a mocked transport: `mvn test -Dtest=OpenRouterLlmClientTest`
+- Adapter unit tests pass against a mocked `ChatModel`: `mvn test -Dtest=SpringAiLlmClientTest`
   — covers (a) free-text happy path, (b) structured `json_schema strict` request shape +
   typed deserialization, (c) the `provider` no-training routing block is present on every
-  request, (d) 429/5xx triggers exactly `maxAttempts` then `LlmException`, (e) a 4xx (≠429)
-  fails fast as `LlmException` with no retry.
+  request, (d) a blank/empty completion and (e) provider/transport failures both translate
+  to `LlmException`. (Retry/timeout are the OpenAI client's contract, not unit-tested here.)
 - Config binds: a context test asserts `LlmProperties` populates from `application.properties`.
 - Full suite green: `mvn test`
 - No secret in repo: `git grep -nE 'sk-or-|OPENROUTER_API_KEY *= *[A-Za-z0-9]'` returns nothing.
@@ -412,7 +411,7 @@ is present** so CI stays hermetic and green. Exercises both a free-text completi
 response and a correctly-typed structured object.
 
 **Contract**: `@EnabledIfEnvironmentVariable(named="OPENROUTER_API_KEY", matches=".+")`
-on a `@SpringBootTest` (or a focused wiring of the real `RestClient`). Two tests: free
+on a `@SpringBootTest`. Two tests: free
 text, structured. Asserts no exception + parseable result. Low token usage (tiny prompt).
 
 #### 2. Secret + dashboard config (ops, documented)
@@ -466,9 +465,10 @@ considering F-02 done.
 
 ### Unit Tests:
 
-- `OpenRouterLlmClientTest` (`MockRestServiceServer`): free-text, structured request
-  shape + typed deserialization, no-training `provider` block present, retry on 429/5xx
-  to `maxAttempts`, fail-fast on other 4xx, error→`LlmException` translation.
+- `SpringAiLlmClientTest` (mocked `ChatModel`): free-text, structured request shape +
+  typed deserialization, no-training `provider` block present, blank-completion guard,
+  error→`LlmException` translation, and a WARN-on-failure log. (Retry/timeout are the
+  OpenAI client's, not unit-tested.)
 - `LlmProperties` binding test.
 - `AiMemoryRendererTest`: determinism, last-N bounding, empty-section handling.
 
@@ -524,7 +524,7 @@ considering F-02 done.
 #### Automated
 
 - [x] 1.1 Project compiles (`mvn -q -DskipTests compile`)
-- [x] 1.2 Adapter unit tests pass — free-text, structured shape + deserialization, no-training routing present, retry to maxAttempts, fail-fast on other 4xx (`OpenRouterLlmClientTest`)
+- [x] 1.2 Adapter unit tests pass — free-text, structured shape + deserialization, no-training routing present, retry to maxAttempts, fail-fast on other 4xx (`SpringAiLlmClientTest`)
 - [x] 1.3 `LlmProperties` binds from `application.properties`
 - [x] 1.4 Full suite green (`mvn test`)
 - [x] 1.5 No secret in repo (`git grep` check returns nothing)

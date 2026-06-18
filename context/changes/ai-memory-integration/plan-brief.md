@@ -2,6 +2,12 @@
 
 > Full plan: `context/changes/ai-memory-integration/plan.md`
 > Decision record (authoritative): `context/foundation/ai-provider.md`
+>
+> **⟳ Revised 2026-06-15:** LLM transport shipped as **Spring AI 2.0** (the OpenAI client
+> pointed at OpenRouter), not a hand-rolled `RestClient`. The `LlmClient` port is unchanged;
+> the adapter is `SpringAiLlmClient` over Spring AI's `ChatModel`, transport/timeout/retry are
+> owned by the OpenAI client (the adapter writes none), and `LlmProperties` is just the model
+> slugs. See `plan.md`'s revision note for detail; some rows/phases below predate this.
 
 ## What & Why
 
@@ -33,7 +39,7 @@ Sonnet round-trip. No user-visible feature — only seams the next slices fill.
 
 | Decision | Choice | Why (1 sentence) | Source |
 | --- | --- | --- | --- |
-| Provider / API shape | OpenRouter, OpenAI-compatible Chat Completions via Spring `RestClient` behind an `LlmClient` port | Budget control + swappable gateway; not the Anthropic SDK | Decision record |
+| Provider / API shape | OpenRouter, OpenAI-compatible Chat Completions via **Spring AI 2.0**'s OpenAI client behind an `LlmClient` port | Budget control + swappable gateway; not the Anthropic SDK | Decision record |
 | Model split | Haiku (auto-tag, later) / Sonnet (proposals, later), slug per call | Latency vs Polish quality; same client | Decision record |
 | Memory mechanism | Structured profile + episodic log in Postgres, no vector DB | Clean DDD model + determinism + inspectability; RAG seam preserved | Decision record |
 | Memory ownership | `user_id` UUID column now, **FK to `user` deferred** to S-01 (expand-only) | Keeps F-02 independent of S-01 (parallel) while the seam is real | Plan |
@@ -41,9 +47,9 @@ Sonnet round-trip. No user-visible feature — only seams the next slices fill.
 | Episodic log | Generic event rows; bound at **render-time** (last N), never deleted | Keeps full history as the post-MVP RAG seam; controls token cost | Plan |
 | Inspectability/export | Render-to-markdown **seam only**; user-facing export deferred | One seam serves injection + future export; F-02 stays internal | Plan |
 | Structured output | `json_schema strict`, verified on **Sonnet**; Haiku strict + A/B → S-09 | Honors the decision record; doesn't pull S-09 risk into the foundation | Plan |
-| Live verification | `MockRestServiceServer` units (CI) + key-gated live test (skipped when no key) | CI stays hermetic; real contract still provable on demand | Plan |
+| Live verification | mocked `ChatModel` units (CI) + key-gated live test (skipped when no key) | CI stays hermetic; real contract still provable on demand | Plan |
 | Privacy enforcement | Code-level per-request provider routing **+** runbook/dashboard doc | Guardrail in code, not just a flippable account toggle | Plan |
-| Resilience | Timeouts + **one** transient retry (429/5xx), `maxAttempts` configurable | Recovers blips; configurable so auto-tag can dial it down for <500ms | Plan |
+| Resilience | Timeouts + transient retry (429/5xx) owned by Spring AI's OpenAI client (`spring.ai.openai.timeout` / `max-retries`) | Recovers blips; configurable so auto-tag can dial it down for <500ms | Plan |
 
 ## Scope
 
@@ -69,7 +75,7 @@ external integration hermetically before the conventional JPA work.
 
 | Phase | What it delivers | Key risk |
 | --- | --- | --- |
-| 1. LLM client (port + adapter) | Tested `LlmClient` over OpenRouter: free-text + structured, no-training routing, timeouts + retry | SB4/Java25 `RestClient` + OpenRouter request/response + `json_schema strict` contract details |
+| 1. LLM client (port + adapter) | Tested `LlmClient` over OpenRouter: free-text + structured, no-training routing, timeouts + retry | SB4/Java25 Spring AI + OpenRouter request/response + `json_schema strict` contract details |
 | 2. Memory aggregate | `V3` migration + first UUIDv7/audit entities + repository, ddl-validated | First `@UuidGenerator` + `jsonb` mapping under Hibernate 7 / SB4 |
 | 3. Render seam | Deterministic markdown render of memory, last-N bounded | Getting the render contract right for downstream S-04 injection |
 | 4. Provision + verify + deploy | Fly secret + dashboard no-training + live Sonnet test + deploy | Human-in-the-loop ops; live surprises (strict support, provider routing honored) |
