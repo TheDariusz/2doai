@@ -531,8 +531,8 @@ considering F-02 done.
 
 #### Manual
 
-- [x] 1.6 `provider` no-training JSON matches OpenRouter's current API (doc cross-check) — 9518864
-- [x] 1.7 Timeout values sane for a generation call — 9518864
+- [x] 1.6 `provider` no-training JSON matches OpenRouter's current API (doc cross-check) — 67f9e46
+- [x] 1.7 Timeout values sane for a generation call — 67f9e46
 
 ### Phase 2: Memory Aggregate (schema + domain + persistence)
 
@@ -562,12 +562,12 @@ considering F-02 done.
 
 #### Automated
 
-- [x] 4.1 Hermetic CI green without a key (live test auto-skips) — 9518864
-- [x] 4.2 Live test passes with a real key — Sonnet free-text + structured (`OpenRouterLiveTest`) — 9518864
+- [x] 4.1 Hermetic CI green without a key (live test auto-skips) — 67f9e46
+- [x] 4.2 Live test passes with a real key — Sonnet free-text + structured (`OpenRouterLiveTest`) — 67f9e46
 
 #### Manual
 
-- [x] 4.3 `fly secrets list` shows `OPENROUTER_API_KEY`; no key value in repo — 9518864
-- [x] 4.4 Dashboard no-training/no-logging confirmed live; runbook line dated — 9518864
+- [x] 4.3 `fly secrets list` shows `OPENROUTER_API_KEY`; no key value in repo — 67f9e46
+- [x] 4.4 Dashboard no-training/no-logging confirmed live; runbook line dated — 67f9e46
 - [x] 4.5 Deployed app boots; liveness `UP`; live call against prod config succeeds
-- [x] 4.6 `ai-provider.md` items (a), (b-on-Sonnet), (d) resolved; (c) + Haiku strict deferred to S-09 — 9518864
+- [x] 4.6 `ai-provider.md` items (a), (b-on-Sonnet), (d) resolved; (c) + Haiku strict deferred to S-09 — 67f9e46
