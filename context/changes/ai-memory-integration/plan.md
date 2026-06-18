@@ -538,14 +538,14 @@ considering F-02 done.
 
 #### Automated
 
-- [ ] 2.1 `V3` applies + Hibernate validates on Testcontainers (`ApplicationTests`)
-- [ ] 2.2 Aggregate persist/reload by user_id with children + jsonb + UUIDv7 + audit (`AiMemoryRepositoryTest`)
-- [ ] 2.3 Full suite green (`mvn test`)
+- [x] 2.1 `V3` applies + Hibernate validates on Testcontainers (`ApplicationTests`)
+- [x] 2.2 Aggregate persist/reload by user_id with children + jsonb + UUIDv7 + audit (`AiMemoryRepositoryTest`)
+- [x] 2.3 Full suite green (`mvn test`)
 
 #### Manual
 
-- [ ] 2.4 `data-model.md` ERD shows the three tables + deferred-FK note
-- [ ] 2.5 UUIDv7 ids are time-ordered (spot-check)
+- [x] 2.4 `data-model.md` ERD shows the three tables + deferred-FK note
+- [x] 2.5 UUIDv7 ids are time-ordered (spot-check)
 
 ### Phase 3: Context-Rendering Seam
 
