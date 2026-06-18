@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
@@ -28,6 +29,15 @@ class LlmPropertiesTest {
 	void bindsModelSlugsFromApplicationProperties() {
 		assertThat(properties.model().haiku()).isEqualTo("anthropic/claude-haiku-4.5");
 		assertThat(properties.model().sonnet()).isEqualTo("anthropic/claude-sonnet-4.6");
+	}
+
+	@Test
+	void rejectsBlankModelSlugAtStartup() {
+		new ApplicationContextRunner()
+				.withUserConfiguration(Config.class)
+				.withPropertyValues("llm.model.haiku=", "llm.model.sonnet=anthropic/claude-sonnet-4.6")
+				.run(context -> assertThat(context).hasFailed()
+						.getFailure().hasStackTraceContaining("haiku"));
 	}
 
 	@Configuration

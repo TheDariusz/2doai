@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
@@ -27,6 +28,15 @@ class MemoryPropertiesTest {
 	@Test
 	void bindsRenderCapFromApplicationProperties() {
 		assertThat(properties.render().maxEpisodes()).isEqualTo(20);
+	}
+
+	@Test
+	void rejectsNonPositiveRenderCapAtStartup() {
+		new ApplicationContextRunner()
+				.withUserConfiguration(Config.class)
+				.withPropertyValues("ai.memory.render.max-episodes=0")
+				.run(context -> assertThat(context).hasFailed()
+						.getFailure().hasStackTraceContaining("maxEpisodes"));
 	}
 
 	@Configuration
