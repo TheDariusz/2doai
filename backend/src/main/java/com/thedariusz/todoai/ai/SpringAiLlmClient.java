@@ -6,6 +6,9 @@ import java.util.Map;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
@@ -36,6 +39,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 class SpringAiLlmClient implements LlmClient {
+
+	private static final Logger log = LoggerFactory.getLogger(SpringAiLlmClient.class);
 
 	/**
 	 * No-training routing — the in-code half of the PRD privacy guardrail. Forwarded on
@@ -114,7 +119,10 @@ class SpringAiLlmClient implements LlmClient {
 		}
 		catch (RuntimeException ex) {
 			// Transport/provider failure surfaced by Spring AI (after the OpenAI client's own
-			// retries) — collapse to the port's single failure type.
+			// retries) — log the cause for observability on the only outbound dependency (model +
+			// message count only; never message content or the API key), then collapse to the
+			// port's single failure type.
+			log.warn("LLM request failed (model={}, messages={})", request.model(), request.messages().size(), ex);
 			throw new LlmException("LLM request failed", ex);
 		}
 		return extractContent(response);
@@ -132,7 +140,9 @@ class SpringAiLlmClient implements LlmClient {
 		var result = response == null ? null : response.getResult();
 		var output = result == null ? null : result.getOutput();
 		String text = output == null ? null : output.getText();
-		if (text == null) {
+		// Reject blank as well as null: a truncation/content-filter stop can yield a
+		// present-but-empty completion, which must fail rather than pass through as success.
+		if (StringUtils.isBlank(text)) {
 			throw new LlmException("LLM returned no content");
 		}
 		return text;

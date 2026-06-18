@@ -1,5 +1,10 @@
 package com.thedariusz.todoai.ai;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+
 import java.util.List;
 import java.util.Map;
 
@@ -7,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.model.ChatModel;
@@ -143,11 +149,46 @@ class SpringAiLlmClientTest {
 	}
 
 	@Test
+	void throwsLlmExceptionWhenCompletionIsBlank() {
+		// A truncation/content-filter stop can yield a present-but-blank completion; it must
+		// surface as a failure, not pass through as a successful (empty) answer.
+		stubContent("   ");
+
+		assertThatThrownBy(() -> client.complete(LlmRequest.of(SONNET, LlmMessage.user("hi"))))
+				.isInstanceOf(LlmException.class);
+	}
+
+	@Test
 	void translatesModelFailureToLlmException() {
 		when(chatModel.call(any(Prompt.class))).thenThrow(new RuntimeException("boom"));
 
 		assertThatThrownBy(() -> client.complete(LlmRequest.of(SONNET, LlmMessage.user("hi"))))
 				.isInstanceOf(LlmException.class);
+	}
+
+	@Test
+	void logsWarningWithModelAndCauseWhenModelCallFails() {
+		ListAppender<ILoggingEvent> appender = new ListAppender<>();
+		Logger clientLogger = (Logger) LoggerFactory.getLogger(SpringAiLlmClient.class);
+		clientLogger.addAppender(appender);
+		appender.start();
+		when(chatModel.call(any(Prompt.class))).thenThrow(new RuntimeException("boom"));
+
+		try {
+			assertThatThrownBy(() -> client.complete(LlmRequest.of(SONNET, LlmMessage.user("hi"))))
+					.isInstanceOf(LlmException.class);
+		}
+		finally {
+			clientLogger.detachAppender(appender);
+		}
+
+		// Observability on the only outbound dependency: a WARN naming the model, with the
+		// cause attached for debugging. The slug is not sensitive; content/key are never logged.
+		assertThat(appender.list).anySatisfy(event -> {
+			assertThat(event.getLevel()).isEqualTo(Level.WARN);
+			assertThat(event.getFormattedMessage()).contains(SONNET);
+			assertThat(event.getThrowableProxy()).isNotNull();
+		});
 	}
 
 	/** Target type for the structured-output deserialization test. */
