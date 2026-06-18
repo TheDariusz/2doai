@@ -538,25 +538,25 @@ considering F-02 done.
 
 #### Automated
 
-- [x] 2.1 `V3` applies + Hibernate validates on Testcontainers (`ApplicationTests`)
-- [x] 2.2 Aggregate persist/reload by user_id with children + jsonb + UUIDv7 + audit (`AiMemoryRepositoryTest`)
-- [x] 2.3 Full suite green (`mvn test`)
+- [x] 2.1 `V3` applies + Hibernate validates on Testcontainers (`ApplicationTests`) — cf8b9c5
+- [x] 2.2 Aggregate persist/reload by user_id with children + jsonb + UUIDv7 + audit (`AiMemoryRepositoryTest`) — cf8b9c5
+- [x] 2.3 Full suite green (`mvn test`) — cf8b9c5
 
 #### Manual
 
-- [x] 2.4 `data-model.md` ERD shows the three tables + deferred-FK note
-- [x] 2.5 UUIDv7 ids are time-ordered (spot-check)
+- [x] 2.4 `data-model.md` ERD shows the three tables + deferred-FK note — cf8b9c5
+- [x] 2.5 UUIDv7 ids are time-ordered (spot-check) — cf8b9c5
 
 ### Phase 3: Context-Rendering Seam
 
 #### Automated
 
-- [ ] 3.1 Renderer deterministic + last-N bounded + empty-section safe (`AiMemoryRendererTest`)
-- [ ] 3.2 Full suite green (`mvn test`)
+- [x] 3.1 Renderer deterministic + last-N bounded + empty-section safe (`AiMemoryRendererTest`)
+- [x] 3.2 Full suite green (`mvn test`)
 
 #### Manual
 
-- [ ] 3.3 Rendered sample reads as a coherent "what the AI knows about you" block
+- [x] 3.3 Rendered sample reads as a coherent "what the AI knows about you" block
 
 ### Phase 4: Provision + Privacy + Live Verification + Deploy
 

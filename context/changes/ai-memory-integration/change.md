@@ -4,7 +4,7 @@ title: "AI + memory integration — LlmClient (OpenRouter) + AI-memory aggregate
 roadmap_id: F-02
 status: implementing
 created: 2026-06-15
-updated: 2026-06-15
+updated: 2026-06-18
 prd_refs:
   - NFR (prywatność danych/pamięci; widoczny feedback AI <500ms)
   - PRD Open Question #2 (rozstrzygnięte — context/foundation/ai-provider.md)
