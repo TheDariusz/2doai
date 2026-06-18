@@ -551,12 +551,12 @@ considering F-02 done.
 
 #### Automated
 
-- [x] 3.1 Renderer deterministic + last-N bounded + empty-section safe (`AiMemoryRendererTest`)
-- [x] 3.2 Full suite green (`mvn test`)
+- [x] 3.1 Renderer deterministic + last-N bounded + empty-section safe (`AiMemoryRendererTest`) — cf1d8c9
+- [x] 3.2 Full suite green (`mvn test`) — cf1d8c9
 
 #### Manual
 
-- [x] 3.3 Rendered sample reads as a coherent "what the AI knows about you" block
+- [x] 3.3 Rendered sample reads as a coherent "what the AI knows about you" block — cf1d8c9
 
 ### Phase 4: Provision + Privacy + Live Verification + Deploy
 
