@@ -1,7 +1,6 @@
 package com.thedariusz.todoai.ai.memory;
 
 import java.time.OffsetDateTime;
-import java.util.Objects;
 import java.util.UUID;
 
 import jakarta.persistence.Column;
@@ -11,6 +10,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -26,6 +27,9 @@ import org.hibernate.annotations.UuidGenerator;
 @Table(name = "ai_memory_profile_fact")
 public class ProfileFact {
 
+	/** Mirrors the {@code ai_memory_profile_fact.kind VARCHAR(64)} column width. */
+	static final int MAX_KIND_LENGTH = 64;
+
 	@Id
 	@UuidGenerator(style = UuidGenerator.Style.VERSION_7)
 	@Column(nullable = false, updatable = false)
@@ -35,9 +39,12 @@ public class ProfileFact {
 	@JoinColumn(name = "ai_memory_id", nullable = false, updatable = false)
 	private AiMemory memory;
 
-	@Column(nullable = false)
+	@NotBlank
+	@Size(max = MAX_KIND_LENGTH)
+	@Column(nullable = false, length = MAX_KIND_LENGTH)
 	private String kind;
 
+	@NotBlank
 	@Column(nullable = false)
 	private String content;
 
@@ -58,8 +65,8 @@ public class ProfileFact {
 
 	ProfileFact(AiMemory memory, String kind, String content, String provenance) {
 		this.memory = memory;
-		this.kind = Objects.requireNonNull(kind, "kind");
-		this.content = Objects.requireNonNull(content, "content");
+		this.kind = kind;
+		this.content = content;
 		this.provenance = provenance;
 	}
 

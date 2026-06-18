@@ -3,6 +3,7 @@ package com.thedariusz.todoai.ai.memory;
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -12,6 +13,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotNull;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -42,6 +44,7 @@ public class AiMemory {
 	@Column(nullable = false, updatable = false)
 	private UUID id;
 
+	@NotNull
 	@Column(name = "user_id", nullable = false, updatable = false, unique = true)
 	private UUID userId;
 
@@ -67,7 +70,9 @@ public class AiMemory {
 	}
 
 	public AiMemory(UUID userId) {
-		this.userId = userId;
+		// Identity invariant fails fast at construction — the root must never exist without an
+		// owner. The @NotNull on the field keeps the declarative/persist-time guard in step.
+		this.userId = Objects.requireNonNull(userId, "userId");
 	}
 
 	/** Add a durable profile fact (used by S-03 onboarding/enrichment). */

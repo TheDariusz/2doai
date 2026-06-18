@@ -3,13 +3,18 @@ package com.thedariusz.todoai.ai.memory;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+import jakarta.validation.ConstraintViolationException;
+
 import com.thedariusz.todoai.TestcontainersConfiguration;
+import org.hibernate.Hibernate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Round-trips the AI-memory aggregate against a real Postgres (Testcontainers) with the
@@ -65,11 +70,42 @@ class AiMemoryRepositoryTest {
 	}
 
 	@Test
+	void findByUserIdEagerlyInitializesChildCollections() {
+		UUID userId = UUID.randomUUID();
+		AiMemory memory = new AiMemory(userId);
+		memory.addFact("occupation", "Software engineer", "onboarding");
+		memory.recordEpisode("task-completed", "{}", OffsetDateTime.parse("2026-06-17T08:00:00Z"));
+		memories.saveAndFlush(memory);
+
+		AiMemory reloaded = memories.findByUserId(userId).orElseThrow();
+
+		// The @EntityGraph must fetch both children in the findByUserId query so callers get a
+		// fully-initialized aggregate under open-in-view=false. Assert on the raw persistent
+		// collections (the getters return unmodifiable views, which Hibernate always reports as
+		// initialized) so this holds whether or not a session is still open — drop the
+		// @EntityGraph and both go false. This test is deliberately non-transactional.
+		assertThat(Hibernate.isInitialized(ReflectionTestUtils.getField(reloaded, "profileFacts"))).isTrue();
+		assertThat(Hibernate.isInitialized(ReflectionTestUtils.getField(reloaded, "episodes"))).isTrue();
+	}
+
+	@Test
 	void enforcesOneMemoryPerUser() {
 		UUID userId = UUID.randomUUID();
 		memories.saveAndFlush(new AiMemory(userId));
 
 		assertThat(memories.findByUserId(userId)).isPresent();
 		assertThat(memories.findByUserId(UUID.randomUUID())).isEmpty();
+	}
+
+	@Test
+	void rejectsInvalidChildOnFlush() {
+		AiMemory memory = new AiMemory(UUID.randomUUID());
+		// Blank kind is non-null, so the NOT NULL column alone would accept it — only the
+		// @NotBlank bean-validation constraint catches it, and only if Hibernate enforces it
+		// on flush. This proves the constraint isn't silently inert.
+		memory.addFact("   ", "Software engineer", "onboarding");
+
+		assertThatThrownBy(() -> memories.saveAndFlush(memory))
+				.isInstanceOf(ConstraintViolationException.class);
 	}
 }

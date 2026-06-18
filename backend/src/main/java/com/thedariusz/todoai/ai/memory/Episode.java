@@ -1,7 +1,6 @@
 package com.thedariusz.todoai.ai.memory;
 
 import java.time.OffsetDateTime;
-import java.util.Objects;
 import java.util.UUID;
 
 import jakarta.persistence.Column;
@@ -11,6 +10,9 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -31,6 +33,9 @@ import org.hibernate.type.SqlTypes;
 @Table(name = "ai_memory_episode")
 public class Episode {
 
+	/** Mirrors the {@code ai_memory_episode.event_type VARCHAR(64)} column width. */
+	static final int MAX_EVENT_TYPE_LENGTH = 64;
+
 	@Id
 	@UuidGenerator(style = UuidGenerator.Style.VERSION_7)
 	@Column(nullable = false, updatable = false)
@@ -40,13 +45,17 @@ public class Episode {
 	@JoinColumn(name = "ai_memory_id", nullable = false, updatable = false)
 	private AiMemory memory;
 
-	@Column(name = "event_type", nullable = false)
+	@NotBlank
+	@Size(max = MAX_EVENT_TYPE_LENGTH)
+	@Column(name = "event_type", nullable = false, length = MAX_EVENT_TYPE_LENGTH)
 	private String eventType;
 
+	@NotBlank
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(nullable = false)
 	private String payload;
 
+	@NotNull
 	@Column(name = "occurred_at", nullable = false)
 	private OffsetDateTime occurredAt;
 
@@ -60,9 +69,9 @@ public class Episode {
 
 	Episode(AiMemory memory, String eventType, String payload, OffsetDateTime occurredAt) {
 		this.memory = memory;
-		this.eventType = Objects.requireNonNull(eventType, "eventType");
-		this.payload = Objects.requireNonNull(payload, "payload");
-		this.occurredAt = Objects.requireNonNull(occurredAt, "occurredAt");
+		this.eventType = eventType;
+		this.payload = payload;
+		this.occurredAt = occurredAt;
 	}
 
 	// Identity-based equals/hashCode (see ProfileFact for the rationale): constant hashCode +
