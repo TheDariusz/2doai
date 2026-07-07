@@ -2,7 +2,7 @@
 project: "2do AI"
 context_type: greenfield
 created: 2026-05-24
-updated: 2026-05-24
+updated: 2026-07-07
 checkpoint:
   current_phase: 8
   phases_completed: [1, 2, 3, 4, 5, 6, 7]
@@ -55,7 +55,7 @@ MVP myśli o tym profilu od początku (a nie tylko o jednym egzemplarzu = autorz
 
 ## Access Control
 
-Konto w chmurze (email + hasło lub magic link) — multi-user web/mobile od MVP. Model **płaski**: jeden użytkownik = jego własne zadania, cele, marzenia i pamięć AI. Brak współdzielonych workspace'ów, brak ról admin/member, brak sharingu.
+Konto w chmurze (email + hasło; magic link rozważany post-MVP — decyzja 2026-07-07) — multi-user web/mobile od MVP. Model **płaski**: jeden użytkownik = jego własne zadania, cele, marzenia i pamięć AI. Brak współdzielonych workspace'ów, brak ról admin/member, brak sharingu.
 
 Każdy użytkownik ma jednak **export i import danych w formacie markdown** — żeby dane były przenośne (filozofia "u siebie", zgodna z duchem Obsidiana) i żeby tryb offline (poza MVP, ale przewidywany) mógł później skorzystać z tych samych plików.
 
@@ -84,12 +84,15 @@ Po 6-8 tygodniach pracy działa **pełen flow pierwszej sesji** (logowanie → w
 
 Acknowledged on 2026-05-24: ~7-tygodniowy MVP po godzinach wymaga sustained dedication; użytkownik świadomie zaakceptował koszt. Surfaced trade-off: flow 5-krokowy z proaktywną pamięcią AI nie zmieści się w 3 tygodniach — wybrano commit zamiast scope-down.
 
+> **Addendum 2026-07-07 (przegląd fundamentów):** pierwotne okno 6-8 tygodni upłynęło na etapie fundamentów (F-01 + F-02 gotowe, zero slice'ów widocznych dla użytkownika). Re-baseline: nowe okno ~7 tygodni liczone od 2026-07-07 + fast-path w roadmapie (minimalny S-01 → S-02 → S-03 → S-04 → S-05; S-07/S-08/S-10 po walidacji gwiazdy). Zapis oryginalny powyżej pozostaje bez zmian (append-only).
+
 ## Functional Requirements
 
 ### Konto i tożsamość
 
-- FR-001: Użytkownik może założyć konto (email + hasło lub magic link). Priority: must-have
+- FR-001: Użytkownik może założyć konto (email + hasło). Priority: must-have
   > Socrates: Counter-argument rozważony: "magic link to friction / OAuth-Google byłby standardowy". Rozstrzygnięcie: stoi — metoda auth to detal implementacyjny, kluczowe że konto istnieje (pamięć AI wymaga tożsamości).
+  > Decyzja (2026-07-07): email + hasło jako jedyna metoda MVP; magic link post-MVP (wymagałby infrastruktury e-mail już w S-01 — infrastruktura e-mail dochodzi z dostarczaniem propozycji, PRD FR-018).
 
 - FR-002: Użytkownik może zalogować się i wylogować. Priority: must-have
   > Socrates: Counter-argument rozważony: "logout jest nice-to-have w MVP". Rozstrzygnięcie: stoi — standardowy auth flow.
@@ -239,9 +242,10 @@ Brak gapów do mirrored do Open Questions w PRD.
 #### Acceptance Criteria
 
 - Propozycja zawiera odniesienie do **konkretnej** wpisanej pozycji (cytat tekstu marzenia), nie ogólnik
-- Propozycja zawiera 3 przyciski akcji: "zaczynam" / "nie teraz" / "nigdy o to nie pytaj"
+- Propozycja zawiera 4 przyciski akcji (komplet z FR-013): "zaczynam" / "nie teraz" / "przypomnij za X (7/30/90 dni)" / "nigdy o to nie pytaj"
 - Kliknięcie "zaczynam" wywołuje FR-014 (AI proponuje pierwszy krok)
 - Kliknięcie "nie teraz" → AI nie pyta o tę pozycję przez kolejny tydzień (ale może pytać o inne)
+- Kliknięcie "przypomnij za X" → AI nie pyta o tę pozycję przez wybrany okres
 - Kliknięcie "nigdy o to nie pytaj" → pozycja jest oznaczona jako "wycofana z proaktywności"; nie jest usuwana ani ukończona
 - Rytm jest **losowy** — dwa kolejne wybory nie idą jeden po drugim ani w sztywnym oknie; oczekiwana częstotliwość maksymalnie ~1 propozycja na 2-7 dni
 - Pierwsza propozycja w sesji użytkownika jest z innej kategorii niż 2-3 poprzednie propozycje (bilansowanie z FR-012)

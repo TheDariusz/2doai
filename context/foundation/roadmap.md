@@ -3,7 +3,7 @@ project: "2do AI"
 version: 1
 status: draft
 created: 2026-06-13
-updated: 2026-06-14
+updated: 2026-07-07
 prd_version: 1
 main_goal: market-feedback
 top_blocker: decisions
@@ -32,16 +32,18 @@ Osoby planujące długoterminowo wpisują cele i marzenia raz, a potem rzadko do
 | ---- | -------------------------- | -------------------------------------------------------------------- | ------------------ | ---------------------------- | -------- |
 | F-01 | persistence-baseline       | (fundament) trwała warstwa danych + zasiane 11 kategorii             | —                  | NFR (trwałość), FR-007       | done     |
 | F-02 | ai-memory-integration      | (fundament) klient LLM + zrębowy mechanizm pamięci + polityka prywatności | F-01          | NFR (prywatność), Open Q2    | ready    |
-| S-01 | account-and-auth           | założyć konto, zalogować/wylogować się; trasy bramkowane             | F-01               | FR-001, FR-002               | proposed |
+| S-01 | account-and-auth           | założyć konto (email+hasło), zalogować/wylogować, usunąć konto; trasy bramkowane; szkielet frontu | F-01 | FR-001, FR-002, FR-019       | proposed |
 | S-02 | goals-and-dreams           | tworzyć/edytować/kończyć cel długoterminowy i marzenie + kategoria   | S-01, F-01         | FR-004, FR-005, FR-007       | proposed |
 | S-03 | ai-memory-seed             | zasiać pamięć AI onboardingiem; ukończone pozycje ją wzbogacają      | F-02, S-02         | FR-009, FR-010               | proposed |
 | S-04 | proactive-proposal-engine  | na żądanie dostać propozycję, odpowiedzieć i otrzymać pierwszy krok   | F-02, S-02, S-03   | FR-012, FR-013, FR-014, FR-015 | proposed |
-| S-05 | natural-rhythm-return      | **(gwiazda)** AI sama wraca w losowym rytmie, bilansując kategorie   | S-04, F-02         | FR-011, US-01                | proposed |
+| S-05 | natural-rhythm-return      | **(gwiazda)** AI sama wraca w losowym rytmie (e-mail + in-app), bilansując kategorie | S-04, F-02 | FR-011, FR-018, US-01        | proposed |
 | S-06 | priority-categories        | oznaczyć 3-5 kategorii priorytetowych wpływających na bilansowanie   | S-04               | FR-016                       | proposed |
 | S-07 | current-tasks              | tworzyć/edytować/kończyć/usuwać zadanie bieżące                      | S-01, F-01         | FR-003                       | proposed |
 | S-08 | unified-three-layer-view   | widzieć 3 warstwy w jednym widoku i filtrować po warstwie/kategorii  | S-02, S-07         | FR-006, FR-007               | proposed |
 | S-09 | ai-category-autotag        | dostać sugestię kategorii od AI przy tworzeniu pozycji              | F-02, S-02         | FR-008                       | proposed |
 | S-10 | offline-read-only          | przeglądać (read-only) zapisane pozycje 3 warstw bez internetu       | S-02, S-07         | FR-017                       | proposed |
+
+> **Fast-path (przegląd 2026-07-07):** najkrótsza ścieżka do gwiazdy: merge F-02 → S-01 (minimalny: email+hasło, bez magic linka) → S-02 → S-03 → S-04 → S-05. S-07 / S-08 / S-10 świadomie odroczone do czasu walidacji gwiazdy (S-05); S-06 i S-09 równolegle po swoich prerekwizytach. F-02 jest zaimplementowany na gałęzi `feat/ai-memory-integration` — czeka na merge (status → done przez `/10x-archive`).
 
 ## Streams
 
@@ -49,7 +51,7 @@ Pomoc nawigacyjna — grupuje pozycje dzielące łańcuch Prerequisites. Kanonic
 
 | Stream | Theme                          | Chain                                              | Note                                                                              |
 | ------ | ------------------------------ | -------------------------------------------------- | --------------------------------------------------------------------------------- |
-| A      | Konto, pozycje, widok          | `F-01` → `S-01` → `S-02` / `S-07` → `S-08`         | Szkielet danych; `S-10` (offline) odgałęzia się od `S-02`/`S-07`. Buildowalny niezależnie od `F-02` (równoległy tor). |
+| A      | Konto, pozycje, widok          | `F-01` → `S-01` → `S-02` / `S-07` → `S-08`         | Szkielet danych; `S-10` (offline) odgałęzia się od `S-02`/`S-07`. Buildowalny niezależnie od `F-02` (równoległy tor). Fast-path 2026-07-07: `S-07`/`S-08`/`S-10` odroczone do po walidacji `S-05`. |
 | B      | Proaktywna pętla AI (gwiazda)  | `F-02` → `S-03` → `S-04` → `S-05` → `S-06`         | Ścieżka gwiazdy przewodniej; łączy się ze Stream A w `S-02`; `F-02` wymaga `F-01`. |
 | C      | Auto-tag AI                    | `S-09`                                             | Odgałęzia się od `F-02` + `S-02`, równolegle do pętli; niezależne od pamięci/propozycji. |
 
@@ -63,6 +65,14 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 - **Auth:** absent — brak Spring Security; brak `SecurityFilterChain`, endpointów login/register, middleware. (`tech-stack.md`: `has_auth=true`, ale niepodłączone.)
 - **Deploy / infra:** present — `backend/Dockerfile` + `backend/fly.toml` (app „2doai", AMS, always-on); 2 workflow GitHub Actions (frontend→Cloudflare Pages, backend→Fly); reverse-proxy Pattern B `frontend/functions/api/[[path]].ts`; `context/foundation/deployment-runbook.md`.
 - **Observability:** partial — Spring Actuator + `/actuator/health` wystawione i probowane przez Fly; brak Sentry/Datadog/OTel/Micrometer, brak strukturalnego logowania, frontend bez observability. (Dla MVP wystarczające — bez osobnego fundamentu.)
+
+> **Aktualizacja 2026-07-07:** F-01 done (zarchiwizowany). F-02 w pełni zaimplementowany na gałęzi
+> `feat/ai-memory-integration` — port `LlmClient` + adapter Spring AI → OpenRouter (guardrail no-training
+> na każdym żądaniu, zweryfikowany żywym round-tripem), agregat `AiMemory` (profil + log epizodyczny,
+> migracja `V3`), renderer z limitem ostatnich N epizodów, testy jednostkowe + Testcontainers + bramkowany
+> test live. Czeka na merge do `master`. Frontend nadal scaffold Vite (bez routingu / klienta API / PWA) —
+> szkielet frontu wchodzi jawnie w zakres S-01. Testy biegają wyłącznie w workflow deploy (push na `master`)
+> — brak CI na PR (chore `pr-branch-ci` w Backlog Handoff).
 
 ## Foundations
 
@@ -91,15 +101,15 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 - **Unknowns:** — (kluczowa decyzja rozstrzygnięta 2026-06-13)
 - **Resolved:** Dostawca = OpenRouter przed first-party Anthropic; modele rozdzielone (`anthropic/claude-haiku-4.5` auto-tag, `anthropic/claude-sonnet-4.6` propozycje); prywatność „no-training" (spełnia guardrail, bez ZDR); mechanizm pamięci = profil strukturalny + log epizodyczny wstrzykiwany do kontekstu (bez bazy wektorowej w MVP). Pełna decyzja + implikacje integracyjne: `context/foundation/ai-provider.md`.
 - **Risk:** Decyzja podjęta; ryzyko zredukowane do wykonania. Pozostałe do weryfikacji przy implementacji (zob. `ai-provider.md`): wsparcie `json_schema` `strict` dla Haiku 4.5 na OpenRouter (fallback: tool-calling / prompted JSON / Sonnet do tagu) oraz tania A/B jakości polskiego Haiku vs Sonnet. Integracja przez OpenAI-compatible Chat Completions → Spring `RestClient` za portem `LlmClient` (nie Anthropic Java SDK).
-- **Status:** ready
+- **Status:** ready — zaimplementowany na `feat/ai-memory-integration`, czeka na merge (status → done przez `/10x-archive`)
 
 ## Slices
 
 ### S-01: Konto i uwierzytelnienie
 
-- **Outcome:** Użytkownik może założyć konto (email + hasło lub magic link), zalogować się i wylogować; wejście na bramkowaną trasę bez logowania przekierowuje do logowania/rejestracji. Ustanawia Spring Security, kontrakt izolacji danych per-użytkownik oraz szkielet aplikacji frontowej (routing + proxy `/api` w dev).
+- **Outcome:** Użytkownik może założyć konto (email + hasło — decyzja 2026-07-07, magic link post-MVP), zalogować się i wylogować oraz usunąć konto wraz ze wszystkimi danymi (FR-019); wejście na bramkowaną trasę bez logowania przekierowuje do logowania/rejestracji. Ustanawia Spring Security, kontrakt izolacji danych per-użytkownik oraz **jawny szkielet aplikacji frontowej**: routing, klient API, app shell, ekrany logowania/rejestracji (+ proxy `/api` w dev) — frontend jest dziś scaffoldem, więc to największy dotąd niejawny kawałek zakresu.
 - **Change ID:** account-and-auth
-- **PRD refs:** FR-001, FR-002 (oraz sekcja Access Control — brak trybu anonimowego, bramkowanie tras)
+- **PRD refs:** FR-001, FR-002, FR-019 (oraz sekcja Access Control — brak trybu anonimowego, bramkowanie tras)
 - **Prerequisites:** F-01
 - **Parallel with:** F-02
 - **Blockers:** —
@@ -143,19 +153,22 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 - **Blockers:** —
 - **Unknowns:**
   - Jak bilansowanie kategorii (FR-012) waży wybór pozycji — np. heurystyka odległości czasowej + rotacja domen? — Owner: autor. Block: no (detal algorytmiczny dla `/10x-plan`).
+  - Definicja "zaniedbanej" pozycji — heurystyka startowa (np. brak interakcji ≥14 dni dla celów, ≥30 dni dla marzeń)? — Owner: autor. Block: no (= PRD Open Question #6; do ustalenia w `/10x-plan`).
 - **Risk:** Tu materializuje się **najbardziej ryzykowne założenie** produktu (to, którego nietrafność najbardziej zagraża sensowi projektu): czy AI trafnie wybierze zaniedbaną pozycję i sformułuje przekonującą, osadzoną w pamięci propozycję. Budowane przed schedulerem (S-05), by zwalidować jakość propozycji tanio — zgodnie z celem „feedback od użytkownika".
 - **Status:** proposed
 
 ### S-05: Automatyczny powrót w naturalnym rytmie  *(gwiazda przewodnia)*
 
-- **Outcome:** AI sama, w naturalnym (losowym) rytmie — nie codziennie o tej samej porze, oczekiwane ~1 propozycja na 2-7 dni — wraca do użytkownika z propozycją zaniedbanego celu/marzenia, bilansując kategorie w czasie. Pełen cykl US-01 (propozycja → odpowiedź → pierwszy krok) działa bez udziału użytkownika.
+- **Outcome:** AI sama, w naturalnym (losowym) rytmie — nie codziennie o tej samej porze, oczekiwane ~1 propozycja na 2-7 dni — wraca do użytkownika z propozycją zaniedbanego celu/marzenia, bilansując kategorie w czasie. Propozycja jest dostarczana e-mailem z linkiem do aplikacji oraz widoczna w aplikacji (FR-018); w danym momencie co najwyżej jedna oczekująca. Pełen cykl US-01 (propozycja → odpowiedź → pierwszy krok) działa bez udziału użytkownika.
 - **Change ID:** natural-rhythm-return
-- **PRD refs:** FR-011, US-01
+- **PRD refs:** FR-011, FR-018, US-01
 - **Prerequisites:** S-04, F-02
 - **Parallel with:** S-06, S-09
 - **Blockers:** —
 - **Unknowns:**
   - Naturalny rytm — algorytm losowy z biasem, reguły heurystyczne czy ML? Dwie propozycje nie idą jedna po drugiej ani w sztywnym oknie. — Owner: autor (faza implementacji). Block: no (detal implementacyjny; nie blokuje planowania slice'a).
+  - Dostawca e-maili transakcyjnych (Resend / Postmark / SES / inny) — pierwsza infrastruktura e-mail w projekcie (FR-018). — Owner: autor. Block: no.
+  - Cisza nocna + strefa czasowa użytkownika — kiedy wolno wysłać e-mail z propozycją i skąd znamy strefę. — Owner: autor. Block: no.
 - **Risk:** Gwiazda przewodnia: dokłada autonomiczny losowy rytm (background job) na silnik z S-04. Ryzyko: rytm ma czuć się organicznie, jak znajomy po miesiącu — nie jak scheduler. Losowość JEST cechą produktu (Guardrails), nie błędem.
 - **Status:** proposed
 
@@ -181,7 +194,7 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 - **Parallel with:** S-02, S-03, S-04, S-05, S-09
 - **Blockers:** —
 - **Unknowns:** —
-- **Risk:** PRD sam zaznacza ryzyko zakresu (konkurencja z klasycznym todo na jego terenie). Nieróżnicujące — dlatego po pętli proaktywnej; możliwe równolegle przez osobny przebieg agenta. Świadomie zostawione (docelowo zastępuje klasyczne todo).
+- **Risk:** PRD sam zaznacza ryzyko zakresu (konkurencja z klasycznym todo na jego terenie). Nieróżnicujące — dlatego po pętli proaktywnej; możliwe równolegle przez osobny przebieg agenta. Świadomie zostawione (docelowo zastępuje klasyczne todo). **Fast-path 2026-07-07: odroczone do po walidacji gwiazdy (S-05).** Uwaga: FR-014 (zapis pierwszego kroku jako zadania bieżącego) tworzy zależność miękką S-04 → encja zadania — jeśli S-04 wyprzedzi S-07, zapis pierwszego kroku dochodzi wraz z S-07.
 - **Status:** proposed
 
 ### S-08: Jednolity widok trzech warstw
@@ -193,7 +206,7 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 - **Parallel with:** S-04, S-05, S-09, S-10
 - **Blockers:** —
 - **Unknowns:** —
-- **Risk:** Widok zbiorczy wymaga pozycji wszystkich warstw (S-02 + S-07). Poza ścieżką gwiazdy (propozycja przychodzi do użytkownika, nie przez listę) — możliwy równolegle. Jednolity widok pozwala zobaczyć całość życia; filtry obsługują skupienie.
+- **Risk:** Widok zbiorczy wymaga pozycji wszystkich warstw (S-02 + S-07). Poza ścieżką gwiazdy (propozycja przychodzi do użytkownika, nie przez listę) — możliwy równolegle. Jednolity widok pozwala zobaczyć całość życia; filtry obsługują skupienie. **Fast-path 2026-07-07: odroczone do po walidacji gwiazdy (S-05).**
 - **Status:** proposed
 
 ### S-09: Auto-tag kategorii przez AI
@@ -217,7 +230,7 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 - **Parallel with:** S-03, S-04, S-05, S-06, S-08, S-09
 - **Blockers:** —
 - **Unknowns:** —
-- **Risk:** Read-only offline, bez AI; PWA service worker + cache. Poza ścieżką gwiazdy — możliwy na końcu lub równolegle. Wybór modelu sesji z S-01 wpływa na cache'owanie tras offline.
+- **Risk:** Read-only offline, bez AI; PWA service worker + cache. Poza ścieżką gwiazdy — możliwy na końcu lub równolegle. Wybór modelu sesji z S-01 wpływa na cache'owanie tras offline. **Fast-path 2026-07-07: odroczone do po walidacji gwiazdy (S-05).**
 - **Status:** proposed
 
 ## Backlog Handoff
@@ -225,22 +238,23 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 | Roadmap ID | Change ID                  | Suggested issue title                                  | Ready for `/10x-plan` | Notes |
 | ---------- | -------------------------- | ------------------------------------------------------ | --------------------- | ----- |
 | F-01       | persistence-baseline       | Podłącz Postgres + JPA + Flyway, zasiej 11 kategorii   | yes                   | Korzeń całej roadmapy; pierwszy ruch (F-02 też gotowy, ale zależy od F-01). Uruchom `/10x-plan persistence-baseline`. |
-| F-02       | ai-memory-integration      | Podłącz klient LLM (OpenRouter/Anthropic) + zrębowy profil pamięci + polityka prywatności | yes               | Odblokowane — decyzja dostawcy/modeli/pamięci podjęta; zob. `context/foundation/ai-provider.md`. Uruchom `/10x-plan ai-memory-integration`. |
-| S-01       | account-and-auth           | Konto: rejestracja, logowanie, wylogowanie, bramkowanie tras | no              | Czeka na F-01; otwarta decyzja cookie vs JWT (nieblokująca). |
+| F-02       | ai-memory-integration      | Podłącz klient LLM (OpenRouter/Anthropic) + zrębowy profil pamięci + polityka prywatności | yes               | **Zaimplementowany** na `feat/ai-memory-integration` — pozostaje merge do `master` + `/10x-archive`. Decyzje: `context/foundation/ai-provider.md`. |
+| S-01       | account-and-auth           | Konto: rejestracja (email+hasło), logowanie, wylogowanie, usunięcie konta, bramkowanie tras, szkielet frontu | yes             | Odblokowane (F-01 done). Auth: email+hasło (decyzja 2026-07-07); cookie vs JWT otwarte (nieblokujące). Uruchom `/10x-plan account-and-auth`. |
 | S-02       | goals-and-dreams           | CRUD celów długoterminowych i marzeń z kategorią       | no                    | Czeka na S-01 + F-01. Substrat gwiazdy. |
-| S-03       | ai-memory-seed             | Pamięć AI: onboarding seed + wzbogacanie z ukończeń    | no                    | Czeka na F-02 (ready, niezaimplementowany) + S-02. |
-| S-04       | proactive-proposal-engine  | Silnik propozycji + odpowiedzi + pierwszy krok (ręczny trigger) | no            | Czeka na F-02 (ready, niezaimplementowany) + S-02 + S-03. Tu waliduje się jakość propozycji. |
+| S-03       | ai-memory-seed             | Pamięć AI: onboarding seed + wzbogacanie z ukończeń i wyników propozycji | no      | Czeka na merge F-02 + S-02. |
+| S-04       | proactive-proposal-engine  | Silnik propozycji + odpowiedzi + pierwszy krok (ręczny trigger) | no            | Czeka na merge F-02 + S-02 + S-03. Tu waliduje się jakość propozycji. |
 | S-05       | natural-rhythm-return      | Automatyczny powrót w naturalnym rytmie (gwiazda)      | no                    | Czeka na S-04 + F-02. Gwiazda przewodnia. |
 | S-06       | priority-categories        | Kategorie priorytetowe wpływające na bilansowanie      | no                    | Czeka na S-04. Refinement. |
-| S-07       | current-tasks              | CRUD zadań bieżących                                    | no                    | Czeka na S-01 + F-01. Nieróżnicujące; możliwe równolegle. |
-| S-08       | unified-three-layer-view   | Jednolity widok 3 warstw z filtrami                    | no                    | Czeka na S-02 + S-07. |
-| S-09       | ai-category-autotag        | Auto-tag kategorii przez AI przy tworzeniu             | no                    | Czeka na F-02 (ready, niezaimplementowany) + S-02. Równoległe do pętli. |
-| S-10       | offline-read-only          | Offline read-only (PWA) dla 3 warstw                   | no                    | Czeka na S-02 + S-07. |
+| S-07       | current-tasks              | CRUD zadań bieżących                                    | no                    | Czeka na S-01 + F-01. Nieróżnicujące. Fast-path: odroczone do po S-05. |
+| S-08       | unified-three-layer-view   | Jednolity widok 3 warstw z filtrami                    | no                    | Czeka na S-02 + S-07. Fast-path: odroczone do po S-05. |
+| S-09       | ai-category-autotag        | Auto-tag kategorii przez AI przy tworzeniu             | no                    | Czeka na merge F-02 + S-02. Równoległe do pętli. |
+| S-10       | offline-read-only          | Offline read-only (PWA) dla 3 warstw                   | no                    | Czeka na S-02 + S-07. Fast-path: odroczone do po S-05. |
+| —          | pr-branch-ci               | Chore: CI na pull requestach (backend `mvn test` + frontend lint/test/build) | yes | Ops (2026-07-07): dziś testy biegają tylko w workflow deploy na `master`. Mały, niezależny od slice'ów. |
 
 ## Open Roadmap Questions
 
 1. ~~**Dostawca AI + mechanizm pamięci AI**~~ — **ROZSTRZYGNIĘTE (2026-06-13).** OpenRouter + first-party Anthropic; modele `anthropic/claude-haiku-4.5` (auto-tag) + `anthropic/claude-sonnet-4.6` (propozycje); prywatność „no-training"; pamięć = profil strukturalny + log epizodyczny wstrzykiwany do kontekstu. Odblokowuje `F-02` (i pośrednio `S-03`, `S-04`, `S-05`, `S-09`). Pełna decyzja: `context/foundation/ai-provider.md`. (= PRD Otwarte pytanie 2.)
-2. **Ballpark skali** (`target_scale`: users / qps / data_volume) — wpływa na wymiarowanie ops/DB, nie na kolejność slice'ów. — Owner: autor. Block: — (informacyjne; PRD wewnętrznie spójny). (= PRD Otwarte pytanie 1.)
+2. ~~**Ballpark skali** (`target_scale`: users / qps / data_volume)~~ — **ROZSTRZYGNIĘTE (2026-07-07).** MVP: 1-10 użytkowników, <1 qps, <1 GB — uzupełnione we frontmatter PRD; obecne wymiarowanie ops (Fly 512MB, Neon) bez zmian. (= PRD Otwarte pytanie 1.)
 
 > Pytania per-slice (rytm proaktywny → S-05, priorytety×bilansowanie → S-04/S-06, onboarding statyczny/dynamiczny → S-03, cookie vs JWT → S-01) zostają przy swoich slice'ach jako Unknowns.
 
