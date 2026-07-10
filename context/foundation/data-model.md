@@ -14,12 +14,54 @@ erDiagram
         varchar name_pl "Polish display name"
         int display_order "1..11, unique, canonical FR-007 order"
     }
+
+    ai_memory ||--o{ ai_memory_profile_fact : has
+    ai_memory ||--o{ ai_memory_episode : has
+
+    ai_memory {
+        uuid id PK "UUID v7 (time-ordered)"
+        uuid user_id UK "one memory per user; FK to user(id) DEFERRED to S-01"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    ai_memory_profile_fact {
+        uuid id PK "UUID v7"
+        uuid ai_memory_id FK "→ ai_memory.id"
+        varchar kind "typed fact category (occupation, value, priority…)"
+        text content "the fact"
+        varchar provenance "where it came from; nullable"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    ai_memory_episode {
+        uuid id PK "UUID v7"
+        uuid ai_memory_id FK "→ ai_memory.id"
+        varchar event_type "completion / proposal-outcome / …"
+        jsonb payload "opaque event document"
+        timestamptz occurred_at "when the event happened (domain time)"
+        timestamptz created_at "row-insert audit time"
+    }
 ```
 
-`category` is the only table in the persistence baseline (F-01). It is **reference
+`category` is the reference table from the persistence baseline (F-01). It is **reference
 data** — the 11 fixed life domains (FR-007), seeded by migration and never edited at
 runtime in the MVP. It uses a stable natural key (`code`) rather than a surrogate PK
 because the code is the identity the AI auto-tag layer (FR-008) classifies into.
+
+The **AI-memory aggregate** (F-02, Flyway `V3`) is the first domain aggregate, so it is
+also the first use of the UUID v7 surrogate-PK + `timestamptz` audit-column conventions
+below. `ai_memory` is the root (one row per user); it owns a **semantic profile**
+(`ai_memory_profile_fact` — durable typed facts) and a bounded **episodic log**
+(`ai_memory_episode` — completions and proposal outcomes, generic `event_type` + `jsonb`
+payload). Both layers are rendered and injected into the proposal prompt (S-04); episodic
+rows are never deleted (the "last N" cap is a render-time concern), which also leaves them
+as the seam for a post-MVP RAG extension.
+
+> **Deferred FK (intentional):** `ai_memory.user_id` is an unconstrained, unique UUID
+> column today — the FK to `user(id)` is added by an expand-only migration in **S-01**
+> (`account-and-auth`), once the `user` table exists. The `UNIQUE` constraint already
+> enforces one memory per user. This is recorded inline in `V3` so it is not mistaken for
+> an oversight.
 
 ### Internationalization
 
@@ -68,6 +110,8 @@ avoid pre-deciding their schema:
 - **`user`** and auth-related tables — S-01 (`account-and-auth`).
 - **`goal`**, **`dream`** — S-02 (`goals-and-dreams`).
 - **`current_task`** — S-07.
-- AI-memory tables (**`profile`**, episodic **log**) — F-02.
 
 Each will reference `category.code` where it needs a life domain.
+
+> The AI-memory tables (`ai_memory`, `ai_memory_profile_fact`, `ai_memory_episode`) were
+> in this list until F-02; they are now drawn above.

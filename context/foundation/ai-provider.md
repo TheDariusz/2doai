@@ -44,17 +44,30 @@ unblocks: F-02
 
 Dla przyszłego `/10x-plan ai-memory-integration` — żeby nie wyprowadzać tego ponownie:
 
-- **Kształt API:** OpenRouter udostępnia Anthropic **wyłącznie** przez endpoint **OpenAI-compatible Chat Completions** (`POST https://openrouter.ai/api/v1/chat/completions`, auth bearer). Backend używa zatem Spring **`RestClient`** przeciw temu endpointowi — **nie** Anthropic Java SDK (`com.anthropic:anthropic-java`). Za portem/adapterem (interfejs `LlmClient`) zgodnie z preferencją clean-architecture, żeby brama była wymienialna.
-- **Wyjście strukturalne (auto-tag):** `response_format: { type: "json_schema", strict: true }` z `enum` 11 domen → gwarancja jednej poprawnej kategorii.
+- **Kształt API:** OpenRouter udostępnia Anthropic **wyłącznie** przez endpoint **OpenAI-compatible Chat Completions** (`POST https://openrouter.ai/api/v1/chat/completions`, auth bearer). Backend używa **Spring AI 2.0** (klient OpenAI ze startera `spring-ai-starter-model-openai`, skonfigurowany `spring.ai.openai.base-url` → OpenRouter) — **nie** ręcznie pisanego `RestClient` ani Anthropic Java SDK (`com.anthropic:anthropic-java`). Za portem/adapterem (interfejs `LlmClient`, adapter `SpringAiLlmClient`) zgodnie z preferencją clean-architecture, żeby brama była wymienialna. Transport, timeouty i retry (429/5xx, fail-fast na innych 4xx) są wbudowane w klienta OpenAI (`spring.ai.openai.timeout` / `spring.ai.openai.max-retries`) — adapter kształtuje tylko żądanie. _Uwaga: Spring AI 2.0 wymaga Spring Boot 4.0 (GA 2026-06-12)._
+- **Wyjście strukturalne (auto-tag):** Spring AI `OpenAiChatModel.ResponseFormat` typu `JSON_SCHEMA` (Spring AI ustawia `strict: true` i nazwę `json_schema` na drucie) ze schematem `enum` 11 domen → gwarancja jednej poprawnej kategorii.
+- **No-training w kodzie:** blok `provider: { data_collection: "deny" }` jest dokładany do **każdego** żądania przez `OpenAiChatOptions.extraBody(...)` (Spring AI przekazuje go jako zagnieżdżone OpenAI `additionalBodyProperties`) — to kodowa połowa twardego guardraila prywatności (dashboardowa połowa niżej).
 - **Sekrety:** `OPENROUTER_API_KEY` jako **sekret Fly** (`fly secrets set …`), nigdy w repo ani w commitowanym `.env`. Klucz MVP z niskim limitem (cap kredytów per-klucz) jako drugi bezpiecznik budżetu.
 - **Konfiguracja prywatności (jednorazowo, dashboard OpenRouter):** wyłączyć logowanie promptów; w Privacy ustawić przełączniki treningu na OFF (OpenRouter nie będzie routował do dostawców trenujących). Udokumentować w runbooku.
 
 ## Do zweryfikowania przy implementacji
 
-- **(a)** Aktualna stawka opłaty OpenRouter przy doładowaniu kredytów (%) — niezweryfikowana w research.
-- **(b)** Wsparcie `json_schema` `strict` dla **Haiku 4.5** na OpenRouter — dokumentacja wymienia jawnie Sonnet 4.5 / Opus 4.1+, Haiku 4.5 nie jest nazwany. Fallback jeśli brak: tool-calling, prompted JSON, albo skierowanie auto-tagu na Sonnet.
-- **(c)** Tania **A/B jakości polskiego** Haiku vs Sonnet na ~30 pozycjach tagowania przed zablokowaniem warstwy auto-tagu.
-- **(d)** Potwierdzić na żywo, że przełączniki no-training/logowania są wyłączone na koncie.
+> **Status po F-02 (2026-06-18):** (a) i (d) rozstrzygnięte w kodzie/runbooku; (b) potwierdzone
+> **na Sonnet** żywym round-tripem (`OpenRouterLiveTest`); **(b) dla Haiku** + **(c)** świadomie
+> **odłożone do S-09** (tam ląduje auto-tag). Szczegóły ops: `deployment-runbook.md` → Faza 7.
+
+- **(a)** Stawka opłaty OpenRouter przy doładowaniu kredytów — **mechanizm potwierdzony**: opłata
+  naliczana przy *doładowaniu kredytów* (nie marża per-token), ceny Anthropic pass-through; dokładny
+  % do wpisania z ekranu kredytów (placeholder w runbooku Faza 7.1) — nie blokuje F-02.
+- **(b)** Wsparcie `json_schema` `strict`: **potwierdzone na Sonnet 4.6** (strukturalny round-trip w
+  `OpenRouterLiveTest` przechodzi). Dla **Haiku 4.5** nadal niezweryfikowane — **odłożone do S-09**
+  (fallback jeśli brak: tool-calling, prompted JSON, albo skierowanie auto-tagu na Sonnet).
+- **(c)** Tania **A/B jakości polskiego** Haiku vs Sonnet na ~30 pozycjach tagowania — **odłożone do
+  S-09** (przed zablokowaniem warstwy auto-tagu).
+- **(d)** No-training/logowanie: **rozstrzygnięte w kodzie** — `provider: { data_collection: "deny" }`
+  na każdym żądaniu (zweryfikowane żywym round-tripem), wsparte domyślnym routingiem OpenRouter (nie
+  kieruje do dostawców trenujących) i warunkami komercyjnymi Anthropic. Dashboard domyślnie bezpieczny
+  (patrz runbook Faza 7.2).
 
 ## Related
 

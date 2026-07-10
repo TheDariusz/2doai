@@ -1,0 +1,346 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="30.2.6">
+  <diagram name="data-model-target" id="dmt1">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1350" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="2do AI — Target Data Model  (current + planned aggregates)" style="text;html=1;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="60" y="24" width="900" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Solid = migrated today (F-01 category, F-02 AI-memory).   Ghosted = planned, schema not yet designed (data-model.md).   Every layer references category.code by identity." style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#777777;" vertex="1" parent="1">
+          <mxGeometry x="60" y="52" width="1200" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- ============ Life-layer aggregates group (planned) ============ -->
+        <mxCell id="lifegrp" value="Life-layer aggregates — the three task layers  (planned · each its own aggregate root)" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 6;strokeColor=#b3b3b3;strokeWidth=2;fillColor=none;verticalAlign=top;fontStyle=2;fontColor=#777777;fontSize=13;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="560" y="340" width="760" height="300" as="geometry" />
+        </mxCell>
+
+        <!-- ============ AI-memory aggregate group (F-02, real) ============ -->
+        <mxCell id="agg" value="AI-Memory aggregate  «F-02»  —  consistency boundary" style="rounded=1;arcSize=3;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 6;strokeColor=#9673a6;strokeWidth=2;fillColor=none;verticalAlign=top;fontStyle=2;fontColor=#6a4a8a;fontSize=13;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="1420" y="300" width="640" height="560" as="geometry" />
+        </mxCell>
+
+        <!-- ============ user (PLANNED — S-01) ============ -->
+        <mxCell id="usr" value="user   «root · S-01»" style="swimlane;startSize=26;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;dashPattern=6 4;fontColor=#666666;fontStyle=3;align=center;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="790" y="70" width="300" height="118" as="geometry" />
+        </mxCell>
+        <mxCell id="usr_b" value="PK   id : UUID «v7»&#xa;         … auth fields (S-01)&#xa;         created_at / updated_at" style="text;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;fontSize=11;fontColor=#666666;whiteSpace=wrap;" vertex="1" parent="usr">
+          <mxGeometry x="0" y="26" width="300" height="92" as="geometry" />
+        </mxCell>
+
+        <!-- ============ category (reference table, real F-01) ============ -->
+        <mxCell id="cat" value="category  «reference / static»" style="shape=table;startSize=30;container=1;collapsible=1;childLayout=tableLayout;fixedRows=1;rowLines=0;fontStyle=1;align=center;strokeColor=#666666;fillColor=#f5f5f5;html=1;" vertex="1" parent="1">
+          <mxGeometry x="640" y="790" width="300" height="108" as="geometry" />
+        </mxCell>
+        <mxCell id="cat_r1" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="cat">
+          <mxGeometry y="30" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="cat_r1k" value="PK" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;fontStyle=5;align=center;" vertex="1" parent="cat_r1">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="cat_r1v" value="code : VARCHAR(32)" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;fontStyle=1;" vertex="1" parent="cat_r1">
+          <mxGeometry x="46" width="254" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="cat_r2" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="cat">
+          <mxGeometry y="56" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="cat_r2k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="cat_r2">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="cat_r2v" value="name_pl : VARCHAR(255)" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;" vertex="1" parent="cat_r2">
+          <mxGeometry x="46" width="254" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="cat_r3" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="cat">
+          <mxGeometry y="82" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="cat_r3k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="cat_r3">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="cat_r3v" value="display_order : INTEGER  «unique»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;" vertex="1" parent="cat_r3">
+          <mxGeometry x="46" width="254" height="26" as="geometry" />
+        </mxCell>
+
+        <!-- ============ LifeDomain enum (mirror) ============ -->
+        <mxCell id="enum" value="LifeDomain  «enum»  (FR-007)&#xa;&#xa;HEALTH · FINANCE · CAREER&#xa;EDUCATION · RELATIONSHIPS&#xa;HOME · LEISURE · ADMIN&#xa;SAFETY · TRANSPORT&#xa;INNER_GROWTH&#xa;&#xa;constant name  =  category.code&#xa;declaration order  =  display_order (1..11)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#4b2e63;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="290" y="790" width="280" height="210" as="geometry" />
+        </mxCell>
+
+        <!-- ============ current_task (PLANNED — S-07) ============ -->
+        <mxCell id="ct" value="current_task   «root · S-07»" style="swimlane;startSize=26;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;dashPattern=6 4;fontColor=#666666;fontStyle=3;align=center;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="590" y="400" width="210" height="196" as="geometry" />
+        </mxCell>
+        <mxCell id="ct_b" value="current layer&#xa;&#xa;PK   id : UUID «v7»&#xa;FK   user_id → user&#xa;FK   category_code → category&#xa;         … task fields TBD&#xa;         created_at / updated_at" style="text;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fontSize=11;fontColor=#666666;whiteSpace=wrap;" vertex="1" parent="ct">
+          <mxGeometry x="0" y="26" width="210" height="170" as="geometry" />
+        </mxCell>
+
+        <!-- ============ goal (PLANNED — S-02) ============ -->
+        <mxCell id="gl" value="goal   «root · S-02»" style="swimlane;startSize=26;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;dashPattern=6 4;fontColor=#666666;fontStyle=3;align=center;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="830" y="400" width="210" height="196" as="geometry" />
+        </mxCell>
+        <mxCell id="gl_b" value="long-term layer&#xa;&#xa;PK   id : UUID «v7»&#xa;FK   user_id → user&#xa;FK   category_code → category&#xa;         … goal fields TBD&#xa;         created_at / updated_at" style="text;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fontSize=11;fontColor=#666666;whiteSpace=wrap;" vertex="1" parent="gl">
+          <mxGeometry x="0" y="26" width="210" height="170" as="geometry" />
+        </mxCell>
+
+        <!-- ============ dream (PLANNED — S-02) ============ -->
+        <mxCell id="dr" value="dream   «root · S-02»" style="swimlane;startSize=26;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;dashPattern=6 4;fontColor=#666666;fontStyle=3;align=center;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1070" y="400" width="210" height="196" as="geometry" />
+        </mxCell>
+        <mxCell id="dr_b" value="dreams layer&#xa;&#xa;PK   id : UUID «v7»&#xa;FK   user_id → user&#xa;FK   category_code → category&#xa;         … dream fields TBD&#xa;         created_at / updated_at" style="text;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fontSize=11;fontColor=#666666;whiteSpace=wrap;" vertex="1" parent="dr">
+          <mxGeometry x="0" y="26" width="210" height="170" as="geometry" />
+        </mxCell>
+
+        <!-- ============ ai_memory (aggregate ROOT, real) ============ -->
+        <mxCell id="am" value="ai_memory  «aggregate root»" style="shape=table;startSize=30;container=1;collapsible=1;childLayout=tableLayout;fixedRows=1;rowLines=0;fontStyle=1;align=center;strokeColor=#6c8ebf;strokeWidth=2;fillColor=#dae8fc;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1605" y="350" width="270" height="134" as="geometry" />
+        </mxCell>
+        <mxCell id="am_r1" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="am">
+          <mxGeometry y="30" width="270" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="am_r1k" value="PK" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;fontStyle=5;align=center;" vertex="1" parent="am_r1">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="am_r1v" value="id : UUID  «v7»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;fontStyle=1;" vertex="1" parent="am_r1">
+          <mxGeometry x="46" width="224" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="am_r2" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="am">
+          <mxGeometry y="56" width="270" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="am_r2k" value="FK*" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;fontStyle=2;align=center;fontColor=#888888;" vertex="1" parent="am_r2">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="am_r2v" value="user_id : UUID  «unique · FK deferred»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;" vertex="1" parent="am_r2">
+          <mxGeometry x="46" width="224" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="am_r3" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="am">
+          <mxGeometry y="82" width="270" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="am_r3k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="am_r3">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="am_r3v" value="created_at : timestamptz" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;fontColor=#555555;" vertex="1" parent="am_r3">
+          <mxGeometry x="46" width="224" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="am_r4" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="am">
+          <mxGeometry y="108" width="270" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="am_r4k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="am_r4">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="am_r4v" value="updated_at : timestamptz" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;fontColor=#555555;" vertex="1" parent="am_r4">
+          <mxGeometry x="46" width="224" height="26" as="geometry" />
+        </mxCell>
+
+        <!-- ============ ai_memory_profile_fact (child) ============ -->
+        <mxCell id="pf" value="ai_memory_profile_fact  «child»" style="shape=table;startSize=30;container=1;collapsible=1;childLayout=tableLayout;fixedRows=1;rowLines=0;fontStyle=1;align=center;strokeColor=#6c8ebf;fillColor=#dae8fc;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1430" y="610" width="290" height="212" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r1" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="pf">
+          <mxGeometry y="30" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r1k" value="PK" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;fontStyle=5;align=center;" vertex="1" parent="pf_r1">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r1v" value="id : UUID  «v7»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;fontStyle=1;" vertex="1" parent="pf_r1">
+          <mxGeometry x="46" width="244" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r2" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="pf">
+          <mxGeometry y="56" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r2k" value="FK" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;fontStyle=6;align=center;fontColor=#b85450;" vertex="1" parent="pf_r2">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r2v" value="ai_memory_id : UUID  «not null · indexed»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;fontStyle=2;" vertex="1" parent="pf_r2">
+          <mxGeometry x="46" width="244" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r3" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="pf">
+          <mxGeometry y="82" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r3k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="pf_r3">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r3v" value="kind : VARCHAR(64)" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;" vertex="1" parent="pf_r3">
+          <mxGeometry x="46" width="244" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r4" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="pf">
+          <mxGeometry y="108" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r4k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="pf_r4">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r4v" value="content : TEXT" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;" vertex="1" parent="pf_r4">
+          <mxGeometry x="46" width="244" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r5" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="pf">
+          <mxGeometry y="134" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r5k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="pf_r5">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r5v" value="provenance : VARCHAR(255)  «nullable»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;fontColor=#888888;" vertex="1" parent="pf_r5">
+          <mxGeometry x="46" width="244" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r6" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="pf">
+          <mxGeometry y="160" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r6k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="pf_r6">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r6v" value="created_at : timestamptz" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;fontColor=#555555;" vertex="1" parent="pf_r6">
+          <mxGeometry x="46" width="244" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r7" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="pf">
+          <mxGeometry y="186" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r7k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="pf_r7">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pf_r7v" value="updated_at : timestamptz" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;fontColor=#555555;" vertex="1" parent="pf_r7">
+          <mxGeometry x="46" width="244" height="26" as="geometry" />
+        </mxCell>
+
+        <!-- ============ ai_memory_episode (child, append-only) ============ -->
+        <mxCell id="ep" value="ai_memory_episode  «child · append-only»" style="shape=table;startSize=30;container=1;collapsible=1;childLayout=tableLayout;fixedRows=1;rowLines=0;fontStyle=1;align=center;strokeColor=#6c8ebf;fillColor=#dae8fc;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1740" y="610" width="290" height="186" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r1" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="ep">
+          <mxGeometry y="30" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r1k" value="PK" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;fontStyle=5;align=center;" vertex="1" parent="ep_r1">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r1v" value="id : UUID  «v7»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;fontStyle=1;" vertex="1" parent="ep_r1">
+          <mxGeometry x="46" width="244" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r2" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="ep">
+          <mxGeometry y="56" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r2k" value="FK" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;fontStyle=6;align=center;fontColor=#b85450;" vertex="1" parent="ep_r2">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r2v" value="ai_memory_id : UUID  «not null · indexed»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;fontStyle=2;" vertex="1" parent="ep_r2">
+          <mxGeometry x="46" width="244" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r3" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="ep">
+          <mxGeometry y="82" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r3k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="ep_r3">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r3v" value="event_type : VARCHAR(64)" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;" vertex="1" parent="ep_r3">
+          <mxGeometry x="46" width="244" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r4" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="ep">
+          <mxGeometry y="108" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r4k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="ep_r4">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r4v" value="payload : JSONB  «raw JSON string»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;" vertex="1" parent="ep_r4">
+          <mxGeometry x="46" width="244" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r5" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="ep">
+          <mxGeometry y="134" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r5k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="ep_r5">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r5v" value="occurred_at : timestamptz  «domain time»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;" vertex="1" parent="ep_r5">
+          <mxGeometry x="46" width="244" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r6" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="ep">
+          <mxGeometry y="160" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r6k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="ep_r6">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ep_r6v" value="created_at : timestamptz  «no updated_at»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;fontColor=#555555;" vertex="1" parent="ep_r6">
+          <mxGeometry x="46" width="244" height="26" as="geometry" />
+        </mxCell>
+
+        <!-- ============ Relationships ============ -->
+        <!-- AI-memory internal ownership -->
+        <mxCell id="e_pf_am" value="owns  1 : 0..*" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;strokeColor=#6c8ebf;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.3;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="am" target="pf">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ep_am" value="owns  1 : 0..*" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;strokeColor=#6c8ebf;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.7;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="am" target="ep">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- category <-> LifeDomain enum mirror -->
+        <mxCell id="e_cat_enum" value="mirrors  (CategorySyncCheck @ boot)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;startArrow=none;endArrow=none;strokeColor=#9673a6;fontColor=#6a4a8a;fontSize=10;labelBackgroundColor=#ffffff;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="cat" target="enum">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ai_memory.user_id -> user (deferred) -->
+        <mxCell id="e_am_usr" value="user_id  «FK deferred · S-01»" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;dashPattern=6 4;startArrow=ERmany;startFill=0;endArrow=ERone;endFill=0;strokeColor=#999999;fontColor=#888888;fontSize=10;labelBackgroundColor=#ffffff;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="am" target="usr">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- life-layers -> user (belongs to) -->
+        <mxCell id="e_ct_usr" value="user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;dashPattern=6 4;startArrow=ERmany;startFill=0;endArrow=ERone;endFill=0;strokeColor=#999999;fontColor=#888888;fontSize=10;labelBackgroundColor=#ffffff;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.25;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="ct" target="usr">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_gl_usr" value="user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;dashPattern=6 4;startArrow=ERmany;startFill=0;endArrow=ERone;endFill=0;strokeColor=#999999;fontColor=#888888;fontSize=10;labelBackgroundColor=#ffffff;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="gl" target="usr">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_dr_usr" value="user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;dashPattern=6 4;startArrow=ERmany;startFill=0;endArrow=ERone;endFill=0;strokeColor=#999999;fontColor=#888888;fontSize=10;labelBackgroundColor=#ffffff;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="dr" target="usr">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- life-layers -> category (category_code) -->
+        <mxCell id="e_ct_cat" value="category_code" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;dashPattern=6 4;startArrow=ERmany;startFill=0;endArrow=ERone;endFill=0;strokeColor=#999999;fontColor=#888888;fontSize=10;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="ct" target="cat">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_gl_cat" value="category_code" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;dashPattern=6 4;startArrow=ERmany;startFill=0;endArrow=ERone;endFill=0;strokeColor=#999999;fontColor=#888888;fontSize=10;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="gl" target="cat">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_dr_cat" value="category_code" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;dashPattern=6 4;startArrow=ERmany;startFill=0;endArrow=ERone;endFill=0;strokeColor=#999999;fontColor=#888888;fontSize=10;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="dr" target="cat">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ============ Legend ============ -->
+        <mxCell id="legend" value="Legend" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;verticalAlign=top;fontStyle=1;align=left;spacingLeft=8;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1040" width="470" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="lg1" value="" style="rounded=0;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="legend">
+          <mxGeometry x="12" y="34" width="30" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lg1t" value="Migrated aggregate (F-02 AI-memory: root + children)" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="legend">
+          <mxGeometry x="50" y="32" width="410" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lg2" value="" style="rounded=0;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="legend">
+          <mxGeometry x="12" y="58" width="30" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lg2t" value="Migrated reference / static table (F-01 category, natural key)" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="legend">
+          <mxGeometry x="50" y="56" width="410" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lg3" value="" style="rounded=0;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="legend">
+          <mxGeometry x="12" y="82" width="30" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lg3t" value="In-code enum mirror (not a table)" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="legend">
+          <mxGeometry x="50" y="80" width="410" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lg4" value="" style="rounded=0;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;dashPattern=6 4;" vertex="1" parent="legend">
+          <mxGeometry x="12" y="106" width="30" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lg4t" value="Planned aggregate root — schema not yet designed (S-01 user, S-02 goal/dream, S-07 current_task)" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#666666;" vertex="1" parent="legend">
+          <mxGeometry x="50" y="104" width="410" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lg5t" value="Dashed grey edge = planned / deferred FK, referenced by identity (code or id) across aggregate boundaries." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#555555;" vertex="1" parent="legend">
+          <mxGeometry x="12" y="134" width="450" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="lg6t" value="Crow's foot: one (│) → many (⋔).   «v7» = UUID v7 (time-ordered).   Conventions: data-model.md." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#555555;" vertex="1" parent="legend">
+          <mxGeometry x="12" y="156" width="450" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="lg7t" value="The three task layers (current / long-term / dreams) are the FR-007 product core; each is one DDD aggregate." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#555555;" vertex="1" parent="legend">
+          <mxGeometry x="12" y="178" width="450" height="18" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
