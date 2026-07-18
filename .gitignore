@@ -10,8 +10,10 @@
 # Neon CLI project linkage (may reference project/connection details)
 .neon
 
-# Local, per-developer Claude Code settings (settings.json IS committed)
-.claude/settings.local.json
+# Local AI-agent tooling and settings
+.agents/
+.claude/
+.codex/
 
 # Logs
 *.log
