@@ -10,9 +10,6 @@
 # Neon CLI project linkage (may reference project/connection details)
 .neon
 
-# Local, per-developer Claude Code settings (settings.json IS committed)
-.claude/settings.local.json
-
 # Logs
 *.log
 
@@ -21,4 +18,7 @@
 .vscode/
 *.swp
 *.swo
-*~
+
+.claude/
+.agents/
+.codex/
