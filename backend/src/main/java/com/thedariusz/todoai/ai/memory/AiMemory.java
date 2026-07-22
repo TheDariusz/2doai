@@ -15,6 +15,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
 
+import com.thedariusz.todoai.security.UserOwned;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
@@ -32,12 +33,14 @@ import org.hibernate.annotations.UuidGenerator;
  * consistent and the aggregate stays the consistency boundary. No write paths run in F-02;
  * S-03 (enrichment) and S-04 (proposal outcomes) are the first callers.
  *
- * <p>{@code user_id} is a plain unique UUID column today — the FK to {@code user(id)} is
- * deferred to S-01 (documented inline in {@code V3}).
+ * <p>{@code user_id} carries the FK to {@code app_user(id)} (added by S-01's {@code V5}; the
+ * constraint was deferred at {@code V3} time). As the first per-user aggregate it implements
+ * {@link UserOwned} — the marker naming the isolation seam every later per-user aggregate inherits
+ * (read only through a {@code CurrentUser}-scoped finder such as {@link AiMemoryRepository#findByUserId}).
  */
 @Entity
 @Table(name = "ai_memory")
-public class AiMemory {
+public class AiMemory implements UserOwned {
 
 	@Id
 	@UuidGenerator(style = UuidGenerator.Style.VERSION_7)
@@ -89,6 +92,7 @@ public class AiMemory {
 		return id;
 	}
 
+	@Override
 	public UUID getUserId() {
 		return userId;
 	}

@@ -6,6 +6,9 @@ import java.util.UUID;
 import jakarta.validation.ConstraintViolationException;
 
 import com.thedariusz.todoai.TestcontainersConfiguration;
+import com.thedariusz.todoai.user.Email;
+import com.thedariusz.todoai.user.User;
+import com.thedariusz.todoai.user.UserRepository;
 import org.hibernate.Hibernate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,9 +33,18 @@ class AiMemoryRepositoryTest {
 	@Autowired
 	AiMemoryRepository memories;
 
+	@Autowired
+	UserRepository users;
+	
+	private UUID persistedUserId() {
+		User owner = users.saveAndFlush(new User(Email.of("owner-" + UUID.randomUUID() + "@example.com"),
+				"{bcrypt}$2a$10$hash"));
+		return owner.getId();
+	}
+
 	@Test
 	void persistsAndReloadsAggregateByUserId() {
-		UUID userId = UUID.randomUUID();
+		UUID userId = persistedUserId();
 		OffsetDateTime occurredAt = OffsetDateTime.parse("2026-06-17T08:00:00Z");
 
 		AiMemory memory = new AiMemory(userId);
@@ -71,7 +83,7 @@ class AiMemoryRepositoryTest {
 
 	@Test
 	void findByUserIdEagerlyInitializesChildCollections() {
-		UUID userId = UUID.randomUUID();
+		UUID userId = persistedUserId();
 		AiMemory memory = new AiMemory(userId);
 		memory.addFact("occupation", "Software engineer", "onboarding");
 		memory.recordEpisode("task-completed", "{}", OffsetDateTime.parse("2026-06-17T08:00:00Z"));
@@ -90,7 +102,7 @@ class AiMemoryRepositoryTest {
 
 	@Test
 	void enforcesOneMemoryPerUser() {
-		UUID userId = UUID.randomUUID();
+		UUID userId = persistedUserId();
 		memories.saveAndFlush(new AiMemory(userId));
 
 		assertThat(memories.findByUserId(userId)).isPresent();
@@ -99,7 +111,7 @@ class AiMemoryRepositoryTest {
 
 	@Test
 	void rejectsInvalidChildOnFlush() {
-		AiMemory memory = new AiMemory(UUID.randomUUID());
+		AiMemory memory = new AiMemory(persistedUserId());
 		// Blank kind is non-null, so the NOT NULL column alone would accept it — only the
 		// @NotBlank bean-validation constraint catches it, and only if Hibernate enforces it
 		// on flush. This proves the constraint isn't silently inert.

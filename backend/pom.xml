@@ -29,6 +29,9 @@
 	<properties>
 		<java.version>25</java.version>
 		<spring-ai.version>2.0.0</spring-ai.version>
+		<!-- REST Assured is not managed by the Spring Boot 4 BOM. 6.x targets Hamcrest 3 / Groovy 4 /
+		     Java 17+ — aligned with Boot 4's stack (5.x is built for Hamcrest 2). -->
+		<rest-assured.version>6.0.1</rest-assured.version>
 	</properties>
 	<dependencyManagement>
 		<dependencies>
@@ -54,6 +57,14 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc</artifactId>
+		</dependency>
+		<!-- Spring Security 6: cookie-session auth (S-01), BCrypt password encoding, CSRF.
+		     The decided session model is a server-side HttpSession cookie, in-memory on the
+		     single Fly machine — not JWT (see context/foundation/auth-session-model.md).
+		     Version managed by the Spring Boot 4 parent. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -117,6 +128,16 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!-- REST Assured — HTTP-layer / endpoint integration tests against a random-port embedded
+		     server, exercising the real Spring Security filter chain end-to-end. The project's
+		     standard for endpoint tests (preferred over MockMvc). Version managed by the Spring
+		     Boot 4 parent (rest-assured-bom). -->
+		<dependency>
+			<groupId>io.rest-assured</groupId>
+			<artifactId>rest-assured</artifactId>
+			<version>${rest-assured.version}</version>
 			<scope>test</scope>
 		</dependency>
 

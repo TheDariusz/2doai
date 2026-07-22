@@ -1,0 +1,376 @@
+openapi: 3.1.0
+
+# API-first contract (Zalando #100/#101) for the S-01 account-and-auth slice: the users +
+# sessions + categories resources. Authoritative over any older path prose in plan.md.
+#
+# Design decisions worth calling out:
+#   - Verb-free, resource-oriented URLs (#141/#138): register = POST /users, login = POST
+#     /sessions, logout = DELETE /sessions/current, current user = GET /users/me, delete
+#     account = DELETE /users/me. No /login, /logout, /register action paths.
+#   - No URL version segment (#115/#113): the server base path is /api (kept only because
+#     Cloudflare Pattern B reverse-proxies /api/* to Fly — a justified deviation from #135);
+#     future breaking changes would use media-type versioning, not /v2.
+#   - snake_case properties (#118); collections wrapped in a top-level object (#110); errors as
+#     Problem JSON / RFC 9457 (#176); 422 for validation, 409 for conflict (#220).
+info:
+  title: 2do AI — Account & Auth API
+  description: >
+    Identity and session management for 2do AI (S-01): register an account, log in / out, read
+    the current user, and permanently delete the account and all its data (FR-019). Also exposes
+    the read-only list of the 11 fixed life domains (categories) the app navigation is built from.
+    Session model is a server-side HttpSession cookie (not JWT); mutations are CSRF-protected via a
+    double-submit XSRF-TOKEN cookie echoed as the X-XSRF-TOKEN header.
+  version: 1.0.0
+  contact:
+    name: 2do AI
+    email: thedariusz@gmail.com
+  x-api-id: 3b6f0e9a-1c2d-4e7f-9a10-2f5c8d4b7e01           # #215 globally-unique API id
+  x-audience: component-internal                            # #219 consumed only by the 2do AI SPA
+
+servers:
+  # #135 says avoid an /api base path; kept here because Cloudflare (Pattern B) reverse-proxies
+  # /api/* to the Fly backend, so /api is the routing seam, not a decorative prefix. Paths below
+  # are therefore version-free and resource-only.
+  - url: /api
+    description: Same-origin (Cloudflare → Fly). Local dev proxies /api → localhost:8080 via Vite.
+
+tags:
+  - name: users
+    description: The user identity resource.
+  - name: sessions
+    description: Authentication sessions (login / logout).
+  - name: categories
+    description: The 11 fixed life-domain reference records.
+
+paths:
+  /users:
+    post:
+      tags: [users]
+      summary: Register a new user
+      description: >
+        Creates a user from an email + password. Does not log the user in (session creation is the
+        sole responsibility of POST /sessions). The email is normalized (trimmed + lowercased) and
+        must be unique; a taken email returns 409.
+      operationId: createUser
+      security: []                                          # public (#104 exception: registration)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistration'
+      responses:
+        '201':
+          description: User created.
+          headers:
+            Location:
+              description: Canonical location of the created user (readable once authenticated).
+              schema:
+                type: string
+                format: uri-reference
+                example: /api/users/me
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '409':
+          $ref: '#/components/responses/Conflict'           # email already in use
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /users/me:
+    get:
+      tags: [users]
+      summary: Get the current user
+      description: >
+        Returns the authenticated user. The SPA calls this on load to bootstrap auth state; the
+        response (or its 401) also carries the XSRF-TOKEN cookie primed by the server so the first
+        mutation can echo it.
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: The current user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      tags: [users]
+      summary: Delete the current user and all their data (FR-019)
+      description: >
+        Permanently removes the authenticated user and every per-user record they own (their
+        ai_memory profile facts + episodes), then invalidates the session. Irreversible. Requires
+        re-entering the password as a re-authentication step. NOTE: a request body on DELETE has no
+        defined HTTP semantics (RFC 9110); it works same-origin behind Cloudflare, and is used here
+        so the re-auth password travels with the delete rather than in a separate step.
+      operationId: deleteCurrentUser
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountDeletion'
+      responses:
+        '204':
+          description: Account and all data deleted; session invalidated.
+        '401':
+          $ref: '#/components/responses/Unauthorized'       # not logged in, or wrong password
+        '403':
+          $ref: '#/components/responses/Forbidden'          # missing / invalid CSRF token
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /sessions:
+    post:
+      tags: [sessions]
+      summary: Log in (create a session)
+      description: >
+        Authenticates an email + password and establishes a server-side session, returned as an
+        HttpOnly session cookie (Set-Cookie). The body echoes the authenticated user for the SPA's
+        convenience. Bad credentials return a generic 401 with no indication of whether the email
+        exists (no user enumeration).
+      operationId: createSession
+      security: []                                          # public (login is the entry point)
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Credentials'
+      responses:
+        '201':
+          description: Session created.
+          headers:
+            Set-Cookie:
+              description: The HttpOnly; SameSite=Strict session cookie (Secure in prod).
+              schema:
+                type: string
+            Location:
+              schema:
+                type: string
+                format: uri-reference
+                example: /api/sessions/current
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'       # generic bad-credentials
+        '403':
+          $ref: '#/components/responses/Forbidden'          # missing / invalid CSRF token
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /sessions/current:
+    delete:
+      tags: [sessions]
+      summary: Log out (invalidate the current session)
+      operationId: deleteCurrentSession
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      responses:
+        '204':
+          description: Session invalidated and cookie cleared.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /categories:
+    get:
+      tags: [categories]
+      summary: List the life-domain categories
+      description: >
+        Returns the 11 fixed life domains (FR-007) in canonical display order. This collection is
+        intentionally NOT paginated (#159/#226): it is bounded reference data of exactly 11 rows.
+      operationId: getCategories
+      responses:
+        '200':
+          description: The full set of categories.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryCollection'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    sessionCookie:
+      # Server-side HttpSession, referenced by an opaque cookie (Spring's JSESSIONID). Not a bearer
+      # token — validation is in-memory on the single Fly machine and never queries the database.
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+
+  # Every operation is authenticated by default; the two public entry points override with
+  # `security: []` (register, login).
+  # (applied at the operation level above via `security: []`; global default below)
+
+  parameters:
+    XsrfToken:
+      name: X-XSRF-TOKEN
+      in: header
+      required: true
+      description: >
+        CSRF token echoed from the XSRF-TOKEN cookie on every mutating request (double-submit).
+        (#132 would spell this X-Xsrf-Token; the functional header Spring reads is X-XSRF-TOKEN.)
+      schema:
+        type: string
+
+  schemas:
+    User:
+      type: object
+      description: A user identity. Minimal by design (YAGNI) — display name / flags come later.
+      required: [id, email]
+      properties:
+        id:
+          type: string
+          format: uuid                                      # UUID v7 surrogate PK (intentional, #144)
+          readOnly: true
+        email:
+          type: string
+          format: email
+          example: alice@example.com
+
+    UserRegistration:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+          example: alice@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8                                      # baseline hardening; mirrors @Size(min=8)
+          writeOnly: true
+
+    Credentials:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          writeOnly: true
+
+    AccountDeletion:
+      type: object
+      description: Re-authentication for the irreversible FR-019 account deletion.
+      required: [password]
+      properties:
+        password:
+          type: string
+          format: password
+          writeOnly: true
+
+    CategoryCollection:
+      # #110 — object at the top level, never a bare array, so fields can be added without breaking.
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+
+    Category:
+      type: object
+      required: [code, name_pl, display_order]
+      properties:
+        code:
+          type: string
+          description: Language-neutral identity, mirrors the LifeDomain enum.
+          # #112 open-ended enum so a 12th domain never breaks clients.
+          x-extensible-enum:
+            - HEALTH
+            - RELATIONSHIPS
+            - CAREER
+            - FINANCE
+            - PERSONAL_GROWTH
+            - RECREATION
+            - SPIRITUALITY
+            - HOME
+            - COMMUNITY
+            - CREATIVITY
+            - EMOTIONS
+          example: HEALTH
+        name_pl:
+          type: string
+          description: Polish display label (MVP is Polish-only).
+          example: Zdrowie
+        display_order:
+          type: integer
+          format: int32                                     # #171 integers declare int32/int64
+          minimum: 1
+          maximum: 11
+          example: 1
+
+    Problem:
+      # RFC 9457 Problem Details (#176). Emitted as application/problem+json for every error.
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+          default: about:blank
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+
+  responses:
+    BadRequest:
+      description: Malformed request syntax.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Missing or invalid authentication.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Authenticated but the request is not allowed (e.g. missing CSRF token).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Conflicting state (e.g. the email is already registered).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnprocessableEntity:
+      description: The request was well-formed but failed validation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+# Authenticated by default (#104); register + login opt out with `security: []`.
+security:
+  - sessionCookie: []
