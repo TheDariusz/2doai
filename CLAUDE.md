@@ -54,7 +54,7 @@ Project-wide rules every slice inherits (canonical schema diagram: `context/foun
 
 - Frontend → Cloudflare Pages (static build); Backend → Fly.io (JVM).
 - Single public origin: Cloudflare reverse-proxies `/api/*` to the Fly backend, so **production is same-origin (no CORS needed)**. For local dev, proxy `/api` to the backend via Vite.
-- Auth (cookie vs JWT) is not yet decided — confirm before implementing auth flows.
+- **Auth session model — decided (2026-07-22):** server-side **session cookie** (`HttpOnly; Secure; SameSite=Strict`), Spring Security 6 default session management, sessions held **in-memory** on the single Fly machine — **not JWT**, and never Neon-backed sessions (a per-request session `SELECT` would defeat autosuspend). Email+password; magic-link is post-MVP. Full rationale + revisit trigger: `context/foundation/auth-session-model.md`.
 
 ## Gotchas
 
