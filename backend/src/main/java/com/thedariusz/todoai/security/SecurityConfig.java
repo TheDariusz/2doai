@@ -1,5 +1,7 @@
 package com.thedariusz.todoai.security;
 
+import java.util.List;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -12,8 +14,13 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.CompositeSessionAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfAuthenticationStrategy;
+import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 /**
@@ -54,7 +61,8 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 public class SecurityConfig {
 
 	@Bean
-	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+	SecurityFilterChain securityFilterChain(HttpSecurity http, CsrfTokenRepository csrfTokenRepository)
+			throws Exception {
 		http
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(HttpMethod.POST, "/api/users").permitAll()      // register
@@ -63,12 +71,38 @@ public class SecurityConfig {
 						.requestMatchers("/actuator/health/**").permitAll()
 						.anyRequest().authenticated())
 				.csrf(csrf -> csrf
-						.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+						.csrfTokenRepository(csrfTokenRepository)
 						.csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
 				.addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
 				.exceptionHandling(ex -> ex
 						.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)));
 		return http.build();
+	}
+
+	/**
+	 * Shared by the filter chain and {@link #sessionAuthenticationStrategy} — both must read and
+	 * write the <em>same</em> cookie, or the token rotated at login would not be the one validated
+	 * on the next mutation.
+	 */
+	@Bean
+	CsrfTokenRepository csrfTokenRepository() {
+		return CookieCsrfTokenRepository.withHttpOnlyFalse();
+	}
+
+	/**
+	 * What {@code AbstractAuthenticationProcessingFilter} would apply on a form login — needed
+	 * explicitly because the SPA logs in through a JSON controller instead
+	 * ({@code SessionController}). Both members are security-load-bearing:
+	 * {@link ChangeSessionIdAuthenticationStrategy} defeats session fixation (an id fixed by an
+	 * attacker before login is not the id that carries the session after it), and
+	 * {@link CsrfAuthenticationStrategy} retires the anonymous CSRF token so a pre-login token
+	 * cannot be replayed against the now-authenticated session.
+	 */
+	@Bean
+	SessionAuthenticationStrategy sessionAuthenticationStrategy(CsrfTokenRepository csrfTokenRepository) {
+		return new CompositeSessionAuthenticationStrategy(List.of(
+				new ChangeSessionIdAuthenticationStrategy(),
+				new CsrfAuthenticationStrategy(csrfTokenRepository)));
 	}
 
 	/**
