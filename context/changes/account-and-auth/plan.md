@@ -721,18 +721,18 @@ is preserved. BCrypt cost is a one-off per login/register.
 
 #### Automated
 
-- [x] 2.1 Auth-endpoint REST Assured tests pass (register/login/me/logout/delete) — b221d98
-- [x] 2.2 Security behavior verified: gated → 401; no-CSRF mutation → 403; with token → passes — b221d98
-- [x] 2.3 Integration test proves per-user isolation (findByUserId scoping) — b221d98
-- [x] 2.4 Integration test proves FR-019 completeness (user + ai_memory gone) — b221d98
-- [x] 2.5 Orphan-guard test passes (every user_id table has a deleter) — b221d98
-- [x] 2.6 `GET /api/categories` returns `{items:[...]}` — 11 domains in display_order — b221d98
+- [x] 2.1 Auth-endpoint REST Assured tests pass (register/login/me/logout/delete) — a435ecc
+- [x] 2.2 Security behavior verified: gated → 401; no-CSRF mutation → 403; with token → passes — a435ecc
+- [x] 2.3 Integration test proves per-user isolation (findByUserId scoping) — a435ecc
+- [x] 2.4 Integration test proves FR-019 completeness (user + ai_memory gone) — a435ecc
+- [x] 2.5 Orphan-guard test passes (every user_id table has a deleter) — a435ecc
+- [x] 2.6 `GET /api/categories` returns `{items:[...]}` — 11 domains in display_order — a435ecc
 
 #### Manual
 
-- [x] 2.7 Full lifecycle via curl: register → login → me → delete → me 401 — b221d98
-- [x] 2.8 Duplicate registration returns 409 — b221d98
-- [x] 2.9 After delete, the email can be registered again — b221d98
+- [x] 2.7 Full lifecycle via curl: register → login → me → delete → me 401 — a435ecc
+- [x] 2.8 Duplicate registration returns 409 — a435ecc
+- [x] 2.9 After delete, the email can be registered again — a435ecc
 
 ### Phase 3: Frontend plumbing + auth screens
 
