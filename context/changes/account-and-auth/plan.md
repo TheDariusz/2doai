@@ -706,16 +706,16 @@ is preserved. BCrypt cost is a one-off per login/register.
 
 #### Automated
 
-- [x] 1.1 Backend compiles + mappings validate against the migrated schema
-- [x] 1.2 Migrations V1–V5 apply cleanly on a fresh Testcontainers DB
-- [x] 1.3 Existing suite stays green, incl. the updated ping test
-- [x] 1.4 Gated request → 401, permitAll request → 200 (SecurityGatewayApiTest, REST Assured)
-- [x] 1.5 Convention held: `AiMemory implements UserOwned`, read via the scoped finder
+- [x] 1.1 Backend compiles + mappings validate against the migrated schema — 14d3e5f
+- [x] 1.2 Migrations V1–V5 apply cleanly on a fresh Testcontainers DB — 14d3e5f
+- [x] 1.3 Existing suite stays green, incl. the updated ping test — 14d3e5f
+- [x] 1.4 Gated request → 401, permitAll request → 200 (SecurityGatewayApiTest, REST Assured) — 14d3e5f
+- [x] 1.5 Convention held: `AiMemory implements UserOwned`, read via the scoped finder — 14d3e5f
 
 #### Manual
 
-- [x] 1.6 `spring-boot:run` boots with Security enabled and no schema-drift error
-- [x] 1.7 Gated `/api/*` → 401 (not HTML redirect); `/api/ping` + `/actuator/health/liveness` → 200
+- [x] 1.6 `spring-boot:run` boots with Security enabled and no schema-drift error — 14d3e5f
+- [x] 1.7 Gated `/api/*` → 401 (not HTML redirect); `/api/ping` + `/actuator/health/liveness` → 200 — 14d3e5f
 
 ### Phase 2: Backend auth flows + FR-019 deletion + isolation + categories
 

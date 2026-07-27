@@ -14,8 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
  * {@link UserPrincipal} by email so the {@code DaoAuthenticationProvider} can compare the
  * submitted password against the stored hash.
  *
- * <p>The submitted username is lowercased ({@code Locale.ROOT}) before lookup so login is
- * case-insensitive and matches the normalized value the {@code Email} VO stored. A missing user
+ * <p>The submitted username is normalized (strip + lowercase, {@code Locale.ROOT}) before lookup —
+ * the same normalization the {@code Email} VO applied at registration — so login is
+ * case- and whitespace-insensitive and matches the stored value. A missing user
  * raises {@link UsernameNotFoundException}, which the provider turns into a generic
  * {@code BadCredentialsException} (no user-enumeration on login).
  */
@@ -31,7 +32,7 @@ public class AppUserDetailsService implements UserDetailsService {
 	@Override
 	@Transactional(readOnly = true)
 	public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-		return users.findByEmail(username.toLowerCase(Locale.ROOT))
+		return users.findByEmail(username.strip().toLowerCase(Locale.ROOT))
 				.map(UserPrincipal::from)
 				.orElseThrow(() -> new UsernameNotFoundException("No user for the supplied credentials"));
 	}

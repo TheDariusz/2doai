@@ -132,8 +132,8 @@
 		</dependency>
 		<!-- REST Assured — HTTP-layer / endpoint integration tests against a random-port embedded
 		     server, exercising the real Spring Security filter chain end-to-end. The project's
-		     standard for endpoint tests (preferred over MockMvc). Version managed by the Spring
-		     Boot 4 parent (rest-assured-bom). -->
+		     standard for endpoint tests (preferred over MockMvc). Version pinned via the
+		     rest-assured.version property (not managed by the Boot 4 BOM — see the property comment). -->
 		<dependency>
 			<groupId>io.rest-assured</groupId>
 			<artifactId>rest-assured</artifactId>
