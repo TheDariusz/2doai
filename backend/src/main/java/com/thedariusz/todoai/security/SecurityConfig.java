@@ -5,7 +5,6 @@ import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -13,7 +12,10 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.authentication.logout.CompositeLogoutHandler;
+import org.springframework.security.web.authentication.logout.CookieClearingLogoutHandler;
+import org.springframework.security.web.authentication.logout.LogoutHandler;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.CompositeSessionAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
@@ -41,9 +43,9 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
  *       stay public). The matchers are method-specific so that {@code GET/DELETE /api/users/me} and
  *       {@code DELETE /api/sessions/current} still require authentication. Everything else is
  *       authenticated.</li>
- *   <li><b>Unauthenticated API requests → 401</b>, not the default login redirect: the SPA owns
- *       navigation, so a gated call must fail with a status code, never an HTML page. An
- *       {@link HttpStatusEntryPoint} writes a bare 401.</li>
+ *   <li><b>Unauthenticated API requests → 401 Problem JSON</b>, not the default login redirect:
+ *       the SPA owns navigation, so a gated call must fail with a machine-readable status, never
+ *       an HTML page. {@link ProblemDetailsSecurityHandler} also writes 403 failures consistently.</li>
  *   <li><b>CSRF</b> — {@link CookieCsrfTokenRepository#withHttpOnlyFalse()} publishes the token in
  *       an {@code XSRF-TOKEN} cookie the SPA reads and echoes as {@code X-XSRF-TOKEN}; the
  *       {@link CsrfTokenRequestAttributeHandler} is the SPA-safe handler that reads the raw token
@@ -61,8 +63,8 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 public class SecurityConfig {
 
 	@Bean
-	SecurityFilterChain securityFilterChain(HttpSecurity http, CsrfTokenRepository csrfTokenRepository)
-			throws Exception {
+	SecurityFilterChain securityFilterChain(HttpSecurity http, CsrfTokenRepository csrfTokenRepository,
+			ProblemDetailsSecurityHandler problemDetailsSecurityHandler) throws Exception {
 		http
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(HttpMethod.POST, "/api/users").permitAll()      // register
@@ -75,7 +77,8 @@ public class SecurityConfig {
 						.csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
 				.addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
 				.exceptionHandling(ex -> ex
-						.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)));
+						.authenticationEntryPoint(problemDetailsSecurityHandler)
+						.accessDeniedHandler(problemDetailsSecurityHandler));
 		return http.build();
 	}
 
@@ -103,6 +106,13 @@ public class SecurityConfig {
 		return new CompositeSessionAuthenticationStrategy(List.of(
 				new ChangeSessionIdAuthenticationStrategy(),
 				new CsrfAuthenticationStrategy(csrfTokenRepository)));
+	}
+
+	@Bean
+	LogoutHandler apiLogoutHandler() {
+		return new CompositeLogoutHandler(
+				new SecurityContextLogoutHandler(),
+				new CookieClearingLogoutHandler("JSESSIONID"));
 	}
 
 	/**

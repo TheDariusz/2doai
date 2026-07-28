@@ -14,7 +14,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -48,19 +48,23 @@ public class SessionController {
 
 	private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
 
+	private final LogoutHandler logoutHandler;
+
 	private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
 
 	public SessionController(AuthenticationManager authenticationManager,
-			SessionAuthenticationStrategy sessionAuthenticationStrategy) {
+			SessionAuthenticationStrategy sessionAuthenticationStrategy, LogoutHandler logoutHandler) {
 		this.authenticationManager = authenticationManager;
 		this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
+		this.logoutHandler = logoutHandler;
 	}
 
 	/**
 	 * Authenticates and establishes the session. A failure throws {@code BadCredentialsException},
 	 * which propagates to Spring Security's {@code ExceptionTranslationFilter} and comes back as the
-	 * bare 401 from {@code SecurityConfig}'s entry point — identical whether the email is unknown or
-	 * the password is wrong, so the response reveals nothing about which emails exist.
+	 * generic 401 Problem JSON from {@code ProblemDetailsSecurityHandler} — identical whether the
+	 * email is unknown or the password is wrong, so the response reveals nothing about which emails
+	 * exist.
 	 */
 	@PostMapping
 	ResponseEntity<UserResponse> login(@Valid @RequestBody LoginRequest request,
@@ -83,9 +87,7 @@ public class SessionController {
 	@DeleteMapping("/current")
 	ResponseEntity<Void> logout(HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-		// Invalidates the HttpSession and clears the context — the session is server-side, so this
-		// is what actually ends it; the client's cookie is merely left pointing at nothing.
-		new SecurityContextLogoutHandler().logout(httpRequest, httpResponse, authentication);
+		logoutHandler.logout(httpRequest, httpResponse, authentication);
 		return ResponseEntity.noContent().build();
 	}
 }

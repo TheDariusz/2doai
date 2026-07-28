@@ -372,9 +372,10 @@ records)
 
 **Contract**: `RegisterRequest(email, password)` and `LoginRequest(email,
 password)` with Jakarta Bean Validation (`@Email`, `@NotBlank`, `@Size(min = 8)` on
-password). `UserResponse(UUID id, String email)` for register/login/me (the `User`
-schema in `openapi.yaml`). `DeleteAccountRequest(String password)` for the re-auth on
-FR-019. **All JSON serializes snake_case** via
+registration passwords, and a 72-UTF-8-byte BCrypt maximum on every password request).
+`UserResponse(UUID id, String email)` for register/login/me (the `User` schema in
+`openapi.yaml`). `DeleteAccountRequest(String password)` for the re-auth on FR-019.
+**All JSON serializes snake_case** via
 `spring.jackson.property-naming-strategy=SNAKE_CASE` (#118) — set once, globally.
 
 #### 2. `RegistrationService` (eager ai_memory provisioning)

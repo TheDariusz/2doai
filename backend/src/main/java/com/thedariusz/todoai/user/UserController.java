@@ -17,7 +17,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -39,11 +39,15 @@ public class UserController {
 
 	private final PasswordEncoder passwordEncoder;
 
+	private final LogoutHandler logoutHandler;
+
 	public UserController(RegistrationService registrationService,
-			AccountDeletionService accountDeletionService, PasswordEncoder passwordEncoder) {
+			AccountDeletionService accountDeletionService, PasswordEncoder passwordEncoder,
+			LogoutHandler logoutHandler) {
 		this.registrationService = registrationService;
 		this.accountDeletionService = accountDeletionService;
 		this.passwordEncoder = passwordEncoder;
+		this.logoutHandler = logoutHandler;
 	}
 
 	/**
@@ -86,7 +90,7 @@ public class UserController {
 		accountDeletionService.deleteAccount(principal.userId());
 
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-		new SecurityContextLogoutHandler().logout(httpRequest, httpResponse, authentication);
+		logoutHandler.logout(httpRequest, httpResponse, authentication);
 		return ResponseEntity.noContent().build();
 	}
 }

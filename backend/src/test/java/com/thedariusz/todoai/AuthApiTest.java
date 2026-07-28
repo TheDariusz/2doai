@@ -1,11 +1,15 @@
 package com.thedariusz.todoai;
 
+import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -35,6 +39,19 @@ class AuthApiTest extends ApiTestBase {
 	}
 
 	@Test
+	void normalizesEmailBeforeValidatingAndRegistering() {
+		String localPart = "User-" + UUID.randomUUID();
+
+		csrfAware()
+				.body(Map.of("email", "  " + localPart + "@Example.COM  ", "password", "correct-horse"))
+				.when()
+				.post("/api/users")
+				.then()
+				.statusCode(201)
+				.body("email", equalTo(localPart.toLowerCase(Locale.ROOT) + "@example.com"));
+	}
+
+	@Test
 	void rejectsADuplicateEmailWithConflict() {
 		String email = uniqueEmail();
 		register(email, "correct-horse");
@@ -45,6 +62,17 @@ class AuthApiTest extends ApiTestBase {
 				.post("/api/users")
 				.then()
 				.statusCode(409)
+				.contentType("application/problem+json");
+	}
+
+	@Test
+	void rejectsAPasswordLongerThanBcryptsUtf8ByteLimit() {
+		csrfAware()
+				.body(Map.of("email", uniqueEmail(), "password", "😀".repeat(19)))
+				.when()
+				.post("/api/users")
+				.then()
+				.statusCode(422)
 				.contentType("application/problem+json");
 	}
 
@@ -82,7 +110,18 @@ class AuthApiTest extends ApiTestBase {
 		String email = uniqueEmail();
 		register(email, "correct-horse");
 
-		login(email, "wrong-password").statusCode(401);
+		login(email, "wrong-password")
+				.statusCode(401)
+				.contentType("application/problem+json")
+				.body("title", equalTo("Unauthorized"))
+				.body("status", equalTo(401));
+	}
+
+	@Test
+	void rejectsAnOverlongLoginPasswordAsUnprocessable() {
+		login(uniqueEmail(), "😀".repeat(19))
+				.statusCode(422)
+				.contentType("application/problem+json");
 	}
 
 	@Test
@@ -93,7 +132,10 @@ class AuthApiTest extends ApiTestBase {
 				.when()
 				.delete("/api/sessions/current")
 				.then()
-				.statusCode(204);
+				.statusCode(204)
+				.header("Set-Cookie", allOf(
+						containsString("JSESSIONID="),
+						containsString("Expires=Thu, 01 Jan 1970")));
 
 		client()
 				.when()
@@ -115,7 +157,10 @@ class AuthApiTest extends ApiTestBase {
 				.when()
 				.delete("/api/sessions/current")
 				.then()
-				.statusCode(403);
+				.statusCode(403)
+				.contentType("application/problem+json")
+				.body("title", equalTo("Forbidden"))
+				.body("status", equalTo(403));
 	}
 
 	@Test
@@ -127,7 +172,10 @@ class AuthApiTest extends ApiTestBase {
 				.when()
 				.delete("/api/users/me")
 				.then()
-				.statusCode(204);
+				.statusCode(204)
+				.header("Set-Cookie", allOf(
+						containsString("JSESSIONID="),
+						containsString("Expires=Thu, 01 Jan 1970")));
 
 		client()
 				.when()
@@ -151,5 +199,18 @@ class AuthApiTest extends ApiTestBase {
 				.delete("/api/users/me")
 				.then()
 				.statusCode(401);
+	}
+
+	@Test
+	void rejectsAnOverlongAccountDeletionPasswordAsUnprocessable() {
+		givenLoggedInUser();
+
+		csrfAware()
+				.body(Map.of("password", "😀".repeat(19)))
+				.when()
+				.delete("/api/users/me")
+				.then()
+				.statusCode(422)
+				.contentType("application/problem+json");
 	}
 }

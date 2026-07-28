@@ -16,9 +16,9 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
  * {@link ResponseEntityExceptionHandler} means Spring's own MVC exceptions already come out as
  * {@link ProblemDetail}; only the two project-specific mappings are written here.
  *
- * <p>Bad credentials are deliberately absent: {@code SecurityConfig}'s entry point answers those
- * with a bare 401 from inside the filter chain, before any handler runs, which is also what keeps
- * the response identical for "no such email" and "wrong password" (no user enumeration).
+ * <p>Bad credentials are deliberately absent: {@code ProblemDetailsSecurityHandler} answers those
+ * from inside the filter chain, before any MVC handler runs, and keeps the Problem JSON identical
+ * for "no such email" and "wrong password" (no user enumeration).
  */
 @RestControllerAdvice
 class ApiExceptionHandler extends ResponseEntityExceptionHandler {

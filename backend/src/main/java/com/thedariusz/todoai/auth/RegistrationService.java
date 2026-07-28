@@ -5,6 +5,7 @@ import com.thedariusz.todoai.ai.memory.AiMemoryRepository;
 import com.thedariusz.todoai.user.Email;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,8 +39,15 @@ public class RegistrationService {
 		if (users.existsByEmail(email.value())) {
 			throw new EmailAlreadyRegisteredException();
 		}
-		// The raw password stops here: the aggregate only ever receives the encoded hash.
-		User user = users.save(new User(email, passwordEncoder.encode(rawPassword)));
+		User user = new User(email, passwordEncoder.encode(rawPassword));
+		try {
+			// Flush while still inside this service so the UNIQUE(email) constraint is translated to
+			// the API's 409 even when two registrations race past any application-level pre-check.
+			user = users.saveAndFlush(user);
+		}
+		catch (DataIntegrityViolationException ex) {
+			throw new EmailAlreadyRegisteredException(ex);
+		}
 		memories.save(new AiMemory(user.getId()));
 		return user;
 	}
