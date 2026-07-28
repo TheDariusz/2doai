@@ -16,9 +16,11 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
  * {@link ResponseEntityExceptionHandler} means Spring's own MVC exceptions already come out as
  * {@link ProblemDetail}; only the two project-specific mappings are written here.
  *
- * <p>Bad credentials are deliberately absent: {@code ProblemDetailsSecurityHandler} answers those
- * from inside the filter chain, before any MVC handler runs, and keeps the Problem JSON identical
- * for "no such email" and "wrong password" (no user enumeration).
+ * <p>Bad credentials are deliberately absent. They are raised <em>inside</em> a controller but escape
+ * MVC entirely: {@code ExceptionTranslationFilter} catches the {@code AuthenticationException} on the
+ * way out and hands it to {@code ProblemDetailsSecurityHandler}, so no {@code @ExceptionHandler} here
+ * would ever see one. That handler keeps the Problem JSON identical for "no such email" and "wrong
+ * password" (no user enumeration).
  */
 @RestControllerAdvice
 class ApiExceptionHandler extends ResponseEntityExceptionHandler {
@@ -43,5 +45,32 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 		ProblemDetail body = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
 		body.setTitle("Conflict");
 		return body;
+	}
+
+	@ExceptionHandler(ReAuthenticationFailedException.class)
+	ProblemDetail handleReAuthenticationFailed(ReAuthenticationFailedException ex) {
+		ProblemDetail body = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+		body.setTitle("Forbidden");
+		return body;
+	}
+
+	/**
+	 * The single place every handled failure passes through, including the twenty exception types
+	 * {@link ResponseEntityExceptionHandler} maps for us — three of which are genuine 500-class server
+	 * bugs it would otherwise render silently. Without this a Jackson serialization failure on a
+	 * response returns a bare 500 and writes nothing to the log.
+	 */
+	@Override
+	protected ResponseEntity<Object> handleExceptionInternal(Exception ex, Object body, HttpHeaders headers,
+			HttpStatusCode status, WebRequest request) {
+
+		if (status.is5xxServerError()) {
+			logger.error("Request to " + request.getDescription(false) + " failed with " + status, ex);
+		}
+		else {
+			logger.warn("Request to " + request.getDescription(false) + " rejected with " + status
+					+ ": " + ex.getClass().getSimpleName());
+		}
+		return super.handleExceptionInternal(ex, body, headers, status, request);
 	}
 }

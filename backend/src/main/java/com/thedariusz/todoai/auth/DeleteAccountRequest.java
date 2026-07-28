@@ -10,6 +10,6 @@ import jakarta.validation.constraints.NotBlank;
 public record DeleteAccountRequest(
 
 		@NotBlank
-		@Utf8ByteLength(max = 72)
+		@Utf8ByteLength(max = Utf8ByteLength.BCRYPT_MAX_PASSWORD_BYTES)
 		String password) {
 }

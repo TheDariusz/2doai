@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>Deliberately <b>not paginated</b> despite the usual guideline: this is bounded reference data
  * of exactly 11 rows owned by a Flyway seed, so paging would add a cursor round-trip and buy
- * nothing (a documented Zalando #159/#226 exception).
+ * nothing (a documented exception to Zalando #159).
  */
 @RestController
 @RequestMapping("/api/categories")

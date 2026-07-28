@@ -16,6 +16,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * The two properties that make per-user data trustworthy, proven against a real Postgres:
@@ -78,6 +79,16 @@ class AccountDeletionIntegrationTest {
 		// Bob is untouched — deletion is scoped, not a sweep.
 		assertThat(users.findById(bob.getId())).isPresent();
 		assertThat(childRowsOf(bobMemoryId)).isEqualTo(2);
+	}
+
+	/**
+	 * {@code deleteById} has been a silent no-op for a missing row since Spring Data 3.0, so without
+	 * this guard a stale session's deletion request erases nothing and still reports success.
+	 */
+	@Test
+	void refusesToReportSuccessWhenThereIsNoSuchAccount() {
+		assertThatThrownBy(() -> accountDeletionService.deleteAccount(UUID.randomUUID()))
+				.isInstanceOf(IllegalStateException.class);
 	}
 
 	/**

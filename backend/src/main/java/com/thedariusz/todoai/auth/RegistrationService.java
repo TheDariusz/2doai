@@ -5,6 +5,10 @@ import com.thedariusz.todoai.ai.memory.AiMemoryRepository;
 import com.thedariusz.todoai.user.Email;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRepository;
+import org.apache.commons.lang3.StringUtils;
+import org.hibernate.exception.ConstraintViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -20,6 +24,11 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class RegistrationService {
+
+	private static final Logger log = LoggerFactory.getLogger(RegistrationService.class);
+
+	/** Postgres' generated name for the inline {@code UNIQUE} on {@code app_user.email} (V4). */
+	private static final String EMAIL_CONSTRAINT = "app_user_email";
 
 	private final UserRepository users;
 
@@ -46,9 +55,24 @@ public class RegistrationService {
 			user = users.saveAndFlush(user);
 		}
 		catch (DataIntegrityViolationException ex) {
+			if (!isEmailUniquenessViolation(ex)) {
+				log.error("Registration failed on an unexpected integrity violation", ex);
+				throw ex;
+			}
+			log.info("Registration lost the unique-email race");
 			throw new EmailAlreadyRegisteredException(ex);
 		}
 		memories.save(new AiMemory(user.getId()));
 		return user;
+	}
+
+	/**
+	 * Only the email index means "already registered". {@code DataIntegrityViolationException} covers a
+	 * whole family of failures — a null column, an overflowed width, any constraint a later migration
+	 * adds — and reporting those as 409 would tell a first-time visitor their address is taken.
+	 */
+	private static boolean isEmailUniquenessViolation(DataIntegrityViolationException ex) {
+		return ex.getCause() instanceof ConstraintViolationException violation
+				&& StringUtils.containsIgnoreCase(violation.getConstraintName(), EMAIL_CONSTRAINT);
 	}
 }

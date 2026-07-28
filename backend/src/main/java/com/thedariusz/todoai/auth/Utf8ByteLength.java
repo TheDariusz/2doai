@@ -28,8 +28,10 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 @Target({FIELD, METHOD, PARAMETER, ANNOTATION_TYPE, TYPE_USE})
 @Retention(RUNTIME)
 public @interface Utf8ByteLength {
+	
+	int BCRYPT_MAX_PASSWORD_BYTES = 72;
 
-	String message() default "must not exceed the maximum UTF-8 byte length";
+	String message() default "must not exceed {max} UTF-8 bytes";
 
 	Class<?>[] groups() default {};
 
@@ -44,6 +46,11 @@ public @interface Utf8ByteLength {
 		@Override
 		public void initialize(Utf8ByteLength constraint) {
 			max = constraint.max();
+			if (max < 0) {
+				// Jakarta's own @Size does the same — a negative bound rejects every input, which would
+				// otherwise look like a mysterious validation failure rather than a wiring mistake.
+				throw new IllegalArgumentException("max must not be negative");
+			}
 		}
 
 		@Override

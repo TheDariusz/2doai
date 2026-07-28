@@ -16,6 +16,7 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -74,6 +75,7 @@ public class SessionController {
 				UsernamePasswordAuthenticationToken.unauthenticated(request.email(), request.password()));
 
 		sessionAuthenticationStrategy.onAuthentication(authentication, httpRequest, httpResponse);
+		materializeRotatedCsrfToken(httpRequest);
 
 		SecurityContext context = SecurityContextHolder.createEmptyContext();
 		context.setAuthentication(authentication);
@@ -82,6 +84,23 @@ public class SessionController {
 
 		UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
 		return ResponseEntity.created(URI.create("/api/sessions/current")).body(UserResponse.from(principal));
+	}
+
+	/**
+	 * Forces the rotated CSRF token onto <em>this</em> response.
+	 *
+	 * <p>{@code CsrfAuthenticationStrategy} retires the anonymous token by saving {@code null} — which
+	 * writes a cookie <em>deletion</em> — and then only defers the replacement behind a supplier. In
+	 * the stock form-login flow something downstream reads that supplier; here nothing does, because
+	 * {@code CsrfCookieFilter} already ran on the way in and a controller runs after every filter. So
+	 * the login response would carry a deletion and no new token, and the SPA's very next mutation
+	 * would 403. Resolving the token is what triggers the repository to write the new cookie.
+	 */
+	private static void materializeRotatedCsrfToken(HttpServletRequest httpRequest) {
+		CsrfToken token = (CsrfToken) httpRequest.getAttribute(CsrfToken.class.getName());
+		if (token != null) {
+			token.getToken();
+		}
 	}
 
 	@DeleteMapping("/current")

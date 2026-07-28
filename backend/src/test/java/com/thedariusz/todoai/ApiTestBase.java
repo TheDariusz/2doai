@@ -55,6 +55,17 @@ abstract class ApiTestBase {
 		csrfToken = null;
 	}
 
+	/** The current client's cookie jar, so a test can hold two logged-in devices at once. */
+	protected CookieFilter currentBrowser() {
+		return cookies;
+	}
+
+	/** Switch back to a jar captured earlier by {@link #currentBrowser()}. */
+	protected void switchToBrowser(CookieFilter jar) {
+		cookies = jar;
+		csrfToken = null;
+	}
+
 	/** A request spec carrying the cookie jar, for reads (no CSRF token needed). */
 	protected RequestSpecification client() {
 		return given().filter(cookies);
@@ -68,6 +79,11 @@ abstract class ApiTestBase {
 	 * token <em>changes</em>: the priming request issues one, later requests reuse it silently.
 	 */
 	protected RequestSpecification csrfAware() {
+		return client().header("X-XSRF-TOKEN", primeCsrfToken()).contentType(ContentType.JSON);
+	}
+
+	/** The current CSRF token for this client, priming one on the first call. */
+	protected String primeCsrfToken() {
 		if (csrfToken == null) {
 			csrfToken = client()
 					.when()
@@ -77,7 +93,7 @@ abstract class ApiTestBase {
 					.extract()
 					.cookie("XSRF-TOKEN");
 		}
-		return client().header("X-XSRF-TOKEN", csrfToken).contentType(ContentType.JSON);
+		return csrfToken;
 	}
 
 	protected void register(String email, String password) {
@@ -90,13 +106,13 @@ abstract class ApiTestBase {
 	}
 
 	/**
-	 * Logs in, then drops the cached CSRF token so the next mutation re-primes.
+	 * Logs in and picks up the <em>rotated</em> CSRF token from the login response.
 	 *
-	 * <p>Authentication <em>retires</em> the anonymous token: {@code CsrfAuthenticationStrategy}
-	 * clears the cookie and lets SS6 defer generating the replacement, so the login response carries
-	 * a cookie deletion rather than a new token. The next request re-primes it via
-	 * {@code CsrfCookieFilter}. <b>Phase 3 note:</b> the SPA must do the same — a client that caches
-	 * the pre-login token and reuses it after login gets a 403 on its first mutation.
+	 * <p>Authentication retires the anonymous token ({@code CsrfAuthenticationStrategy}) and
+	 * {@code SessionController} materializes the replacement onto the same response, so a client
+	 * reads its next token straight from the login reply — exactly what the SPA does. An empty
+	 * cookie value means only the deletion arrived, and the cached token is dropped so the next
+	 * mutation re-primes.
 	 */
 	protected ValidatableResponse login(String email, String password) {
 		Response response = csrfAware()
@@ -104,8 +120,14 @@ abstract class ApiTestBase {
 				.when()
 				.post("/api/sessions");
 
-		csrfToken = null;
+		String rotated = response.getCookie("XSRF-TOKEN");
+		csrfToken = (rotated == null || rotated.isEmpty()) ? null : rotated;
 		return response.then();
+	}
+
+	/** A client with no cookie jar and no CSRF token at all — a stranger hitting the API cold. */
+	protected RequestSpecification anonymous() {
+		return given().contentType(ContentType.JSON);
 	}
 
 	/** Registers and logs in a fresh account, returning its email. */
