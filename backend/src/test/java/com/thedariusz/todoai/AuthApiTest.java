@@ -294,6 +294,41 @@ class AuthApiTest extends ApiTestBase {
 				.statusCode(500);
 	}
 
+	/**
+	 * A 500 is the response the SPA is least able to guess at, so it must arrive in the same RFC 9457
+	 * shape as every other failure — not Boot's default {@code timestamp/error/path} object. The
+	 * detail stays generic: the exception message is ours to read in the logs, not the caller's.
+	 */
+	@Test
+	void rendersServerErrorsAsProblemJson() {
+		csrfAware()
+				.when()
+				.post("/api/ping")
+				.then()
+				.statusCode(500)
+				.contentType("application/problem+json")
+				.body("title", equalTo("Internal Server Error"))
+				.body("status", equalTo(500))
+				.body("detail", notNullValue());
+	}
+
+	/** Whatever blew up stays in the logs — no message, no stack frames, no SQL on the wire. */
+	@Test
+	void neverLeaksExceptionDetailOnAServerError() {
+		String body = csrfAware()
+				.when()
+				.post("/api/ping")
+				.then()
+				.statusCode(500)
+				.extract()
+				.asString();
+
+		assertThat(body)
+				.doesNotContain("simulated server-side bug")
+				.doesNotContain("IllegalStateException")
+				.doesNotContain("com.thedariusz");
+	}
+
 	/** Anonymous-reachable endpoint that fails the way a real bug would, for the test above. */
 	@TestConfiguration
 	static class ThrowingEndpoint {

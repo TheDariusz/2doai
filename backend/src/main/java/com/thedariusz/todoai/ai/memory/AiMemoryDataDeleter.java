@@ -24,9 +24,4 @@ class AiMemoryDataDeleter implements PerUserDataDeleter {
 	public void deleteAllForUser(UUID userId) {
 		memories.findByUserId(userId).ifPresent(memories::delete);
 	}
-
-	@Override
-	public String userScopedTable() {
-		return "ai_memory";
-	}
 }

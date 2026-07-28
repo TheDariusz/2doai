@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -92,20 +93,75 @@ class AccountDeletionIntegrationTest {
 	}
 
 	/**
-	 * The guard that makes a forgotten deleter impossible to ship silently: every {@code user_id}
-	 * -bearing table in the live schema must have a registered {@link PerUserDataDeleter}. It reads
-	 * the schema rather than a hand-maintained list precisely so that adding a table to a migration
-	 * — and forgetting the deleter — fails here rather than leaving orphaned personal data.
+	 * The guard that makes a forgotten deleter impossible to ship silently — asserted against the
+	 * <b>schema</b> rather than against the deleter registry.
+	 *
+	 * <p>A registry check could only prove that some deleter claimed a table name; it could not prove
+	 * the deleter deletes anything, and it would pass for a stub. What actually protects the data is
+	 * the database: every {@code user_id}-bearing table must carry a foreign key to {@code app_user}
+	 * with no {@code ON DELETE} action, so a missing or broken deleter makes the final user delete
+	 * fail loudly on the constraint instead of orphaning personal data. That is a property the
+	 * migration either has or does not, and it holds in production, not merely in CI.
 	 */
 	@Test
-	void everyUserScopedTableHasARegisteredDeleter() {
+	void everyUserScopedTableIsProtectedByARestrictingForeignKey() {
+		List<String> unprotected = jdbc.queryForList("""
+				SELECT c.table_name
+				FROM information_schema.columns c
+				WHERE c.table_schema = 'public'
+				  AND c.column_name = 'user_id'
+				  AND NOT EXISTS (
+				      SELECT 1
+				      FROM information_schema.table_constraints tc
+				      JOIN information_schema.key_column_usage kcu
+				           ON kcu.constraint_name = tc.constraint_name
+				          AND kcu.constraint_schema = tc.constraint_schema
+				      JOIN information_schema.referential_constraints rc
+				           ON rc.constraint_name = tc.constraint_name
+				          AND rc.constraint_schema = tc.constraint_schema
+				      JOIN information_schema.constraint_column_usage ccu
+				           ON ccu.constraint_name = tc.constraint_name
+				          AND ccu.constraint_schema = tc.constraint_schema
+				      WHERE tc.constraint_type = 'FOREIGN KEY'
+				        AND tc.table_schema = c.table_schema
+				        AND tc.table_name = c.table_name
+				        AND kcu.column_name = c.column_name
+				        AND ccu.table_name = 'app_user'
+				        AND rc.delete_rule = 'NO ACTION'
+				  )
+				""", String.class);
+
+		assertThat(unprotected)
+				.as("user_id tables with no restricting FK to app_user — a forgotten deleter would "
+						+ "silently orphan their rows instead of failing the account deletion")
+				.isEmpty();
+	}
+
+	/** The schema is genuinely being inspected — a query that matched nothing would pass vacuously. */
+	@Test
+	void theSchemaActuallyHasUserScopedTablesToProtect() {
 		List<String> userScopedTables = jdbc.queryForList("""
 				SELECT table_name FROM information_schema.columns
 				WHERE table_schema = 'public' AND column_name = 'user_id'
 				""", String.class);
 
-		assertThat(userScopedTables).isNotEmpty();
-		assertThat(accountDeletionService.registeredTables()).containsAll(userScopedTables);
+		assertThat(userScopedTables).contains("ai_memory");
+	}
+
+	/**
+	 * The backstop itself, asserted rather than assumed: with a child row still present, deleting the
+	 * user must fail. This is the claim the whole {@link PerUserDataDeleter} design rests on — that
+	 * forgetting a deleter is loud — and it was previously only stated in prose.
+	 */
+	@Test
+	void deletingAUserWithDataLeftBehindFailsOnTheForeignKey() {
+		User orphaned = registrationService.register(uniqueEmail(), "correct-horse");
+
+		assertThatThrownBy(() -> {
+			users.deleteById(orphaned.getId());
+			jdbc.execute("SELECT 1");
+			users.flush();
+		}).isInstanceOf(DataIntegrityViolationException.class);
 	}
 
 	private UUID givenMemoryWithChildren(UUID userId) {
