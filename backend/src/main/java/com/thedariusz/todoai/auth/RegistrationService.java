@@ -44,14 +44,11 @@ public class RegistrationService {
 
 	@Transactional
 	public User register(String rawEmail, String rawPassword) {
-		Email email = Email.of(rawEmail);
-		if (users.existsByEmail(email.value())) {
-			throw new EmailAlreadyRegisteredException();
-		}
-		User user = new User(email, passwordEncoder.encode(rawPassword));
+		User user = new User(Email.of(rawEmail), passwordEncoder.encode(rawPassword));
 		try {
 			// Flush while still inside this service so the UNIQUE(email) constraint is translated to
-			// the API's 409 even when two registrations race past any application-level pre-check.
+			// the API's 409. The constraint is the *only* duplicate check: an application-level
+			// pre-check would cost a SELECT on every registration and still lose a concurrent race.
 			user = users.saveAndFlush(user);
 		}
 		catch (DataIntegrityViolationException ex) {
@@ -59,7 +56,7 @@ public class RegistrationService {
 				log.error("Registration failed on an unexpected integrity violation", ex);
 				throw ex;
 			}
-			log.info("Registration lost the unique-email race");
+			log.info("Registration rejected: email already taken");
 			throw new EmailAlreadyRegisteredException(ex);
 		}
 		memories.save(new AiMemory(user.getId()));

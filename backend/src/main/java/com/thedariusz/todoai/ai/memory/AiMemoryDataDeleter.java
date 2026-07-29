@@ -22,6 +22,6 @@ class AiMemoryDataDeleter implements PerUserDataDeleter {
 
 	@Override
 	public void deleteAllForUser(UUID userId) {
-		memories.findByUserId(userId).ifPresent(memories::delete);
+		memories.deleteByUserId(userId);
 	}
 }

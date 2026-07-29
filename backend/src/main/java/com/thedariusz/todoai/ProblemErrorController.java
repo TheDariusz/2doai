@@ -31,7 +31,6 @@ class ProblemErrorController implements ErrorController {
 	ResponseEntity<ProblemDetail> handleError(HttpServletRequest request) {
 		HttpStatus status = resolveStatus(request);
 		ProblemDetail body = ProblemDetail.forStatusAndDetail(status, "The request could not be completed");
-		body.setTitle(status.getReasonPhrase());
 		return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(body);
 	}
 

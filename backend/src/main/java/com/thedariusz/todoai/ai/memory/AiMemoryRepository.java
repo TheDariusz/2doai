@@ -24,4 +24,12 @@ public interface AiMemoryRepository extends JpaRepository<AiMemory, UUID> {
 
 	@EntityGraph(attributePaths = {"profileFacts", "episodes"})
 	Optional<AiMemory> findByUserId(UUID userId);
+
+	/**
+	 * FR-019 erasure. Derived {@code deleteBy} loads the root and removes it entity-by-entity, so the
+	 * {@code CascadeType.ALL} + {@code orphanRemoval} on the children still fires — but <em>without</em>
+	 * {@code findByUserId}'s join-fetch, which would drag the whole unbounded episodic log across the
+	 * wire (as a Cartesian product with the profile facts) only to throw it away.
+	 */
+	void deleteByUserId(UUID userId);
 }

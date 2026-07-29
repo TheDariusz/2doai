@@ -36,22 +36,20 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
 		ProblemDetail body = ProblemDetail.forStatusAndDetail(
 				HttpStatus.UNPROCESSABLE_ENTITY, "The request failed validation");
+		// The one title worth spelling out: Spring's fallback for 422 is now RFC 9110's
+		// "Unprocessable Content", and openapi.yaml documents the older "Unprocessable Entity".
 		body.setTitle("Unprocessable Entity");
 		return handleExceptionInternal(ex, body, headers, HttpStatus.UNPROCESSABLE_ENTITY, request);
 	}
 
 	@ExceptionHandler(EmailAlreadyRegisteredException.class)
 	ProblemDetail handleEmailAlreadyRegistered(EmailAlreadyRegisteredException ex) {
-		ProblemDetail body = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
-		body.setTitle("Conflict");
-		return body;
+		return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
 	}
 
 	@ExceptionHandler(ReAuthenticationFailedException.class)
 	ProblemDetail handleReAuthenticationFailed(ReAuthenticationFailedException ex) {
-		ProblemDetail body = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
-		body.setTitle("Forbidden");
-		return body;
+		return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
 	}
 
 	/**

@@ -74,7 +74,6 @@ public class ProblemDetailsSecurityHandler implements AuthenticationEntryPoint, 
 
 	private void write(HttpServletResponse response, HttpStatus status, String detail) throws IOException {
 		ProblemDetail body = ProblemDetail.forStatusAndDetail(status, detail);
-		body.setTitle(status.getReasonPhrase());
 		response.setStatus(status.value());
 		response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
 		jsonMapper.writeValue(response.getOutputStream(), body);
