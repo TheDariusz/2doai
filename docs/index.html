@@ -52,9 +52,9 @@
   <p>The repo holds <strong>two independent projects</strong> — no monorepo tooling, each builds
   from its own directory:</p>
   <table>
-    <tr><th></th><th>Stack</th><th>Role</th></tr>
-    <tr><td><code>backend/</code></td><td>Spring Boot 4, Java 25, Maven, PostgreSQL 18 (JPA/Hibernate + Flyway)</td><td>REST API, auth, AI orchestration, background jobs</td></tr>
-    <tr><td><code>frontend/</code></td><td>React 19, Vite, TypeScript (strict), PWA</td><td>SPA consuming the REST API</td></tr>
+    <tr><th></th><th>Stack</th><th>Role today</th></tr>
+    <tr><td><code>backend/</code></td><td>Spring Boot 4, Java 25, Maven, PostgreSQL 18 (JPA/Hibernate + Flyway)</td><td>REST API for auth/account; AI orchestration and background jobs are <span class="badge badge-planned">planned</span> — see Roadmap</td></tr>
+    <tr><td><code>frontend/</code></td><td>React 19, Vite, TypeScript (strict)</td><td>SPA consuming the REST API; PWA (manifest/service worker) is <span class="badge badge-planned">planned</span></td></tr>
   </table>
   <h3>Where things live</h3>
   <table>
@@ -63,6 +63,8 @@
     <tr><td><code>.github/workflows/</code></td><td>CI/CD (see the CI/CD section)</td></tr>
   </table>
   <p class="note">These docs are for developers. A separate user-facing document will exist later.</p>
+  <p class="note">Last verified against backend commit <code>1fd0248</code> on 2026-07-29 — run
+  <code>git log 1fd0248.. -- backend/src/main/java</code> to see what's changed since.</p>
 </section>
 <section id="architecture" hidden>
   <h2>Architecture</h2>
@@ -72,6 +74,9 @@
   no CORS. Sessions are server-side cookies held <strong>in-memory</strong> on the single Fly
   machine (not JWT, never DB-backed — a per-request session <code>SELECT</code> would defeat Neon
   autosuspend).</p>
+  <p class="note">The reverse proxy is <code>frontend/functions/api/[[path]].ts</code> (Cloudflare
+  Pages Function); local dev mirrors it via the <code>server.proxy</code> entry in
+  <code>frontend/vite.config.ts</code>.</p>
   <pre class="mermaid">
 flowchart LR
   U[Browser] --> CFP[Cloudflare Pages&lt;br/&gt;React 19 PWA static build]
@@ -396,7 +401,7 @@ sequenceDiagram
 </section>
 <section id="roadmap" hidden>
   <h2>Roadmap / target state <span class="badge badge-planned">planned</span></h2>
-  <p>What exists today is the account/auth slice plus scaffolding for AI memory and categories.
+  <p>What exists today is the account/auth slice plus the AI memory and category foundations.
   The MVP roadmap builds vertical slices on top:</p>
   <div class="card"><strong>Tasks</strong> — CRUD across the three layers (current / long-term / dreams),
   AI classification into the 11 life domains at capture time.</div>
@@ -467,18 +472,21 @@ flowchart LR
 <!-- sections-end -->
 </main>
 <script type="module">
-import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-mermaid.initialize({ startOnLoad: false, theme: 'neutral' });
+// Dynamic import: a CDN failure (offline, restricted network) must not blank the whole
+// page. On failure, mermaid stays null and diagrams are left as raw <pre> source —
+// the rest of the docs still render and route normally.
+const mermaid = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs')
+  .then(m => (m.default.initialize({ startOnLoad: false, theme: 'neutral' }), m.default), () => null);
 const sections = document.querySelectorAll('main > section');
 async function route() {
-  const id = location.hash.slice(1) || 'overview';
+  const raw = location.hash.slice(1), id = document.getElementById(raw) ? raw : 'overview';
   sections.forEach(s => s.hidden = (s.id !== id));
   document.querySelectorAll('nav a').forEach(a =>
     a.classList.toggle('active', a.getAttribute('href') === '#' + id));
   // Render Mermaid only after the section is visible: Mermaid measures text via getBBox,
   // which returns 0 inside hidden containers and silently produces broken diagrams.
   const pending = document.querySelectorAll('#' + CSS.escape(id) + ' pre.mermaid:not([data-processed])');
-  if (pending.length) await mermaid.run({ nodes: pending });
+  if (mermaid && pending.length) await mermaid.run({ nodes: pending });
 }
 addEventListener('hashchange', route);
 route();
