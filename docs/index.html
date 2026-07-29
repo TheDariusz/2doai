@@ -35,6 +35,7 @@
   <a href="#flows">Flows</a>
   <a href="#roadmap">Roadmap / target</a>
   <a href="#glossary">Glossary</a>
+  <a href="#cicd">CI/CD &amp; deployment</a>
   <!-- nav-end -->
 </nav>
 <main>
@@ -428,6 +429,40 @@ sequenceDiagram
     <tr><td><strong>FR-nnn</strong></td><td>Functional requirement id from <code>context/foundation/prd.md</code> (e.g. FR-019 = account deletion, FR-007 = the 11 domains).</td></tr>
     <tr><td><strong>Problem JSON</strong></td><td>RFC 9457 error body used by every API error (Zalando guideline), including security 401/403 via <code>ProblemDetailsSecurityHandler</code>.</td></tr>
   </table>
+</section>
+<section id="cicd" hidden>
+  <h2>CI/CD &amp; deployment <span class="badge badge-live">implemented</span></h2>
+  <p>Two independent, <strong>path-filtered</strong> GitHub Actions workflows trigger on push to
+  <code>master</code> — a frontend-only change never redeploys the JVM and vice versa.</p>
+  <pre class="mermaid">
+flowchart LR
+  P[push to master] --> F{path filter}
+  F -- "backend/**" --> B1[JDK 25 temurin&lt;br/&gt;mvn -B test] --> B2[record live image ref&lt;br/&gt;for rollback] --> B3[flyctl deploy --remote-only] --> FLY[Fly.io machine]
+  F -- "frontend/**" --> W1[Node 22: npm ci,&lt;br/&gt;lint, test, build] --> W2[wrangler pages deploy dist&lt;br/&gt;project: 2doai-web] --> CFP[Cloudflare Pages]
+  FLY -. Flyway migrates on boot .-> PG[(Neon PostgreSQL 18)]
+  </pre>
+  <h3>deploy-backend.yml</h3>
+  <ul>
+    <li>Tests gate the deploy: <code>mvn -B test</code> must pass first.</li>
+    <li><code>concurrency: deploy-backend, cancel-in-progress: false</code> — deploys queue, never cancel mid-flight.</li>
+    <li>Fly has no one-shot rollback, so the workflow logs the live image ref before deploying; roll back with <code>fly deploy --image &lt;recorded-image&gt;</code>. Safe because migrations are expand-only.</li>
+  </ul>
+  <h3>deploy-frontend.yml</h3>
+  <ul>
+    <li>Gate: <code>npm ci &amp;&amp; npm run lint &amp;&amp; npm test &amp;&amp; npm run build</code>.</li>
+    <li><code>cancel-in-progress: true</code> — only the newest frontend deploy matters.</li>
+    <li>Publishes <code>frontend/dist</code> via <code>cloudflare/wrangler-action</code>.</li>
+  </ul>
+  <h3>Secrets &amp; connected services</h3>
+  <table>
+    <tr><th>Service</th><th>Role</th><th>Config</th></tr>
+    <tr><td>Fly.io</td><td>Backend host (single machine)</td><td><code>FLY_API_TOKEN</code> secret; DB creds via <code>SPRING_DATASOURCE_*</code> Fly secrets</td></tr>
+    <tr><td>Cloudflare Pages</td><td>Frontend host + <code>/api/*</code> reverse proxy</td><td><code>CLOUDFLARE_API_TOKEN</code>, <code>CLOUDFLARE_ACCOUNT_ID</code></td></tr>
+    <tr><td>Neon</td><td>Managed PostgreSQL 18 (EU/Frankfurt), pooled + SSL, autosuspend</td><td>consumed by backend only</td></tr>
+    <tr><td>GitHub Actions</td><td>CI + CD runner</td><td><code>.github/workflows/</code></td></tr>
+  </table>
+  <p class="note">Operational detail (first-time setup, manual rollback, incident steps):
+  <code>context/foundation/deployment-runbook.md</code>.</p>
 </section>
 <!-- sections-end -->
 </main>
