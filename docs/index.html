@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2do AI — Developer Docs</title>
+<style>
+  :root { --ink:#1a1a2e; --muted:#6b7280; --line:#e5e7eb; --accent:#4f46e5; --bg:#fafafa; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.6 system-ui, sans-serif; color:var(--ink); background:var(--bg); display:flex; min-height:100vh; }
+  nav { width:230px; flex-shrink:0; border-right:1px solid var(--line); padding:1.5rem 0; position:sticky; top:0; height:100vh; background:#fff; }
+  nav h1 { font-size:1.05rem; padding:0 1.25rem .75rem; margin:0; }
+  nav a { display:block; padding:.45rem 1.25rem; color:var(--muted); text-decoration:none; border-left:3px solid transparent; }
+  nav a.active { color:var(--accent); border-left-color:var(--accent); background:#eef2ff; }
+  main { flex:1; padding:2rem 3rem; max-width:1000px; }
+  section[hidden] { display:none; }
+  h2 { margin-top:0; } h3 { margin-top:2rem; }
+  table { border-collapse:collapse; width:100%; } th,td { border:1px solid var(--line); padding:.5rem .75rem; text-align:left; background:#fff; }
+  code { background:#eef; padding:.1em .35em; border-radius:4px; font-size:.9em; }
+  pre.mermaid { background:#fff; border:1px solid var(--line); border-radius:8px; padding:1rem; overflow-x:auto; }
+  img.diagram { max-width:100%; background:#fff; border:1px solid var(--line); border-radius:8px; }
+  .badge { display:inline-block; font-size:.72rem; font-weight:600; padding:.1em .6em; border-radius:99px; vertical-align:middle; }
+  .badge-live { background:#dcfce7; color:#166534; }
+  .badge-planned { background:#fef3c7; color:#92400e; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:8px; padding:1rem 1.25rem; margin:.75rem 0; }
+  .note { color:var(--muted); font-size:.9rem; }
+</style>
+</head>
+<body>
+<nav>
+  <h1>2do AI · Dev Docs</h1>
+  <a href="#overview">Overview</a>
+  <!-- nav-end -->
+</nav>
+<main>
+<!-- HOW TO UPDATE THESE DOCS: hand-edited single file. Diagrams are Mermaid text in
+     <pre class="mermaid"> blocks — edit the text, reload the page. Add a section by
+     inserting a <section id="x" hidden> before the sections-end marker and a matching
+     <a href="#x"> before the nav-end marker. Keep planned content labeled badge-planned. -->
+
+<section id="overview" hidden>
+  <h2>Overview <span class="badge badge-live">implemented</span></h2>
+  <p><strong>2do AI</strong> is a personal AI-powered todo + planning app: three task layers
+  (<em>current</em>, <em>long-term</em>, <em>dreams</em>) across 11 life domains, with proactive
+  natural-rhythm reminders. Solo-dev, after-hours MVP.</p>
+  <p>The repo holds <strong>two independent projects</strong> — no monorepo tooling, each builds
+  from its own directory:</p>
+  <table>
+    <tr><th></th><th>Stack</th><th>Role</th></tr>
+    <tr><td><code>backend/</code></td><td>Spring Boot 4, Java 25, Maven, PostgreSQL 18 (JPA/Hibernate + Flyway)</td><td>REST API, auth, AI orchestration, background jobs</td></tr>
+    <tr><td><code>frontend/</code></td><td>React 19, Vite, TypeScript (strict), PWA</td><td>SPA consuming the REST API</td></tr>
+  </table>
+  <h3>Where things live</h3>
+  <table>
+    <tr><td><code>context/foundation/</code></td><td>Design docs: PRD, roadmap, data model, auth session model, deployment runbook</td></tr>
+    <tr><td><code>backend/src/main/resources/db/migration/</code></td><td>Flyway migrations (schema owner; Hibernate runs <code>ddl-auto=validate</code>)</td></tr>
+    <tr><td><code>.github/workflows/</code></td><td>CI/CD (see the CI/CD section)</td></tr>
+  </table>
+  <p class="note">These docs are for developers. A separate user-facing document will exist later.</p>
+</section>
+<!-- sections-end -->
+</main>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad: false, theme: 'neutral' });
+const sections = document.querySelectorAll('main > section');
+async function route() {
+  const id = location.hash.slice(1) || 'overview';
+  sections.forEach(s => s.hidden = (s.id !== id));
+  document.querySelectorAll('nav a').forEach(a =>
+    a.classList.toggle('active', a.getAttribute('href') === '#' + id));
+  // Render Mermaid only after the section is visible: Mermaid measures text via getBBox,
+  // which returns 0 inside hidden containers and silently produces broken diagrams.
+  const pending = document.querySelectorAll('#' + CSS.escape(id) + ' pre.mermaid:not([data-processed])');
+  if (pending.length) await mermaid.run({ nodes: pending });
+}
+addEventListener('hashchange', route);
+route();
+</script>
+</body>
+</html>
