@@ -24,6 +24,16 @@ public record UserPrincipal(UUID userId, String email, String passwordHash) impl
 		return new UserPrincipal(user.getId(), user.getEmail(), user.getPasswordHash());
 	}
 
+	/**
+	 * Masks the hash. The record's generated {@code toString()} would render it in full, and
+	 * {@code AbstractAuthenticationToken.toString()} embeds the principal — so a single DEBUG log line
+	 * or exception message would spill offline-crackable credential material into the logs.
+	 */
+	@Override
+	public String toString() {
+		return "UserPrincipal[userId=" + userId + ", email=" + email + "]";
+	}
+
 	@Override
 	public Collection<? extends GrantedAuthority> getAuthorities() {
 		return List.of();

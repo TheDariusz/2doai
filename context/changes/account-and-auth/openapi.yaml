@@ -254,6 +254,9 @@ components:
           type: string
           format: password
           minLength: 8                                      # baseline hardening; mirrors @Size(min=8)
+          maxLength: 72
+          x-max-utf8-bytes: 72
+          description: At most 72 UTF-8 bytes (the BCrypt input limit).
           writeOnly: true
 
     Credentials:
@@ -266,6 +269,9 @@ components:
         password:
           type: string
           format: password
+          maxLength: 72
+          x-max-utf8-bytes: 72
+          description: At most 72 UTF-8 bytes (the BCrypt input limit).
           writeOnly: true
 
     AccountDeletion:
@@ -276,6 +282,9 @@ components:
         password:
           type: string
           format: password
+          maxLength: 72
+          x-max-utf8-bytes: 72
+          description: At most 72 UTF-8 bytes (the BCrypt input limit).
           writeOnly: true
 
     CategoryCollection:

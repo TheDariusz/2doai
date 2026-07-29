@@ -1,11 +1,7 @@
 package com.thedariusz.todoai;
 
-import io.restassured.RestAssured;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 
 import static io.restassured.RestAssured.given;
@@ -32,20 +28,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class SecurityGatewayApiTest {
-
-	@LocalServerPort
-	private int port;
-
-	@BeforeEach
-	void setUp() {
-		RestAssured.port = port;
-	}
-
-	@AfterEach
-	void tearDown() {
-		RestAssured.reset();
-	}
+class SecurityGatewayApiTest extends ApiTestBase {
 
 	@Test
 	void pingIsPublicAndReturnsOk() {

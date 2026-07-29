@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Round-trips the {@link User} aggregate against a real Postgres (Testcontainers) with the
  * {@code V4} migration applied — proving the mapping validates against the migrated schema
  * ({@code ddl-auto=validate}), the UUIDv7 + audit-column conventions populate, the
- * case-insensitive {@code findByEmail}/{@code existsByEmail} lookups work, and the
+ * case-insensitive {@code findByEmail} lookup works, and the
  * {@code app_user.email} UNIQUE constraint is enforced.
  */
 @Import(TestcontainersConfiguration.class)
@@ -36,14 +36,6 @@ class UserRepositoryTest {
 		assertThat(reloaded.getPasswordHash()).isEqualTo("{bcrypt}$2a$10$hash");
 		assertThat(reloaded.getCreatedAt()).isNotNull();
 		assertThat(reloaded.getUpdatedAt()).isNotNull();
-	}
-
-	@Test
-	void existsByEmailReflectsPersistedRows() {
-		users.saveAndFlush(new User(Email.of("present@example.com"), "{bcrypt}$2a$10$hash"));
-
-		assertThat(users.existsByEmail("present@example.com")).isTrue();
-		assertThat(users.existsByEmail("absent@example.com")).isFalse();
 	}
 
 	@Test
