@@ -33,6 +33,7 @@
   <a href="#architecture">Architecture</a>
   <a href="#backend">Backend design</a>
   <a href="#flows">Flows</a>
+  <a href="#roadmap">Roadmap / target</a>
   <!-- nav-end -->
 </nav>
 <main>
@@ -361,7 +362,51 @@ sequenceDiagram
     CSC-->>Boot: ok
   end
   </pre>
+  <h3>Task creation with AI classification <span class="badge badge-planned">planned</span></h3>
+  <pre class="mermaid">
+sequenceDiagram
+  actor SPA
+  participant TC as TaskController (planned)
+  participant TS as TaskService (planned)
+  participant LLM as LlmClient → AI provider
+  participant PG as Postgres
+  SPA->>TC: POST /api/tasks {text}
+  TC->>TS: create(userId, text)
+  TS->>LLM: classify text — JSON-schema-constrained&lt;br/&gt;output: {lifeDomain, taskLayer}
+  LLM-->>TS: {domain: HEALTH, layer: CURRENT}
+  TS->>PG: insert task (uuid v7, audit columns)
+  TC-->>SPA: 201 Created
+  </pre>
+
+  <h3>Natural-rhythm reminder <span class="badge badge-planned">planned</span></h3>
+  <pre class="mermaid">
+sequenceDiagram
+  participant SCH as Scheduled job (backend)
+  participant PG as Postgres
+  participant LLM as LlmClient
+  participant U as User (PWA notification)
+  SCH->>PG: load due tasks + AiMemory for user
+  SCH->>LLM: pick what to surface, phrase the nudge&lt;br/&gt;(AiMemoryRenderer supplies context)
+  LLM-->>SCH: reminder text
+  SCH->>U: proactive reminder at a natural moment
+  </pre>
   <!-- planned-flows -->
+</section>
+<section id="roadmap" hidden>
+  <h2>Roadmap / target state <span class="badge badge-planned">planned</span></h2>
+  <p>What exists today is the account/auth slice plus scaffolding for AI memory and categories.
+  The MVP roadmap builds vertical slices on top:</p>
+  <div class="card"><strong>Tasks</strong> — CRUD across the three layers (current / long-term / dreams),
+  AI classification into the 11 life domains at capture time.</div>
+  <div class="card"><strong>AI orchestration</strong> — <code>LlmClient</code> port already exists with a
+  Spring AI adapter; JSON-schema-constrained structured output; per-user <code>AiMemory</code>
+  (profile facts + episodes) rendered into prompts.</div>
+  <div class="card"><strong>Natural-rhythm reminders</strong> — background jobs that surface the right
+  task at the right moment, not fixed-time alarms.</div>
+  <p>Planned sequence diagrams live in the <a href="#flows">Flows</a> section (yellow badges).
+  Target ER diagram is in <a href="#architecture">Architecture</a>.</p>
+  <p class="note">Authoritative detail: <code>context/foundation/prd.md</code>,
+  <code>context/foundation/roadmap.md</code>, <code>context/foundation/ai-provider.md</code>.</p>
 </section>
 <!-- sections-end -->
 </main>
