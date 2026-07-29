@@ -34,6 +34,7 @@
   <a href="#backend">Backend design</a>
   <a href="#flows">Flows</a>
   <a href="#roadmap">Roadmap / target</a>
+  <a href="#glossary">Glossary</a>
   <!-- nav-end -->
 </nav>
 <main>
@@ -407,6 +408,26 @@ sequenceDiagram
   Target ER diagram is in <a href="#architecture">Architecture</a>.</p>
   <p class="note">Authoritative detail: <code>context/foundation/prd.md</code>,
   <code>context/foundation/roadmap.md</code>, <code>context/foundation/ai-provider.md</code>.</p>
+</section>
+<section id="glossary" hidden>
+  <h2>Glossary</h2>
+  <p>The ubiquitous language of the codebase — use these words in code, commits, and docs.</p>
+  <table>
+    <tr><th>Term</th><th>Meaning</th></tr>
+    <tr><td><strong>Task layer</strong></td><td>One of three horizons a task lives in: <em>current</em> (actionable now), <em>long-term</em> (goals), <em>dreams</em> (aspirations). <span class="badge badge-planned">planned</span></td></tr>
+    <tr><td><strong>Life domain</strong></td><td>One of 11 fixed categories every task belongs to: HEALTH, FINANCE, CAREER, EDUCATION, RELATIONSHIPS, HOME, LEISURE, ADMIN, SAFETY, TRANSPORT, INNER_GROWTH. Enum <code>LifeDomain</code> mirrors the seeded <code>category</code> table; <code>CategorySyncCheck</code> fails boot on drift.</td></tr>
+    <tr><td><strong>Natural-rhythm reminder</strong></td><td>A proactive nudge surfaced at a contextually right moment rather than a fixed alarm time. <span class="badge badge-planned">planned</span></td></tr>
+    <tr><td><strong>AiMemory</strong></td><td>Per-user aggregate the AI consults; created atomically with the <code>User</code> at registration ("every user has exactly one memory").</td></tr>
+    <tr><td><strong>Episode</strong></td><td>One recorded AI interaction inside <code>AiMemory</code>; payload stored as <code>jsonb</code>.</td></tr>
+    <tr><td><strong>Profile fact</strong></td><td>A durable statement about the user inside <code>AiMemory</code>, rendered into prompts by <code>AiMemoryRenderer</code>.</td></tr>
+    <tr><td><strong>UserPrincipal</strong></td><td>The authenticated identity (record: userId, email, passwordHash) carried by the session — lets <code>/me</code> and re-auth answer without a DB query.</td></tr>
+    <tr><td><strong>PerUserDataDeleter</strong></td><td>Interface each module implements so FR-019 account deletion erases its per-user rows; the final user delete's plain FKs fail loudly if one is missing.</td></tr>
+    <tr><td><strong>Session model</strong></td><td>Server-side session cookie (<code>HttpOnly; Secure; SameSite=Strict</code>), held in-memory on the single Fly machine. Not JWT; never DB-backed (Neon autosuspend). Decided 2026-07-22.</td></tr>
+    <tr><td><strong>Pattern B / unified origin</strong></td><td>Cloudflare serves the SPA and reverse-proxies <code>/api/*</code> to Fly — production is same-origin, no CORS.</td></tr>
+    <tr><td><strong>Expand-only migration</strong></td><td>Flyway migrations must stay backward-compatible (safe under image rollback); destructive changes go expand → contract.</td></tr>
+    <tr><td><strong>FR-nnn</strong></td><td>Functional requirement id from <code>context/foundation/prd.md</code> (e.g. FR-019 = account deletion, FR-007 = the 11 domains).</td></tr>
+    <tr><td><strong>Problem JSON</strong></td><td>RFC 9457 error body used by every API error (Zalando guideline), including security 401/403 via <code>ProblemDetailsSecurityHandler</code>.</td></tr>
+  </table>
 </section>
 <!-- sections-end -->
 </main>
