@@ -72,9 +72,9 @@
   autosuspend).</p>
   <pre class="mermaid">
 flowchart LR
-  U[Browser] --> CFP[Cloudflare Pages<br/>React 19 PWA static build]
-  U -- "/api/* (same origin)" --> PRX[Cloudflare reverse proxy] --> BE[Fly.io — Spring Boot 4 API<br/>single machine, in-memory sessions]
-  BE -- "JPA / Hibernate (validate)" --> PG[(Neon PostgreSQL 18<br/>pooled + SSL, autosuspend)]
+  U[Browser] --> CFP[Cloudflare Pages&lt;br/&gt;React 19 PWA static build]
+  U -- "/api/* (same origin)" --> PRX[Cloudflare reverse proxy] --> BE[Fly.io — Spring Boot 4 API&lt;br/&gt;single machine, in-memory sessions]
+  BE -- "JPA / Hibernate (validate)" --> PG[(Neon PostgreSQL 18&lt;br/&gt;pooled + SSL, autosuspend)]
   BE -- "Flyway migrations on boot" --> PG
   GHA[GitHub Actions] -- "flyctl deploy" --> BE
   GHA -- "wrangler pages deploy" --> CFP
@@ -86,8 +86,8 @@ flowchart LR
 flowchart LR
   U[Browser PWA] -- "/api/*" --> BE[Spring Boot 4 API]
   BE --> PG[(Neon PostgreSQL 18)]
-  BE -- "LlmClient (Spring AI)" --> LLM[AI provider API<br/>JSON-schema constrained]
-  BE --> SCH[Scheduled jobs<br/>natural-rhythm reminders] --> U
+  BE -- "LlmClient (Spring AI)" --> LLM[AI provider API&lt;br/&gt;JSON-schema constrained]
+  BE --> SCH[Scheduled jobs&lt;br/&gt;natural-rhythm reminders] --> U
   </pre>
   <h3>Data model</h3>
   <p>Canonical ER diagrams (drawio exports, not redrawn here):</p>
@@ -384,11 +384,11 @@ sequenceDiagram
   participant SCH as Scheduled job (backend)
   participant PG as Postgres
   participant LLM as LlmClient
-  participant U as User (PWA notification)
+  participant U as User (email + in-app)
   SCH->>PG: load due tasks + AiMemory for user
   SCH->>LLM: pick what to surface, phrase the nudge&lt;br/&gt;(AiMemoryRenderer supplies context)
   LLM-->>SCH: reminder text
-  SCH->>U: proactive reminder at a natural moment
+  SCH->>U: email with proposal + link, shown in-app on next open
   </pre>
   <!-- planned-flows -->
 </section>
