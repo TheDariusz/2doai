@@ -4,7 +4,7 @@ title: "Account & auth — email+password, server-side session cookie, per-user 
 roadmap_id: S-01
 status: implementing
 created: 2026-07-22
-updated: 2026-07-22
+updated: 2026-07-27
 prd_refs:
   - FR-001 (założyć konto — email+hasło)
   - FR-002 (zalogować / wylogować)

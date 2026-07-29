@@ -372,9 +372,10 @@ records)
 
 **Contract**: `RegisterRequest(email, password)` and `LoginRequest(email,
 password)` with Jakarta Bean Validation (`@Email`, `@NotBlank`, `@Size(min = 8)` on
-password). `UserResponse(UUID id, String email)` for register/login/me (the `User`
-schema in `openapi.yaml`). `DeleteAccountRequest(String password)` for the re-auth on
-FR-019. **All JSON serializes snake_case** via
+registration passwords, and a 72-UTF-8-byte BCrypt maximum on every password request).
+`UserResponse(UUID id, String email)` for register/login/me (the `User` schema in
+`openapi.yaml`). `DeleteAccountRequest(String password)` for the re-auth on FR-019.
+**All JSON serializes snake_case** via
 `spring.jackson.property-naming-strategy=SNAKE_CASE` (#118) — set once, globally.
 
 #### 2. `RegistrationService` (eager ai_memory provisioning)
@@ -721,18 +722,18 @@ is preserved. BCrypt cost is a one-off per login/register.
 
 #### Automated
 
-- [ ] 2.1 Auth-endpoint REST Assured tests pass (register/login/me/logout/delete)
-- [ ] 2.2 Security behavior verified: gated → 401; no-CSRF mutation → 403; with token → passes
-- [ ] 2.3 Integration test proves per-user isolation (findByUserId scoping)
-- [ ] 2.4 Integration test proves FR-019 completeness (user + ai_memory gone)
-- [ ] 2.5 Orphan-guard test passes (every user_id table has a deleter)
-- [ ] 2.6 `GET /api/categories` returns `{items:[...]}` — 11 domains in display_order
+- [x] 2.1 Auth-endpoint REST Assured tests pass (register/login/me/logout/delete) — a435ecc
+- [x] 2.2 Security behavior verified: gated → 401; no-CSRF mutation → 403; with token → passes — a435ecc
+- [x] 2.3 Integration test proves per-user isolation (findByUserId scoping) — a435ecc
+- [x] 2.4 Integration test proves FR-019 completeness (user + ai_memory gone) — a435ecc
+- [x] 2.5 Orphan-guard test passes (every user_id table has a deleter) — a435ecc
+- [x] 2.6 `GET /api/categories` returns `{items:[...]}` — 11 domains in display_order — a435ecc
 
 #### Manual
 
-- [ ] 2.7 Full lifecycle via curl: register → login → me → delete → me 401
-- [ ] 2.8 Duplicate registration returns 409
-- [ ] 2.9 After delete, the email can be registered again
+- [x] 2.7 Full lifecycle via curl: register → login → me → delete → me 401 — a435ecc
+- [x] 2.8 Duplicate registration returns 409 — a435ecc
+- [x] 2.9 After delete, the email can be registered again — a435ecc
 
 ### Phase 3: Frontend plumbing + auth screens
 
