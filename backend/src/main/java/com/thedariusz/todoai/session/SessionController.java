@@ -17,7 +17,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.csrf.CsrfToken;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -51,13 +50,16 @@ public class SessionController {
 
 	private final LogoutHandler logoutHandler;
 
-	private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
+	/** The chain's own repository (a {@code SecurityConfig} bean), never a private instance — see there. */
+	private final SecurityContextRepository securityContextRepository;
 
 	public SessionController(AuthenticationManager authenticationManager,
-			SessionAuthenticationStrategy sessionAuthenticationStrategy, LogoutHandler logoutHandler) {
+			SessionAuthenticationStrategy sessionAuthenticationStrategy, LogoutHandler logoutHandler,
+			SecurityContextRepository securityContextRepository) {
 		this.authenticationManager = authenticationManager;
 		this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
 		this.logoutHandler = logoutHandler;
+		this.securityContextRepository = securityContextRepository;
 	}
 
 	/**

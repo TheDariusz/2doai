@@ -22,7 +22,7 @@ public record RegisterRequest(
 
 		@NotBlank
 		@Size(min = 8)
-		@Utf8ByteLength(max = Utf8ByteLength.BCRYPT_MAX_PASSWORD_BYTES)
+		@Utf8ByteLength
 		String password) {
 
 	public RegisterRequest {

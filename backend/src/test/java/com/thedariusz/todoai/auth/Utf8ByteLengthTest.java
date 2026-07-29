@@ -5,7 +5,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 /**
  * The bound is exclusive of nothing and inclusive of {@code max} — the accepting boundary matters as
@@ -14,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
  */
 class Utf8ByteLengthTest {
 
-	private final Utf8ByteLength.Validator validator = validatorWithMax(72);
+	private final Utf8ByteLength.Validator validator = new Utf8ByteLength.Validator();
 
 	@Test
 	void acceptsAValueExactlyAtTheLimit() {
@@ -58,45 +57,4 @@ class Utf8ByteLengthTest {
 		assertThat(validator.isValid(null, null)).isTrue();
 	}
 
-	@Test
-	void rejectsANegativeBoundAtInitialization() {
-		assertThatIllegalArgumentException().isThrownBy(() -> validatorWithMax(-1));
-	}
-
-	private static Utf8ByteLength.Validator validatorWithMax(int max) {
-		Utf8ByteLength.Validator validator = new Utf8ByteLength.Validator();
-		validator.initialize(new Utf8ByteLength() {
-
-			@Override
-			public Class<? extends java.lang.annotation.Annotation> annotationType() {
-				return Utf8ByteLength.class;
-			}
-
-			@Override
-			public String message() {
-				return "";
-			}
-
-			@Override
-			public Class<?>[] groups() {
-				return new Class<?>[0];
-			}
-
-			@Override
-			public Class<? extends jakarta.validation.Payload>[] payload() {
-				return newPayloadArray();
-			}
-
-			@Override
-			public int max() {
-				return max;
-			}
-		});
-		return validator;
-	}
-
-	@SuppressWarnings("unchecked")
-	private static Class<? extends jakarta.validation.Payload>[] newPayloadArray() {
-		return new Class[0];
-	}
 }

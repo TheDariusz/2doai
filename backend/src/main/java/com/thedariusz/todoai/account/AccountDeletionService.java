@@ -3,6 +3,7 @@ package com.thedariusz.todoai.account;
 import java.util.List;
 import java.util.UUID;
 
+import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,14 +33,9 @@ public class AccountDeletionService {
 
 	@Transactional
 	public void deleteAccount(UUID userId) {
-		// deleteById has been a silent no-op for a missing row since Spring Data 3.0, so without this
-		// an erasure that erased nothing would still report success to the caller.
-		if (!users.existsById(userId)) {
-			throw new IllegalStateException("No account to delete for user " + userId);
-		}
-		// ponytail: unordered — fine while no user-owned aggregate references another. Add @Order to
-		// the deleters when one does, or the FK between them decides the outcome at random.
+		User user = users.findById(userId)
+				.orElseThrow(() -> new IllegalStateException("No account to delete for user " + userId));
 		deleters.forEach(deleter -> deleter.deleteAllForUser(userId));
-		users.deleteById(userId);
+		users.delete(user);
 	}
 }

@@ -31,6 +31,10 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfAuthenticationStrategy;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.context.DelegatingSecurityContextRepository;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 
 /**
  * Wires the decided authentication model (see {@code context/foundation/auth-session-model.md}):
@@ -80,9 +84,11 @@ public class SecurityConfig {
 
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http, CsrfTokenRepository csrfTokenRepository,
+			SecurityContextRepository securityContextRepository,
 			ProblemDetailsSecurityHandler problemDetailsSecurityHandler, SessionRegistry sessionRegistry)
 			throws Exception {
 		http
+				.securityContext(context -> context.securityContextRepository(securityContextRepository))
 				.authorizeHttpRequests(auth -> auth
 						.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/users").permitAll()      // register
@@ -134,6 +140,19 @@ public class SecurityConfig {
 	@Bean
 	CsrfTokenRepository csrfTokenRepository() {
 		return CookieCsrfTokenRepository.withHttpOnlyFalse();
+	}
+
+	/**
+	 * Same reasoning, and the same default Spring Security installs when nothing overrides it: the
+	 * chain reads the context through this, and {@code SessionController} writes it through this, so
+	 * login can never persist to a repository the chain does not consult — which would look like a
+	 * successful login whose very next request is anonymous, with nothing in the logs.
+	 */
+	@Bean
+	SecurityContextRepository securityContextRepository() {
+		return new DelegatingSecurityContextRepository(
+				new RequestAttributeSecurityContextRepository(),
+				new HttpSessionSecurityContextRepository());
 	}
 
 	/**

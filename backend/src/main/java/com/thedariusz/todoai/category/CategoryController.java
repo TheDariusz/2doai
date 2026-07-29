@@ -19,17 +19,22 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/categories")
 public class CategoryController {
 
-	private final CategoryRepository categories;
+	/**
+	 * Read once at startup, not per request. {@code CategorySyncCheck} fails boot if the table drifts
+	 * from the {@code LifeDomain} enum, so these rows cannot change under a running process — and every
+	 * query avoided is idle time Neon can autosuspend through.
+	 */
+	private final CategoryCollection collection;
 
 	public CategoryController(CategoryRepository categories) {
-		this.categories = categories;
+		this.collection = new CategoryCollection(categories.findAll(Sort.by("displayOrder")).stream()
+				.map(CategoryResponse::from)
+				.toList());
 	}
 
 	@GetMapping
 	CategoryCollection list() {
-		return new CategoryCollection(categories.findAll(Sort.by("displayOrder")).stream()
-				.map(CategoryResponse::from)
-				.toList());
+		return collection;
 	}
 
 	/**
