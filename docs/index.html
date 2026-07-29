@@ -30,6 +30,7 @@
 <nav>
   <h1>2do AI · Dev Docs</h1>
   <a href="#overview">Overview</a>
+  <a href="#architecture">Architecture</a>
   <!-- nav-end -->
 </nav>
 <main>
@@ -57,6 +58,41 @@
     <tr><td><code>.github/workflows/</code></td><td>CI/CD (see the CI/CD section)</td></tr>
   </table>
   <p class="note">These docs are for developers. A separate user-facing document will exist later.</p>
+</section>
+<section id="architecture" hidden>
+  <h2>Architecture</h2>
+  <h3>Current <span class="badge badge-live">implemented</span></h3>
+  <p>Pattern B — <strong>unified origin</strong>: Cloudflare Pages serves the static frontend and
+  reverse-proxies <code>/api/*</code> to the Fly.io backend, so production is same-origin and needs
+  no CORS. Sessions are server-side cookies held <strong>in-memory</strong> on the single Fly
+  machine (not JWT, never DB-backed — a per-request session <code>SELECT</code> would defeat Neon
+  autosuspend).</p>
+  <pre class="mermaid">
+flowchart LR
+  U[Browser] --> CFP[Cloudflare Pages<br/>React 19 PWA static build]
+  U -- "/api/* (same origin)" --> PRX[Cloudflare reverse proxy] --> BE[Fly.io — Spring Boot 4 API<br/>single machine, in-memory sessions]
+  BE -- "JPA / Hibernate (validate)" --> PG[(Neon PostgreSQL 18<br/>pooled + SSL, autosuspend)]
+  BE -- "Flyway migrations on boot" --> PG
+  GHA[GitHub Actions] -- "flyctl deploy" --> BE
+  GHA -- "wrangler pages deploy" --> CFP
+  </pre>
+  <h3>Target <span class="badge badge-planned">planned</span></h3>
+  <p>The MVP adds AI orchestration (task classification into life domains via a
+  JSON-schema-constrained LLM call) and background reminder jobs on the same single backend.</p>
+  <pre class="mermaid">
+flowchart LR
+  U[Browser PWA] -- "/api/*" --> BE[Spring Boot 4 API]
+  BE --> PG[(Neon PostgreSQL 18)]
+  BE -- "LlmClient (Spring AI)" --> LLM[AI provider API<br/>JSON-schema constrained]
+  BE --> SCH[Scheduled jobs<br/>natural-rhythm reminders] --> U
+  </pre>
+  <h3>Data model</h3>
+  <p>Canonical ER diagrams (drawio exports, not redrawn here):</p>
+  <p><span class="badge badge-live">current</span></p>
+  <img class="diagram" src="../context/foundation/data-model-current.svg" alt="Current data model">
+  <p><span class="badge badge-planned">target</span></p>
+  <img class="diagram" src="../context/foundation/data-model-target.svg" alt="Target data model">
+  <p class="note">Sources: <code>context/foundation/data-model.md</code>, <code>*.drawio</code> files alongside the SVGs.</p>
 </section>
 <!-- sections-end -->
 </main>
