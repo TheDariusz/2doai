@@ -32,6 +32,7 @@
   <a href="#overview">Overview</a>
   <a href="#architecture">Architecture</a>
   <a href="#backend">Backend design</a>
+  <a href="#flows">Flows</a>
   <!-- nav-end -->
 </nav>
 <main>
@@ -243,6 +244,124 @@ classDiagram
   <code>DELETE /api/users/me</code>, <code>POST /api/sessions</code>,
   <code>DELETE /api/sessions/current</code>, <code>GET /api/categories</code>,
   <code>GET /api/ping</code>.</p>
+</section>
+<section id="flows" hidden>
+  <h2>Flows</h2>
+  <h3>Registration <span class="badge badge-live">implemented</span></h3>
+  <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor SPA
+  participant UC as UserController
+  participant RS as RegistrationService
+  participant UR as UserRepository
+  participant MR as AiMemoryRepository
+  SPA->>UC: POST /api/users {email, password}
+  UC->>RS: register(email, password)
+  Note over RS: BCrypt-encode password,&lt;br/&gt;new User(Email.of(email), hash)
+  RS->>UR: saveAndFlush(user)
+  alt UNIQUE(app_user.email) violated
+    UR-->>RS: DataIntegrityViolationException
+    RS-->>SPA: 409 Problem JSON (EmailAlreadyRegistered)
+  else created
+    RS->>MR: save(new AiMemory(userId))
+    Note over RS,MR: one @Transactional — user + memory atomic
+    RS-->>UC: User
+    UC-->>SPA: 201 Created, Location: /api/users/me
+  end
+  Note over SPA: registration does NOT log in —&lt;br/&gt;POST /api/sessions is the only session-creation path
+  </pre>
+
+  <h3>Login (session creation) <span class="badge badge-live">implemented</span></h3>
+  <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor SPA
+  participant SC as SessionController
+  participant AM as AuthenticationManager
+  participant UDS as AppUserDetailsService
+  SPA->>SC: POST /api/sessions {email, password}
+  SC->>AM: authenticate(unauthenticated token)
+  AM->>UDS: loadUserByUsername(email)
+  UDS-->>AM: UserPrincipal (userId, email, passwordHash)
+  alt bad credentials (unknown email OR wrong password)
+    AM-->>SPA: 401 Problem JSON — identical either way,&lt;br/&gt;reveals nothing about which emails exist
+  else authenticated
+    SC->>SC: SessionAuthenticationStrategy.onAuthentication()&lt;br/&gt;rotates session id (fixation) + CSRF token
+    SC->>SC: materializeRotatedCsrfToken() — forces new&lt;br/&gt;XSRF-TOKEN cookie onto THIS response
+    SC->>SC: SecurityContextRepository.saveContext()&lt;br/&gt;— actually writes the session
+    SC-->>SPA: 201 Created + Set-Cookie (session, XSRF-TOKEN)
+  end
+  </pre>
+
+  <h3>Authenticated request <span class="badge badge-live">implemented</span></h3>
+  <pre class="mermaid">
+sequenceDiagram
+  actor SPA
+  participant FC as Security filter chain
+  participant UC as UserController
+  SPA->>FC: GET /api/users/me + session cookie
+  Note over FC: session validated in-memory —&lt;br/&gt;no DB query, Neon stays suspended
+  alt missing/expired session
+    FC-->>SPA: 401 Problem JSON (ProblemDetailsSecurityHandler)
+  else valid session
+    FC->>UC: currentUser(@AuthenticationPrincipal UserPrincipal)
+    UC-->>SPA: 200 UserResponse — answered from the principal, no query
+  end
+  </pre>
+
+  <h3>Logout <span class="badge badge-live">implemented</span></h3>
+  <pre class="mermaid">
+sequenceDiagram
+  actor SPA
+  participant SC as SessionController
+  participant LH as LogoutHandler
+  SPA->>SC: DELETE /api/sessions/current (+ X-XSRF-TOKEN header)
+  SC->>LH: logout(request, response, authentication)
+  Note over LH: invalidates the HttpSession,&lt;br/&gt;clears context + cookies
+  SC-->>SPA: 204 No Content
+  </pre>
+
+  <h3>Account deletion (FR-019) <span class="badge badge-live">implemented</span></h3>
+  <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor SPA
+  participant UC as UserController
+  participant ADS as AccountDeletionService
+  participant D as every PerUserDataDeleter bean
+  participant UR as UserRepository
+  participant SR as SessionRegistry
+  SPA->>UC: DELETE /api/users/me {password}
+  UC->>UC: passwordEncoder.matches(password, principal.passwordHash)&lt;br/&gt;— re-auth from the principal, no query
+  alt password mismatch
+    UC-->>SPA: 403 Problem JSON (session still valid — not 401)
+  else verified
+    UC->>ADS: deleteAccount(userId) — @Transactional
+    ADS->>D: deleteAllForUser(userId)
+    ADS->>UR: delete(user) — plain FKs (no ON DELETE) fail loudly&lt;br/&gt;if a module forgot to register a deleter
+    UC->>SR: expire all sibling sessions (phone left logged in)
+    UC->>UC: logout current session — a failure here is logged,&lt;br/&gt;never surfaced: the deletion already committed
+    UC-->>SPA: 204 No Content
+  end
+  </pre>
+
+  <h3>Startup category sync check <span class="badge badge-live">implemented</span></h3>
+  <pre class="mermaid">
+sequenceDiagram
+  participant Boot as Spring Boot startup
+  participant CSC as CategorySyncCheck (ApplicationRunner)
+  participant CR as CategoryRepository
+  Boot->>CSC: run(args)
+  CSC->>CR: findAll()
+  CSC->>CSC: compare category.code set with LifeDomain enum names
+  alt drift (missing / extra / renamed code)
+    CSC-->>Boot: IllegalStateException — boot fails fast
+  else in sync
+    CSC-->>Boot: ok
+  end
+  </pre>
+  <!-- planned-flows -->
 </section>
 <!-- sections-end -->
 </main>
