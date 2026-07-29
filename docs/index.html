@@ -4,111 +4,301 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>2do AI — Developer Docs</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <style>
-  :root { --ink:#1a1a2e; --muted:#6b7280; --line:#e5e7eb; --accent:#4f46e5; --bg:#fafafa; }
+  :root {
+    --ink:#1a1a2e;
+    --muted:#596273;
+    --line:#dfe3ea;
+    --accent:#4338ca;
+    --accent-soft:#eef2ff;
+    --bg:#f7f8fb;
+    --surface:#fff;
+  }
   * { box-sizing:border-box; }
-  body { margin:0; font:16px/1.6 system-ui, sans-serif; color:var(--ink); background:var(--bg); display:flex; min-height:100vh; }
-  nav { width:230px; flex-shrink:0; border-right:1px solid var(--line); padding:1.5rem 0; position:sticky; top:0; height:100vh; background:#fff; }
+  html { scroll-behavior:smooth; }
+  body {
+    margin:0;
+    font:16px/1.65 system-ui, sans-serif;
+    color:var(--ink);
+    background:var(--bg);
+    display:flex;
+    min-height:100vh;
+  }
+  a { color:var(--accent); text-underline-offset:.18em; }
+  a:hover { text-decoration-thickness:2px; }
+  :focus-visible { outline:3px solid #818cf8; outline-offset:3px; border-radius:2px; }
+  .skip-link {
+    position:fixed;
+    z-index:10;
+    top:.75rem;
+    left:.75rem;
+    padding:.55rem .8rem;
+    color:#fff;
+    background:var(--accent);
+    transform:translateY(-200%);
+  }
+  .skip-link:focus { transform:none; }
+  nav {
+    width:250px;
+    flex-shrink:0;
+    border-right:1px solid var(--line);
+    padding:1.5rem 0;
+    position:sticky;
+    top:0;
+    height:100vh;
+    overflow-y:auto;
+    background:var(--surface);
+  }
   nav h1 { font-size:1.05rem; padding:0 1.25rem .75rem; margin:0; }
-  nav a { display:block; padding:.45rem 1.25rem; color:var(--muted); text-decoration:none; border-left:3px solid transparent; }
-  nav a.active { color:var(--accent); border-left-color:var(--accent); background:#eef2ff; }
-  main { flex:1; padding:2rem 3rem; max-width:1000px; }
-  section[hidden] { display:none; }
-  h2 { margin-top:0; } h3 { margin-top:2rem; }
-  table { border-collapse:collapse; width:100%; } th,td { border:1px solid var(--line); padding:.5rem .75rem; text-align:left; background:#fff; }
-  code { background:#eef; padding:.1em .35em; border-radius:4px; font-size:.9em; }
-  pre.mermaid { background:#fff; border:1px solid var(--line); border-radius:8px; padding:1rem; overflow-x:auto; }
-  img.diagram { max-width:100%; background:#fff; border:1px solid var(--line); border-radius:8px; }
+  nav p { margin:0; padding:0 1.25rem 1rem; color:var(--muted); font-size:.8rem; }
+  nav a {
+    display:block;
+    padding:.42rem 1.25rem;
+    color:var(--muted);
+    text-decoration:none;
+    border-left:3px solid transparent;
+  }
+  nav a:hover { color:var(--ink); background:#f8fafc; }
+  nav a.active,
+  nav a[aria-current="location"] {
+    color:var(--accent);
+    border-left-color:var(--accent);
+    background:var(--accent-soft);
+    font-weight:650;
+  }
+  main { flex:1; min-width:0; max-width:1100px; padding:2.5rem 3.25rem 5rem; }
+  section { padding:1rem 0 3rem; border-bottom:1px solid var(--line); scroll-margin-top:1rem; }
+  section:last-of-type { border-bottom:0; }
+  h2 { margin:0 0 1rem; font-size:clamp(1.65rem, 3vw, 2.15rem); line-height:1.2; }
+  h3 { margin-top:2rem; line-height:1.3; }
+  h4 { margin:1.5rem 0 .5rem; }
+  .lede { max-width:75ch; font-size:1.08rem; }
+  .table-wrap { max-width:100%; overflow-x:auto; margin:1rem 0; }
+  table { border-collapse:collapse; width:100%; min-width:650px; }
+  caption { text-align:left; font-weight:700; padding:0 0 .5rem; }
+  th,td { border:1px solid var(--line); padding:.6rem .75rem; text-align:left; vertical-align:top; background:var(--surface); }
+  thead th { background:#f1f5f9; }
+  tbody th { font-weight:650; }
+  code { background:#eef2ff; padding:.1em .35em; border-radius:4px; font-size:.9em; overflow-wrap:anywhere; }
+  pre.mermaid { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:1rem; overflow-x:auto; }
+  img.diagram { display:block; width:100%; height:auto; background:var(--surface); border:1px solid var(--line); border-radius:8px; }
   .badge { display:inline-block; font-size:.72rem; font-weight:600; padding:.1em .6em; border-radius:99px; vertical-align:middle; }
   .badge-live { background:#dcfce7; color:#166534; }
+  .badge-foundation { background:#dbeafe; color:#1e40af; }
+  .badge-scaffold { background:#f3e8ff; color:#6b21a8; }
   .badge-planned { background:#fef3c7; color:#92400e; }
-  .card { background:#fff; border:1px solid var(--line); border-radius:8px; padding:1rem 1.25rem; margin:.75rem 0; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:1rem 1.25rem; margin:.75rem 0; }
+  .callout { border-left:4px solid var(--accent); background:var(--accent-soft); padding:1rem 1.25rem; margin:1rem 0; }
+  .card-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem; }
+  .card-grid .card { margin:0; }
   .note { color:var(--muted); font-size:.9rem; }
+  .diagram-fallback { padding:.75rem 1rem; border:1px solid #f59e0b; background:#fffbeb; color:#78350f; }
+  .source-links { padding-left:1.2rem; }
+  @media (max-width:760px) {
+    body { display:block; }
+    nav { position:static; width:auto; height:auto; overflow:visible; border-right:0; border-bottom:1px solid var(--line); padding:1rem 0 .5rem; }
+    nav p { padding-bottom:.6rem; }
+    nav .nav-links { display:flex; overflow-x:auto; padding:0 .75rem .5rem; scrollbar-width:thin; }
+    nav a { flex:0 0 auto; padding:.45rem .7rem; border-left:0; border-bottom:3px solid transparent; }
+    nav a.active,
+    nav a[aria-current="location"] { border-left-color:transparent; border-bottom-color:var(--accent); }
+    main { padding:1.75rem 1rem 4rem; }
+    section { scroll-margin-top:.5rem; }
+  }
+  @media print {
+    body { display:block; background:#fff; }
+    nav,.skip-link { display:none; }
+    main { max-width:none; padding:0; }
+    section { break-inside:avoid; }
+  }
 </style>
 </head>
 <body>
-<nav>
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<nav aria-label="Documentation sections">
   <h1>2do AI · Dev Docs</h1>
-  <a href="#overview">Overview</a>
-  <a href="#architecture">Architecture</a>
-  <a href="#backend">Backend design</a>
-  <a href="#flows">Flows</a>
-  <a href="#roadmap">Roadmap / target</a>
-  <a href="#glossary">Glossary</a>
-  <a href="#cicd">CI/CD &amp; deployment</a>
+  <p>Architecture entry point</p>
+  <div class="nav-links">
+    <a href="#overview" class="active" aria-current="location">Overview</a>
+    <a href="#architecture">System architecture</a>
+    <a href="#code-map">Code map</a>
+    <a href="#decisions">Decisions</a>
+    <a href="#backend">Backend design</a>
+    <a href="#flows">Behavioral flows</a>
+    <a href="#data">Data architecture</a>
+    <a href="#cicd">Delivery &amp; operations</a>
+    <a href="#roadmap">Roadmap / target</a>
+    <a href="#glossary">Glossary</a>
+  </div>
   <!-- nav-end -->
 </nav>
-<main>
+<main id="main-content" tabindex="-1">
 <!-- HOW TO UPDATE THESE DOCS: hand-edited single file. Diagrams are Mermaid text in
      <pre class="mermaid"> blocks — edit the text, reload the page. Add a section by
-     inserting a <section id="x" hidden> before the sections-end marker and a matching
-     <a href="#x"> before the nav-end marker. Keep planned content labeled badge-planned. -->
+     inserting a <section id="x"> before the sections-end marker and a matching
+     <a href="#x"> before the nav-end marker. Keep planned content labeled badge-planned.
+     Run `node --test docs/index.test.mjs` after editing. -->
 
-<section id="overview" hidden>
-  <h2>Overview <span class="badge badge-live">implemented</span></h2>
-  <p><strong>2do AI</strong> is a personal AI-powered todo + planning app: three task layers
-  (<em>current</em>, <em>long-term</em>, <em>dreams</em>) across 11 life domains, with proactive
-  natural-rhythm reminders. Solo-dev, after-hours MVP.</p>
-  <p>The repo holds <strong>two independent projects</strong> — no monorepo tooling, each builds
-  from its own directory:</p>
-  <table>
-    <tr><th></th><th>Stack</th><th>Role today</th></tr>
-    <tr><td><code>backend/</code></td><td>Spring Boot 4, Java 25, Maven, PostgreSQL 18 (JPA/Hibernate + Flyway)</td><td>REST API for auth/account; AI orchestration and background jobs are <span class="badge badge-planned">planned</span> — see Roadmap</td></tr>
-    <tr><td><code>frontend/</code></td><td>React 19, Vite, TypeScript (strict)</td><td>SPA consuming the REST API; PWA (manifest/service worker) is <span class="badge badge-planned">planned</span></td></tr>
-  </table>
-  <h3>Where things live</h3>
-  <table>
-    <tr><td><code>context/foundation/</code></td><td>Design docs: PRD, roadmap, data model, auth session model, deployment runbook</td></tr>
-    <tr><td><code>backend/src/main/resources/db/migration/</code></td><td>Flyway migrations (schema owner; Hibernate runs <code>ddl-auto=validate</code>)</td></tr>
-    <tr><td><code>.github/workflows/</code></td><td>CI/CD (see the CI/CD section)</td></tr>
-  </table>
-  <p class="note">These docs are for developers. A separate user-facing document will exist later.</p>
-  <p class="note">Last verified against backend commit <code>1fd0248</code> on 2026-07-29 — run
-  <code>git log 1fd0248.. -- backend/src/main/java</code> to see what's changed since.</p>
+<noscript><p class="diagram-fallback">JavaScript is disabled. All documentation remains available; Mermaid diagrams are shown as readable source.</p></noscript>
+<p id="diagram-status" class="diagram-fallback" role="status" hidden>Diagram rendering is unavailable. The architecture prose remains available and Mermaid source is shown below.</p>
+
+<section id="overview">
+  <h2>Product and architectural drivers</h2>
+  <p class="lede"><strong>2do AI</strong> is designed for work that ordinary todo applications
+  forget: current tasks, long-term goals, and dreams all live across 11 life domains, while an AI
+  partner remembers context and returns with a useful proposal at a natural, non-fixed moment.</p>
+  <div class="callout">
+    <strong>Representative target flow.</strong> A user records a dream about visiting Japan. The
+    system retains the item and relevant personal context. After a non-fixed interval, the backend
+    selects the neglected dream, asks the AI to formulate a concrete first-step proposal, sends it
+    by email, and keeps it available in the application until the user responds.
+    <span class="badge badge-planned">planned</span>
+  </div>
+  <div class="card-grid">
+    <div class="card"><strong>Product differentiator</strong><br>Proactive returns in a natural
+    rhythm, not another fixed-time reminder scheduler.</div>
+    <div class="card"><strong>Memory requirement</strong><br>Structured profile facts plus an
+    episodic log let proposals refer to the user's real history.</div>
+    <div class="card"><strong>Guardrails</strong><br>Per-user privacy, durable data, and explicit
+    account erasure are architectural requirements from the start.</div>
+    <div class="card"><strong>Deliberate scale</strong><br>1–10 users, less than 1 QPS, and less
+    than 1 GB justify one small backend and managed infrastructure.</div>
+  </div>
+
+  <h3>Current system state</h3>
+  <div class="table-wrap">
+    <table>
+      <caption>Capability status at the documented repository snapshot</caption>
+      <thead>
+        <tr><th scope="col">Capability</th><th scope="col">Status</th><th scope="col">Main implementation</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">Persistence baseline</th><td><span class="badge badge-live">implemented</span></td><td>PostgreSQL 18, Flyway migrations, JPA/Hibernate validation</td></tr>
+        <tr><th scope="row">AI provider port</th><td><span class="badge badge-foundation">implemented foundation</span></td><td><code>LlmClient</code>, Spring AI adapter, structured output support</td></tr>
+        <tr><th scope="row">AI memory aggregate</th><td><span class="badge badge-foundation">implemented foundation</span></td><td>Per-user root, profile facts, append-only episodes</td></tr>
+        <tr><th scope="row">Account and session auth</th><td><span class="badge badge-live">implemented</span></td><td>Spring Security, server-side in-memory sessions, account erasure</td></tr>
+        <tr><th scope="row">Categories</th><td><span class="badge badge-live">implemented</span></td><td>Seeded reference table, <code>LifeDomain</code>, startup drift check</td></tr>
+        <tr><th scope="row">Product frontend</th><td><span class="badge badge-scaffold">scaffold only</span></td><td>React/Vite scaffold; development and production <code>/api</code> proxies exist</td></tr>
+        <tr><th scope="row">Goals, dreams, and tasks</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slices S-02 and S-07</td></tr>
+        <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slices S-04 and S-05</td></tr>
+        <tr><th scope="row">PWA/offline behavior</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-10</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><strong>Frontend status:</strong> React/Vite scaffold; <code>/api</code> development proxy and
+  production reverse proxy are implemented. Product UI, API consumption, and PWA behavior are planned.</p>
+  <p>These projects build independently; there is no root workspace. Local setup and execution
+  belong in the <a href="../README.md">root README</a>. Product and architecture intent remain
+  canonical in the <a href="../context/foundation/prd.md">PRD</a>,
+  <a href="../context/foundation/roadmap.md">roadmap</a>, and
+  <a href="../context/foundation/data-model.md">data model</a>.</p>
+  <p class="note">Verified against repository snapshot <code>109d027</code> on 2026-07-29. To
+  review drift, run <code>git log 109d027.. -- backend frontend .github/workflows context/foundation docs/index.html</code>.</p>
 </section>
-<section id="architecture" hidden>
-  <h2>Architecture</h2>
-  <h3>Current <span class="badge badge-live">implemented</span></h3>
+<section id="architecture">
+  <h2>System context and containers</h2>
+  <h3>Current runtime <span class="badge badge-live">implemented</span></h3>
   <p>Pattern B — <strong>unified origin</strong>: Cloudflare Pages serves the static frontend and
   reverse-proxies <code>/api/*</code> to the Fly.io backend, so production is same-origin and needs
   no CORS. Sessions are server-side cookies held <strong>in-memory</strong> on the single Fly
   machine (not JWT, never DB-backed — a per-request session <code>SELECT</code> would defeat Neon
   autosuspend).</p>
-  <p class="note">The reverse proxy is <code>frontend/functions/api/[[path]].ts</code> (Cloudflare
-  Pages Function); local dev mirrors it via the <code>server.proxy</code> entry in
-  <code>frontend/vite.config.ts</code>.</p>
+  <p>The browser receives the current React static scaffold from Cloudflare. API requests cross the
+  same public origin through a Pages Function, reach one Spring Boot machine, and use PostgreSQL
+  only when application data is needed. GitHub Actions is the delivery plane, not a runtime
+  component.</p>
+  <p class="note">The production proxy is
+  <a href="../frontend/functions/api/[[path]].ts"><code>frontend/functions/api/[[path]].ts</code></a>;
+  local development mirrors it in
+  <a href="../frontend/vite.config.ts"><code>frontend/vite.config.ts</code></a>.</p>
   <pre class="mermaid">
 flowchart LR
-  U[Browser] --> CFP[Cloudflare Pages&lt;br/&gt;React 19 PWA static build]
+  U[Browser] --> CFP[Cloudflare Pages&lt;br/&gt;React 19 static scaffold]
   U -- "/api/* (same origin)" --> PRX[Cloudflare reverse proxy] --> BE[Fly.io — Spring Boot 4 API&lt;br/&gt;single machine, in-memory sessions]
   BE -- "JPA / Hibernate (validate)" --> PG[(Neon PostgreSQL 18&lt;br/&gt;pooled + SSL, autosuspend)]
   BE -- "Flyway migrations on boot" --> PG
-  GHA[GitHub Actions] -- "flyctl deploy" --> BE
-  GHA -- "wrangler pages deploy" --> CFP
+  GHA[GitHub Actions — delivery plane] -. "flyctl deploy" .-> BE
+  GHA -. "wrangler pages deploy" .-> CFP
   </pre>
-  <h3>Target <span class="badge badge-planned">planned</span></h3>
-  <p>The MVP adds AI orchestration (task classification into life domains via a
-  JSON-schema-constrained LLM call) and background reminder jobs on the same single backend.</p>
+  <h3>Target MVP runtime <span class="badge badge-planned">planned</span></h3>
+  <p>The target keeps the same small deployment shape and adds task/goal storage, AI
+  orchestration, a natural-rhythm background process, and an email delivery provider. The
+  application stores a proposal before delivery so it remains pending in-app until the user
+  responds; email is a return channel, not the source of truth.</p>
   <pre class="mermaid">
 flowchart LR
   U[Browser PWA] -- "/api/*" --> BE[Spring Boot 4 API]
   BE --> PG[(Neon PostgreSQL 18)]
   BE -- "LlmClient (Spring AI)" --> LLM[AI provider API&lt;br/&gt;JSON-schema constrained]
-  BE --> SCH[Scheduled jobs&lt;br/&gt;natural-rhythm reminders] --> U
+  BE --> SCH[Background selection&lt;br/&gt;natural-rhythm proposals]
+  SCH --> PG
+  SCH --> LLM
+  SCH --> EMAIL[Email delivery provider] --> U
+  PG -. "pending proposal on next open" .-> BE
   </pre>
-  <h3>Data model</h3>
-  <p>Canonical ER diagrams (drawio exports, not redrawn here):</p>
-  <p><span class="badge badge-live">current</span></p>
-  <img class="diagram" src="../context/foundation/data-model-current.svg" alt="Current data model">
-  <p><span class="badge badge-planned">target</span></p>
-  <img class="diagram" src="../context/foundation/data-model-target.svg" alt="Target data model">
-  <p class="note">Sources: <code>context/foundation/data-model.md</code>, <code>*.drawio</code> files alongside the SVGs.</p>
 </section>
-<section id="backend" hidden>
+
+<section id="code-map">
+  <h2>Code and ownership map</h2>
+  <p>The repository is split by deployable and then by backend domain slice. Each link below points
+  to the current implementation or its canonical design source.</p>
+  <div class="table-wrap">
+    <table>
+      <caption>Major components and their responsibilities</caption>
+      <thead>
+        <tr><th scope="col">Location</th><th scope="col">Responsibility</th><th scope="col">State</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/user"><code>backend/…/user</code></a></th><td>User aggregate, email value object, repository, and user API</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/auth"><code>backend/…/auth</code></a></th><td>Registration, request validation, and registration error mapping</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/session"><code>backend/…/session</code></a></th><td>Explicit login and logout endpoints</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/security"><code>backend/…/security</code></a></th><td>Filter chain, CSRF, session identity, and RFC 9457 security errors</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/account"><code>backend/…/account</code></a></th><td>Modular per-user erasure coordinated before the user row is deleted</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/category"><code>backend/…/category</code></a></th><td>Fixed life-domain reference data and enum/table drift detection</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai"><code>backend/…/ai</code></a></th><td>Provider-neutral LLM port, schema contract, and Spring AI adapter</td><td><span class="badge badge-foundation">foundation</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai/memory"><code>backend/…/ai/memory</code></a></th><td>Personal AI-memory aggregate, rendering, persistence, and erasure adapter</td><td><span class="badge badge-foundation">foundation</span></td></tr>
+        <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React/Vite scaffold; future product UI and API client</td><td><span class="badge badge-scaffold">scaffold only</span></td></tr>
+        <tr><th scope="row"><a href="../frontend/functions/api/[[path]].ts"><code>frontend/functions/api</code></a></th><td>Production same-origin reverse proxy to Fly.io</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../context/foundation"><code>context/foundation</code></a></th><td>Canonical product, data, security, deployment, and roadmap decisions</td><td>design source</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="decisions">
+  <h2>Architectural decisions and trade-offs</h2>
+  <p>These decisions optimize for a privacy-sensitive, after-hours MVP at very small scale. The
+  revisit condition matters as much as the current choice: it prevents premature infrastructure
+  while recording when today's shortcut stops being safe.</p>
+  <div class="table-wrap">
+    <table>
+      <caption>Decision register</caption>
+      <thead>
+        <tr><th scope="col">Decision</th><th scope="col">Why now</th><th scope="col">Accepted cost</th><th scope="col">Revisit when</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row"><a href="../context/foundation/deployment.md">Unified public origin</a></th><td>Avoids CORS and keeps cookie/CSRF behavior same-origin while frontend and backend deploy independently</td><td>Cloudflare proxy becomes part of every API path</td><td>A supported client must run on another public origin</td></tr>
+        <tr><th scope="row"><a href="../context/foundation/auth-session-model.md">Server-side session cookie, not JWT</a></th><td>Spring Security defaults give a smaller revocable auth model for a browser-only MVP</td><td>The server owns session state</td><td>Horizontal replicas or multi-region deployment become necessary</td></tr>
+        <tr><th scope="row"><a href="../context/foundation/auth-session-model.md">In-memory sessions on one Fly machine</a></th><td>Authenticated requests do not wake Neon with a session lookup</td><td>Redeploys and machine restarts log users out</td><td>The backend runs on more than one machine; move to signed cookies or an external store, never Neon sessions</td></tr>
+        <tr><th scope="row"><a href="../context/foundation/data-model.md">Flyway owns schema; Hibernate validates</a></th><td>One explicit, reviewable source of schema change prevents ORM drift</td><td>Every schema change needs a migration</td><td>The persistence technology itself is replaced</td></tr>
+        <tr><th scope="row"><a href="../context/foundation/deployment.md">Expand-only migrations</a></th><td>An older application image can still run after a rollback</td><td>Destructive cleanup takes a later contract step</td><td>Deployment and rollback guarantees are deliberately redesigned</td></tr>
+        <tr><th scope="row"><a href="../context/foundation/data-model.md">UUID v7 aggregate identifiers</a></th><td>IDs can be created independently while retaining time-ordered index locality</td><td>Wider, less human-friendly keys than sequences</td><td>A future datastore makes a different identifier strategy materially better</td></tr>
+        <tr><th scope="row"><a href="../context/foundation/ai-provider.md">Provider-neutral <code>LlmClient</code></a></th><td>Domain use cases depend on a narrow port rather than OpenRouter or model SDK details</td><td>An adapter layer must translate structured-output capabilities</td><td>Provider-specific features become central enough that the common port distorts the design</td></tr>
+        <tr><th scope="row"><a href="../context/foundation/data-model.md">Structured profile plus episodic memory</a></th><td>Durable facts and bounded interaction history serve different prompt-context needs</td><td>Retention, rendering, and erasure must be managed explicitly</td><td>Measured proposal quality or data growth shows a different memory model is needed</td></tr>
+        <tr><th scope="row"><a href="../context/foundation/infrastructure.md">Neon PostgreSQL with autosuspend</a></th><td>Low idle cost fits fewer than 10 users and less than 1 QPS</td><td>Cold wake-up latency and careful connection-pool behavior</td><td>Sustained traffic makes always-on capacity simpler or cheaper</td></tr>
+        <tr><th scope="row"><a href="../context/foundation/data-model.md">Polish-only category labels for MVP</a></th><td>A single label avoids speculative localization tables</td><td>Adding a second locale requires a translation model</td><td>The UI supports a second language</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="backend">
   <h2>Backend design <span class="badge badge-live">implemented</span></h2>
   <p>Base package <code>com.thedariusz.todoai</code>, one package per domain slice. Aggregates use
-  UUID v7 surrogate PKs (<code>@UuidGenerator(style = VERSION_7)</code>); every domain table has
-  <code>created_at</code>/<code>updated_at</code> audit columns.</p>
+  UUID v7 surrogate PKs (<code>@UuidGenerator(style = VERSION_7)</code>). Mutable domain tables use
+  <code>created_at</code> and <code>updated_at</code>; append-only event tables may omit
+  <code>updated_at</code>. Static reference tables may use a natural key and omit audit columns.</p>
 
   <h3>user + auth</h3>
   <pre class="mermaid">
@@ -189,7 +379,7 @@ classDiagram
   class AiMemoryDataDeleter
   AccountDeletionService o-- PerUserDataDeleter : all registered beans
   AccountDeletionService --> UserRepository : delete(user) last — FK fails loudly if a deleter is missing
-  PerUserDataDeleter <|.. AiMemoryDataDeleter
+  PerUserDataDeleter &lt;|.. AiMemoryDataDeleter
   </pre>
 
   <h3>category</h3>
@@ -241,7 +431,7 @@ classDiagram
   class AiMemoryRenderer {
     renders memory into prompt text
   }
-  LlmClient <|.. SpringAiLlmClient
+  LlmClient &lt;|.. SpringAiLlmClient
   SpringAiLlmClient --> JsonSchema
   AiMemory *-- Episode
   AiMemory *-- ProfileFact
@@ -253,9 +443,13 @@ classDiagram
   <code>DELETE /api/sessions/current</code>, <code>GET /api/categories</code>,
   <code>GET /api/ping</code>.</p>
 </section>
-<section id="flows" hidden>
-  <h2>Flows</h2>
-  <h3>Registration <span class="badge badge-live">implemented</span></h3>
+<section id="flows">
+  <h2>Behavioral flows</h2>
+  <p>The detailed diagrams are grouped by responsibility. Identity flows dominate the current
+  implementation; the planned AI/product group will become the primary architectural story as
+  S-02 through S-05 land.</p>
+  <h3>Identity and security</h3>
+  <h4>Registration <span class="badge badge-live">implemented</span></h4>
   <pre class="mermaid">
 sequenceDiagram
   autonumber
@@ -280,7 +474,7 @@ sequenceDiagram
   Note over SPA: registration does NOT log in —&lt;br/&gt;POST /api/sessions is the only session-creation path
   </pre>
 
-  <h3>Login (session creation) <span class="badge badge-live">implemented</span></h3>
+  <h4>Login (session creation) <span class="badge badge-live">implemented</span></h4>
   <pre class="mermaid">
 sequenceDiagram
   autonumber
@@ -302,7 +496,7 @@ sequenceDiagram
   end
   </pre>
 
-  <h3>Authenticated request <span class="badge badge-live">implemented</span></h3>
+  <h4>Authenticated request <span class="badge badge-live">implemented</span></h4>
   <pre class="mermaid">
 sequenceDiagram
   actor SPA
@@ -318,7 +512,7 @@ sequenceDiagram
   end
   </pre>
 
-  <h3>Logout <span class="badge badge-live">implemented</span></h3>
+  <h4>Logout <span class="badge badge-live">implemented</span></h4>
   <pre class="mermaid">
 sequenceDiagram
   actor SPA
@@ -330,7 +524,8 @@ sequenceDiagram
   SC-->>SPA: 204 No Content
   </pre>
 
-  <h3>Account deletion (FR-019) <span class="badge badge-live">implemented</span></h3>
+  <h3>Data integrity and erasure</h3>
+  <h4>Account deletion (FR-019) <span class="badge badge-live">implemented</span></h4>
   <pre class="mermaid">
 sequenceDiagram
   autonumber
@@ -354,7 +549,8 @@ sequenceDiagram
   end
   </pre>
 
-  <h3>Startup category sync check <span class="badge badge-live">implemented</span></h3>
+  <h3>Operational guardrails</h3>
+  <h4>Startup category sync check <span class="badge badge-live">implemented</span></h4>
   <pre class="mermaid">
 sequenceDiagram
   participant Boot as Spring Boot startup
@@ -369,7 +565,8 @@ sequenceDiagram
     CSC-->>Boot: ok
   end
   </pre>
-  <h3>Task creation with AI classification <span class="badge badge-planned">planned</span></h3>
+  <h3>AI and product</h3>
+  <h4>Task creation with AI classification <span class="badge badge-planned">planned</span></h4>
   <pre class="mermaid">
 sequenceDiagram
   actor SPA
@@ -385,21 +582,105 @@ sequenceDiagram
   TC-->>SPA: 201 Created
   </pre>
 
-  <h3>Natural-rhythm reminder <span class="badge badge-planned">planned</span></h3>
+  <h4>Natural-rhythm proposal <span class="badge badge-planned">planned</span></h4>
   <pre class="mermaid">
 sequenceDiagram
-  participant SCH as Scheduled job (backend)
+  participant SCH as Natural-rhythm background process
   participant PG as Postgres
   participant LLM as LlmClient
-  participant U as User (email + in-app)
-  SCH->>PG: load due tasks + AiMemory for user
-  SCH->>LLM: pick what to surface, phrase the nudge&lt;br/&gt;(AiMemoryRenderer supplies context)
-  LLM-->>SCH: reminder text
-  SCH->>U: email with proposal + link, shown in-app on next open
+  participant EMAIL as Email provider
+  participant APP as Application API
+  actor U as User
+  SCH->>PG: load eligible neglected items + AiMemory
+  SCH->>LLM: select item and formulate contextual proposal
+  LLM-->>SCH: proposal text + referenced item
+  SCH->>PG: store pending proposal before delivery
+  SCH->>EMAIL: send proposal + application link
+  EMAIL-->>U: email
+  U->>APP: open application
+  APP->>PG: load pending proposal
+  PG-->>APP: same proposal sent by email
+  APP-->>U: show proposal until response
   </pre>
   <!-- planned-flows -->
 </section>
-<section id="roadmap" hidden>
+
+<section id="data">
+  <h2>Data architecture</h2>
+  <p>Every user-owned aggregate carries an explicit owner boundary. The current model contains the
+  user, fixed category reference data, and the AI-memory aggregate; goals, dreams, current tasks,
+  proposal history, and scheduling state belong to the target model and are not yet implemented.</p>
+  <div class="card-grid">
+    <div class="card"><strong>Ownership and isolation</strong><br><code>AiMemory</code> is one
+    aggregate per user. Child profile facts and episodes are reached through that root.</div>
+    <div class="card"><strong>Explicit erasure</strong><br>There is no <code>ON DELETE CASCADE</code>
+    from user-owned data. Each module supplies a <code>PerUserDataDeleter</code>; the user row is
+    deleted last so a missing module fails loudly.</div>
+    <div class="card"><strong>Append-only episodes</strong><br>Episodes record events that happened
+    and therefore use <code>created_at</code> without pretending that history is mutable.</div>
+    <div class="card"><strong>Schema ownership</strong><br>Flyway migrations change PostgreSQL;
+    Hibernate remains on <code>ddl-auto=validate</code> as a mapping drift guard.</div>
+  </div>
+  <h3>Current model <span class="badge badge-live">implemented</span></h3>
+  <p>User identity, fixed categories, and personal AI memory are present. Profile facts are durable
+  semantic statements; episodes are a bounded event history stored with a JSON payload.</p>
+  <img class="diagram" src="../context/foundation/data-model-current.svg" width="1082" height="832" loading="lazy" alt="Current entity relationship model: app user, category, AI memory, profile facts, and episodes">
+  <h3>Target model <span class="badge badge-planned">planned</span></h3>
+  <p>The target diagram shows product concepts that still require slice-level design and migration
+  work. It is direction, not an implemented database contract.</p>
+  <img class="diagram" src="../context/foundation/data-model-target.svg" width="2003" height="1228" loading="lazy" alt="Target entity relationship model including planned tasks, goals, dreams, and proactive proposal data">
+  <p class="note">Canonical source:
+  <a href="../context/foundation/data-model.md"><code>context/foundation/data-model.md</code></a>.
+  Editable Draw.io sources live beside the exported SVGs.</p>
+</section>
+
+<section id="cicd">
+  <h2>Delivery and operations <span class="badge badge-live">implemented</span></h2>
+  <p>Two independent, <strong>path-filtered</strong> GitHub Actions workflows trigger on push to
+  <code>master</code>—a frontend-only change never redeploys the JVM and vice versa.</p>
+  <div class="callout"><strong>Current validation boundary.</strong> There is no pull-request
+  validation workflow. Tests currently gate production deployment after merge rather than gate
+  merging, and changes under <code>docs/</code> are neither checked nor deployed by these
+  workflows.</div>
+  <pre class="mermaid">
+flowchart LR
+  P[push to master] --> F{path filter}
+  F -- "backend/**" --> B1[JDK 25 temurin&lt;br/&gt;mvn -B test] --> B2[record live image ref&lt;br/&gt;for rollback] --> B3[flyctl deploy --remote-only] --> FLY[Fly.io machine]
+  F -- "frontend/**" --> W1[Node 22: npm ci,&lt;br/&gt;lint, test, build] --> W2[wrangler pages deploy dist&lt;br/&gt;project: 2doai-web] --> CFP[Cloudflare Pages]
+  FLY -. Flyway migrates on boot .-> PG[(Neon PostgreSQL 18)]
+  </pre>
+  <h3><a href="../.github/workflows/deploy-backend.yml"><code>deploy-backend.yml</code></a></h3>
+  <ul>
+    <li>Tests gate the deploy: <code>mvn -B test</code> must pass first.</li>
+    <li><code>concurrency: deploy-backend, cancel-in-progress: false</code>—deploys queue and do not cancel mid-flight.</li>
+    <li>The workflow records the live Fly image before deploying. Rollback uses <code>fly deploy --image &lt;recorded-image&gt;</code>; expand-only migrations keep the older image compatible.</li>
+  </ul>
+  <h3><a href="../.github/workflows/deploy-frontend.yml"><code>deploy-frontend.yml</code></a></h3>
+  <ul>
+    <li>Gate: <code>npm ci &amp;&amp; npm run lint &amp;&amp; npm test &amp;&amp; npm run build</code>.</li>
+    <li><code>cancel-in-progress: true</code>—only the newest frontend deploy matters.</li>
+    <li>Publishes <code>frontend/dist</code> to Cloudflare Pages.</li>
+  </ul>
+  <div class="table-wrap">
+    <table>
+      <caption>Connected delivery and runtime services</caption>
+      <thead>
+        <tr><th scope="col">Service</th><th scope="col">Role</th><th scope="col">Configuration boundary</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">Fly.io</th><td>Backend host (single machine)</td><td><code>FLY_API_TOKEN</code>; database credentials via <code>SPRING_DATASOURCE_*</code> Fly secrets</td></tr>
+        <tr><th scope="row">Cloudflare Pages</th><td>Frontend host and <code>/api/*</code> reverse proxy</td><td><code>CLOUDFLARE_API_TOKEN</code>, <code>CLOUDFLARE_ACCOUNT_ID</code></td></tr>
+        <tr><th scope="row">Neon</th><td>Managed PostgreSQL 18 (EU/Frankfurt), pooled SSL connection, autosuspend</td><td>Consumed by the backend only</td></tr>
+        <tr><th scope="row">GitHub Actions</th><td>Post-merge validation and deployment runner</td><td>Path-filtered workflow files</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Local-development instructions live in the <a href="../README.md">root README</a>. First-time
+  deployment, manual rollback, log inspection, and incident steps live in the
+  <a href="../context/foundation/deployment-runbook.md">deployment runbook</a>.</p>
+</section>
+
+<section id="roadmap">
   <h2>Roadmap / target state <span class="badge badge-planned">planned</span></h2>
   <p>What exists today is the account/auth slice plus the AI memory and category foundations.
   The MVP roadmap builds vertical slices on top:</p>
@@ -411,85 +692,68 @@ sequenceDiagram
   <div class="card"><strong>Natural-rhythm reminders</strong> — background jobs that surface the right
   task at the right moment, not fixed-time alarms.</div>
   <p>Planned sequence diagrams live in the <a href="#flows">Flows</a> section (yellow badges).
-  Target ER diagram is in <a href="#architecture">Architecture</a>.</p>
-  <p class="note">Authoritative detail: <code>context/foundation/prd.md</code>,
-  <code>context/foundation/roadmap.md</code>, <code>context/foundation/ai-provider.md</code>.</p>
+  The target ER diagram is in <a href="#data">Data architecture</a>.</p>
+  <p class="note">Authoritative detail:
+  <a href="../context/foundation/prd.md"><code>context/foundation/prd.md</code></a>,
+  <a href="../context/foundation/roadmap.md"><code>context/foundation/roadmap.md</code></a>, and
+  <a href="../context/foundation/ai-provider.md"><code>context/foundation/ai-provider.md</code></a>.</p>
 </section>
-<section id="glossary" hidden>
+<section id="glossary">
   <h2>Glossary</h2>
   <p>The ubiquitous language of the codebase — use these words in code, commits, and docs.</p>
-  <table>
-    <tr><th>Term</th><th>Meaning</th></tr>
-    <tr><td><strong>Task layer</strong></td><td>One of three horizons a task lives in: <em>current</em> (actionable now), <em>long-term</em> (goals), <em>dreams</em> (aspirations). <span class="badge badge-planned">planned</span></td></tr>
-    <tr><td><strong>Life domain</strong></td><td>One of 11 fixed categories every task belongs to: HEALTH, FINANCE, CAREER, EDUCATION, RELATIONSHIPS, HOME, LEISURE, ADMIN, SAFETY, TRANSPORT, INNER_GROWTH. Enum <code>LifeDomain</code> mirrors the seeded <code>category</code> table; <code>CategorySyncCheck</code> fails boot on drift.</td></tr>
-    <tr><td><strong>Natural-rhythm reminder</strong></td><td>A proactive nudge surfaced at a contextually right moment rather than a fixed alarm time. <span class="badge badge-planned">planned</span></td></tr>
-    <tr><td><strong>AiMemory</strong></td><td>Per-user aggregate the AI consults; created atomically with the <code>User</code> at registration ("every user has exactly one memory").</td></tr>
-    <tr><td><strong>Episode</strong></td><td>One recorded AI interaction inside <code>AiMemory</code>; payload stored as <code>jsonb</code>.</td></tr>
-    <tr><td><strong>Profile fact</strong></td><td>A durable statement about the user inside <code>AiMemory</code>, rendered into prompts by <code>AiMemoryRenderer</code>.</td></tr>
-    <tr><td><strong>UserPrincipal</strong></td><td>The authenticated identity (record: userId, email, passwordHash) carried by the session — lets <code>/me</code> and re-auth answer without a DB query.</td></tr>
-    <tr><td><strong>PerUserDataDeleter</strong></td><td>Interface each module implements so FR-019 account deletion erases its per-user rows; the final user delete's plain FKs fail loudly if one is missing.</td></tr>
-    <tr><td><strong>Session model</strong></td><td>Server-side session cookie (<code>HttpOnly; Secure; SameSite=Strict</code>), held in-memory on the single Fly machine. Not JWT; never DB-backed (Neon autosuspend). Decided 2026-07-22.</td></tr>
-    <tr><td><strong>Pattern B / unified origin</strong></td><td>Cloudflare serves the SPA and reverse-proxies <code>/api/*</code> to Fly — production is same-origin, no CORS.</td></tr>
-    <tr><td><strong>Expand-only migration</strong></td><td>Flyway migrations must stay backward-compatible (safe under image rollback); destructive changes go expand → contract.</td></tr>
-    <tr><td><strong>FR-nnn</strong></td><td>Functional requirement id from <code>context/foundation/prd.md</code> (e.g. FR-019 = account deletion, FR-007 = the 11 domains).</td></tr>
-    <tr><td><strong>Problem JSON</strong></td><td>RFC 9457 error body used by every API error (Zalando guideline), including security 401/403 via <code>ProblemDetailsSecurityHandler</code>.</td></tr>
-  </table>
-</section>
-<section id="cicd" hidden>
-  <h2>CI/CD &amp; deployment <span class="badge badge-live">implemented</span></h2>
-  <p>Two independent, <strong>path-filtered</strong> GitHub Actions workflows trigger on push to
-  <code>master</code> — a frontend-only change never redeploys the JVM and vice versa.</p>
-  <pre class="mermaid">
-flowchart LR
-  P[push to master] --> F{path filter}
-  F -- "backend/**" --> B1[JDK 25 temurin&lt;br/&gt;mvn -B test] --> B2[record live image ref&lt;br/&gt;for rollback] --> B3[flyctl deploy --remote-only] --> FLY[Fly.io machine]
-  F -- "frontend/**" --> W1[Node 22: npm ci,&lt;br/&gt;lint, test, build] --> W2[wrangler pages deploy dist&lt;br/&gt;project: 2doai-web] --> CFP[Cloudflare Pages]
-  FLY -. Flyway migrates on boot .-> PG[(Neon PostgreSQL 18)]
-  </pre>
-  <h3>deploy-backend.yml</h3>
-  <ul>
-    <li>Tests gate the deploy: <code>mvn -B test</code> must pass first.</li>
-    <li><code>concurrency: deploy-backend, cancel-in-progress: false</code> — deploys queue, never cancel mid-flight.</li>
-    <li>Fly has no one-shot rollback, so the workflow logs the live image ref before deploying; roll back with <code>fly deploy --image &lt;recorded-image&gt;</code>. Safe because migrations are expand-only.</li>
-  </ul>
-  <h3>deploy-frontend.yml</h3>
-  <ul>
-    <li>Gate: <code>npm ci &amp;&amp; npm run lint &amp;&amp; npm test &amp;&amp; npm run build</code>.</li>
-    <li><code>cancel-in-progress: true</code> — only the newest frontend deploy matters.</li>
-    <li>Publishes <code>frontend/dist</code> via <code>cloudflare/wrangler-action</code>.</li>
-  </ul>
-  <h3>Secrets &amp; connected services</h3>
-  <table>
-    <tr><th>Service</th><th>Role</th><th>Config</th></tr>
-    <tr><td>Fly.io</td><td>Backend host (single machine)</td><td><code>FLY_API_TOKEN</code> secret; DB creds via <code>SPRING_DATASOURCE_*</code> Fly secrets</td></tr>
-    <tr><td>Cloudflare Pages</td><td>Frontend host + <code>/api/*</code> reverse proxy</td><td><code>CLOUDFLARE_API_TOKEN</code>, <code>CLOUDFLARE_ACCOUNT_ID</code></td></tr>
-    <tr><td>Neon</td><td>Managed PostgreSQL 18 (EU/Frankfurt), pooled + SSL, autosuspend</td><td>consumed by backend only</td></tr>
-    <tr><td>GitHub Actions</td><td>CI + CD runner</td><td><code>.github/workflows/</code></td></tr>
-  </table>
-  <p class="note">Operational detail (first-time setup, manual rollback, incident steps):
-  <code>context/foundation/deployment-runbook.md</code>.</p>
+  <div class="table-wrap">
+    <table>
+      <caption>Project ubiquitous language</caption>
+      <thead>
+        <tr><th scope="col">Term</th><th scope="col">Meaning</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">Task layer</th><td>One of three horizons a task lives in: <em>current</em> (actionable now), <em>long-term</em> (goals), <em>dreams</em> (aspirations). <span class="badge badge-planned">planned</span></td></tr>
+        <tr><th scope="row">Life domain</th><td>One of 11 fixed categories every task belongs to: HEALTH, FINANCE, CAREER, EDUCATION, RELATIONSHIPS, HOME, LEISURE, ADMIN, SAFETY, TRANSPORT, INNER_GROWTH. Enum <code>LifeDomain</code> mirrors the seeded <code>category</code> table; <code>CategorySyncCheck</code> fails boot on drift.</td></tr>
+        <tr><th scope="row">Natural-rhythm reminder</th><td>A proactive nudge surfaced at a contextually right moment rather than a fixed alarm time. <span class="badge badge-planned">planned</span></td></tr>
+        <tr><th scope="row">AiMemory</th><td>Per-user aggregate the AI consults; created atomically with the <code>User</code> at registration ("every user has exactly one memory").</td></tr>
+        <tr><th scope="row">Episode</th><td>One append-only AI-memory event; payload stored as <code>jsonb</code>.</td></tr>
+        <tr><th scope="row">Profile fact</th><td>A durable statement about the user inside <code>AiMemory</code>, rendered into prompts by <code>AiMemoryRenderer</code>.</td></tr>
+        <tr><th scope="row">UserPrincipal</th><td>The authenticated identity (record: userId, email, passwordHash) carried by the session—lets <code>/me</code> and re-auth answer without a DB query.</td></tr>
+        <tr><th scope="row">PerUserDataDeleter</th><td>Interface each module implements so FR-019 account deletion erases its per-user rows; the final user delete's plain FKs fail loudly if one is missing.</td></tr>
+        <tr><th scope="row">Session model</th><td>Server-side session cookie (<code>HttpOnly; Secure; SameSite=Strict</code>), held in-memory on the single Fly machine. Not JWT; never DB-backed (Neon autosuspend).</td></tr>
+        <tr><th scope="row">Pattern B / unified origin</th><td>Cloudflare serves the SPA and reverse-proxies <code>/api/*</code> to Fly—production is same-origin, no CORS.</td></tr>
+        <tr><th scope="row">Expand-only migration</th><td>Flyway migrations stay backward-compatible under image rollback; destructive changes use expand then contract.</td></tr>
+        <tr><th scope="row">FR-nnn</th><td>Functional requirement id from the <a href="../context/foundation/prd.md">PRD</a> (for example, FR-019 is account deletion).</td></tr>
+        <tr><th scope="row">Problem JSON</th><td>RFC 9457 error body used by API errors, including security 401/403 through <code>ProblemDetailsSecurityHandler</code>.</td></tr>
+      </tbody>
+    </table>
+  </div>
 </section>
 <!-- sections-end -->
 </main>
 <script type="module">
-// Dynamic import: a CDN failure (offline, restricted network) must not blank the whole
-// page. On failure, mermaid stays null and diagrams are left as raw <pre> source —
-// the rest of the docs still render and route normally.
-const mermaid = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs')
-  .then(m => (m.default.initialize({ startOnLoad: false, theme: 'neutral' }), m.default), () => null);
-const sections = document.querySelectorAll('main > section');
-async function route() {
-  const raw = location.hash.slice(1), id = document.getElementById(raw) ? raw : 'overview';
-  sections.forEach(s => s.hidden = (s.id !== id));
-  document.querySelectorAll('nav a').forEach(a =>
-    a.classList.toggle('active', a.getAttribute('href') === '#' + id));
-  // Render Mermaid only after the section is visible: Mermaid measures text via getBBox,
-  // which returns 0 inside hidden containers and silently produces broken diagrams.
-  const pending = document.querySelectorAll('#' + CSS.escape(id) + ' pre.mermaid:not([data-processed])');
-  if (mermaid && pending.length) await mermaid.run({ nodes: pending });
+const navLinks = [...document.querySelectorAll('nav a[href^="#"]')];
+const sectionIds = new Set([...document.querySelectorAll('main > section')].map(section => section.id));
+
+function updateNavigationState() {
+  const requestedId = location.hash.slice(1);
+  const currentId = sectionIds.has(requestedId) ? requestedId : 'overview';
+  for (const link of navLinks) {
+    const active = link.getAttribute('href') === `#${currentId}`;
+    link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current', 'location');
+    else link.removeAttribute('aria-current');
+  }
 }
-addEventListener('hashchange', route);
-route();
+
+addEventListener('hashchange', updateNavigationState);
+updateNavigationState();
+
+const diagramStatus = document.getElementById('diagram-status');
+try {
+  const { default: mermaid } =
+    await import('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.esm.min.mjs');
+  mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict' });
+  await mermaid.run({ nodes: document.querySelectorAll('pre.mermaid') });
+} catch {
+  diagramStatus.hidden = false;
+}
 </script>
 </body>
 </html>
