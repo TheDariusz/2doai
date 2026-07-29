@@ -31,6 +31,7 @@
   <h1>2do AI · Dev Docs</h1>
   <a href="#overview">Overview</a>
   <a href="#architecture">Architecture</a>
+  <a href="#backend">Backend design</a>
   <!-- nav-end -->
 </nav>
 <main>
@@ -93,6 +94,155 @@ flowchart LR
   <p><span class="badge badge-planned">target</span></p>
   <img class="diagram" src="../context/foundation/data-model-target.svg" alt="Target data model">
   <p class="note">Sources: <code>context/foundation/data-model.md</code>, <code>*.drawio</code> files alongside the SVGs.</p>
+</section>
+<section id="backend" hidden>
+  <h2>Backend design <span class="badge badge-live">implemented</span></h2>
+  <p>Base package <code>com.thedariusz.todoai</code>, one package per domain slice. Aggregates use
+  UUID v7 surrogate PKs (<code>@UuidGenerator(style = VERSION_7)</code>); every domain table has
+  <code>created_at</code>/<code>updated_at</code> audit columns.</p>
+
+  <h3>user + auth</h3>
+  <pre class="mermaid">
+classDiagram
+  class User {
+    &lt;&lt;aggregate root&gt;&gt;
+    UUID id
+    String email
+    String passwordHash
+  }
+  class Email {
+    &lt;&lt;value object&gt;&gt;
+    +of(String) Email
+  }
+  class UserRepository {
+    &lt;&lt;Spring Data JPA&gt;&gt;
+  }
+  class UserController {
+    +register(RegisterRequest) 201
+    +currentUser() UserResponse
+    +deleteCurrentUser(DeleteAccountRequest) 204
+  }
+  class RegistrationService {
+    +register(email, password) User
+  }
+  User ..> Email : normalizes via constructor
+  UserRepository --> User
+  UserController --> RegistrationService
+  UserController --> AccountDeletionService
+  RegistrationService --> UserRepository
+  RegistrationService --> AiMemoryRepository : creates AiMemory root (same tx)
+  </pre>
+
+  <h3>security + session</h3>
+  <pre class="mermaid">
+classDiagram
+  class SecurityConfig {
+    &lt;&lt;Configuration&gt;&gt;
+    filter chain + auth beans
+  }
+  class AppUserDetailsService {
+    +loadUserByUsername(email) UserPrincipal
+  }
+  class UserPrincipal {
+    &lt;&lt;record UserDetails&gt;&gt;
+    UUID userId
+    String email
+    String passwordHash
+  }
+  class CsrfCookieFilter {
+    materializes XSRF-TOKEN cookie
+  }
+  class ProblemDetailsSecurityHandler {
+    401 and 403 as Problem JSON
+  }
+  class SessionController {
+    +login(LoginRequest) 201
+    +logout() 204
+  }
+  SecurityConfig ..> AppUserDetailsService : auto-wired via DaoAuthenticationProvider
+  SecurityConfig --> CsrfCookieFilter
+  SecurityConfig --> ProblemDetailsSecurityHandler
+  AppUserDetailsService --> UserRepository
+  AppUserDetailsService ..> UserPrincipal : creates
+  SessionController --> SecurityConfig : uses chain beans (AuthenticationManager, LogoutHandler, ...)
+  </pre>
+
+  <h3>account (FR-019 deletion)</h3>
+  <pre class="mermaid">
+classDiagram
+  class AccountDeletionService {
+    +deleteAccount(UUID userId) [Transactional]
+  }
+  class PerUserDataDeleter {
+    &lt;&lt;interface&gt;&gt;
+    +deleteAllForUser(UUID)
+  }
+  class AiMemoryDataDeleter
+  AccountDeletionService o-- PerUserDataDeleter : all registered beans
+  AccountDeletionService --> UserRepository : delete(user) last — FK fails loudly if a deleter is missing
+  PerUserDataDeleter <|.. AiMemoryDataDeleter
+  </pre>
+
+  <h3>category</h3>
+  <pre class="mermaid">
+classDiagram
+  class LifeDomain {
+    &lt;&lt;enumeration&gt;&gt;
+    HEALTH ... INNER_GROWTH (11 values)
+  }
+  class Category {
+    &lt;&lt;reference table&gt;&gt;
+    String code — natural PK
+    String namePl
+    int displayOrder
+  }
+  class CategoryController {
+    +list() GET /api/categories
+  }
+  class CategorySyncCheck {
+    &lt;&lt;ApplicationRunner&gt;&gt;
+    fails boot on enum/table drift
+  }
+  CategoryController --> CategoryRepository
+  CategorySyncCheck --> CategoryRepository
+  CategorySyncCheck ..> LifeDomain : compares codes
+  </pre>
+
+  <h3>ai + ai/memory</h3>
+  <pre class="mermaid">
+classDiagram
+  class LlmClient {
+    &lt;&lt;interface&gt;&gt;
+    port to the LLM provider
+  }
+  class SpringAiLlmClient {
+    &lt;&lt;adapter&gt;&gt;
+  }
+  class JsonSchema {
+    constrains structured output
+  }
+  class AiMemory {
+    &lt;&lt;aggregate root&gt;&gt;
+    UUID id
+    UUID userId
+  }
+  class Episode {
+    jsonb payload
+  }
+  class AiMemoryRenderer {
+    renders memory into prompt text
+  }
+  LlmClient <|.. SpringAiLlmClient
+  SpringAiLlmClient --> JsonSchema
+  AiMemory *-- Episode
+  AiMemory *-- ProfileFact
+  AiMemoryRepository --> AiMemory
+  AiMemoryRenderer --> AiMemory
+  </pre>
+  <p class="note">Exact endpoints: <code>POST /api/users</code>, <code>GET /api/users/me</code>,
+  <code>DELETE /api/users/me</code>, <code>POST /api/sessions</code>,
+  <code>DELETE /api/sessions/current</code>, <code>GET /api/categories</code>,
+  <code>GET /api/ping</code>.</p>
 </section>
 <!-- sections-end -->
 </main>
