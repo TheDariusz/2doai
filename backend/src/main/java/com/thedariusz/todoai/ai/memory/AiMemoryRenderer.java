@@ -44,8 +44,7 @@ public class AiMemoryRenderer {
 	AiMemoryRenderer(MemoryProperties properties) {
 		this.defaultMaxEpisodes = properties.render().maxEpisodes();
 	}
-
-	/** Render using the configured default episode cap. */
+	
 	public String render(AiMemory memory) {
 		return render(memory, defaultMaxEpisodes);
 	}
@@ -56,9 +55,9 @@ public class AiMemoryRenderer {
 				.sorted(BY_KIND_THEN_CONTENT)
 				.toList();
 		List<Episode> recent = memory.getEpisodes().stream()
-				.sorted(CHRONOLOGICAL.reversed())   // newest first, so the cap keeps the latest N
+				.sorted(CHRONOLOGICAL.reversed())
 				.limit(Math.max(maxEpisodes, 0))
-				.sorted(CHRONOLOGICAL)              // then oldest→newest for a readable timeline
+				.sorted(CHRONOLOGICAL)
 				.toList();
 
 		StringBuilder block = new StringBuilder(TITLE);
