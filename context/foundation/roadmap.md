@@ -43,7 +43,7 @@ Osoby planujące długoterminowo wpisują cele i marzenia raz, a potem rzadko do
 | S-09 | ai-category-autotag        | dostać sugestię kategorii od AI przy tworzeniu pozycji              | F-02, S-02         | FR-008                       | proposed |
 | S-10 | offline-read-only          | przeglądać (read-only) zapisane pozycje 3 warstw bez internetu       | S-02, S-07         | FR-017                       | proposed |
 
-> **Fast-path (przegląd 2026-07-07):** najkrótsza ścieżka do gwiazdy: merge F-02 → S-01 (minimalny: email+hasło, bez magic linka) → S-02 → S-03 → S-04 → S-05. S-07 / S-08 / S-10 świadomie odroczone do czasu walidacji gwiazdy (S-05); S-06 i S-09 równolegle po swoich prerekwizytach. F-02 jest zaimplementowany na gałęzi `feat/ai-memory-integration` — czeka na merge (status → done przez `/10x-archive`).
+> **Fast-path (przegląd 2026-07-07, zaktualizowany 2026-08-01):** najkrótsza ścieżka do gwiazdy: F-02 → S-01 (minimalny: email+hasło, bez magic linka) → S-02 → S-03 → S-04 → S-05. S-07 / S-08 / S-10 świadomie odroczone do czasu walidacji gwiazdy (S-05); S-06 i S-09 równolegle po swoich prerekwizytach. F-02 zmergowany i zarchiwizowany (2026-08-01). S-01 w toku: backend (fazy 1-2) na `master`, frontend (fazy 3-4: routing, klient API, ekrany auth, powłoka z 11 domenami) niezaimplementowany — to następny konkretny krok.
 
 ## Streams
 
@@ -66,13 +66,15 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 - **Deploy / infra:** present — `backend/Dockerfile` + `backend/fly.toml` (app „2doai", AMS, always-on); 2 workflow GitHub Actions (frontend→Cloudflare Pages, backend→Fly); reverse-proxy Pattern B `frontend/functions/api/[[path]].ts`; `context/foundation/deployment-runbook.md`.
 - **Observability:** partial — Spring Actuator + `/actuator/health` wystawione i probowane przez Fly; brak Sentry/Datadog/OTel/Micrometer, brak strukturalnego logowania, frontend bez observability. (Dla MVP wystarczające — bez osobnego fundamentu.)
 
-> **Aktualizacja 2026-07-07:** F-01 done (zarchiwizowany). F-02 w pełni zaimplementowany na gałęzi
-> `feat/ai-memory-integration` — port `LlmClient` + adapter Spring AI → OpenRouter (guardrail no-training
-> na każdym żądaniu, zweryfikowany żywym round-tripem), agregat `AiMemory` (profil + log epizodyczny,
-> migracja `V3`), renderer z limitem ostatnich N epizodów, testy jednostkowe + Testcontainers + bramkowany
-> test live. Czeka na merge do `master`. Frontend nadal scaffold Vite (bez routingu / klienta API / PWA) —
-> szkielet frontu wchodzi jawnie w zakres S-01. Testy biegają wyłącznie w workflow deploy (push na `master`)
-> — brak CI na PR (chore `pr-branch-ci` w Backlog Handoff).
+> **Aktualizacja 2026-08-01:** F-01 i F-02 done (zarchiwizowane). F-02 na `master` — port `LlmClient`
+> + adapter Spring AI → OpenRouter (guardrail no-training na każdym żądaniu, zweryfikowany żywym
+> round-tripem), agregat `AiMemory` (profil + log epizodyczny, migracje `V3` + `V5` FK na `app_user`),
+> renderer z limitem ostatnich N epizodów, testy jednostkowe + Testcontainers + bramkowany test live.
+> `RegistrationService` tworzy korzeń `AiMemory` w tej samej transakcji co `User`; `LlmClient` nie ma
+> jeszcze wywołań produkcyjnych (seamy podłączają S-03/S-04/S-09). S-01 częściowo: backend (fazy 1-2)
+> zmergowany, frontend nadal scaffold Vite (bez routingu / klienta API / PWA) — fazy 3-4 S-01 otwarte.
+> Testy biegają wyłącznie w workflow deploy (push na `master`) — brak CI na PR (chore `pr-branch-ci`
+> w Backlog Handoff).
 
 ## Foundations
 
@@ -238,16 +240,16 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 | Roadmap ID | Change ID                  | Suggested issue title                                  | Ready for `/10x-plan` | Notes |
 | ---------- | -------------------------- | ------------------------------------------------------ | --------------------- | ----- |
 | F-01       | persistence-baseline       | Podłącz Postgres + JPA + Flyway, zasiej 11 kategorii   | yes                   | Korzeń całej roadmapy; pierwszy ruch (F-02 też gotowy, ale zależy od F-01). Uruchom `/10x-plan persistence-baseline`. |
-| F-02       | ai-memory-integration      | Podłącz klient LLM (OpenRouter/Anthropic) + zrębowy profil pamięci + polityka prywatności | yes               | **Zaimplementowany** na `feat/ai-memory-integration` — pozostaje merge do `master` + `/10x-archive`. Decyzje: `context/foundation/ai-provider.md`. |
+| F-02       | ai-memory-integration      | Podłącz klient LLM (OpenRouter/Anthropic) + zrębowy profil pamięci + polityka prywatności | done              | **Done** — zmergowany do `master`, zarchiwizowany 2026-08-01 → `context/archive/2026-06-15-ai-memory-integration/`. Decyzje: `context/foundation/ai-provider.md`. |
 | S-01       | account-and-auth           | Konto: rejestracja (email+hasło), logowanie, wylogowanie, usunięcie konta, bramkowanie tras, szkielet frontu | yes             | Odblokowane (F-01 done). Auth: email+hasło (decyzja 2026-07-07); cookie vs JWT otwarte (nieblokujące). Uruchom `/10x-plan account-and-auth`. |
 | S-02       | goals-and-dreams           | CRUD celów długoterminowych i marzeń z kategorią       | no                    | Czeka na S-01 + F-01. Substrat gwiazdy. |
-| S-03       | ai-memory-seed             | Pamięć AI: onboarding seed + wzbogacanie z ukończeń i wyników propozycji | no      | Czeka na merge F-02 + S-02. |
-| S-04       | proactive-proposal-engine  | Silnik propozycji + odpowiedzi + pierwszy krok (ręczny trigger) | no            | Czeka na merge F-02 + S-02 + S-03. Tu waliduje się jakość propozycji. |
+| S-03       | ai-memory-seed             | Pamięć AI: onboarding seed + wzbogacanie z ukończeń i wyników propozycji | no      | F-02 done; czeka na S-02. |
+| S-04       | proactive-proposal-engine  | Silnik propozycji + odpowiedzi + pierwszy krok (ręczny trigger) | no            | F-02 done; czeka na S-02 + S-03. Tu waliduje się jakość propozycji — i tu `LlmClient` dostaje pierwsze wywołanie produkcyjne. |
 | S-05       | natural-rhythm-return      | Automatyczny powrót w naturalnym rytmie (gwiazda)      | no                    | Czeka na S-04 + F-02. Gwiazda przewodnia. |
 | S-06       | priority-categories        | Kategorie priorytetowe wpływające na bilansowanie      | no                    | Czeka na S-04. Refinement. |
 | S-07       | current-tasks              | CRUD zadań bieżących                                    | no                    | Czeka na S-01 + F-01. Nieróżnicujące. Fast-path: odroczone do po S-05. |
 | S-08       | unified-three-layer-view   | Jednolity widok 3 warstw z filtrami                    | no                    | Czeka na S-02 + S-07. Fast-path: odroczone do po S-05. |
-| S-09       | ai-category-autotag        | Auto-tag kategorii przez AI przy tworzeniu             | no                    | Czeka na merge F-02 + S-02. Równoległe do pętli. |
+| S-09       | ai-category-autotag        | Auto-tag kategorii przez AI przy tworzeniu             | no                    | F-02 done; czeka na S-02. Równoległe do pętli. |
 | S-10       | offline-read-only          | Offline read-only (PWA) dla 3 warstw                   | no                    | Czeka na S-02 + S-07. Fast-path: odroczone do po S-05. |
 | —          | pr-branch-ci               | Chore: CI na pull requestach (backend `mvn test` + frontend lint/test/build) | yes | Ops (2026-07-07): dziś testy biegają tylko w workflow deploy na `master`. Mały, niezależny od slice'ów. |
 
