@@ -69,6 +69,19 @@ test('layout and diagrams have narrow-screen and failure fallbacks', () => {
   }
 })
 
+test('exported data-model diagrams keep readable light-theme text', () => {
+  for (const name of ['data-model-current.svg', 'data-model-target.svg']) {
+    const svg = readFileSync(resolve(docsDirectory, `../context/foundation/${name}`), 'utf8')
+
+    assert.match(svg, /<svg\b[^>]*color-scheme:\s*light;/, `${name} should force its light palette`)
+    assert.doesNotMatch(
+      svg,
+      /color-scheme:\s*light dark/,
+      `${name} must not choose white text for transparent table bodies`
+    )
+  }
+})
+
 test('Mermaid is pinned and embedded source is valid HTML', () => {
   assert.match(html, /mermaid@11\.16\.0\//)
   assert.doesNotMatch(html, /mermaid@11\//)
@@ -85,4 +98,92 @@ test('status language distinguishes the current scaffold from the target product
   assert.match(html, /append-only event tables may omit/)
   assert.match(html, /repository snapshot/)
   assert.match(html, /no pull-request\s+validation workflow/i)
+})
+
+test('target runtime preserves the current deployment backbone and marks planned additions', () => {
+  const architecture = html.match(/<section id="architecture">([\s\S]*?)<\/section>/)?.[1] ?? ''
+  const target = architecture.match(
+    /<h3>Target MVP runtime[\s\S]*?<pre class="mermaid">([\s\S]*?)<\/pre>/
+  )?.[1] ?? ''
+
+  for (const currentComponent of [
+    'Browser',
+    'Cloudflare Pages',
+    'Cloudflare reverse proxy',
+    'Fly.io',
+    'Neon PostgreSQL 18',
+    'GitHub Actions'
+  ]) {
+    assert.match(target, new RegExp(currentComponent), `target omits current component: ${currentComponent}`)
+  }
+  assert.match(target, /Current deployment backbone/)
+  assert.match(target, /Planned MVP additions/)
+  assert.match(target, /AI provider API/)
+  assert.match(target, /Email delivery provider/)
+  assert.match(target, /natural-rhythm/)
+})
+
+test('backend terminology is defined before the implementation diagrams', () => {
+  const backend = html.match(/<section id="backend">([\s\S]*?)<\/section>/)?.[1] ?? ''
+  const termsPosition = backend.indexOf('id="backend-terms"')
+  const firstDiagramPosition = backend.indexOf('<pre class="mermaid">')
+
+  assert.ok(termsPosition >= 0, 'expected a backend terminology guide')
+  assert.ok(termsPosition < firstDiagramPosition, 'backend terms should be defined before diagrams')
+  for (const term of ['Account', 'User', 'Session', 'Category', 'AI memory', 'Profile fact', 'Episode']) {
+    assert.match(backend, new RegExp(`<dt>${term}</dt>`), `missing backend definition: ${term}`)
+  }
+})
+
+test('backend class diagrams identify ports, adapters, and application roles', () => {
+  const backend = html.match(/<section id="backend">([\s\S]*?)<\/section>/)?.[1] ?? ''
+  const legendPosition = backend.indexOf('id="architecture-role-legend"')
+  const firstDiagramPosition = backend.indexOf('<pre class="mermaid">')
+
+  assert.ok(legendPosition >= 0, 'expected a ports and adapters legend')
+  assert.ok(legendPosition < firstDiagramPosition, 'architectural roles should be explained before diagrams')
+  for (const role of [
+    'Inbound adapter',
+    'Application service',
+    'Outbound port',
+    'Outbound adapter',
+    'Persistence adapter',
+    'Extension port'
+  ]) {
+    assert.match(backend, new RegExp(`<dt>${role}</dt>`), `missing architectural role: ${role}`)
+  }
+
+  assert.match(backend, /class UserController \{\s+&lt;&lt;inbound adapter \/ REST&gt;&gt;/)
+  assert.match(backend, /class RegistrationService \{\s+&lt;&lt;application service&gt;&gt;/)
+  assert.match(backend, /class LlmClient \{\s+&lt;&lt;outbound port&gt;&gt;/)
+  assert.match(backend, /class SpringAiLlmClient \{\s+&lt;&lt;outbound adapter&gt;&gt;/)
+  assert.match(backend, /class PerUserDataDeleter \{\s+&lt;&lt;extension port&gt;&gt;/)
+  assert.match(backend, /&lt;&lt;persistence adapter \/ Spring Data&gt;&gt;/)
+})
+
+test('AI communication chapter explains the implemented Spring pipeline without overstating callers', () => {
+  const ai = html.match(/<section id="ai-communication">([\s\S]*?)<\/section>/)?.[1] ?? ''
+
+  assert.ok(ai, 'expected a dedicated AI communication chapter')
+  assert.match(ai, /implemented foundation/i)
+  assert.match(ai, /no production (?:use case|controller)[\s\S]*calls?\s+<code>LlmClient<\/code>/i)
+
+  for (const term of [
+    'LlmClient',
+    'SpringAiLlmClient',
+    'ChatModel',
+    'OpenRouter',
+    'OPENROUTER_API_KEY',
+    'completeStructured',
+    'LlmException'
+  ]) {
+    assert.match(ai, new RegExp(term), `AI communication chapter is missing: ${term}`)
+  }
+
+  assert.match(ai, /spring-ai-starter-model-openai/)
+  assert.match(ai, /provider[\s\S]*data_collection[\s\S]*deny/)
+  assert.match(ai, /60s/)
+  assert.match(ai, /429\/5xx/)
+  assert.match(ai, /OpenRouterLiveTest/)
+  assert.match(ai, /sequenceDiagram/)
 })

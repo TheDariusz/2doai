@@ -81,7 +81,10 @@
   thead th { background:#f1f5f9; }
   tbody th { font-weight:650; }
   code { background:#eef2ff; padding:.1em .35em; border-radius:4px; font-size:.9em; overflow-wrap:anywhere; }
+  .nowrap { white-space:nowrap; }
   pre.mermaid { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:1rem; overflow-x:auto; }
+  pre.code-block { background:#172033; color:#e5e7eb; border-radius:8px; padding:1rem; overflow-x:auto; line-height:1.5; }
+  pre.code-block code { background:transparent; color:inherit; padding:0; }
   img.diagram { display:block; width:100%; height:auto; background:var(--surface); border:1px solid var(--line); border-radius:8px; }
   .badge { display:inline-block; font-size:.72rem; font-weight:600; padding:.1em .6em; border-radius:99px; vertical-align:middle; }
   .badge-live { background:#dcfce7; color:#166534; }
@@ -92,6 +95,24 @@
   .callout { border-left:4px solid var(--accent); background:var(--accent-soft); padding:1rem 1.25rem; margin:1rem 0; }
   .card-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem; }
   .card-grid .card { margin:0; }
+  .term-grid {
+    display:grid;
+    grid-template-columns:minmax(120px, 180px) 1fr;
+    gap:0;
+    margin:1rem 0 1.5rem;
+    border:1px solid var(--line);
+    border-radius:8px;
+    overflow:hidden;
+    background:var(--surface);
+  }
+  .term-grid dt,
+  .term-grid dd {
+    margin:0;
+    padding:.65rem .8rem;
+    border-bottom:1px solid var(--line);
+  }
+  .term-grid dt { font-weight:700; background:#f8fafc; }
+  .term-grid > :nth-last-child(-n + 2) { border-bottom:0; }
   .note { color:var(--muted); font-size:.9rem; }
   .diagram-fallback { padding:.75rem 1rem; border:1px solid #f59e0b; background:#fffbeb; color:#78350f; }
   .source-links { padding-left:1.2rem; }
@@ -105,6 +126,11 @@
     nav a[aria-current="location"] { border-left-color:transparent; border-bottom-color:var(--accent); }
     main { padding:1.75rem 1rem 4rem; }
     section { scroll-margin-top:.5rem; }
+    .term-grid { grid-template-columns:1fr; }
+    .term-grid dt,
+    .term-grid dd { border-bottom:0; }
+    .term-grid dd { padding-top:0; border-bottom:1px solid var(--line); }
+    .term-grid > :nth-last-child(-n + 2) { border-bottom:0; }
   }
   @media print {
     body { display:block; background:#fff; }
@@ -125,6 +151,7 @@
     <a href="#code-map">Code map</a>
     <a href="#decisions">Decisions</a>
     <a href="#backend">Backend design</a>
+    <a href="#ai-communication">AI communication</a>
     <a href="#flows">Behavioral flows</a>
     <a href="#data">Data architecture</a>
     <a href="#cicd">Delivery &amp; operations</a>
@@ -226,16 +253,28 @@ flowchart LR
   orchestration, a natural-rhythm background process, and an email delivery provider. The
   application stores a proposal before delivery so it remains pending in-app until the user
   responds; email is a return channel, not the source of truth.</p>
+  <p class="note">The gray components and delivery paths are the current runtime shown above.
+  Yellow dashed components are additions planned for the MVP.</p>
   <pre class="mermaid">
 flowchart LR
-  U[Browser PWA] -- "/api/*" --> BE[Spring Boot 4 API]
-  BE --> PG[(Neon PostgreSQL 18)]
+  %% Current deployment backbone
+  U[Browser&lt;br/&gt;PWA behavior planned] --> CFP[Cloudflare Pages&lt;br/&gt;React 19 frontend]
+  U -- "/api/* (same origin)" --> PRX[Cloudflare reverse proxy] --> BE[Fly.io — Spring Boot 4 API&lt;br/&gt;single machine, in-memory sessions]
+  BE -- "JPA / Hibernate (validate)" --> PG[(Neon PostgreSQL 18&lt;br/&gt;tasks, goals, memory, proposals)]
+  BE -- "Flyway migrations on boot" --> PG
+  GHA[GitHub Actions — delivery plane] -. "flyctl deploy" .-> BE
+  GHA -. "wrangler pages deploy" .-> CFP
+
+  %% Planned MVP additions
   BE -- "LlmClient (Spring AI)" --> LLM[AI provider API&lt;br/&gt;JSON-schema constrained]
   BE --> SCH[Background selection&lt;br/&gt;natural-rhythm proposals]
   SCH --> PG
   SCH --> LLM
-  SCH --> EMAIL[Email delivery provider] --> U
+  SCH --> EMAIL[Email delivery provider]
+  EMAIL -. "proposal + app link" .-> U
   PG -. "pending proposal on next open" .-> BE
+  classDef planned fill:#fffbeb,stroke:#d97706,stroke-width:2px,stroke-dasharray:5 4,color:#78350f
+  class LLM,SCH,EMAIL planned
   </pre>
 </section>
 
@@ -299,6 +338,59 @@ flowchart LR
   UUID v7 surrogate PKs (<code>@UuidGenerator(style = VERSION_7)</code>). Mutable domain tables use
   <code>created_at</code> and <code>updated_at</code>; append-only event tables may omit
   <code>updated_at</code>. Static reference tables may use a natural key and omit audit columns.</p>
+  <h3>Terms used below</h3>
+  <p>The diagrams mix product language with implementation names. These definitions establish the
+  domain meaning before showing the classes that implement it.</p>
+  <dl id="backend-terms" class="term-grid">
+    <dt>Account</dt>
+    <dd>The user's complete presence in 2do AI: sign-in identity plus every item, memory record,
+    and proposal they own. Account deletion means erasing that whole set, not only login details.</dd>
+    <dt>User</dt>
+    <dd>The persisted identity and credential owner stored in <code>app_user</code>. A user owns
+    exactly one account's data and one AI-memory root.</dd>
+    <dt>Session</dt>
+    <dd>The authenticated login state held in backend memory and referenced by the browser's
+    session cookie. It is not the user's durable application data.</dd>
+    <dt>Category</dt>
+    <dd>One fixed life-domain classification, such as HEALTH or FINANCE. The database
+    <code>category</code> row and Java <code>LifeDomain</code> enum represent the same set.</dd>
+    <dt>AI memory</dt>
+    <dd>The per-user aggregate that provides personal context to AI prompts. It contains durable
+    profile facts and an append-only history of relevant events.</dd>
+    <dt>Profile fact</dt>
+    <dd>A durable, typed statement about the user, such as an occupation, value, or priority.</dd>
+    <dt>Episode</dt>
+    <dd>An append-only event in AI memory, such as a completed item or proposal outcome, stored
+    with its occurrence time and structured JSON payload.</dd>
+    <dt>LLM port</dt>
+    <dd>The provider-neutral <code>LlmClient</code> interface used by backend use cases. Its Spring
+    AI adapter translates those calls to the selected external model provider.</dd>
+  </dl>
+
+  <h3>Architectural roles</h3>
+  <p>The backend uses ports and adapters where a boundary benefits from substitution or modular
+  ownership. It is deliberately pragmatic rather than a pure hexagonal architecture: Spring Data
+  repository interfaces are framework-coupled persistence adapters, not domain-owned ports.</p>
+  <dl id="architecture-role-legend" class="term-grid">
+    <dt>Inbound adapter</dt>
+    <dd>Translates an external trigger into an application call. REST controllers and security
+    filters adapt HTTP and Spring Security events into the backend.</dd>
+    <dt>Application service</dt>
+    <dd>Coordinates one use case and its transaction, using domain objects and dependencies without
+    owning HTTP or provider-specific behavior.</dd>
+    <dt>Outbound port</dt>
+    <dd>An application-owned interface describing a capability required from an external system.
+    <code>LlmClient</code> is the current example.</dd>
+    <dt>Outbound adapter</dt>
+    <dd>A technology-specific implementation of an outbound port.
+    <code>SpringAiLlmClient</code> translates the LLM contract to Spring AI.</dd>
+    <dt>Persistence adapter</dt>
+    <dd>A Spring Data repository interface whose generated implementation reads or writes
+    PostgreSQL. It is a practical framework seam, but not a pure domain port.</dd>
+    <dt>Extension port</dt>
+    <dd>An internal SPI that lets another module contribute behavior.
+    <code>PerUserDataDeleter</code> lets each user-owned module plug into account erasure.</dd>
+  </dl>
 
   <h3>user + auth</h3>
   <pre class="mermaid">
@@ -314,15 +406,23 @@ classDiagram
     +of(String) Email
   }
   class UserRepository {
-    &lt;&lt;Spring Data JPA&gt;&gt;
+    &lt;&lt;persistence adapter / Spring Data&gt;&gt;
   }
   class UserController {
+    &lt;&lt;inbound adapter / REST&gt;&gt;
     +register(RegisterRequest) 201
     +currentUser() UserResponse
     +deleteCurrentUser(DeleteAccountRequest) 204
   }
   class RegistrationService {
+    &lt;&lt;application service&gt;&gt;
     +register(email, password) User
+  }
+  class AccountDeletionService {
+    &lt;&lt;application service&gt;&gt;
+  }
+  class AiMemoryRepository {
+    &lt;&lt;persistence adapter / Spring Data&gt;&gt;
   }
   User ..> Email : normalizes via constructor
   UserRepository --> User
@@ -336,27 +436,34 @@ classDiagram
   <pre class="mermaid">
 classDiagram
   class SecurityConfig {
-    &lt;&lt;Configuration&gt;&gt;
+    &lt;&lt;infrastructure configuration&gt;&gt;
     filter chain + auth beans
   }
   class AppUserDetailsService {
+    &lt;&lt;security adapter&gt;&gt;
     +loadUserByUsername(email) UserPrincipal
   }
   class UserPrincipal {
-    &lt;&lt;record UserDetails&gt;&gt;
+    &lt;&lt;security model / UserDetails&gt;&gt;
     UUID userId
     String email
     String passwordHash
   }
   class CsrfCookieFilter {
+    &lt;&lt;inbound security adapter&gt;&gt;
     materializes XSRF-TOKEN cookie
   }
   class ProblemDetailsSecurityHandler {
+    &lt;&lt;inbound error adapter&gt;&gt;
     401 and 403 as Problem JSON
   }
   class SessionController {
+    &lt;&lt;inbound adapter / REST&gt;&gt;
     +login(LoginRequest) 201
     +logout() 204
+  }
+  class UserRepository {
+    &lt;&lt;persistence adapter / Spring Data&gt;&gt;
   }
   SecurityConfig ..> AppUserDetailsService : auto-wired via DaoAuthenticationProvider
   SecurityConfig --> CsrfCookieFilter
@@ -370,13 +477,19 @@ classDiagram
   <pre class="mermaid">
 classDiagram
   class AccountDeletionService {
+    &lt;&lt;application service&gt;&gt;
     +deleteAccount(UUID userId) [Transactional]
   }
   class PerUserDataDeleter {
-    &lt;&lt;interface&gt;&gt;
+    &lt;&lt;extension port&gt;&gt;
     +deleteAllForUser(UUID)
   }
-  class AiMemoryDataDeleter
+  class AiMemoryDataDeleter {
+    &lt;&lt;module adapter&gt;&gt;
+  }
+  class UserRepository {
+    &lt;&lt;persistence adapter / Spring Data&gt;&gt;
+  }
   AccountDeletionService o-- PerUserDataDeleter : all registered beans
   AccountDeletionService --> UserRepository : delete(user) last — FK fails loudly if a deleter is missing
   PerUserDataDeleter &lt;|.. AiMemoryDataDeleter
@@ -386,20 +499,24 @@ classDiagram
   <pre class="mermaid">
 classDiagram
   class LifeDomain {
-    &lt;&lt;enumeration&gt;&gt;
+    &lt;&lt;domain enumeration&gt;&gt;
     HEALTH ... INNER_GROWTH (11 values)
   }
   class Category {
-    &lt;&lt;reference table&gt;&gt;
+    &lt;&lt;domain reference entity&gt;&gt;
     String code — natural PK
     String namePl
     int displayOrder
   }
   class CategoryController {
+    &lt;&lt;inbound adapter / REST&gt;&gt;
     +list() GET /api/categories
   }
+  class CategoryRepository {
+    &lt;&lt;persistence adapter / Spring Data&gt;&gt;
+  }
   class CategorySyncCheck {
-    &lt;&lt;ApplicationRunner&gt;&gt;
+    &lt;&lt;startup adapter / ApplicationRunner&gt;&gt;
     fails boot on enum/table drift
   }
   CategoryController --> CategoryRepository
@@ -411,13 +528,15 @@ classDiagram
   <pre class="mermaid">
 classDiagram
   class LlmClient {
-    &lt;&lt;interface&gt;&gt;
-    port to the LLM provider
+    &lt;&lt;outbound port&gt;&gt;
+    +complete(LlmRequest) String
+    +completeStructured(request, type, schema) T
   }
   class SpringAiLlmClient {
-    &lt;&lt;adapter&gt;&gt;
+    &lt;&lt;outbound adapter&gt;&gt;
   }
   class JsonSchema {
+    &lt;&lt;port contract&gt;&gt;
     constrains structured output
   }
   class AiMemory {
@@ -426,10 +545,20 @@ classDiagram
     UUID userId
   }
   class Episode {
+    &lt;&lt;domain entity&gt;&gt;
     jsonb payload
   }
+  class ProfileFact {
+    &lt;&lt;domain entity&gt;&gt;
+    String kind
+    String content
+  }
   class AiMemoryRenderer {
+    &lt;&lt;domain service&gt;&gt;
     renders memory into prompt text
+  }
+  class AiMemoryRepository {
+    &lt;&lt;persistence adapter / Spring Data&gt;&gt;
   }
   LlmClient &lt;|.. SpringAiLlmClient
   SpringAiLlmClient --> JsonSchema
@@ -443,6 +572,248 @@ classDiagram
   <code>DELETE /api/sessions/current</code>, <code>GET /api/categories</code>,
   <code>GET /api/ping</code>.</p>
 </section>
+
+<section id="ai-communication">
+  <h2>AI communication in Spring Boot
+    <span class="badge badge-foundation">implemented foundation</span>
+  </h2>
+  <p class="lede">The backend communicates with an AI model through a normal Spring dependency:
+  application code calls the provider-neutral <code>LlmClient</code> interface, its
+  <code>SpringAiLlmClient</code> adapter creates a Spring AI prompt, and Spring AI performs the
+  authenticated HTTP exchange with OpenRouter.</p>
+  <div class="callout">
+    <strong>Current boundary.</strong> The port, adapter, configuration, unit tests, and an optional
+    live OpenRouter round-trip are implemented. No production use case or controller currently
+    calls <code>LlmClient</code>; auto-tagging, proposal generation, memory-enriched prompts, and the
+    background proposal cycle remain planned.
+  </div>
+
+  <h3>Vocabulary</h3>
+  <dl class="term-grid">
+    <dt>Spring bean</dt>
+    <dd>An object created and managed by Spring. The application asks for an
+    <code>LlmClient</code>; dependency injection supplies the registered
+    <code>SpringAiLlmClient</code> bean.</dd>
+    <dt>Auto-configuration</dt>
+    <dd>Spring Boot sees the Spring AI starter and <code>spring.ai.openai.*</code> properties, then
+    creates the lower-level <code>ChatModel</code> and HTTP client infrastructure automatically.</dd>
+    <dt>Prompt</dt>
+    <dd>The conversation sent to the model: ordered SYSTEM, USER, and optionally ASSISTANT messages,
+    plus model options. It is not only the last user sentence.</dd>
+    <dt>OpenRouter</dt>
+    <dd>The gateway that exposes one OpenAI-compatible API and routes the request to the selected
+    model. It is not the model itself.</dd>
+    <dt>Model</dt>
+    <dd>The selected Anthropic Claude model that generates the answer. The caller chooses its
+    OpenRouter slug per request: Haiku for frequent classification or Sonnet for proposal quality.</dd>
+    <dt>Structured output</dt>
+    <dd>A response constrained by JSON Schema and deserialized into a Java type, instead of free
+    text that application code would have to interpret heuristically.</dd>
+  </dl>
+
+  <h3>The dependency chain</h3>
+  <pre class="mermaid">
+flowchart LR
+  UC[Product use case&lt;br/&gt;planned caller] --> PORT[LlmClient&lt;br/&gt;outbound port]
+  PORT --> ADAPTER[SpringAiLlmClient&lt;br/&gt;Spring @Component]
+  ADAPTER --> CHAT[ChatModel&lt;br/&gt;auto-configured by Spring AI]
+  CHAT --> OR[OpenRouter&lt;br/&gt;OpenAI-compatible API]
+  OR --> MODEL[Selected Anthropic model&lt;br/&gt;Haiku or Sonnet]
+  classDef planned fill:#fffbeb,stroke:#d97706,stroke-width:2px,stroke-dasharray:5 4,color:#78350f
+  class UC planned
+  </pre>
+  <p>The first arrow is intentionally yellow: future product slices will supply the real caller.
+  Everything from <code>LlmClient</code> through the real provider has already been exercised by the
+  gated live test.</p>
+
+  <h3>What Spring Boot creates at startup</h3>
+  <div class="table-wrap">
+    <table>
+      <caption>Configuration and dependency-injection path</caption>
+      <thead>
+        <tr><th scope="col">Input</th><th scope="col">What Spring does</th><th scope="col">Result</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row"><code>spring-ai-starter-model-openai</code></th>
+          <td>Activates Spring AI's OpenAI auto-configuration.</td>
+          <td>A configured <code>ChatModel</code> bean and its HTTP transport.</td>
+        </tr>
+        <tr>
+          <th scope="row"><code>spring.ai.openai.*</code></th>
+          <td>Binds the base URL, API key, 60s timeout, and retry count into that transport.</td>
+          <td>The OpenAI client points to OpenRouter rather than directly to OpenAI.</td>
+        </tr>
+        <tr>
+          <th scope="row"><code>LlmConfig</code></th>
+          <td>Enables validated <code>LlmProperties</code> binding.</td>
+          <td>Callers can choose the configured Haiku or Sonnet slug per use case.</td>
+        </tr>
+        <tr>
+          <th scope="row"><code>@Component SpringAiLlmClient</code></th>
+          <td>Component scanning creates the adapter and constructor-injects <code>ChatModel</code>.</td>
+          <td>The adapter is available to the application under its <code>LlmClient</code> interface.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">This is the same dependency-injection idea as asking Spring for a service or
+  repository. The difference is that the injected <code>ChatModel</code> comes from starter
+  auto-configuration rather than a project-owned <code>@Bean</code> method.</p>
+
+  <h3>One call, end to end</h3>
+  <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant Caller as Use case
+  participant Adapter as LLM adapter
+  participant Chat as Spring AI
+  participant Router as OpenRouter
+  participant Claude as Claude model
+  Caller->>Adapter: complete(LlmRequest)
+  Note over Caller,Adapter: LlmClient type, SpringAiLlmClient object
+  Adapter->>Adapter: map roles, model, privacy options
+  Adapter->>Chat: call(Prompt + OpenAiChatOptions)
+  Chat->>Router: POST chat completions with bearer key
+  Router->>Claude: route to requested model
+  Claude-->>Router: generated response
+  Router-->>Chat: OpenAI-compatible response JSON
+  Chat-->>Adapter: ChatResponse
+  alt valid response
+    Adapter-->>Caller: String or deserialized T
+  else failed response
+    Adapter-->>Caller: throw LlmException
+  end
+  </pre>
+  <p>There is no additional network hop at the Java interface. Calling
+  <code>LlmClient.complete(...)</code> invokes the adapter object directly through normal Java
+  dynamic dispatch. The first network boundary is <code>ChatModel.call(...)</code>, where Spring
+  AI's OpenAI client sends HTTPS to OpenRouter.</p>
+
+  <h3>Free text versus structured output</h3>
+  <div class="table-wrap">
+    <table>
+      <caption>The two operations exposed by <code>LlmClient</code></caption>
+      <thead>
+        <tr><th scope="col">Operation</th><th scope="col">Response contract</th><th scope="col">Intended use</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row"><code>complete(request)</code></th>
+          <td>Extracts non-blank assistant text from <code>ChatResponse</code> and returns a
+          <code>String</code>.</td>
+          <td>Natural-language proposals and first-step guidance. <span class="badge badge-planned">planned caller</span></td>
+        </tr>
+        <tr>
+          <th scope="row"><code>completeStructured(request, type, schema)</code></th>
+          <td>Adds JSON-schema response formatting, then deserializes the returned JSON into
+          <code>type</code>. Invalid JSON becomes <code>LlmException</code>.</td>
+          <td>Category auto-tagging and other decisions that must return a bounded Java value.
+          <span class="badge badge-planned">planned caller</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <pre class="code-block"><code>// A future use case depends on the port, not Spring AI classes.
+LlmRequest request = LlmRequest.of(
+    properties.model().sonnet(),
+    LlmMessage.system("Reply briefly in Polish."),
+    LlmMessage.user("Suggest the first step."));
+
+String reply = llmClient.complete(request);</code></pre>
+  <p>The model slug belongs to the caller because model choice is a product decision. Transport
+  details do not: <code>LlmRequest</code> contains only a model and provider-neutral messages—no URL,
+  bearer token, Spring AI type, or retry setting.</p>
+
+  <h3>Who owns which responsibility?</h3>
+  <div class="table-wrap">
+    <table>
+      <caption>Responsibility boundaries across the AI call</caption>
+      <thead>
+        <tr><th scope="col">Layer</th><th scope="col">Owns</th><th scope="col">Does not own</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">Product use case <span class="badge badge-planned">planned</span></th><td>Selecting the model, composing domain context, deciding how to recover from AI failure</td><td>HTTP, authentication headers, provider response parsing</td></tr>
+        <tr><th scope="row"><code class="nowrap">SpringAiLlmClient</code></th><td>Mapping messages/options, adding privacy routing, extracting or deserializing the result, normalizing failures</td><td>Scheduling, business decisions, HTTP retry implementation</td></tr>
+        <tr><th scope="row">Spring AI <code>ChatModel</code></th><td>OpenAI-compatible request serialization, HTTPS transport, API-key header, timeout and retry behavior, response mapping</td><td>Which product use case should call which model</td></tr>
+        <tr><th scope="row">OpenRouter</th><td>Gateway authentication, credits, provider routing, forwarding the OpenAI-compatible request</td><td>The application's domain memory and use-case policy</td></tr>
+        <tr><th scope="row">Anthropic model</th><td>Generating text or schema-constrained JSON from the supplied context</td><td>Persisting application state or executing backend business logic</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Configuration, privacy, and cost guardrails</h3>
+  <ul>
+    <li><code>spring.ai.openai.base-url=https://openrouter.ai/api/v1</code> points Spring AI's
+    OpenAI client at the OpenRouter-compatible endpoint.</li>
+    <li><code>OPENROUTER_API_KEY</code> is injected into
+    <code>spring.ai.openai.api-key</code>. It is a Fly secret in production and never part of an
+    <code>LlmRequest</code>, repository file, or application log.</li>
+    <li>Every free-text and structured request adds
+    <code>provider: { data_collection: "deny" }</code>. This prevents routing to providers that
+    collect data for training; OpenRouter dashboard privacy settings remain the operational half
+    of the guardrail.</li>
+    <li>No-training is not the same promise as zero retention. The accepted decision allows normal
+    API processing and prompt caching while prohibiting training on personal data.</li>
+    <li>Haiku and Sonnet slugs are configuration values. One gateway and one adapter support the
+    split without creating a client per model.</li>
+    <li>Embeddings are disabled and there is no vector database in the MVP. Future proposal use
+    cases will render bounded profile facts and recent episodes into normal prompt messages.</li>
+  </ul>
+
+  <h3>Timeouts, retries, and failures</h3>
+  <div class="table-wrap">
+    <table>
+      <caption>Behavior at the external AI boundary</caption>
+      <thead>
+        <tr><th scope="col">Situation</th><th scope="col">Current behavior</th><th scope="col">Owner</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">429/5xx</th><td>One retry after the first attempt, so at most two attempts.</td><td>Spring AI OpenAI client configuration</td></tr>
+        <tr><th scope="row">Other 4xx</th><td>Fail fast; retrying an invalid or unauthorized request would not help.</td><td>Spring AI OpenAI client</td></tr>
+        <tr><th scope="row">Slow generation</th><td>Read timeout after 60s.</td><td><code>application.properties</code></td></tr>
+        <tr><th scope="row">Transport/provider exception</th><td>Log model slug and message count without prompt content or key, then throw <code>LlmException</code>.</td><td><code>SpringAiLlmClient</code></td></tr>
+        <tr><th scope="row">Blank free-text response</th><td>Reject it as <code>LlmException</code>, because truncation or content filtering can produce an empty answer.</td><td><code>SpringAiLlmClient</code></td></tr>
+        <tr><th scope="row">Malformed structured response</th><td>Deserialization fails as <code>LlmException</code>.</td><td><code>SpringAiLlmClient</code></td></tr>
+        <tr><th scope="row">Product fallback</th><td>Not implemented yet. Future callers must keep CRUD available and degrade AI features safely.</td><td>Each product use case</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>How the boundary is tested</h3>
+  <div class="card-grid">
+    <div class="card"><strong>Hermetic adapter tests</strong><br>
+    <a href="../backend/src/test/java/com/thedariusz/todoai/ai/SpringAiLlmClientTest.java"><code>SpringAiLlmClientTest</code></a>
+    mocks <code>ChatModel</code> and verifies role mapping, model selection, no-training options,
+    structured output, deserialization, logging, and error translation without network access.</div>
+    <div class="card"><strong>Configuration tests</strong><br>
+    <a href="../backend/src/test/java/com/thedariusz/todoai/ai/LlmPropertiesTest.java"><code>LlmPropertiesTest</code></a>
+    verifies typed model-slug binding and startup validation.</div>
+    <div class="card"><strong>Real round-trip</strong><br>
+    <a href="../backend/src/test/java/com/thedariusz/todoai/ai/OpenRouterLiveTest.java"><code>OpenRouterLiveTest</code></a>
+    boots the real Spring context and calls OpenRouter only when <code>OPENROUTER_API_KEY</code> is
+    explicitly present. It currently proves Sonnet free-text and strict structured calls; Haiku's
+    structured-output support remains an S-09 verification.</div>
+  </div>
+
+  <h3>Code reading path</h3>
+  <ol>
+    <li>Start with the application-owned port:
+    <a href="../backend/src/main/java/com/thedariusz/todoai/ai/LlmClient.java"><code>LlmClient</code></a>.</li>
+    <li>Read the provider-neutral request types:
+    <a href="../backend/src/main/java/com/thedariusz/todoai/ai/LlmRequest.java"><code>LlmRequest</code></a>,
+    <a href="../backend/src/main/java/com/thedariusz/todoai/ai/LlmMessage.java"><code>LlmMessage</code></a>, and
+    <a href="../backend/src/main/java/com/thedariusz/todoai/ai/JsonSchema.java"><code>JsonSchema</code></a>.</li>
+    <li>Follow the translation into Spring AI:
+    <a href="../backend/src/main/java/com/thedariusz/todoai/ai/SpringAiLlmClient.java"><code>SpringAiLlmClient</code></a>.</li>
+    <li>Then inspect configuration in
+    <a href="../backend/src/main/resources/application.properties"><code>application.properties</code></a> and
+    <a href="../backend/src/main/java/com/thedariusz/todoai/ai/LlmProperties.java"><code>LlmProperties</code></a>.</li>
+    <li>Use the <a href="../context/foundation/ai-provider.md">AI-provider decision record</a> for
+    the model, privacy, budget, and memory rationale.</li>
+  </ol>
+</section>
+
 <section id="flows">
   <h2>Behavioral flows</h2>
   <p>The detailed diagrams are grouped by responsibility. Identity flows dominate the current
