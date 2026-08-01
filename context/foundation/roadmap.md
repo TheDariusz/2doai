@@ -32,7 +32,7 @@ Osoby planujące długoterminowo wpisują cele i marzenia raz, a potem rzadko do
 | ---- | -------------------------- | -------------------------------------------------------------------- | ------------------ | ---------------------------- | -------- |
 | F-01 | persistence-baseline       | (fundament) trwała warstwa danych + zasiane 11 kategorii             | —                  | NFR (trwałość), FR-007       | done     |
 | F-02 | ai-memory-integration      | (fundament) klient LLM + zrębowy mechanizm pamięci + polityka prywatności | F-01          | NFR (prywatność), Open Q2    | done     |
-| S-01 | account-and-auth           | założyć konto (email+hasło), zalogować/wylogować, usunąć konto; trasy bramkowane; szkielet frontu | F-01 | FR-001, FR-002, FR-019       | proposed |
+| S-01 | account-and-auth           | założyć konto (email+hasło), zalogować/wylogować, usunąć konto; trasy bramkowane; szkielet frontu | F-01 | FR-001, FR-002, FR-019       | in-progress |
 | S-02 | goals-and-dreams           | tworzyć/edytować/kończyć cel długoterminowy i marzenie + kategoria   | S-01, F-01         | FR-004, FR-005, FR-007       | proposed |
 | S-03 | ai-memory-seed             | zasiać pamięć AI onboardingiem; ukończone pozycje ją wzbogacają      | F-02, S-02         | FR-009, FR-010               | proposed |
 | S-04 | proactive-proposal-engine  | na żądanie dostać propozycję, odpowiedzieć i otrzymać pierwszy krok   | F-02, S-02, S-03   | FR-012, FR-013, FR-014, FR-015 | proposed |
@@ -116,9 +116,9 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 - **Parallel with:** F-02
 - **Blockers:** —
 - **Unknowns:**
-  - Model sesji: cookie vs token JWT — nierozstrzygnięty (CLAUDE.md: potwierdzić przed implementacją auth; wybór wpływa na PWA/offline i proxy Pattern B). — Owner: autor. Block: no (rozstrzygalne na etapie `/10x-plan`).
+  - ~~Model sesji: cookie vs token JWT~~ — **ROZSTRZYGNIĘTE (2026-07-22).** Sesja serwerowa w ciasteczku (`HttpOnly; Secure; SameSite=Strict`), Spring Security, sesje in-memory na jednej maszynie Fly — nie JWT. Pełna decyzja + wyzwalacz rewizji: `context/foundation/auth-session-model.md`.
 - **Risk:** Standardowy flow auth; ryzyko skupia się w wyborze modelu sesji, który dotyka same-origin Pattern B i przyszły tryb offline (FR-017). Ustanawia izolację per-użytkownik konsumowaną przez wszystkie slice'y danych.
-- **Status:** proposed
+- **Status:** in-progress — backend (fazy 1-2 planu) zmergowany do `master` (PR #5, #6): Spring Security, agregat `User`, migracja `V4`, rejestracja/logowanie/wylogowanie, usunięcie konta (FR-019), izolacja per-użytkownik, `/api/categories`. Frontend (fazy 3-4) **niezaimplementowany** — 13 pozycji Progress otwartych; `frontend/src/` to wciąż demo Vite (bez routingu, klienta API, ekranów auth, powłoki z 11 domenami). Zakres otwarty żyje w `context/changes/account-and-auth/plan.md`.
 
 ### S-02: Cele długoterminowe i marzenia
 
@@ -241,7 +241,7 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 | ---------- | -------------------------- | ------------------------------------------------------ | --------------------- | ----- |
 | F-01       | persistence-baseline       | Podłącz Postgres + JPA + Flyway, zasiej 11 kategorii   | yes                   | Korzeń całej roadmapy; pierwszy ruch (F-02 też gotowy, ale zależy od F-01). Uruchom `/10x-plan persistence-baseline`. |
 | F-02       | ai-memory-integration      | Podłącz klient LLM (OpenRouter/Anthropic) + zrębowy profil pamięci + polityka prywatności | done              | **Done** — zmergowany do `master`, zarchiwizowany 2026-08-01 → `context/archive/2026-06-15-ai-memory-integration/`. Decyzje: `context/foundation/ai-provider.md`. |
-| S-01       | account-and-auth           | Konto: rejestracja (email+hasło), logowanie, wylogowanie, usunięcie konta, bramkowanie tras, szkielet frontu | yes             | Odblokowane (F-01 done). Auth: email+hasło (decyzja 2026-07-07); cookie vs JWT otwarte (nieblokujące). Uruchom `/10x-plan account-and-auth`. |
+| S-01       | account-and-auth           | Konto: rejestracja (email+hasło), logowanie, wylogowanie, usunięcie konta, bramkowanie tras, szkielet frontu | **w toku**            | Plan istnieje; backend (fazy 1-2) zmergowany. **Nie planuj od nowa** — dokończ fazy 3-4 (frontend: routing, klient API + echo `X-XSRF-TOKEN`, ekrany auth, `ProtectedRoute`, powłoka z 11 domenami) przez `/10x-implement account-and-auth`. Model sesji rozstrzygnięty: `context/foundation/auth-session-model.md`. |
 | S-02       | goals-and-dreams           | CRUD celów długoterminowych i marzeń z kategorią       | no                    | Czeka na S-01 + F-01. Substrat gwiazdy. |
 | S-03       | ai-memory-seed             | Pamięć AI: onboarding seed + wzbogacanie z ukończeń i wyników propozycji | no      | F-02 done; czeka na S-02. |
 | S-04       | proactive-proposal-engine  | Silnik propozycji + odpowiedzi + pierwszy krok (ręczny trigger) | no            | F-02 done; czeka na S-02 + S-03. Tu waliduje się jakość propozycji — i tu `LlmClient` dostaje pierwsze wywołanie produkcyjne. |
@@ -258,7 +258,7 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 1. ~~**Dostawca AI + mechanizm pamięci AI**~~ — **ROZSTRZYGNIĘTE (2026-06-13).** OpenRouter + first-party Anthropic; modele `anthropic/claude-haiku-4.5` (auto-tag) + `anthropic/claude-sonnet-4.6` (propozycje); prywatność „no-training"; pamięć = profil strukturalny + log epizodyczny wstrzykiwany do kontekstu. Odblokowuje `F-02` (i pośrednio `S-03`, `S-04`, `S-05`, `S-09`). Pełna decyzja: `context/foundation/ai-provider.md`. (= PRD Otwarte pytanie 2.)
 2. ~~**Ballpark skali** (`target_scale`: users / qps / data_volume)~~ — **ROZSTRZYGNIĘTE (2026-07-07).** MVP: 1-10 użytkowników, <1 qps, <1 GB — uzupełnione we frontmatter PRD; obecne wymiarowanie ops (Fly 512MB, Neon) bez zmian. (= PRD Otwarte pytanie 1.)
 
-> Pytania per-slice (rytm proaktywny → S-05, priorytety×bilansowanie → S-04/S-06, onboarding statyczny/dynamiczny → S-03, cookie vs JWT → S-01) zostają przy swoich slice'ach jako Unknowns.
+> Pytania per-slice (rytm proaktywny → S-05, priorytety×bilansowanie → S-04/S-06, onboarding statyczny/dynamiczny → S-03) zostają przy swoich slice'ach jako Unknowns. Model sesji (cookie vs JWT → S-01) rozstrzygnięty 2026-07-22 — `context/foundation/auth-session-model.md`.
 
 ## Parked
 
