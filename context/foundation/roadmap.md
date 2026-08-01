@@ -3,7 +3,7 @@ project: "2do AI"
 version: 1
 status: draft
 created: 2026-06-13
-updated: 2026-07-07
+updated: 2026-08-01
 prd_version: 1
 main_goal: market-feedback
 top_blocker: decisions
@@ -31,7 +31,7 @@ Osoby planujące długoterminowo wpisują cele i marzenia raz, a potem rzadko do
 | ID   | Change ID                  | Outcome (użytkownik może …)                                          | Prerequisites      | PRD refs                     | Status   |
 | ---- | -------------------------- | -------------------------------------------------------------------- | ------------------ | ---------------------------- | -------- |
 | F-01 | persistence-baseline       | (fundament) trwała warstwa danych + zasiane 11 kategorii             | —                  | NFR (trwałość), FR-007       | done     |
-| F-02 | ai-memory-integration      | (fundament) klient LLM + zrębowy mechanizm pamięci + polityka prywatności | F-01          | NFR (prywatność), Open Q2    | ready    |
+| F-02 | ai-memory-integration      | (fundament) klient LLM + zrębowy mechanizm pamięci + polityka prywatności | F-01          | NFR (prywatność), Open Q2    | done     |
 | S-01 | account-and-auth           | założyć konto (email+hasło), zalogować/wylogować, usunąć konto; trasy bramkowane; szkielet frontu | F-01 | FR-001, FR-002, FR-019       | proposed |
 | S-02 | goals-and-dreams           | tworzyć/edytować/kończyć cel długoterminowy i marzenie + kategoria   | S-01, F-01         | FR-004, FR-005, FR-007       | proposed |
 | S-03 | ai-memory-seed             | zasiać pamięć AI onboardingiem; ukończone pozycje ją wzbogacają      | F-02, S-02         | FR-009, FR-010               | proposed |
@@ -101,7 +101,7 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 - **Unknowns:** — (kluczowa decyzja rozstrzygnięta 2026-06-13)
 - **Resolved:** Dostawca = OpenRouter przed first-party Anthropic; modele rozdzielone (`anthropic/claude-haiku-4.5` auto-tag, `anthropic/claude-sonnet-4.6` propozycje); prywatność „no-training" (spełnia guardrail, bez ZDR); mechanizm pamięci = profil strukturalny + log epizodyczny wstrzykiwany do kontekstu (bez bazy wektorowej w MVP). Pełna decyzja + implikacje integracyjne: `context/foundation/ai-provider.md`.
 - **Risk:** Decyzja podjęta; ryzyko zredukowane do wykonania. Pozostałe do weryfikacji przy implementacji (zob. `ai-provider.md`): wsparcie `json_schema` `strict` dla Haiku 4.5 na OpenRouter (fallback: tool-calling / prompted JSON / Sonnet do tagu) oraz tania A/B jakości polskiego Haiku vs Sonnet. Integracja przez OpenAI-compatible Chat Completions → Spring `RestClient` za portem `LlmClient` (nie Anthropic Java SDK).
-- **Status:** ready — zaimplementowany na `feat/ai-memory-integration`, czeka na merge (status → done przez `/10x-archive`)
+- **Status:** done
 
 ## Slices
 
@@ -281,3 +281,5 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 - **<Slice ID>: <Outcome>** — Archived <YYYY-MM-DD> → `context/archive/<YYYY-MM-DD-change-id>/`. Lesson: <wskaźnik do lessons.md jeśli jest, lub `—`>.
 
 - **F-01: (fundament) Postgres + Spring Data JPA/Hibernate + narzędzie migracji (Flyway) podłączone do istniejącego backendu; zasiana stała lista 11 kategorii jako dane referencyjne. Brak efektu widocznego dla użytkownika.** — Archived 2026-06-14 → `context/archive/2026-06-13-persistence-baseline/`. Lesson: —.
+
+- **F-02: (fundament) wybrany dostawca AI + klient LLM podłączony; zrębowy mechanizm pamięci AI o użytkowniku; ustalona polityka prywatności (dane i pamięć nie trenują zewnętrznych modeli — twardy guardrail). Brak efektu widocznego dla użytkownika.** — Archived 2026-08-01 → `context/archive/2026-06-15-ai-memory-integration/`. Lesson: —.
