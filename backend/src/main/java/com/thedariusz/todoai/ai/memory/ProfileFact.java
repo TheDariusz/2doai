@@ -26,8 +26,7 @@ import org.hibernate.annotations.UuidGenerator;
 @Entity
 @Table(name = "ai_memory_profile_fact")
 public class ProfileFact {
-
-	/** Mirrors the {@code ai_memory_profile_fact.kind VARCHAR(64)} column width. */
+	
 	static final int MAX_KIND_LENGTH = 64;
 
 	@Id
