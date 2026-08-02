@@ -97,7 +97,11 @@ function messageFor(failure: unknown, mode: Mode): string {
     return 'Ten adres email jest już zajęty — zaloguj się.'
   }
   if (status === 422) {
-    return 'Sprawdź adres email i hasło (min. 8 znaków).'
+    // Only RegisterRequest carries @Size(min = 8); LoginRequest is deliberately looser, so quoting
+    // the rule there would be advice the user cannot act on.
+    return mode === 'register'
+      ? 'Sprawdź adres email i hasło (min. 8 znaków).'
+      : 'Sprawdź adres email i hasło.'
   }
   if (status === 401) {
     // Identical for an unknown email and a wrong password, exactly as the server answers.

@@ -47,6 +47,16 @@ describe('AuthPage — logowanie', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Nieprawidłowy email lub hasło.')
   })
+
+  it('does not quote the registration password rule when login is rejected (422)', async () => {
+    const auth = stubAuth({ login: async () => { throw new ApiError(422, 'Validation failed') } })
+    renderAt('/login', auth)
+
+    await fillIn('ala@example.pl', 'x')
+
+    // LoginRequest has no minimum — advice the user cannot act on is worse than none.
+    expect(await screen.findByRole('alert')).not.toHaveTextContent(/8 znaków/)
+  })
 })
 
 describe('AuthPage — rejestracja', () => {

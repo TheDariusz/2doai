@@ -6,19 +6,23 @@ import { DomainPlaceholder } from '../pages/DomainPlaceholder'
 import { stubAuth } from '../test/auth'
 import { AuthContext } from '../auth/auth-context'
 
-/** The 11 frozen life domains, deliberately shuffled — the shell must impose display_order. */
+/**
+ * The 11 seeded categories, verbatim from `V2__seed_categories.sql` (codes are the English
+ * `LifeDomain` constants; `name_pl` is the label). Deliberately shuffled — the shell must impose
+ * display_order.
+ */
 const DOMAINS = [
-  { code: 'ZDROWIE', name_pl: 'Zdrowie', display_order: 2 },
-  { code: 'ROZWOJ', name_pl: 'Rozwój osobisty', display_order: 5 },
-  { code: 'RODZINA', name_pl: 'Rodzina', display_order: 1 },
-  { code: 'PRACA', name_pl: 'Praca', display_order: 3 },
-  { code: 'FINANSE', name_pl: 'Finanse', display_order: 4 },
-  { code: 'PRZYJACIELE', name_pl: 'Przyjaciele', display_order: 6 },
-  { code: 'DOM', name_pl: 'Dom', display_order: 7 },
-  { code: 'HOBBY', name_pl: 'Hobby', display_order: 8 },
-  { code: 'DUCHOWOSC', name_pl: 'Duchowość', display_order: 9 },
-  { code: 'PODROZE', name_pl: 'Podróże', display_order: 10 },
-  { code: 'SPOLECZNOSC', name_pl: 'Społeczność', display_order: 11 },
+  { code: 'FINANCE', name_pl: 'Finanse', display_order: 2 },
+  { code: 'RELATIONSHIPS', name_pl: 'Relacje', display_order: 5 },
+  { code: 'HEALTH', name_pl: 'Zdrowie', display_order: 1 },
+  { code: 'CAREER', name_pl: 'Kariera i rozwój zawodowy', display_order: 3 },
+  { code: 'EDUCATION', name_pl: 'Edukacja i rozwój osobisty', display_order: 4 },
+  { code: 'HOME', name_pl: 'Dom i otoczenie', display_order: 6 },
+  { code: 'LEISURE', name_pl: 'Czas wolny i hobby', display_order: 7 },
+  { code: 'ADMIN', name_pl: 'Sprawy formalne i administracyjne', display_order: 8 },
+  { code: 'SAFETY', name_pl: 'Bezpieczeństwo i przygotowanie na sytuacje awaryjne', display_order: 9 },
+  { code: 'TRANSPORT', name_pl: 'Transport i mobilność', display_order: 10 },
+  { code: 'INNER_GROWTH', name_pl: 'Rozwój wewnętrzny / wartości', display_order: 11 },
 ]
 
 const fetchMock = vi.fn()
@@ -61,11 +65,23 @@ describe('AppLayout', () => {
 
     expect(links).toHaveLength(11)
     expect(links.map((link) => link.textContent)).toEqual([
-      'Rodzina', 'Zdrowie', 'Praca', 'Finanse', 'Rozwój osobisty', 'Przyjaciele',
-      'Dom', 'Hobby', 'Duchowość', 'Podróże', 'Społeczność',
+      'Zdrowie', 'Finanse', 'Kariera i rozwój zawodowy', 'Edukacja i rozwój osobisty',
+      'Relacje', 'Dom i otoczenie', 'Czas wolny i hobby', 'Sprawy formalne i administracyjne',
+      'Bezpieczeństwo i przygotowanie na sytuacje awaryjne', 'Transport i mobilność',
+      'Rozwój wewnętrzny / wartości',
     ])
-    expect(links[0]).toHaveAttribute('href', '/domena/RODZINA')
+    expect(links[0]).toHaveAttribute('href', '/domena/HEALTH')
     expect(fetchMock).toHaveBeenCalledWith('/api/categories', expect.anything())
+  })
+
+  it('says so when the domains cannot be loaded, rather than showing an empty nav', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false, status: 500, statusText: '', json: async () => ({ detail: 'boom' }),
+    })
+
+    renderShell('/')
+
+    expect(await screen.findByText(/nie udało się wczytać/i)).toBeInTheDocument()
   })
 
   it('shows the account controls in the header', async () => {
@@ -76,9 +92,9 @@ describe('AppLayout', () => {
   })
 
   it('routes a domain to its placeholder, named from the shell data', async () => {
-    renderShell('/domena/HOBBY')
+    renderShell('/domena/LEISURE')
 
-    expect(await screen.findByRole('heading', { name: 'Hobby' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Czas wolny i hobby' })).toBeInTheDocument()
     expect(screen.getByText(/kolejnym wycinku/i)).toBeInTheDocument()
   })
 })

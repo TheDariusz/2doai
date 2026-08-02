@@ -38,11 +38,15 @@ export async function api<T = void>(
   }
   if (!SAFE_METHODS.has(method)) {
     // Double-submit: the cookie is readable by JS on purpose, the header is what a cross-site
-    // form cannot forge. `CsrfCookieFilter` primes the cookie on the very first request.
+    // form cannot forge. The server primes it on every response, including the anonymous
+    // bootstrap 401 — so no cookie means that response has not landed yet.
     const token = csrfToken()
-    if (token) {
-      headers['X-XSRF-TOKEN'] = token
+    if (!token) {
+      // Fail here rather than send a request the server is bound to reject: its 403 is
+      // indistinguishable from the 403 a wrong re-auth password produces.
+      throw new ApiError(0, 'Sesja nie jest jeszcze gotowa — spróbuj ponownie za chwilę.')
     }
+    headers['X-XSRF-TOKEN'] = token
   }
 
   const response = await fetch(`/api${path}`, {
@@ -53,9 +57,16 @@ export async function api<T = void>(
   })
 
   if (!response.ok) {
-    // RFC 9457 Problem JSON; fall back to the status line if the body is not one.
+    if (response.status === 401) {
+      // The session ended server-side (timeout, or deleted from another device). Announced once
+      // here rather than handled in each caller — `AuthProvider` listens and drops to anonymous,
+      // which is what sends the user back to /login from wherever they were.
+      window.dispatchEvent(new Event('session-expired'))
+    }
+    // RFC 9457 Problem JSON. The fallback is the status, not `statusText`: the latter is always
+    // empty over HTTP/2, which is what both Cloudflare and Fly serve.
     const problem = await response.json().catch(() => null)
-    throw new ApiError(response.status, problem?.detail ?? response.statusText)
+    throw new ApiError(response.status, problem?.detail ?? `HTTP ${response.status}`)
   }
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T)
 }

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AccountMenu } from './AccountMenu'
 import { ApiError } from '../api/client'
 import { stubAuth } from '../test/auth'
@@ -33,6 +33,20 @@ describe('AccountMenu', () => {
     expect(await screen.findByText('ekran logowania')).toBeInTheDocument()
   })
 
+  it('reports a failed logout instead of pretending the session ended', async () => {
+    const auth = stubAuth({
+      ...loggedIn,
+      logout: async () => { throw new ApiError(503, 'Service unavailable') },
+    })
+    renderMenu(auth)
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Wyloguj' }))
+
+    // The server may still hold the session, so the user must not be told they are out.
+    expect(await screen.findByRole('alert')).toHaveTextContent(/wylogować/i)
+    expect(screen.queryByText('ekran logowania')).not.toBeInTheDocument()
+  })
+
   it('double-gates deletion: a confirm step plus password re-entry', async () => {
     const auth = stubAuth(loggedIn)
     renderMenu(auth)
@@ -47,6 +61,20 @@ describe('AccountMenu', () => {
 
     expect(auth.deleteAccount).toHaveBeenCalledWith('tajnehaslo')
     expect(await screen.findByText('ekran logowania')).toBeInTheDocument()
+  })
+
+  it('does not fire a second deletion while the first is in flight', async () => {
+    const deleteAccount = vi.fn().mockReturnValue(new Promise<void>(() => {}))
+    renderMenu(stubAuth({ ...loggedIn, deleteAccount }))
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Usuń konto' }))
+    await user.type(screen.getByLabelText('Potwierdź hasłem'), 'tajnehaslo')
+    const submit = screen.getByRole('button', { name: 'Usuń konto na zawsze' })
+    await user.click(submit)
+    await user.click(submit)
+
+    expect(deleteAccount).toHaveBeenCalledTimes(1)
   })
 
   it('reports a mistyped password (403) without ending the session', async () => {
