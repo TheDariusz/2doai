@@ -739,27 +739,44 @@ is preserved. BCrypt cost is a one-off per login/register.
 
 #### Automated
 
-- [ ] 3.1 Typecheck + build pass (`npm run build`)
-- [ ] 3.2 Lint passes (`npm run lint`)
-- [ ] 3.3 RTL: login + register forms submit and show generic errors
-- [ ] 3.4 RTL: ProtectedRoute redirects an anonymous user to `/login`
-- [ ] 3.5 RTL: API client echoes `X-XSRF-TOKEN` on mutations, omits on GET
+- [x] 3.1 Typecheck + build pass (`npm run build`)
+- [x] 3.2 Lint passes (`npm run lint`)
+- [x] 3.3 RTL: login + register forms submit and show generic errors
+- [x] 3.4 RTL: ProtectedRoute redirects an anonymous user to `/login`
+- [x] 3.5 RTL: API client echoes `X-XSRF-TOKEN` on mutations, omits on GET
 
 #### Manual
 
-- [ ] 3.6 register → login → land in app; refresh stays logged in
-- [ ] 3.7 Logout returns to `/login`; gated routes redirect again
-- [ ] 3.8 Delete account (confirm + password) → back to login; email re-registerable
-- [ ] 3.9 Session cookie is HttpOnly; XSRF-TOKEN cookie present + readable
+- [x] 3.6 register → login → land in app; refresh stays logged in
+- [x] 3.7 Logout returns to `/login`; gated routes redirect again
+- [x] 3.8 Delete account (confirm + password) → back to login; email re-registerable
+- [x] 3.9 Session cookie is HttpOnly; XSRF-TOKEN cookie present + readable
 
 ### Phase 4: Frontend fuller shell
 
 #### Automated
 
-- [ ] 4.1 Typecheck + build + lint pass
-- [ ] 4.2 RTL: DomainNav renders 11 items in display_order from a mocked `/categories`
+- [x] 4.1 Typecheck + build + lint pass
+- [x] 4.2 RTL: DomainNav renders 11 items in display_order from a mocked `/categories`
 
 #### Manual
 
-- [ ] 4.3 Shell shows header + all 11 domains in canonical order after login
-- [ ] 4.4 Clicking a domain routes to its placeholder; header/logout/delete work from the shell
+- [x] 4.3 Shell shows header + all 11 domains in canonical order after login
+- [x] 4.4 Clicking a domain routes to its placeholder; header/logout/delete work from the shell
+
+#### Deviations from the phase plan (2026-08-02)
+
+- **Endpoint paths** — the Phase 3 prose still named `/auth/me`, `/auth/logout`, `/auth/account`.
+  The shipped contract is the Zalando one from the API Design Amendment (`POST /api/users`,
+  `POST /api/sessions`, `GET|DELETE /api/users/me`, `DELETE /api/sessions/current`); the client
+  follows the amendment, not the prose.
+- **One `AuthPage` instead of `Login.tsx` + `Register.tsx`** — the two screens differ only in copy,
+  in the password minimum and in where success routes, so they share one component keyed by `mode`.
+- **Nav lives in `AppLayout`, not a separate `DomainNav.tsx`** — it is a `<nav>` in the shell,
+  covered by `AppLayout.test.tsx`; a component boundary would have bought nothing here.
+- **Delete confirmation is an inline panel, not a modal `<dialog>`** — the gate that matters is the
+  password the server re-verifies. Upgrade to `<dialog>` if it ever needs focus trapping.
+- **Phases 3 and 4 were delivered together** — building the Phase 3 checkpoint would have meant a
+  throwaway home page replaced hours later by the shell. Both phases' criteria were verified.
+- **No global 401 interceptor yet** — only the `/users/me` bootstrap treats 401 as "anonymous".
+  Add the redirect-on-401 when a later slice has a long-lived screen that can outlive its session.

@@ -1,5 +1,5 @@
 {
-  "name": "bootstrap-scaffold",
+  "name": "2doai-frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260608.1",
