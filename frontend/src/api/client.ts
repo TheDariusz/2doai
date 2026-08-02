@@ -5,12 +5,14 @@
 
 const CSRF_COOKIE = 'XSRF-TOKEN='
 
-/** Methods Spring Security exempts from CSRF — everything else must carry the token. */
-const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE'])
+type Method = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
-/** A backend failure carrying its HTTP status, so callers can map 401 / 403 / 409 to real copy. */
+/** The methods this client sends without a token, matching Spring Security's CSRF exemptions. */
+const SAFE_METHODS = new Set<Method>(['GET', 'HEAD'])
+
+/** A backend failure carrying its HTTP status, so callers can map it to copy that fits. */
 export class ApiError extends Error {
-  status: number
+  readonly status: number
 
   constructor(status: number, detail: string) {
     super(detail)
@@ -28,7 +30,7 @@ function csrfToken(): string | undefined {
 
 export async function api<T = void>(
   path: string,
-  init: { method?: string; body?: unknown } = {},
+  init: { method?: Method; body?: unknown } = {},
 ): Promise<T> {
   const method = init.method ?? 'GET'
   const headers: Record<string, string> = {}

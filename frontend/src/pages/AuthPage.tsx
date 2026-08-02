@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, type Path } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/auth-context'
 
@@ -46,7 +46,8 @@ export function AuthPage({ mode }: { mode: Mode }) {
     try {
       if (mode === 'login') {
         await login(email, password)
-        const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname
+        // The whole location, not just its pathname — a bounced deep link keeps its query and hash.
+        const from = (location.state as { from?: Partial<Path> } | null)?.from
         navigate(from ?? '/', { replace: true })
       } else {
         await register(email, password)
@@ -62,7 +63,7 @@ export function AuthPage({ mode }: { mode: Mode }) {
   return (
     <main className="auth">
       <h1>{copy.heading}</h1>
-      <form onSubmit={submit} noValidate={false}>
+      <form onSubmit={submit}>
         <label>
           Email
           <input name="email" type="email" required maxLength={320} autoComplete="email" />
@@ -73,8 +74,11 @@ export function AuthPage({ mode }: { mode: Mode }) {
             name="password"
             type="password"
             required
-            // Mirrors RegisterRequest: min 8 on registration, no minimum on login.
+            // Mirrors RegisterRequest: min 8 on registration, no minimum on login. The maximum is
+            // BCrypt's 72-byte cap, which both requests carry; counting characters only
+            // approximates bytes, so it never blocks input the server would have accepted.
             minLength={mode === 'register' ? 8 : undefined}
+            maxLength={72}
             autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
           />
         </label>

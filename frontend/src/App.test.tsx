@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from './App'
 import { AuthContext, type Auth } from './auth/auth-context'
@@ -43,11 +43,17 @@ function Session({ children, initial }: { children: ReactNode; initial: Auth['st
   )
 }
 
+function LocationProbe() {
+  const { pathname, search } = useLocation()
+  return <p data-testid="location">{pathname + search}</p>
+}
+
 function renderApp(path: string, initial: Auth['status'] = 'anonymous') {
   render(
     <MemoryRouter initialEntries={[path]}>
       <Session initial={initial}>
         <AppRoutes />
+        <LocationProbe />
       </Session>
     </MemoryRouter>,
   )
@@ -65,6 +71,18 @@ describe('AppRoutes', () => {
 
     // Not '/' — the deep link survives the round trip through /login.
     expect(await screen.findByRole('heading', { name: 'Czas wolny i hobby' })).toBeInTheDocument()
+  })
+
+  it('keeps the query string of the bounced deep link, not just its path', async () => {
+    renderApp('/domena/LEISURE?widok=tydzien')
+    const user = userEvent.setup()
+
+    await screen.findByRole('heading', { name: 'Zaloguj się' })
+    await user.type(screen.getByLabelText('Email'), 'ala@example.pl')
+    await user.type(screen.getByLabelText('Hasło'), 'tajnehaslo')
+    await user.click(screen.getByRole('button', { name: 'Zaloguj się' }))
+
+    expect(await screen.findByTestId('location')).toHaveTextContent('/domena/LEISURE?widok=tydzien')
   })
 
   it('sends an unknown path home, and an anonymous visitor on to /login', async () => {

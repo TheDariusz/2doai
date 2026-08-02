@@ -1,10 +1,11 @@
 import { useOutletContext, useParams } from 'react-router-dom'
 import type { Domain } from '../layout/AppLayout'
 
-/** Holding page so the navigation is walkable before the feature slices land. */
 export function DomainPlaceholder() {
   const { code } = useParams()
-  const domains = useOutletContext<Domain[]>()
+  // `useOutletContext` is an unchecked cast — react-router validates nothing — so admit the null
+  // it hands back outside an Outlet and fall through to the `code` heading below.
+  const domains = useOutletContext<Domain[] | null>() ?? []
   const domain = domains.find((candidate) => candidate.code === code)
 
   return (
