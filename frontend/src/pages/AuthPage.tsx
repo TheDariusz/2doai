@@ -5,21 +5,10 @@ import { useAuth } from '../auth/auth-context'
 
 type Mode = 'login' | 'register'
 
+/** Each mode's heading doubles as its submit label, and as the other mode's link label. */
 const COPY = {
-  login: {
-    heading: 'Zaloguj się',
-    submit: 'Zaloguj się',
-    prompt: 'Nie masz jeszcze konta?',
-    otherLabel: 'Załóż konto',
-    otherPath: '/register',
-  },
-  register: {
-    heading: 'Załóż konto',
-    submit: 'Załóż konto',
-    prompt: 'Masz już konto?',
-    otherLabel: 'Zaloguj się',
-    otherPath: '/login',
-  },
+  login: { heading: 'Zaloguj się', prompt: 'Nie masz jeszcze konta?' },
+  register: { heading: 'Załóż konto', prompt: 'Masz już konto?' },
 } as const
 
 /**
@@ -29,6 +18,8 @@ const COPY = {
  */
 export function AuthPage({ mode }: { mode: Mode }) {
   const copy = COPY[mode]
+  // The two modes are each other's alternative, and `/login` / `/register` are their routes.
+  const other = mode === 'login' ? 'register' : 'login'
   const { login, register } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -84,11 +75,11 @@ export function AuthPage({ mode }: { mode: Mode }) {
         </label>
         {error && <p role="alert">{error}</p>}
         <button type="submit" disabled={pending}>
-          {copy.submit}
+          {copy.heading}
         </button>
       </form>
       <p>
-        {copy.prompt} <Link to={copy.otherPath}>{copy.otherLabel}</Link>
+        {copy.prompt} <Link to={`/${other}`}>{COPY[other].heading}</Link>
       </p>
     </main>
   )

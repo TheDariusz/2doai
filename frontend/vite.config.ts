@@ -15,5 +15,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     css: false,
+    // Undoes every `vi.stubGlobal` after each test, so no test file needs its own teardown.
+    unstubGlobals: true,
   },
 })

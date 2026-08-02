@@ -56,8 +56,7 @@ export function AccountMenu() {
       <button type="button" onClick={() => { setError(null); setConfirming(true) }}>
         Usuń konto
       </button>
-      {/* Logout errors belong up here; deletion errors render inside the panel below. */}
-      {error && !confirming && <p role="alert">{error}</p>}
+      {error && <p role="alert">{error}</p>}
 
       {/* Deletion is irreversible (FR-019), so it is double-gated: this step, then the password
           the server re-verifies. Rendered only while confirming — nothing to mis-click. */}
@@ -68,7 +67,6 @@ export function AccountMenu() {
             Potwierdź hasłem
             <input name="password" type="password" required autoFocus autoComplete="current-password" />
           </label>
-          {error && <p role="alert">{error}</p>}
           <button type="submit" disabled={pending}>
             Usuń konto na zawsze
           </button>

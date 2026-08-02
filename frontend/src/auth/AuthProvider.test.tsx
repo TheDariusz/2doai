@@ -1,15 +1,12 @@
 import { useState } from 'react'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from './AuthProvider'
 import { useAuth } from './auth-context'
+import { response } from '../test/auth'
 
 const fetchMock = vi.fn()
-
-function response(status: number, body?: unknown) {
-  return { ok: status < 400, status, statusText: '', json: async () => body }
-}
 
 /** Surfaces the provider's state, and swallows the rejection so a failed logout is assertable. */
 function Probe() {
@@ -28,12 +25,6 @@ function Probe() {
 beforeEach(() => {
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
-  document.cookie = 'XSRF-TOKEN=token-123'
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
-  document.cookie = 'XSRF-TOKEN=; max-age=0'
 })
 
 describe('AuthProvider', () => {

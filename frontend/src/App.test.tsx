@@ -2,28 +2,19 @@ import { useState, type ReactNode } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from './App'
 import { AuthContext, type Auth } from './auth/auth-context'
-import { stubAuth } from './test/auth'
+import { response, stubAuth } from './test/auth'
 
 const fetchMock = vi.fn()
 
 beforeEach(() => {
   fetchMock.mockReset()
-  fetchMock.mockResolvedValue({
-    ok: true,
-    status: 200,
-    statusText: '',
-    json: async () => ({ items: [{ code: 'LEISURE', name_pl: 'Czas wolny i hobby', display_order: 7 }] }),
-  })
+  fetchMock.mockResolvedValue(
+    response(200, { items: [{ code: 'LEISURE', name_pl: 'Czas wolny i hobby' }] }),
+  )
   vi.stubGlobal('fetch', fetchMock)
-  document.cookie = 'XSRF-TOKEN=token-123'
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
-  document.cookie = 'XSRF-TOKEN=; max-age=0'
 })
 
 /** Auth that actually flips on login, so the post-login redirect can be walked end to end. */
@@ -60,8 +51,8 @@ function renderApp(path: string, initial: Auth['status'] = 'anonymous') {
 }
 
 describe('AppRoutes', () => {
-  it('returns a bounced visitor to the page they originally asked for', async () => {
-    renderApp('/domena/LEISURE')
+  it('returns a bounced visitor to the deep link they asked for, query string and all', async () => {
+    renderApp('/domena/LEISURE?widok=tydzien')
     const user = userEvent.setup()
 
     expect(await screen.findByRole('heading', { name: 'Zaloguj się' })).toBeInTheDocument()
@@ -69,19 +60,8 @@ describe('AppRoutes', () => {
     await user.type(screen.getByLabelText('Hasło'), 'tajnehaslo')
     await user.click(screen.getByRole('button', { name: 'Zaloguj się' }))
 
-    // Not '/' — the deep link survives the round trip through /login.
+    // Not '/' — the whole location, query included, survives the round trip through /login.
     expect(await screen.findByRole('heading', { name: 'Czas wolny i hobby' })).toBeInTheDocument()
-  })
-
-  it('keeps the query string of the bounced deep link, not just its path', async () => {
-    renderApp('/domena/LEISURE?widok=tydzien')
-    const user = userEvent.setup()
-
-    await screen.findByRole('heading', { name: 'Zaloguj się' })
-    await user.type(screen.getByLabelText('Email'), 'ala@example.pl')
-    await user.type(screen.getByLabelText('Hasło'), 'tajnehaslo')
-    await user.click(screen.getByRole('button', { name: 'Zaloguj się' }))
-
     expect(await screen.findByTestId('location')).toHaveTextContent('/domena/LEISURE?widok=tydzien')
   })
 

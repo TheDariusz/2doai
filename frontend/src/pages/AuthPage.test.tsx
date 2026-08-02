@@ -1,23 +1,20 @@
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import { AuthPage } from './AuthPage'
 import { ApiError } from '../api/client'
-import { stubAuth } from '../test/auth'
-import { AuthContext, type Auth } from '../auth/auth-context'
+import { renderWithAuth, stubAuth } from '../test/auth'
+import { type Auth } from '../auth/auth-context'
 
 function renderAt(path: '/login' | '/register', auth: Auth) {
-  render(
-    <MemoryRouter initialEntries={[path]}>
-      <AuthContext value={auth}>
-        <Routes>
-          <Route path="/login" element={<AuthPage mode="login" />} />
-          <Route path="/register" element={<AuthPage mode="register" />} />
-          <Route path="/" element={<p>aplikacja</p>} />
-        </Routes>
-      </AuthContext>
-    </MemoryRouter>,
+  renderWithAuth(
+    <Routes>
+      <Route path="/login" element={<AuthPage mode="login" />} />
+      <Route path="/register" element={<AuthPage mode="register" />} />
+      <Route path="/" element={<p>aplikacja</p>} />
+    </Routes>,
+    { path, auth },
   )
 }
 

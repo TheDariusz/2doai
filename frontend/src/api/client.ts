@@ -7,9 +7,6 @@ const CSRF_COOKIE = 'XSRF-TOKEN='
 
 type Method = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
-/** The methods this client sends without a token, matching Spring Security's CSRF exemptions. */
-const SAFE_METHODS = new Set<Method>(['GET', 'HEAD'])
-
 /** A backend failure carrying its HTTP status, so callers can map it to copy that fits. */
 export class ApiError extends Error {
   readonly status: number
@@ -38,15 +35,17 @@ export async function api<T = void>(
   if (init.body !== undefined) {
     headers['Content-Type'] = 'application/json'
   }
-  if (!SAFE_METHODS.has(method)) {
+  // GET and HEAD go without a token, matching Spring Security's CSRF exemptions.
+  if (method !== 'GET' && method !== 'HEAD') {
     // Double-submit: the cookie is readable by JS on purpose, the header is what a cross-site
     // form cannot forge. The server primes it on every response, including the anonymous
     // bootstrap 401 — so no cookie means that response has not landed yet.
     const token = csrfToken()
     if (!token) {
       // Fail here rather than send a request the server is bound to reject: its 403 is
-      // indistinguishable from the 403 a wrong re-auth password produces.
-      throw new ApiError(0, 'Sesja nie jest jeszcze gotowa — spróbuj ponownie za chwilę.')
+      // indistinguishable from the 403 a wrong re-auth password produces. Status 0 marks a
+      // failure that never reached the server; screens map it to their generic copy.
+      throw new ApiError(0, 'No XSRF-TOKEN cookie — the priming response has not landed yet')
     }
     headers['X-XSRF-TOKEN'] = token
   }

@@ -1,17 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, ApiError } from './client'
+import { response } from '../test/auth'
 
 const fetchMock = vi.fn()
-
-/** Minimal stand-in for `Response` — the client only reads these four members. */
-function response(status: number, body?: unknown) {
-  return {
-    ok: status < 400,
-    status,
-    statusText: '',
-    json: async () => body,
-  }
-}
 
 function headersOf(call: number) {
   return fetchMock.mock.calls[call][1].headers as Record<string, string>
@@ -20,12 +11,6 @@ function headersOf(call: number) {
 beforeEach(() => {
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
-  document.cookie = 'XSRF-TOKEN=token-123'
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
-  document.cookie = 'XSRF-TOKEN=; max-age=0'
 })
 
 describe('api client', () => {

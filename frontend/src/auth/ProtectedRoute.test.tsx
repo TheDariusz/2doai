@@ -1,22 +1,19 @@
-import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { screen } from '@testing-library/react'
+import { Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import { ProtectedRoute } from './ProtectedRoute'
-import { stubAuth } from '../test/auth'
-import { AuthContext, type Auth } from './auth-context'
+import { renderWithAuth, stubAuth } from '../test/auth'
+import { type Auth } from './auth-context'
 
 function renderAt(path: string, auth: Auth) {
-  render(
-    <MemoryRouter initialEntries={[path]}>
-      <AuthContext value={auth}>
-        <Routes>
-          <Route element={<ProtectedRoute />}>
-            <Route path="/tajne" element={<p>zawartość dla zalogowanych</p>} />
-          </Route>
-          <Route path="/login" element={<p>ekran logowania</p>} />
-        </Routes>
-      </AuthContext>
-    </MemoryRouter>,
+  renderWithAuth(
+    <Routes>
+      <Route element={<ProtectedRoute />}>
+        <Route path="/tajne" element={<p>zawartość dla zalogowanych</p>} />
+      </Route>
+      <Route path="/login" element={<p>ekran logowania</p>} />
+    </Routes>,
+    { path, auth },
   )
 }
 

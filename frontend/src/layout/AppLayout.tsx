@@ -4,12 +4,13 @@ import { api } from '../api/client'
 import { AccountMenu } from '../auth/AccountMenu'
 
 /** A row of the `categories` resource — snake_case straight off the wire. */
-export type Domain = { code: string; name_pl: string; display_order: number }
+export type Domain = { code: string; name_pl: string }
 
 /**
- * The authenticated shell. The 11 life domains come from the server rather than a hard-coded list.
- * `CategorySyncCheck` guards the *code* list against `LifeDomain` drift; the labels and ordering
- * rendered here live in the Flyway seed alone and are guarded by nothing.
+ * The authenticated shell. The 11 life domains come from the server rather than a hard-coded list,
+ * already ordered by `display_order` (`CategoryController` sorts them), so the nav renders them as
+ * received. `CategorySyncCheck` guards the *code* list against `LifeDomain` drift; the labels and
+ * ordering live in the Flyway seed alone and are guarded by nothing.
  */
 export function AppLayout() {
   const [domains, setDomains] = useState<Domain[]>([])
@@ -17,7 +18,7 @@ export function AppLayout() {
 
   useEffect(() => {
     api<{ items: Domain[] }>('/categories').then(
-      (page) => setDomains([...page.items].sort((a, b) => a.display_order - b.display_order)),
+      (page) => setDomains(page.items),
       // A 401 already routes to /login via the session-expired event. Anything else leaves a shell
       // the user cannot navigate, so say so instead of rendering an empty nav that looks finished.
       () => setFailed(true),

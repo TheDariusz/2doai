@@ -1,26 +1,21 @@
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { AccountMenu } from './AccountMenu'
 import { ApiError } from '../api/client'
-import { stubAuth } from '../test/auth'
-import { AuthContext, type Auth } from './auth-context'
+import { LOGGED_IN as loggedIn, renderWithAuth, stubAuth } from '../test/auth'
+import { type Auth } from './auth-context'
 
 function renderMenu(auth: Auth) {
-  render(
-    <MemoryRouter initialEntries={['/']}>
-      <AuthContext value={auth}>
-        <Routes>
-          <Route path="/" element={<AccountMenu />} />
-          <Route path="/login" element={<p>ekran logowania</p>} />
-        </Routes>
-      </AuthContext>
-    </MemoryRouter>,
+  renderWithAuth(
+    <Routes>
+      <Route path="/" element={<AccountMenu />} />
+      <Route path="/login" element={<p>ekran logowania</p>} />
+    </Routes>,
+    { auth },
   )
 }
-
-const loggedIn = { status: 'authenticated' as const, user: { id: 'u1', email: 'ala@example.pl' } }
 
 describe('AccountMenu', () => {
   it('logs out and returns to the login screen', async () => {
