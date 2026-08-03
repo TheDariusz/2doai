@@ -1076,7 +1076,7 @@ flowchart TB
   <h3><a href="../.github/workflows/repo-checks.yml"><code>repo-checks.yml</code></a></h3>
   <ul>
     <li>Checks belonging to neither side: the <code>docs/index.html</code> link and anchor test, and an assertion that <code>backend/fly.toml</code> still declares <code>memory</code> under <code>[[vm]]</code>.</li>
-    <li><strong>Repo-wide secret scanning</strong> via <code>trivy fs --scanners secret</code>. This is the <em>only</em> secret detection this repository can have—GitHub's own is org-scoped and unavailable to a user-owned private repo at any price.</li>
+    <li><strong>Repo-wide secret scanning</strong> via <code>trivy fs --scanners secret</code>. No longer the <em>only</em> secret detection here: the repository went public on 2026-08-03, which made GitHub's own secret scanning and push protection free, and both are now enabled. They are complementary—GitHub's is preventive but limited to known provider patterns, Trivy's is post-hoc but matches more shapes.</li>
     <li>The secret scan sets <code>TRIVY_OFFLINE_SCAN=true</code>: a secret-only scan still runs the POM analyzer, and unlike the backend job there is no warm <code>~/.m2</code> here to save it from the same 429.</li>
     <li>Runs the AI review's gate-predicate fixtures, so the one piece of genuinely new logic cannot rot unnoticed in a workflow that only fires on code changes.</li>
     <li>Unfiltered by design—everything here runs in seconds.</li>
@@ -1140,10 +1140,15 @@ flowchart TB
       </tbody>
     </table>
   </div>
-  <h3>Enforcement <span class="badge badge-planned">pending</span></h3>
-  <p>Every gate above is decoration until <code>master</code> requires it. These are the checks to
-  select under branch protection—each is safe to require precisely because none of their workflows
-  filters on <code>paths:</code>:</p>
+  <h3>Enforcement <span class="badge badge-live">implemented</span></h3>
+  <p>Every gate above is decoration until <code>master</code> requires it. Branch protection has
+  required all four checks below since 2026-08-03—each safe to require precisely because none of
+  their workflows filters on <code>paths:</code>:</p>
+  <div class="callout"><strong>Enforcing this required making the repository public.</strong>
+  Branch protection is itself a paid feature on private repositories: the API answered
+  <code>403 Upgrade to GitHub Pro or make this repository public</code>, which meant every gate on
+  this page was unenforceable. Going public was chosen over GitHub Pro and gated on a clean audit
+  of the entire commit history. It also made Code Scanning and GitHub secret scanning free.</div>
   <div class="table-wrap">
     <table>
       <caption>Required status checks on <code>master</code></caption>
@@ -1151,17 +1156,25 @@ flowchart TB
         <tr><th scope="col">Check</th><th scope="col">Workflow</th><th scope="col">Blocks on</th></tr>
       </thead>
       <tbody>
-        <tr><th scope="row"><code>quality</code></th><td><code>backend.yml</code></td><td>Test failure, or a fixable HIGH/CRITICAL backend dependency</td></tr>
-        <tr><th scope="row"><code>quality</code></th><td><code>frontend.yml</code></td><td>Lint, test, typecheck or build failure, or a fixable HIGH/CRITICAL production dependency</td></tr>
+        <tr><th scope="row"><code>backend quality</code></th><td><code>backend.yml</code></td><td>Test failure, or a fixable HIGH/CRITICAL backend dependency</td></tr>
+        <tr><th scope="row"><code>frontend quality</code></th><td><code>frontend.yml</code></td><td>Lint, test, typecheck or build failure, or a fixable HIGH/CRITICAL production dependency</td></tr>
         <tr><th scope="row"><code>checks</code></th><td><code>repo-checks.yml</code></td><td>Docs link rot, a missing <code>[[vm]] memory</code> declaration, a detected secret, or a gate-predicate regression</td></tr>
         <tr><th scope="row"><code>ai-review</code></th><td><code>ai-review.yml</code></td><td>A high-confidence, high-severity security finding only—never the advisory pass</td></tr>
       </tbody>
     </table>
   </div>
+  <p class="note">Both quality jobs originally carried the job key <code>quality</code>, so both
+  emitted a status context of that one name. Required checks are matched by <em>name</em>, not by
+  workflow, so a green frontend run could satisfy the rule while the backend one was red; each job
+  now sets an explicit <code>name:</code>. The inverse also bites—renaming a required job without
+  updating the protection rule leaves the pull request waiting forever on a context that no longer
+  reports.</p>
   <p class="note">Branch protection, the <code>OPENROUTER_CI_KEY</code> secret and the Dependabot
-  alert toggles are repository settings rather than code, so they are configured by hand—see
-  <a href="../context/foundation/deployment-runbook.md">the runbook</a>, sections 5.1 and 5.2. The
-  runbook also records which GitHub security features this plan tier cannot buy at all.</p>
+  alert toggles are repository settings rather than code, so they live outside this repository. All
+  three were configured on 2026-08-03 and are recorded in
+  <a href="../context/foundation/deployment-runbook.md">the runbook</a>, sections 5.1 and 5.2.
+  Enabling Dependabot alerts surfaced 17 pre-existing npm advisories on the first scan. SARIF upload
+  to the Security tab became possible with the visibility change and is deliberately still unwired.</p>
   <p>Local-development instructions live in the <a href="../README.md">root README</a>. First-time
   deployment, manual rollback, log inspection, and incident steps live in the
   <a href="../context/foundation/deployment-runbook.md">deployment runbook</a>.</p>
