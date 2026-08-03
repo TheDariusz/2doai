@@ -152,6 +152,14 @@ GitHub repo → **Settings → Secrets and variables → Actions → New reposit
 > and never enters GitHub, so a runaway CI loop can exhaust only the CI cap and never the production
 > budget. Two consumers, two keys, two caps — see `ai-provider.md` → *Drugi konsument*.
 
+> **`gh secret set NAME` needs a real TTY.** With no `--body`, gh prompts only when stdin is a
+> terminal; otherwise it *reads stdin* — and an empty stdin sets the secret to an **empty string**,
+> exits 0, and prints nothing. The secret then shows up in `gh secret list` with a fresh timestamp
+> while behaving exactly like an unset one. This bit us on 2026-08-03 setting `OPENROUTER_CI_KEY`
+> from a non-interactive shell. Set secrets from a real terminal or the web UI, never by piping.
+> Symptom to recognise: `##[warning]OPENROUTER_CI_KEY is unset — review skipped` on a secret you
+> just "set". Don't use `--body '<value>'` as the workaround — that puts the key in shell history.
+
 Optionally set repo **variable** `AI_REVIEW_MODELS` (Settings → Secrets and variables → Actions →
 **Variables**) to change the review model without a commit; the workflow carries a literal fallback,
 so leaving it unset is fine. Model-swap rules: `ai-provider.md` → *Zmiana modelu bez commita*.

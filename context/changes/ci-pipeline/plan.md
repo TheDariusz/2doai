@@ -749,9 +749,13 @@ state is always cold in CI. This is correct — never cache `node_modules` direc
 
 #### Manual
 
-- [ ] 3.7 Scratch PR produces findings referencing real diff lines
-- [ ] 3.8 Step summary shows served model and cost
-- [ ] 3.9 Deliberate SQL-injection sink turns the security check red
+- [x] 3.7 Scratch PR produces findings referencing real diff lines — probe commit 3ff3f57 (reverted by
+      2bbcead); both passes cited `CategorySearchService.java:21` / `:22`, the exact concatenation
+- [~] 3.8 Step summary shows served model and cost — verified **by construction only**
+      (`ai-review-call.sh:110-112` appends both unconditionally, and the script completed). The
+      rendered summary was never eyeballed; confirm on the next real PR
+- [x] 3.9 Deliberate SQL-injection sink turns the security check red — `##[error]1 high-confidence
+      high-severity security finding(s) — merge blocked`, confidence 0.95, exit 1
 - [ ] 3.10 Style-only findings stay green
 - [ ] 3.11 `skip-ai-review` label suppresses the run
 - [ ] 3.12 Dependabot bump PR skips the review cleanly and costs nothing
@@ -769,10 +773,11 @@ state is always cold in CI. This is correct — never cache `node_modules` direc
 
 #### Manual
 
-- [ ] 4.6 Separate credit-capped OpenRouter CI key created and stored
-- [ ] 4.7 Branch protection lists every required check and blocks a failing PR — rule applied with all
-      four contexts (`backend quality`, `frontend quality`, `checks`, `ai-review`); the *blocks* half
-      is still undemonstrated
+- [x] 4.6 Separate credit-capped OpenRouter CI key created and stored
+- [x] 4.7 Branch protection lists every required check and blocks a failing PR — rule applied with all
+      four contexts (`backend quality`, `frontend quality`, `checks`, `ai-review`). Demonstrated
+      twice: `mergeStateStatus` went `CLEAN`→`BLOCKED` while checks were merely *pending*, and again
+      on probe 3ff3f57 where `ai-review` was the **only** red check and alone held the merge
 - [ ] 4.8 Advisory-only failure still allows merge
 - [x] 4.9 Dependabot alerts + security updates enabled, or unavailability recorded — enabled; the
       "expected free, unverified" runbook row is now confirmed. Surfaced **17 open npm alerts** on
