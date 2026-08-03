@@ -1,0 +1,128 @@
+name: AI review
+
+# NO trigger-level `paths-ignore`. The security gate is a required status check
+# on master, and a required check whose workflow never runs pins the PR at
+# "Expected — waiting for status to be reported" forever. Doc-only filtering
+# therefore lives INSIDE the job (the `diff` step below), which still spends
+# nothing on `context/**` churn while always reporting a result. Same shape and
+# same reasoning as backend.yml.
+#
+# A job skipped by a job-level `if:` DOES report (as a green skip), which is why
+# the fork / Dependabot / label guards below are safe on a required check while
+# a trigger-level filter is not.
+on: pull_request
+
+permissions: {}
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    # Fork PRs receive no repository secrets, and Dependabot PRs read from a
+    # SEPARATE secrets store — in both cases OPENROUTER_CI_KEY would arrive as an
+    # empty string and the job would fail confusingly instead of skipping, while
+    # still burning two OpenRouter calls per dependency bump.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+      && github.actor != 'dependabot[bot]'
+      && !contains(github.event.pull_request.labels.*.name, 'skip-ai-review')
+    permissions:
+      contents: read
+      pull-requests: write
+    concurrency:
+      group: ai-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    env:
+      # vars.* resolves to an empty string rather than an error when unset, so
+      # the literal fallback is what keeps the job valid on a fresh clone.
+      # Verify a candidate supports structured outputs before adding it — see
+      # context/foundation/ai-provider.md.
+      AI_MODELS: ${{ vars.AI_REVIEW_MODELS || 'anthropic/claude-opus-5,anthropic/claude-sonnet-5,z-ai/glm-5.2' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need the merge base to diff base...head
+
+      - name: Collect reviewable diff
+        id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # Diff-only context: whole-repo context inflates both hallucination
+          # rate and cost. The pathspec is where doc filtering lives now.
+          git diff --find-renames "$BASE...HEAD" -- backend frontend ':(exclude)**/*.md' >diff.txt
+
+          LINES=$(wc -l <diff.txt)
+          echo "lines=$LINES" >>"$GITHUB_OUTPUT"
+
+          if [ "$LINES" -eq 0 ]; then
+            echo "reviewable=false" >>"$GITHUB_OUTPUT"
+            echo 'No reviewable backend/frontend changes — AI review skipped, nothing spent.' >>"$GITHUB_STEP_SUMMARY"
+          else
+            echo "reviewable=true" >>"$GITHUB_OUTPUT"
+          fi
+
+          # Past ~1500 changed lines the model cannot hold the diff well enough
+          # for its verdict to carry a merge block; downgrade to advisory rather
+          # than gate on a review it could not actually perform.
+          if [ "$LINES" -gt 1500 ]; then
+            echo "gate=false" >>"$GITHUB_OUTPUT"
+            echo "::warning title=AI review::diff is ${LINES} lines (>1500) — security pass downgraded to advisory"
+          else
+            echo "gate=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Advisory review
+        if: steps.diff.outputs.reviewable == 'true'
+        # Belt and braces: the script already exits 0 on every failure path, and
+        # this pass must never be able to fail the check regardless.
+        continue-on-error: true
+        env:
+          OPENROUTER_CI_KEY: ${{ secrets.OPENROUTER_CI_KEY }}
+        run: .github/scripts/ai-review-call.sh general diff.txt findings-general.json
+
+      - name: Security review
+        if: steps.diff.outputs.reviewable == 'true'
+        env:
+          OPENROUTER_CI_KEY: ${{ secrets.OPENROUTER_CI_KEY }}
+        run: .github/scripts/ai-review-call.sh security diff.txt findings-security.json
+
+      # Posted with event COMMENT, never REQUEST_CHANGES: a bot REQUEST_CHANGES
+      # on a solo repo blocks your own merges until manually dismissed. The exit
+      # code of the gate step is the enforcement; this comment is just the message.
+      - name: Post findings
+        if: steps.diff.outputs.reviewable == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo '## 🤖 AI review'
+            echo
+            for pass in general security; do
+              file="findings-${pass}.json"
+              if [ ! -s "$file" ]; then
+                echo "**${pass}** — no result; the pass failed open (see the run log)."
+                echo
+                continue
+              fi
+              n=$(jq '.findings | length' "$file" 2>/dev/null || echo 0)
+              if [ "$n" -eq 0 ]; then
+                echo "**${pass}** — no findings."
+                echo
+                continue
+              fi
+              echo "**${pass}** — ${n} finding(s):"
+              echo
+              jq -r '.findings[]
+                | "- `\(.file):\(.line)` — **\(.title)**  \n  _\(.severity) / \(.category) / confidence \(.confidence)_  \n  \(.why)"' "$file"
+              echo
+            done
+            echo '<sub>Advisory findings never block. The security pass blocks only on severity `high` **and** category `security` **and** confidence ≥ 0.8.</sub>'
+          } >comment.md
+
+          gh pr review "$PR" --comment --body-file comment.md
+
+      - name: Security gate
+        if: steps.diff.outputs.reviewable == 'true' && steps.diff.outputs.gate == 'true'
+        run: .github/scripts/ai-review-gate.sh findings-security.json

@@ -712,12 +712,12 @@ state is always cold in CI. This is correct — never cache `node_modules` direc
 
 #### Automated
 
-- [x] 2.1 Backend scan clean against a warm Maven cache
-- [x] 2.2 Frontend gate pass exits 0 after the react-router decision
-- [x] 2.3 Secret scan clean
-- [x] 2.4 Every third-party action is SHA-pinned
-- [x] 2.5 Dependabot config parses
-- [x] 2.6 Each declared directory holds the manifest its ecosystem expects
+- [x] 2.1 Backend scan clean against a warm Maven cache — 8219a7c
+- [x] 2.2 Frontend gate pass exits 0 after the react-router decision — 8219a7c
+- [x] 2.3 Secret scan clean — 8219a7c
+- [x] 2.4 Every third-party action is SHA-pinned — 8219a7c
+- [x] 2.5 Dependabot config parses — 8219a7c
+- [x] 2.6 Each declared directory holds the manifest its ecosystem expects — 8219a7c
 
 #### Manual
 
@@ -731,12 +731,12 @@ state is always cold in CI. This is correct — never cache `node_modules` direc
 
 #### Automated
 
-- [ ] 3.1 Findings schema is valid JSON Schema
-- [ ] 3.2 Gate predicate correct on severity/confidence/category fixtures
-- [ ] 3.3 Malformed-response fixture exits 0 with a warning
-- [ ] 3.4 Workflow declares no permission beyond contents:read / pull-requests:write
-- [ ] 3.5 No secret reaches the logs
-- [ ] 3.6 Dependabot actor guard is present
+- [x] 3.1 Findings schema is valid JSON Schema
+- [x] 3.2 Gate predicate correct on severity/confidence/category fixtures
+- [x] 3.3 Malformed-response fixture exits 0 with a warning
+- [x] 3.4 Workflow declares no permission beyond contents:read / pull-requests:write
+- [x] 3.5 No secret reaches the logs
+- [x] 3.6 Dependabot actor guard is present
 
 #### Manual
 

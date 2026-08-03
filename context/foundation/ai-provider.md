@@ -50,6 +50,60 @@ Dla przyszłego `/10x-plan ai-memory-integration` — żeby nie wyprowadzać teg
 - **Sekrety:** `OPENROUTER_API_KEY` jako **sekret Fly** (`fly secrets set …`), nigdy w repo ani w commitowanym `.env`. Klucz MVP z niskim limitem (cap kredytów per-klucz) jako drugi bezpiecznik budżetu.
 - **Konfiguracja prywatności (jednorazowo, dashboard OpenRouter):** wyłączyć logowanie promptów; w Privacy ustawić przełączniki treningu na OFF (OpenRouter nie będzie routował do dostawców trenujących). Udokumentować w runbooku.
 
+## Drugi konsument: agentic code review w CI (2026-08-03)
+
+Od `ci-pipeline` **OpenRouter ma dwóch konsumentów**, nie jednego. Aplikacja (Spring AI, opisana
+wyżej) to pierwszy; drugim jest `.github/workflows/ai-review.yml` — przegląd kodu na każdym PR.
+Konsekwencje, żeby nie wyprowadzać ich ponownie:
+
+- **Osobny klucz.** CI używa sekretu GitHub `OPENROUTER_CI_KEY` z **własnym limitem kredytów**.
+  Klucz aplikacji pozostaje sekretem Fly i **nigdy nie trafia do GitHuba** — dzięki temu zapętlone
+  CI może wyczerpać najwyżej cap CI, nie budżet produkcji.
+- **Ten sam guardrail prywatności.** Każde żądanie z CI niesie `provider: { data_collection: "deny" }`,
+  identycznie jak żądania aplikacji (`OpenAiChatOptions.extraBody`) — guardrail „dane nie trenują
+  zewnętrznych modeli" obowiązuje oba konsumenty.
+
+### Zmiana modelu bez commita
+
+Lista modeli to **jedno wyrażenie `env`** w workflow; żaden inny fragment joba nie zna nazwy modelu:
+
+```yaml
+AI_MODELS: ${{ vars.AI_REVIEW_MODELS || 'anthropic/claude-opus-5,anthropic/claude-sonnet-5,z-ai/glm-5.2' }}
+```
+
+Zmiana modelu = edycja **zmiennej repozytorium** `AI_REVIEW_MODELS` (Settings → Secrets and
+variables → Actions → Variables), bez commita. Lista rozdzielona przecinkami trafia do
+`models[]` OpenRoutera: pierwszy wpis obsługuje żądanie, kolejne przejmują je przy błędzie
+lub rate-limicie.
+
+**Dlaczego literalny fallback musi tam być:** `vars.*` **nie jest przekazywane do workflowów z
+forkowych PR-ów** i przy braku ustawienia rozwija się do **pustego stringa, a nie do błędu**. Bez
+literału po `||` job zbudowałby żądanie z pustym `model` i wywrócił się w sposób mylący, zamiast
+zadziałać na domyślnych. Ten sam mechanizm dotyczy zresztą sekretów — stąd guard na
+`dependabot[bot]` (Dependabot czyta z osobnego magazynu sekretów) i na forki.
+
+### Zanim dopiszesz model do listy
+
+1. **Sprawdź wsparcie `structured_outputs`** — gate parsuje odpowiedź przez `json_schema`
+   (`strict: true`), a interakcja fallbacku `models[]` z `response_format` **nie jest udokumentowana
+   po stronie OpenRoutera**: nie zakładaj, że model zapasowy odziedziczy tryb strukturalny.
+   Weryfikacja:
+
+   ```bash
+   curl -s 'https://openrouter.ai/api/v1/models?supported_parameters=structured_outputs' \
+     | jq -r '.data[].id' | grep <kandydat>
+   ```
+
+   Zabezpieczeniem po stronie żądania jest `provider: { require_parameters: true }` — bez niego
+   dostawca może **po cichu zignorować** `response_format` i zwrócić prozę, której gate już nie
+   sparsuje (wtedy fail-open: ostrzeżenie i exit 0, nigdy blokada).
+2. **Uważaj na slug** — ta sama pułapka co wyżej (pkt 2 sekcji Decision): OpenRouter używa
+   **kropek** (`anthropic/claude-haiku-4.5`), nie myślnikowych ID first-party (`claude-haiku-4-5`).
+   Zły slug objawia się jako błąd żądania, a więc — zgodnie z regułą fail-open — jako **zielony
+   check z ostrzeżeniem**, nie czerwony. Dlatego oba przebiegi logują `resp.model` i `usage.cost`
+   do `$GITHUB_STEP_SUMMARY`: bez tego cichy fallback podmienia recenzenta w trakcie i nie ma jak
+   wyjaśnić, czemu findings się zmieniły.
+
 ## Do zweryfikowania przy implementacji
 
 > **Status po F-02 (2026-06-18):** (a) i (d) rozstrzygnięte w kodzie/runbooku; (b) potwierdzone

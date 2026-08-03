@@ -1,0 +1,13 @@
+{
+  "findings": [
+    {
+      "file": "backend/src/main/java/com/thedariusz/todoai/task/TaskRepository.java",
+      "line": 42,
+      "severity": "high",
+      "confidence": 0.9,
+      "category": "security",
+      "title": "SQL injection via string-concatenated query",
+      "why": "The user-supplied filter value is concatenated straight into the JPQL string instead of being bound as a parameter, so a crafted value alters the query."
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+I'd be happy to review this diff! Overall the changes look reasonable.
+
+A few thoughts:
+- The new repository method could use a bound parameter.
+
+Let me know if you'd like me to look at anything else.

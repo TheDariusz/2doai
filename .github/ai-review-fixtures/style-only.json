@@ -1,0 +1,13 @@
+{
+  "findings": [
+    {
+      "file": "frontend/src/api/client.ts",
+      "line": 70,
+      "severity": "high",
+      "confidence": 0.95,
+      "category": "style",
+      "title": "Deeply nested ternary hurts readability",
+      "why": "Three levels of nested ternary in the response branch are hard to follow; severity is inflated but the category is not security, so this must not block."
+    }
+  ]
+}

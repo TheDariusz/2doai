@@ -20,6 +20,12 @@ jobs:
       - name: Docs link/anchor test
         run: node --test docs/index.test.mjs
 
+      # The AI review's gate predicate is the one piece of genuinely new logic
+      # in this pipeline, and it runs in a job that only fires on PRs touching
+      # code. Running its fixtures here keeps it from rotting unnoticed.
+      - name: AI review gate predicate
+        run: .github/scripts/ai-review-gate.test.sh
+
       - name: fly.toml declares [[vm]] memory
         # infrastructure.md:87 — always declare `[[vm]] memory`; never rely solely
         # on `fly scale memory`, which a redeploy silently reverts.
