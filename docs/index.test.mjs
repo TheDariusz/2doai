@@ -91,9 +91,11 @@ test('Mermaid is pinned and embedded source is valid HTML', () => {
   }
 })
 
-test('status language distinguishes the current scaffold from the target product', () => {
-  assert.match(html, /React\/Vite scaffold/)
-  assert.match(html, /Product UI, API consumption, and PWA behavior are planned/)
+test('status language distinguishes what is implemented from the target product', () => {
+  // The frontend stopped being a scaffold once routing, the API client, auth and the shell landed.
+  assert.doesNotMatch(html, /scaffold/i)
+  assert.match(html, /CSRF-aware client/)
+  assert.match(html, /task, goal, and\s+dream UI and PWA behavior are planned/)
   assert.match(html, /Mutable domain tables use/)
   assert.match(html, /append-only event tables may omit/)
   assert.match(html, /repository snapshot/)
