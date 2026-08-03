@@ -145,9 +145,53 @@ GitHub repo → **Settings → Secrets and variables → Actions → New reposit
 | `FLY_API_TOKEN` | `FlyV1 fm2_...` (whole string from Phase 4) |
 | `CLOUDFLARE_API_TOKEN` | token from Phase 3 |
 | `CLOUDFLARE_ACCOUNT_ID` | account ID from Phase 3 |
+| `OPENROUTER_CI_KEY` | `sk-or-...` — **a second, separate OpenRouter key** for the AI code review (`ci-pipeline`, 2026-08-03) |
+
+> **`OPENROUTER_CI_KEY` is deliberately not the app's key.** Give it its own low credit cap on the
+> OpenRouter dashboard. The application key stays a **Fly secret** (`OPENROUTER_API_KEY`, Phase 7.3)
+> and never enters GitHub, so a runaway CI loop can exhaust only the CI cap and never the production
+> budget. Two consumers, two keys, two caps — see `ai-provider.md` → *Drugi konsument*.
+
+Optionally set repo **variable** `AI_REVIEW_MODELS` (Settings → Secrets and variables → Actions →
+**Variables**) to change the review model without a commit; the workflow carries a literal fallback,
+so leaving it unset is fine. Model-swap rules: `ai-provider.md` → *Zmiana modelu bez commita*.
 
 After this, a push to `master` touching `backend/**` redeploys Fly, and `frontend/**`
-redeploys Pages — independently (path-filtered workflows).
+redeploys Pages — independently (path filtering now lives inside the jobs, not on the trigger).
+
+### 5.1 — Required status checks on `master`
+
+Every gate in `ci-pipeline` is decoration until `master` requires it. Settings → Branches → branch
+protection for `master` → **Require status checks to pass before merging**, then select the checks
+below using the exact names GitHub reports **after each workflow has run at least once**:
+
+| Check | Workflow | Blocking? |
+| --- | --- | --- |
+| `quality` (backend) | `backend.yml` | yes |
+| `quality` (frontend) | `frontend.yml` | yes |
+| `checks` | `repo-checks.yml` | yes |
+| `ai-review` | `ai-review.yml` | yes — but only its **security** step can fail; the advisory pass is `continue-on-error` |
+
+> **Never add a trigger-level `paths:` / `paths-ignore:` to any of these four workflows.** A required
+> check whose workflow is filtered out never reports, and the PR sits at *"Expected — waiting for
+> status to be reported"* forever. All four filter by path **inside** the job precisely so they can
+> be required. A human can force-merge past it; Dependabot cannot, so it would simply stall.
+
+### 5.2 — GitHub security features: what this repo can and cannot have
+
+This repo is **private and user-owned** (not org-owned), which decides the whole security-tooling
+design. Established during `ci-pipeline` research (2026-08-03):
+
+| Feature | Available here? | Consequence |
+| --- | --- | --- |
+| **Code Scanning / SARIF upload** | **No** — GitHub Code Security is ~$30/committer/mo and **org-scoped only**; a user-owned private repo cannot buy it at any price | No Security tab integration. `github/codeql-action/upload-sarif` would 403. Findings go to `$GITHUB_STEP_SUMMARY` + artifacts instead. |
+| **GitHub secret scanning** | **No** — ~$19/committer/mo, likewise org-scoped | **Trivy's `--scanners secret` in `repo-checks.yml` is the only secret detection this repo has.** |
+| **Dependabot alerts + security updates** | *Expected yes (free), **but unverified on this account** — confirm and update this row* | Settings → Code security → enable **Dependabot alerts** and **Dependabot security updates**; both need the **dependency graph** on first. |
+
+> The distinction that matters: `.github/dependabot.yml` (added by `ci-pipeline`) drives **version**
+> updates on a weekly schedule. Alert-driven **security** updates are a separate repository toggle
+> and are the half that reacts within hours of an advisory rather than waiting for the next weekly
+> run. Enabling the config file does **not** enable the toggle.
 
 ---
 
@@ -234,7 +278,13 @@ fly secrets list                                # shows the name + a digest, nev
 
 `application.properties` binds it as `spring.ai.openai.api-key=${OPENROUTER_API_KEY:}` — the
 empty default keeps boot and the hermetic suite green when the key is absent (the OpenAI client
-runs key-less), so CI never needs the secret.
+runs key-less), so **the test suite never needs this secret** and `OPENROUTER_API_KEY` stays a Fly
+secret only.
+
+> That statement is scoped to the **test suite**, not to CI as a whole. Since `ci-pipeline`
+> (2026-08-03) the repo has a *separate* OpenRouter consumer — the agentic code review in
+> `.github/workflows/ai-review.yml` — which uses its own GitHub secret `OPENROUTER_CI_KEY` with its
+> own credit cap (Phase 5 table). The app key above still never enters GitHub.
 
 ### 7.4 — Live verification (gated test)
 

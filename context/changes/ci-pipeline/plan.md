@@ -731,12 +731,12 @@ state is always cold in CI. This is correct — never cache `node_modules` direc
 
 #### Automated
 
-- [x] 3.1 Findings schema is valid JSON Schema
-- [x] 3.2 Gate predicate correct on severity/confidence/category fixtures
-- [x] 3.3 Malformed-response fixture exits 0 with a warning
-- [x] 3.4 Workflow declares no permission beyond contents:read / pull-requests:write
-- [x] 3.5 No secret reaches the logs
-- [x] 3.6 Dependabot actor guard is present
+- [x] 3.1 Findings schema is valid JSON Schema — a128c44
+- [x] 3.2 Gate predicate correct on severity/confidence/category fixtures — a128c44
+- [x] 3.3 Malformed-response fixture exits 0 with a warning — a128c44
+- [x] 3.4 Workflow declares no permission beyond contents:read / pull-requests:write — a128c44
+- [x] 3.5 No secret reaches the logs — a128c44
+- [x] 3.6 Dependabot actor guard is present — a128c44
 
 #### Manual
 
@@ -752,11 +752,11 @@ state is always cold in CI. This is correct — never cache `node_modules` direc
 
 #### Automated
 
-- [ ] 4.1 No stale `pr-branch-ci` change-id remains
-- [ ] 4.2 Runbook's stale "CI never needs the secret" claim is gone
-- [ ] 4.3 `OPENROUTER_CI_KEY` appears in the runbook secrets table
-- [ ] 4.4 Full local gate still green
-- [ ] 4.5 Auto-merge excludes the actions ecosystem and majors
+- [x] 4.1 No stale `pr-branch-ci` change-id remains
+- [x] 4.2 Runbook's stale "CI never needs the secret" claim is gone
+- [x] 4.3 `OPENROUTER_CI_KEY` appears in the runbook secrets table
+- [x] 4.4 Full local gate still green
+- [x] 4.5 Auto-merge excludes the actions ecosystem and majors
 
 #### Manual
 
