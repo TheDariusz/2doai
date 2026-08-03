@@ -167,10 +167,17 @@ below using the exact names GitHub reports **after each workflow has run at leas
 
 | Check | Workflow | Blocking? |
 | --- | --- | --- |
-| `quality` (backend) | `backend.yml` | yes |
-| `quality` (frontend) | `frontend.yml` | yes |
+| `backend quality` | `backend.yml` | yes |
+| `frontend quality` | `frontend.yml` | yes |
 | `checks` | `repo-checks.yml` | yes |
 | `ai-review` | `ai-review.yml` | yes — but only its **security** step can fail; the advisory pass is `continue-on-error` |
+
+> **Give every required job an explicit, unique `name:`.** A required status check is matched by
+> check-run *name*, not by workflow — so two jobs both keyed `quality` (which is what `backend.yml`
+> and `frontend.yml` shipped with) produce two contexts with one name, and a green frontend run can
+> satisfy the rule while the backend one is red. Fixed 2026-08-03 by naming them `backend quality` /
+> `frontend quality`. Renaming a required job's `name:` later **silently drops the requirement** —
+> the old context stops reporting and the rule waits forever; update the rule in the same change.
 
 > **Never add a trigger-level `paths:` / `paths-ignore:` to any of these four workflows.** A required
 > check whose workflow is filtered out never reports, and the PR sits at *"Expected — waiting for

@@ -15,6 +15,12 @@ permissions:
 
 jobs:
   quality:
+    # Explicit name because frontend.yml has a job keyed `quality` too, and a
+    # required status check is matched by NAME, not by workflow. Two contexts
+    # both called `quality` let a green frontend run satisfy the requirement
+    # while the backend one is red. Renaming the key instead would churn the
+    # `needs:` references below; `name:` is what the check context reads from.
+    name: backend quality
     runs-on: ubuntu-latest
     # Own group so a PR run never queues behind (or cancels) a master deploy.
     concurrency:
