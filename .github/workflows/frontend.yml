@@ -1,0 +1,97 @@
+name: Frontend (quality + deploy to Cloudflare Pages)
+
+# NO trigger-level `paths:` filter — see the comment in backend.yml. Path
+# filtering lives inside the jobs so the required check always reports.
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    # Own group so a PR run never queues behind (or cancels) a master deploy.
+    concurrency:
+      group: frontend-quality-${{ github.ref }}
+      cancel-in-progress: true
+    outputs:
+      frontend: ${{ steps.changes.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # `changes` diffs against the base commit
+
+      - name: Detect frontend changes
+        id: changes
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # No usable base (new branch, force-push, all-zeroes SHA) -> assume touched.
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then range="$BASE...HEAD"; else range="$BASE..HEAD"; fi
+          if git diff --name-only "$range" | grep -qE '^(frontend/|\.github/workflows/frontend\.yml$)'; then
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "frontend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Node
+        if: steps.changes.outputs.frontend == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - if: steps.changes.outputs.frontend == 'true'
+        working-directory: frontend
+        run: npm ci
+      - if: steps.changes.outputs.frontend == 'true'
+        working-directory: frontend
+        run: npm run lint
+      - if: steps.changes.outputs.frontend == 'true'
+        working-directory: frontend
+        run: npm test
+      - if: steps.changes.outputs.frontend == 'true'
+        working-directory: frontend
+        run: npm run build
+
+  deploy:
+    needs: quality
+    if: github.event_name == 'push' && needs.quality.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-frontend
+      cancel-in-progress: true
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # `quality` ran in a separate job with its own workspace, so dist/ has to be
+      # rebuilt here for wrangler to upload. ~30 s; cheaper in YAML than an artifact
+      # round-trip, and it re-runs the typecheck on exactly what ships.
+      - run: npm ci
+      - run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: frontend
+          command: pages deploy dist --project-name=2doai-web

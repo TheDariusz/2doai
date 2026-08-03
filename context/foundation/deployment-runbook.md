@@ -20,7 +20,8 @@ The version-controlled plumbing already lives in the repo:
 - `frontend/functions/api/[[path]].ts` — Pages Function that reverse-proxies `/api/*` to Fly
 - `frontend/wrangler.toml` — `BACKEND_ORIGIN = https://2doai.fly.dev`
 - `frontend/vite.config.ts` — dev proxy `/api → localhost:8080`
-- `.github/workflows/deploy-backend.yml`, `.github/workflows/deploy-frontend.yml` — path-filtered auto-deploy on push to `master`
+- `.github/workflows/backend.yml`, `.github/workflows/frontend.yml` — per-side `quality` (every PR and push) + `deploy` (push to `master` only, `needs: quality`, path-filtered inside the job)
+- `.github/workflows/repo-checks.yml` — repo-wide PR checks (docs link test, `fly.toml` `[[vm]] memory` assertion)
 
 What follows is everything that could **not** be committed: the external accounts, CLI auth, and secrets.
 
@@ -54,7 +55,7 @@ For this project we use it for one job — shipping the frontend:
   the `BACKEND_ORIGIN` var) so you don't pass those flags by hand.
 
 You can run it without installing globally via `npx wrangler ...`. In CI we don't call it
-directly — the `cloudflare/wrangler-action` GitHub Action wraps it (see `deploy-frontend.yml`).
+directly — the `cloudflare/wrangler-action` GitHub Action wraps it (see `frontend.yml`).
 
 ---
 
@@ -251,7 +252,7 @@ OpenRouter. (Without the key the same command reports `Tests run: 2 … Skipped:
 
 ### 7.5 — Deploy
 
-Merge to `master` touching `backend/**` → the path-filtered `deploy-backend.yml` redeploys Fly
+Merge to `master` touching `backend/**` → `backend.yml`'s `deploy` job redeploys Fly
 with the new config. No user-visible change; confirm the app boots with the secret resolvable:
 
 ```bash

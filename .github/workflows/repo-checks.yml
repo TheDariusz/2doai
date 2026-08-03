@@ -1,0 +1,29 @@
+name: Repo checks
+
+# Deliberately unfiltered: both checks are sub-second, and per-job path filtering
+# would cost more than it saves. Also a required check — see backend.yml on why
+# trigger-level `paths:` is forbidden here.
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: repo-checks-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docs link/anchor test
+        run: node --test docs/index.test.mjs
+
+      - name: fly.toml declares [[vm]] memory
+        # infrastructure.md:87 — always declare `[[vm]] memory`; never rely solely
+        # on `fly scale memory`, which a redeploy silently reverts.
+        run: |
+          awk '/^\[\[vm\]\]/{v=1;next} /^\[/{v=0} v && /^[[:space:]]*memory[[:space:]]*=/{ok=1} END{exit !ok}' \
+            backend/fly.toml \
+            || { echo "::error file=backend/fly.toml::no 'memory' declared under a [[vm]] section"; exit 1; }

@@ -1,0 +1,89 @@
+name: Backend (quality + deploy to Fly.io)
+
+# NO trigger-level `paths:` filter. The quality job is a required status check on
+# master, and a required check that never runs pins the PR at "Expected — waiting
+# for status to be reported" forever. Path filtering therefore lives INSIDE the
+# jobs (the `changes` step below), which preserves today's "a frontend-only change
+# never redeploys the JVM" behaviour while still always reporting a result.
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    # Own group so a PR run never queues behind (or cancels) a master deploy.
+    concurrency:
+      group: backend-quality-${{ github.ref }}
+      cancel-in-progress: true
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # `changes` diffs against the base commit
+
+      - name: Detect backend changes
+        id: changes
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # No usable base (new branch, force-push, all-zeroes SHA) -> assume touched.
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then range="$BASE...HEAD"; else range="$BASE..HEAD"; fi
+          if git diff --name-only "$range" | grep -qE '^(backend/|\.github/workflows/backend\.yml$)'; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK 25
+        if: steps.changes.outputs.backend == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Test
+        if: steps.changes.outputs.backend == 'true'
+        working-directory: backend
+        # spring-boot-docker-compose is runtime-scoped, so it sits on the test
+        # classpath; set the skip explicitly rather than leaning on Boot's default.
+        run: mvn -B test -Dspring.docker.compose.skip.in-tests=true
+
+  deploy:
+    needs: quality
+    if: github.event_name == 'push' && needs.quality.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-backend
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Record current image (for rollback)
+        # Fly has no one-shot rollback — log the live image so a bad deploy can be
+        # reverted with: fly deploy --image <recorded-image>
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          echo "Current image before deploy:"
+          flyctl status --json | jq -r '.ImageRef // "unknown"' || true
+
+      - name: Deploy
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --remote-only

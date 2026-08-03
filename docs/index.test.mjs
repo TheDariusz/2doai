@@ -99,7 +99,7 @@ test('status language distinguishes what is implemented from the target product'
   assert.match(html, /Mutable domain tables use/)
   assert.match(html, /append-only event tables may omit/)
   assert.match(html, /repository snapshot/)
-  assert.match(html, /no pull-request\s+validation workflow/i)
+  assert.match(html, /pull-request quality gate/i)
 })
 
 test('target runtime preserves the current deployment backbone and marks planned additions', () => {

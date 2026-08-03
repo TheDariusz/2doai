@@ -1012,28 +1012,39 @@ sequenceDiagram
   <h2>Delivery and operations <span class="badge badge-live">implemented</span></h2>
   <p>Two independent, <strong>path-filtered</strong> GitHub Actions workflows trigger on push to
   <code>master</code>—a frontend-only change never redeploys the JVM and vice versa.</p>
-  <div class="callout"><strong>Current validation boundary.</strong> There is no pull-request
-  validation workflow. Tests currently gate production deployment after merge rather than gate
-  merging, and changes under <code>docs/</code> are neither checked nor deployed by these
+  <div class="callout"><strong>Current validation boundary.</strong> Every pull request runs a
+  pull-request quality gate—backend tests, the frontend lint/test/build chain, and repo-wide
+  checks—and a deploy cannot start until that same gate passes on the merge commit. Changes under
+  <code>docs/</code> are validated by <code>repo-checks.yml</code> but are not deployed by these
   workflows.</div>
   <pre class="mermaid">
 flowchart LR
-  P[push to master] --> F{path filter}
-  F -- "backend/**" --> B1[JDK 25 temurin&lt;br/&gt;mvn -B test] --> B2[record live image ref&lt;br/&gt;for rollback] --> B3[flyctl deploy --remote-only] --> FLY[Fly.io machine]
-  F -- "frontend/**" --> W1[Node 22: npm ci,&lt;br/&gt;lint, test, build] --> W2[wrangler pages deploy dist&lt;br/&gt;project: 2doai-web] --> CFP[Cloudflare Pages]
+  PR[pull request] --> Q{path filter&lt;br/&gt;inside the job}
+  PUSH[push to master] --> Q
+  Q -- "backend/**" --> B1[JDK 25 temurin&lt;br/&gt;mvn -B test]
+  Q -- "frontend/**" --> W1[Node 22: npm ci,&lt;br/&gt;lint, test, build]
+  B1 -- "push only" --> B2[record live image ref&lt;br/&gt;for rollback] --> B3[flyctl deploy --remote-only] --> FLY[Fly.io machine]
+  W1 -- "push only" --> W2[wrangler pages deploy dist&lt;br/&gt;project: 2doai-web] --> CFP[Cloudflare Pages]
+  PR --> RC[repo-checks: docs test,&lt;br/&gt;fly.toml memory assertion]
   FLY -. Flyway migrates on boot .-> PG[(Neon PostgreSQL 18)]
   </pre>
-  <h3><a href="../.github/workflows/deploy-backend.yml"><code>deploy-backend.yml</code></a></h3>
+  <h3><a href="../.github/workflows/backend.yml"><code>backend.yml</code></a></h3>
   <ul>
-    <li>Tests gate the deploy: <code>mvn -B test</code> must pass first.</li>
-    <li><code>concurrency: deploy-backend, cancel-in-progress: false</code>—deploys queue and do not cancel mid-flight.</li>
+    <li>Two jobs: <code>quality</code> runs <code>mvn -B test</code> on pull requests and on <code>master</code>; <code>deploy</code> declares <code>needs: quality</code> and runs only on push.</li>
+    <li>No trigger-level <code>paths:</code> filter—a required check that never runs blocks the pull request forever, so path filtering moved into the job.</li>
+    <li><code>concurrency: deploy-backend, cancel-in-progress: false</code> on the deploy job—deploys queue and do not cancel mid-flight. The quality job has its own per-ref group so pull requests never queue behind a deploy.</li>
     <li>The workflow records the live Fly image before deploying. Rollback uses <code>fly deploy --image &lt;recorded-image&gt;</code>; expand-only migrations keep the older image compatible.</li>
   </ul>
-  <h3><a href="../.github/workflows/deploy-frontend.yml"><code>deploy-frontend.yml</code></a></h3>
+  <h3><a href="../.github/workflows/frontend.yml"><code>frontend.yml</code></a></h3>
   <ul>
-    <li>Gate: <code>npm ci &amp;&amp; npm run lint &amp;&amp; npm test &amp;&amp; npm run build</code>.</li>
+    <li>Same split. Gate: <code>npm ci &amp;&amp; npm run lint &amp;&amp; npm test &amp;&amp; npm run build</code>.</li>
     <li><code>cancel-in-progress: true</code>—only the newest frontend deploy matters.</li>
     <li>Publishes <code>frontend/dist</code> to Cloudflare Pages.</li>
+  </ul>
+  <h3><a href="../.github/workflows/repo-checks.yml"><code>repo-checks.yml</code></a></h3>
+  <ul>
+    <li>Checks belonging to neither side: the <code>docs/index.html</code> link and anchor test, and an assertion that <code>backend/fly.toml</code> still declares <code>memory</code> under <code>[[vm]]</code>.</li>
+    <li>Unfiltered by design—both run in under a second.</li>
   </ul>
   <div class="table-wrap">
     <table>
