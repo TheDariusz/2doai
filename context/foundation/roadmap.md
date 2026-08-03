@@ -32,7 +32,7 @@ Osoby planujące długoterminowo wpisują cele i marzenia raz, a potem rzadko do
 | ---- | -------------------------- | -------------------------------------------------------------------- | ------------------ | ---------------------------- | -------- |
 | F-01 | persistence-baseline       | (fundament) trwała warstwa danych + zasiane 11 kategorii             | —                  | NFR (trwałość), FR-007       | done     |
 | F-02 | ai-memory-integration      | (fundament) klient LLM + zrębowy mechanizm pamięci + polityka prywatności | F-01          | NFR (prywatność), Open Q2    | done     |
-| S-01 | account-and-auth           | założyć konto (email+hasło), zalogować/wylogować, usunąć konto; trasy bramkowane; szkielet frontu | F-01 | FR-001, FR-002, FR-019       | in-progress |
+| S-01 | account-and-auth           | założyć konto (email+hasło), zalogować/wylogować, usunąć konto; trasy bramkowane; szkielet frontu | F-01 | FR-001, FR-002, FR-019       | done     |
 | S-02 | goals-and-dreams           | tworzyć/edytować/kończyć cel długoterminowy i marzenie + kategoria   | S-01, F-01         | FR-004, FR-005, FR-007       | proposed |
 | S-03 | ai-memory-seed             | zasiać pamięć AI onboardingiem; ukończone pozycje ją wzbogacają      | F-02, S-02         | FR-009, FR-010               | proposed |
 | S-04 | proactive-proposal-engine  | na żądanie dostać propozycję, odpowiedzieć i otrzymać pierwszy krok   | F-02, S-02, S-03   | FR-012, FR-013, FR-014, FR-015 | proposed |
@@ -43,7 +43,7 @@ Osoby planujące długoterminowo wpisują cele i marzenia raz, a potem rzadko do
 | S-09 | ai-category-autotag        | dostać sugestię kategorii od AI przy tworzeniu pozycji              | F-02, S-02         | FR-008                       | proposed |
 | S-10 | offline-read-only          | przeglądać (read-only) zapisane pozycje 3 warstw bez internetu       | S-02, S-07         | FR-017                       | proposed |
 
-> **Fast-path (przegląd 2026-07-07, zaktualizowany 2026-08-01):** najkrótsza ścieżka do gwiazdy: F-02 → S-01 (minimalny: email+hasło, bez magic linka) → S-02 → S-03 → S-04 → S-05. S-07 / S-08 / S-10 świadomie odroczone do czasu walidacji gwiazdy (S-05); S-06 i S-09 równolegle po swoich prerekwizytach. F-02 zmergowany i zarchiwizowany (2026-08-01). S-01 w toku: backend (fazy 1-2) na `master`, frontend (fazy 3-4: routing, klient API, ekrany auth, powłoka z 11 domenami) niezaimplementowany — to następny konkretny krok.
+> **Fast-path (przegląd 2026-07-07, zaktualizowany 2026-08-01):** najkrótsza ścieżka do gwiazdy: F-02 → S-01 (minimalny: email+hasło, bez magic linka) → S-02 → S-03 → S-04 → S-05. S-07 / S-08 / S-10 świadomie odroczone do czasu walidacji gwiazdy (S-05); S-06 i S-09 równolegle po swoich prerekwizytach. F-02 zmergowany i zarchiwizowany (2026-08-01). S-01 zamknięty (2026-08-03, PR #8): backend i frontend na `master` — następny konkretny krok to S-02.
 
 ## Streams
 
@@ -71,8 +71,9 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 > round-tripem), agregat `AiMemory` (profil + log epizodyczny, migracje `V3` + `V5` FK na `app_user`),
 > renderer z limitem ostatnich N epizodów, testy jednostkowe + Testcontainers + bramkowany test live.
 > `RegistrationService` tworzy korzeń `AiMemory` w tej samej transakcji co `User`; `LlmClient` nie ma
-> jeszcze wywołań produkcyjnych (seamy podłączają S-03/S-04/S-09). S-01 częściowo: backend (fazy 1-2)
-> zmergowany, frontend nadal scaffold Vite (bez routingu / klienta API / PWA) — fazy 3-4 S-01 otwarte.
+> jeszcze wywołań produkcyjnych (seamy podłączają S-03/S-04/S-09). S-01 zamknięty (PR #8, 2026-08-03):
+> backend oraz frontend (routing, klient API z CSRF, ekrany auth, powłoka z 11 domenami) na `master`;
+> PWA (S-10) nadal otwarte.
 > Testy biegają wyłącznie w workflow deploy (push na `master`) — brak CI na PR (chore `pr-branch-ci`
 > w Backlog Handoff).
 
@@ -109,7 +110,7 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 
 ### S-01: Konto i uwierzytelnienie
 
-- **Outcome:** Użytkownik może założyć konto (email + hasło — decyzja 2026-07-07, magic link post-MVP), zalogować się i wylogować oraz usunąć konto wraz ze wszystkimi danymi (FR-019); wejście na bramkowaną trasę bez logowania przekierowuje do logowania/rejestracji. Ustanawia Spring Security, kontrakt izolacji danych per-użytkownik oraz **jawny szkielet aplikacji frontowej**: routing, klient API, app shell, ekrany logowania/rejestracji (+ proxy `/api` w dev) — frontend jest dziś scaffoldem, więc to największy dotąd niejawny kawałek zakresu.
+- **Outcome:** Użytkownik może założyć konto (email + hasło — decyzja 2026-07-07, magic link post-MVP), zalogować się i wylogować oraz usunąć konto wraz ze wszystkimi danymi (FR-019); wejście na bramkowaną trasę bez logowania przekierowuje do logowania/rejestracji. Ustanawia Spring Security, kontrakt izolacji danych per-użytkownik oraz **jawny szkielet aplikacji frontowej**: routing, klient API, app shell, ekrany logowania/rejestracji (+ proxy `/api` w dev) — największy dotąd niejawny kawałek zakresu, dostarczony w całości.
 - **Change ID:** account-and-auth
 - **PRD refs:** FR-001, FR-002, FR-019 (oraz sekcja Access Control — brak trybu anonimowego, bramkowanie tras)
 - **Prerequisites:** F-01
@@ -118,7 +119,7 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 - **Unknowns:**
   - ~~Model sesji: cookie vs token JWT~~ — **ROZSTRZYGNIĘTE (2026-07-22).** Sesja serwerowa w ciasteczku (`HttpOnly; Secure; SameSite=Strict`), Spring Security, sesje in-memory na jednej maszynie Fly — nie JWT. Pełna decyzja + wyzwalacz rewizji: `context/foundation/auth-session-model.md`.
 - **Risk:** Standardowy flow auth; ryzyko skupia się w wyborze modelu sesji, który dotyka same-origin Pattern B i przyszły tryb offline (FR-017). Ustanawia izolację per-użytkownik konsumowaną przez wszystkie slice'y danych.
-- **Status:** in-progress — backend (fazy 1-2 planu) zmergowany do `master` (PR #5, #6): Spring Security, agregat `User`, migracja `V4`, rejestracja/logowanie/wylogowanie, usunięcie konta (FR-019), izolacja per-użytkownik, `/api/categories`. Frontend (fazy 3-4) **niezaimplementowany** — 13 pozycji Progress otwartych; `frontend/src/` to wciąż demo Vite (bez routingu, klienta API, ekranów auth, powłoki z 11 domenami). Zakres otwarty żyje w `context/changes/account-and-auth/plan.md`.
+- **Status:** done (2026-08-03) — backend (fazy 1-2, PR #5, #6): Spring Security, agregat `User`, migracja `V4`, rejestracja/logowanie/wylogowanie, usunięcie konta (FR-019), izolacja per-użytkownik, `/api/categories`. Frontend (fazy 3-4, PR #8): routing, klient API z echem `X-XSRF-TOKEN`, ekrany auth, `ProtectedRoute`, powłoka z 11 domenami — zweryfikowane pełną bramką i realnym przebiegiem na żywym backendzie. Otwarty rozjazd kontraktu wyniesiony do DEV-31 (`openapi.yaml` vs 403/401 przy usuwaniu konta oraz lista kodów domen).
 
 ### S-02: Cele długoterminowe i marzenia
 
@@ -241,13 +242,13 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 | ---------- | -------------------------- | ------------------------------------------------------ | --------------------- | ----- |
 | F-01       | persistence-baseline       | Podłącz Postgres + JPA + Flyway, zasiej 11 kategorii   | yes                   | Korzeń całej roadmapy; pierwszy ruch (F-02 też gotowy, ale zależy od F-01). Uruchom `/10x-plan persistence-baseline`. |
 | F-02       | ai-memory-integration      | Podłącz klient LLM (OpenRouter/Anthropic) + zrębowy profil pamięci + polityka prywatności | done              | **Done** — zmergowany do `master`, zarchiwizowany 2026-08-01 → `context/archive/2026-06-15-ai-memory-integration/`. Decyzje: `context/foundation/ai-provider.md`. |
-| S-01       | account-and-auth           | Konto: rejestracja (email+hasło), logowanie, wylogowanie, usunięcie konta, bramkowanie tras, szkielet frontu | **w toku**            | Plan istnieje; backend (fazy 1-2) zmergowany. **Nie planuj od nowa** — dokończ fazy 3-4 (frontend: routing, klient API + echo `X-XSRF-TOKEN`, ekrany auth, `ProtectedRoute`, powłoka z 11 domenami) przez `/10x-implement account-and-auth`. Model sesji rozstrzygnięty: `context/foundation/auth-session-model.md`. |
-| S-02       | goals-and-dreams           | CRUD celów długoterminowych i marzeń z kategorią       | no                    | Czeka na S-01 + F-01. Substrat gwiazdy. |
+| S-01       | account-and-auth           | Konto: rejestracja (email+hasło), logowanie, wylogowanie, usunięcie konta, bramkowanie tras, szkielet frontu | done                  | **Done** — wszystkie 4 fazy zmergowane do `master` (PR #5, #6, #8), 2026-08-03. Model sesji: `context/foundation/auth-session-model.md`. Pozostałość: DEV-31 (rozjazd `openapi.yaml`). |
+| S-02       | goals-and-dreams           | CRUD celów długoterminowych i marzeń z kategorią       | yes                   | Odblokowane 2026-08-03 (S-01 + F-01 done). Substrat gwiazdy — następny slice na fast-path. |
 | S-03       | ai-memory-seed             | Pamięć AI: onboarding seed + wzbogacanie z ukończeń i wyników propozycji | no      | F-02 done; czeka na S-02. |
 | S-04       | proactive-proposal-engine  | Silnik propozycji + odpowiedzi + pierwszy krok (ręczny trigger) | no            | F-02 done; czeka na S-02 + S-03. Tu waliduje się jakość propozycji — i tu `LlmClient` dostaje pierwsze wywołanie produkcyjne. |
 | S-05       | natural-rhythm-return      | Automatyczny powrót w naturalnym rytmie (gwiazda)      | no                    | Czeka na S-04 + F-02. Gwiazda przewodnia. |
 | S-06       | priority-categories        | Kategorie priorytetowe wpływające na bilansowanie      | no                    | Czeka na S-04. Refinement. |
-| S-07       | current-tasks              | CRUD zadań bieżących                                    | no                    | Czeka na S-01 + F-01. Nieróżnicujące. Fast-path: odroczone do po S-05. |
+| S-07       | current-tasks              | CRUD zadań bieżących                                    | yes (odroczone)       | Prerekwizyty spełnione 2026-08-03 (S-01 + F-01 done), ale nieróżnicujące — fast-path odracza do po S-05. |
 | S-08       | unified-three-layer-view   | Jednolity widok 3 warstw z filtrami                    | no                    | Czeka na S-02 + S-07. Fast-path: odroczone do po S-05. |
 | S-09       | ai-category-autotag        | Auto-tag kategorii przez AI przy tworzeniu             | no                    | F-02 done; czeka na S-02. Równoległe do pętli. |
 | S-10       | offline-read-only          | Offline read-only (PWA) dla 3 warstw                   | no                    | Czeka na S-02 + S-07. Fast-path: odroczone do po S-05. |
