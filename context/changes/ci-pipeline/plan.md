@@ -752,11 +752,11 @@ state is always cold in CI. This is correct — never cache `node_modules` direc
 
 #### Automated
 
-- [x] 4.1 No stale `pr-branch-ci` change-id remains
-- [x] 4.2 Runbook's stale "CI never needs the secret" claim is gone
-- [x] 4.3 `OPENROUTER_CI_KEY` appears in the runbook secrets table
-- [x] 4.4 Full local gate still green
-- [x] 4.5 Auto-merge excludes the actions ecosystem and majors
+- [x] 4.1 No stale `pr-branch-ci` change-id remains — 338f56a
+- [x] 4.2 Runbook's stale "CI never needs the secret" claim is gone — 338f56a
+- [x] 4.3 `OPENROUTER_CI_KEY` appears in the runbook secrets table — 338f56a
+- [x] 4.4 Full local gate still green — 338f56a
+- [x] 4.5 Auto-merge excludes the actions ecosystem and majors — 338f56a
 
 #### Manual
 
