@@ -62,6 +62,55 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      # No `npm install` needed — Trivy reads package-lock.json directly (~1.5 s).
+      # The dev-dep split is deliberate: the report shows all 272 packages so
+      # build-time supply-chain risk stays visible, but the gate below scans prod
+      # deps only, because a devDependency CVE should not block a merge.
+      - name: Trivy — dependency report (informational, incl. dev deps)
+        if: steps.changes.outputs.frontend == 'true'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: frontend
+          scanners: vuln
+          # Carries `pkg.include-dev-deps` — see the file for why this cannot be
+          # an env var. The gate step below deliberately omits it.
+          trivy-config: .github/trivy-report.yaml
+          trivyignores: .trivyignore
+          format: table
+          output: trivy-frontend.txt
+          exit-code: '0'
+
+      - name: Publish frontend dependency report
+        if: steps.changes.outputs.frontend == 'true'
+        run: |
+          {
+            echo '## Frontend dependencies (Trivy, all severities, incl. dev deps)'
+            echo '```'
+            cat trivy-frontend.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload frontend dependency report
+        if: steps.changes.outputs.frontend == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-frontend
+          path: trivy-frontend.txt
+
+      - name: Trivy — dependency gate (prod deps, fixable HIGH/CRITICAL)
+        if: steps.changes.outputs.frontend == 'true'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: frontend
+          scanners: vuln
+          trivyignores: .trivyignore
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          skip-setup-trivy: true
+
   deploy:
     needs: quality
     if: github.event_name == 'push' && needs.quality.outputs.frontend == 'true'
@@ -89,7 +138,7 @@ jobs:
       - run: npm run build
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -1,0 +1,35 @@
+version: 2
+
+# Trivy and Dependabot are complementary, not redundant: Trivy detects and fails
+# the merge, Dependabot opens the PR that fixes. The `github-actions` entry is
+# also what stops SHA-pinning from trading a tag-hijack risk for a staleness
+# risk — pinned SHAs never receive security fixes on their own, but Dependabot
+# understands them and bumps the pin along with its version comment.
+#
+# Every ecosystem is grouped into a single PR. Grouping is what makes `weekly`
+# viable: the ceiling is 3 PRs/week rather than one per package.
+updates:
+  # Looks inside .github/workflows/ itself, so "/" is correct — "/.github" is not.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: "/frontend"
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        patterns: ["*"]
+
+  - package-ecosystem: maven
+    directory: "/backend"
+    schedule:
+      interval: weekly
+    groups:
+      maven:
+        patterns: ["*"]

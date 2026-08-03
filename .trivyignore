@@ -1,0 +1,17 @@
+# Trivy suppressions. One finding per line as `<ID> exp:YYYY-MM-DD`.
+#
+# Every entry MUST carry an expiry so suppressions rot loudly instead of silently:
+# once the date passes Trivy stops honouring the line and the gate goes red again,
+# which forces a re-decision rather than letting a stale exception live forever.
+#
+# Only put a finding here when it is genuinely unreachable or unfixable. If a
+# version bump clears it, bump instead — see backend/pom.xml's netty/postgresql
+# property overrides for the preferred route.
+
+# react-router 7.18.2 — RSC Mode CSRF bypass. Fixed only in 8.3.0, i.e. a major
+# upgrade, and the advisory states it "only affects your application if you are
+# using the unstable RSC APIs". This app is a Vite SPA on declarative
+# BrowserRouter with zero RSC APIs (verified: no react-router/rsc import,
+# no RSCHydratedRouter/createCallServer/matchRSCServerRequest anywhere in src/).
+# Revisit when the react-router 8 migration is scheduled on its own merit.
+GHSA-qwww-vcr4-c8h2 exp:2026-11-03

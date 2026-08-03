@@ -1,0 +1,9 @@
+# Used ONLY by the informational frontend Trivy pass, never by the gate.
+#
+# Reaching `--include-dev-deps` from trivy-action needs a config file: the action
+# exposes no matching input, and TRIVY_INCLUDE_DEV_DEPS is silently ignored
+# (verified against trivy 0.73 — it reports 7 packages with the env var set and
+# 272 with the flag). A silently-ignored env var is worse than no setting at all,
+# because the report looks like it covers dev deps when it does not.
+pkg:
+  include-dev-deps: true

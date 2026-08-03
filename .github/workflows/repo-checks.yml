@@ -27,3 +27,19 @@ jobs:
           awk '/^\[\[vm\]\]/{v=1;next} /^\[/{v=0} v && /^[[:space:]]*memory[[:space:]]*=/{ok=1} END{exit !ok}' \
             backend/fly.toml \
             || { echo "::error file=backend/fly.toml::no 'memory' declared under a [[vm]] section"; exit 1; }
+
+      # The only secret scanning this repo can have: GitHub's is $19/committer/mo
+      # and org-scoped, so unavailable to a user-owned private repo at any price.
+      - name: Trivy — secret scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          # A secret-only scan STILL runs the POM analyzer, which resolves against
+          # Maven Central live and hard-FATALs on 429. Unlike the backend job there
+          # is no warm ~/.m2 here, so resolution must be forced offline.
+          TRIVY_OFFLINE_SCAN: 'true'
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: secret
+          exit-code: '1'
+          skip-dirs: node_modules,target,dist

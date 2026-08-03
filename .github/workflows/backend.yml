@@ -59,6 +59,55 @@ jobs:
         # classpath; set the skip explicitly rather than leaning on Boot's default.
         run: mvn -B test -Dspring.docker.compose.skip.in-tests=true
 
+      # ORDERING IS LOAD-BEARING: Trivy re-implements Maven resolution and calls
+      # Maven Central live, which hard-FATALs with `429 Too Many Requests,
+      # Retry-After: 1800` on a cold ~/.m2 — it does not degrade to a partial
+      # result. Running after `mvn test` leaves the cache warm, so resolution is
+      # offline-clean (176 packages, ~2 s). Never move these above the Test step.
+      - name: Trivy — dependency report (informational)
+        if: steps.changes.outputs.backend == 'true'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: backend
+          scanners: vuln
+          trivyignores: .trivyignore
+          format: table
+          output: trivy-backend.txt
+          exit-code: '0'
+
+      - name: Publish backend dependency report
+        if: steps.changes.outputs.backend == 'true'
+        run: |
+          {
+            echo '## Backend dependencies (Trivy, all severities)'
+            echo '```'
+            cat trivy-backend.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload backend dependency report
+        if: steps.changes.outputs.backend == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-backend
+          path: trivy-backend.txt
+
+      # `skip-setup-trivy` reuses the binary and vulnerability DB the pass above
+      # already fetched, so this second pass costs no extra download.
+      - name: Trivy — dependency gate (fixable HIGH/CRITICAL)
+        if: steps.changes.outputs.backend == 'true'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: backend
+          scanners: vuln
+          trivyignores: .trivyignore
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          skip-setup-trivy: true
+
   deploy:
     needs: quality
     if: github.event_name == 'push' && needs.quality.outputs.backend == 'true'
@@ -72,7 +121,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master @ 2026-08-03
 
       - name: Record current image (for rollback)
         # Fly has no one-shot rollback — log the live image so a bad deploy can be

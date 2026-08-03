@@ -691,13 +691,13 @@ state is always cold in CI. This is correct — never cache `node_modules` direc
 
 #### Automated
 
-- [x] 1.1 Backend suite passes locally with the docker-compose skip flag
-- [x] 1.2 Frontend gate passes with the new tsconfig project
-- [x] 1.3 Pages proxy is actually covered by `tsc -b`
-- [x] 1.4 Docs test passes
-- [x] 1.5 Workflow YAML parses
-- [x] 1.6 No workflow references its own old filename
-- [x] 1.7 No required-check workflow reintroduces a trigger-level path filter
+- [x] 1.1 Backend suite passes locally with the docker-compose skip flag — 09d4a51
+- [x] 1.2 Frontend gate passes with the new tsconfig project — 09d4a51
+- [x] 1.3 Pages proxy is actually covered by `tsc -b` — 09d4a51
+- [x] 1.4 Docs test passes — 09d4a51
+- [x] 1.5 Workflow YAML parses — 09d4a51
+- [x] 1.6 No workflow references its own old filename — 09d4a51
+- [x] 1.7 No required-check workflow reintroduces a trigger-level path filter — 09d4a51
 
 #### Manual
 
@@ -712,12 +712,12 @@ state is always cold in CI. This is correct — never cache `node_modules` direc
 
 #### Automated
 
-- [ ] 2.1 Backend scan clean against a warm Maven cache
-- [ ] 2.2 Frontend gate pass exits 0 after the react-router decision
-- [ ] 2.3 Secret scan clean
-- [ ] 2.4 Every third-party action is SHA-pinned
-- [ ] 2.5 Dependabot config parses
-- [ ] 2.6 Each declared directory holds the manifest its ecosystem expects
+- [x] 2.1 Backend scan clean against a warm Maven cache
+- [x] 2.2 Frontend gate pass exits 0 after the react-router decision
+- [x] 2.3 Secret scan clean
+- [x] 2.4 Every third-party action is SHA-pinned
+- [x] 2.5 Dependabot config parses
+- [x] 2.6 Each declared directory holds the manifest its ecosystem expects
 
 #### Manual
 
