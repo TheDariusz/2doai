@@ -34,8 +34,10 @@ jobs:
             backend/fly.toml \
             || { echo "::error file=backend/fly.toml::no 'memory' declared under a [[vm]] section"; exit 1; }
 
-      # The only secret scanning this repo can have: GitHub's is $19/committer/mo
-      # and org-scoped, so unavailable to a user-owned private repo at any price.
+      # Not the only secret scanning any more — the repo went public 2026-08-03,
+      # which made GitHub's own secret scanning + push protection free, and both
+      # are now on. Keep this pass anyway: GitHub's is preventive but limited to
+      # known provider patterns, Trivy's is post-hoc but catches more shapes.
       - name: Trivy — secret scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:

@@ -13,6 +13,15 @@ GitHub Code Scanning, SARIF upload, and GitHub secret scanning are all unavailab
 that applies to a personal account. Findings go to `$GITHUB_STEP_SUMMARY` and artifacts, and
 Trivy's secret scanner is the only secret detection the repo can have.
 
+> **Superseded during Phase 4 execution (2026-08-03) — the constraint above no longer holds.**
+> It turned out to bite harder than researched: branch protection *itself* is a paid feature on
+> private repos, so §3 of Phase 4 was impossible and every gate built in Phases 1–3 was decoration.
+> The repo was made **public** (after a clean full-history secret audit), which unlocked branch
+> protection *and* made Code Scanning and GitHub secret scanning free. Secret scanning + push
+> protection are now on; SARIF upload is possible but deliberately left unwired. Everything below
+> is preserved as the reasoning that produced the implementation — read
+> `deployment-runbook.md` §5.2 for current reality, not this paragraph.
+
 ## Current State Analysis
 
 **Two path-filtered workflows, both `push` on `master`, neither runs on PRs:**
@@ -761,11 +770,28 @@ state is always cold in CI. This is correct — never cache `node_modules` direc
 #### Manual
 
 - [ ] 4.6 Separate credit-capped OpenRouter CI key created and stored
-- [ ] 4.7 Branch protection lists every required check and blocks a failing PR
+- [ ] 4.7 Branch protection lists every required check and blocks a failing PR — rule applied with all
+      four contexts (`backend quality`, `frontend quality`, `checks`, `ai-review`); the *blocks* half
+      is still undemonstrated
 - [ ] 4.8 Advisory-only failure still allows merge
-- [ ] 4.9 Dependabot alerts + security updates enabled, or unavailability recorded
+- [x] 4.9 Dependabot alerts + security updates enabled, or unavailability recorded — enabled; the
+      "expected free, unverified" runbook row is now confirmed. Surfaced **17 open npm alerts** on
+      first scan (undici ×10, vite ×2, postcss ×2, react-router, brace-expansion)
 - [ ] 4.10 Dependabot bump PR satisfies every required check and is mergeable
 - [ ] 4.11 Patch/minor npm or maven group auto-merges; a group containing a major does not
 - [ ] 4.12 A `github-actions` bump PR does not auto-merge
 - [ ] 4.13 Deploy-trigger behavior of the auto-merge commit confirmed and recorded
 - [ ] 4.14 Linear issue moved to In Review with a handoff comment
+
+#### Discovered during Phase 4 execution (not in the original plan)
+
+- [x] 4.15 Repo made **public** — branch protection is a paid feature on private repos, so §3 was
+      otherwise impossible. Gated on a clean full-history secret audit — 90237c5 onward
+- [x] 4.16 Two jobs both emitted a check context named `quality`; required checks match by name, so a
+      green frontend run could satisfy the rule while backend was red. Fixed via explicit job
+      `name:` — 90237c5
+- [x] 4.17 GitHub secret scanning + push protection enabled (free once public) — Trivy is no longer
+      the only secret detection
+- [ ] 4.18 SARIF upload to the Security tab — now possible, deliberately left unwired. Follow-up.
+- [ ] 4.19 Triage the 17 pre-existing Dependabot alerts (all npm, all frontend). Not introduced by
+      this change; security updates will open bump PRs automatically

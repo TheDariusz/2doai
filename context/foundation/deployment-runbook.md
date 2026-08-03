@@ -184,21 +184,32 @@ below using the exact names GitHub reports **after each workflow has run at leas
 > status to be reported"* forever. All four filter by path **inside** the job precisely so they can
 > be required. A human can force-merge past it; Dependabot cannot, so it would simply stall.
 
-### 5.2 — GitHub security features: what this repo can and cannot have
+### 5.2 — GitHub security features: what this repo has
 
-This repo is **private and user-owned** (not org-owned), which decides the whole security-tooling
-design. Established during `ci-pipeline` research (2026-08-03):
+> **The repo went public on 2026-08-03, and that is what unlocked this section.** While it was
+> private on a Free account, branch protection and rulesets both returned
+> `403 Upgrade to GitHub Pro or make this repository public` — so every gate in `ci-pipeline` was
+> unenforceable and 5.1 above was impossible. Going public was chosen over GitHub Pro. It was gated
+> on a full-history secret audit (all 80 commits: no `.env` ever tracked, no token-shaped strings,
+> single author email) — **run that audit again before ever flipping visibility on another repo.**
+> Side effect: the paid tiers below stopped mattering, because these features are free on public
+> repos.
 
-| Feature | Available here? | Consequence |
+| Feature | State (verified 2026-08-03) | Consequence |
 | --- | --- | --- |
-| **Code Scanning / SARIF upload** | **No** — GitHub Code Security is ~$30/committer/mo and **org-scoped only**; a user-owned private repo cannot buy it at any price | No Security tab integration. `github/codeql-action/upload-sarif` would 403. Findings go to `$GITHUB_STEP_SUMMARY` + artifacts instead. |
-| **GitHub secret scanning** | **No** — ~$19/committer/mo, likewise org-scoped | **Trivy's `--scanners secret` in `repo-checks.yml` is the only secret detection this repo has.** |
-| **Dependabot alerts + security updates** | *Expected yes (free), **but unverified on this account** — confirm and update this row* | Settings → Code security → enable **Dependabot alerts** and **Dependabot security updates**; both need the **dependency graph** on first. |
+| **Code Scanning / SARIF upload** | **Available, not wired up** — free on public repos (was ~$30/committer/mo and org-scoped when this repo was private) | Trivy findings still go to `$GITHUB_STEP_SUMMARY` + artifacts. Routing them to the Security tab via `github/codeql-action/upload-sarif` is now possible and is **open follow-up work**, not done. |
+| **GitHub secret scanning + push protection** | **Enabled** | No longer Trivy-only. Push protection blocks a known-pattern secret at push time — *preventive*, where `repo-checks.yml`'s Trivy pass is post-hoc. Keep both: Trivy catches patterns GitHub doesn't. |
+| **Dependabot alerts + security updates** | **Enabled** — the "expected free, unverified" row is now confirmed | Surfaced **17 open alerts immediately** (npm only: undici, vite, postcss, react-router, brace-expansion). Security updates will open bump PRs for them automatically. |
 
 > The distinction that matters: `.github/dependabot.yml` (added by `ci-pipeline`) drives **version**
 > updates on a weekly schedule. Alert-driven **security** updates are a separate repository toggle
 > and are the half that reacts within hours of an advisory rather than waiting for the next weekly
 > run. Enabling the config file does **not** enable the toggle.
+
+> **Public-repo consequence for CI:** pull requests can now arrive from forks. Fork PRs get no
+> repository secrets and a read-only `GITHUB_TOKEN`, which is why `ai-review.yml` guards on
+> `github.event.pull_request.head.repo.full_name == github.repository` — it skips rather than failing
+> confusingly, and a job skipped by a job-level `if:` still reports green to the required check.
 
 ---
 
