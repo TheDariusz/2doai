@@ -89,7 +89,6 @@
   .badge { display:inline-block; font-size:.72rem; font-weight:600; padding:.1em .6em; border-radius:99px; vertical-align:middle; }
   .badge-live { background:#dcfce7; color:#166534; }
   .badge-foundation { background:#dbeafe; color:#1e40af; }
-  .badge-scaffold { background:#f3e8ff; color:#6b21a8; }
   .badge-planned { background:#fef3c7; color:#92400e; }
   .card { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:1rem 1.25rem; margin:.75rem 0; }
   .callout { border-left:4px solid var(--accent); background:var(--accent-soft); padding:1rem 1.25rem; margin:1rem 0; }
@@ -206,22 +205,25 @@
         <tr><th scope="row">AI memory aggregate</th><td><span class="badge badge-foundation">implemented foundation</span></td><td>Per-user root, profile facts, append-only episodes</td></tr>
         <tr><th scope="row">Account and session auth</th><td><span class="badge badge-live">implemented</span></td><td>Spring Security, server-side in-memory sessions, account erasure</td></tr>
         <tr><th scope="row">Categories</th><td><span class="badge badge-live">implemented</span></td><td>Seeded reference table, <code>LifeDomain</code>, startup drift check</td></tr>
-        <tr><th scope="row">Product frontend</th><td><span class="badge badge-scaffold">scaffold only</span></td><td>React/Vite scaffold; development and production <code>/api</code> proxies exist</td></tr>
+        <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens, 11-domain shell; <code>/api</code> proxies in development and production</td></tr>
         <tr><th scope="row">Goals, dreams, and tasks</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slices S-02 and S-07</td></tr>
         <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slices S-04 and S-05</td></tr>
         <tr><th scope="row">PWA/offline behavior</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-10</td></tr>
       </tbody>
     </table>
   </div>
-  <p><strong>Frontend status:</strong> React/Vite scaffold; <code>/api</code> development proxy and
-  production reverse proxy are implemented. Product UI, API consumption, and PWA behavior are planned.</p>
+  <p><strong>Frontend status:</strong> a React 19 single-page application on react-router. Session
+  bootstrap, login, registration, logout, account deletion, and the 11-domain navigation shell all
+  consume the API through one CSRF-aware client; the <code>/api</code> development proxy and
+  production reverse proxy are implemented. Domain pages are still placeholders — task, goal, and
+  dream UI and PWA behavior are planned.</p>
   <p>These projects build independently; there is no root workspace. Local setup and execution
   belong in the <a href="../README.md">root README</a>. Product and architecture intent remain
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
-  <p class="note">Verified against repository snapshot <code>109d027</code> on 2026-07-29. To
-  review drift, run <code>git log 109d027.. -- backend frontend .github/workflows context/foundation docs/index.html</code>.</p>
+  <p class="note">Verified against repository snapshot <code>2556799</code> on 2026-08-03. To
+  review drift, run <code>git log 2556799.. -- backend frontend .github/workflows context/foundation docs/index.html</code>.</p>
 </section>
 <section id="architecture">
   <h2>System context and containers</h2>
@@ -231,7 +233,7 @@
   no CORS. Sessions are server-side cookies held <strong>in-memory</strong> on the single Fly
   machine (not JWT, never DB-backed — a per-request session <code>SELECT</code> would defeat Neon
   autosuspend).</p>
-  <p>The browser receives the current React static scaffold from Cloudflare. API requests cross the
+  <p>The browser receives the React single-page application from Cloudflare. API requests cross the
   same public origin through a Pages Function, reach one Spring Boot machine, and use PostgreSQL
   only when application data is needed. GitHub Actions is the delivery plane, not a runtime
   component.</p>
@@ -241,7 +243,7 @@
   <a href="../frontend/vite.config.ts"><code>frontend/vite.config.ts</code></a>.</p>
   <pre class="mermaid">
 flowchart LR
-  U[Browser] --> CFP[Cloudflare Pages&lt;br/&gt;React 19 static scaffold]
+  U[Browser] --> CFP[Cloudflare Pages&lt;br/&gt;React 19 SPA — auth + shell]
   U -- "/api/* (same origin)" --> PRX[Cloudflare reverse proxy] --> BE[Fly.io — Spring Boot 4 API&lt;br/&gt;single machine, in-memory sessions]
   BE -- "JPA / Hibernate (validate)" --> PG[(Neon PostgreSQL 18&lt;br/&gt;pooled + SSL, autosuspend)]
   BE -- "Flyway migrations on boot" --> PG
@@ -297,7 +299,8 @@ flowchart LR
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/category"><code>backend/…/category</code></a></th><td>Fixed life-domain reference data and enum/table drift detection</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai"><code>backend/…/ai</code></a></th><td>Provider-neutral LLM port, schema contract, and Spring AI adapter</td><td><span class="badge badge-foundation">foundation</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai/memory"><code>backend/…/ai/memory</code></a></th><td>Personal AI-memory aggregate, rendering, persistence, and erasure adapter</td><td><span class="badge badge-foundation">foundation</span></td></tr>
-        <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React/Vite scaffold; future product UI and API client</td><td><span class="badge badge-scaffold">scaffold only</span></td></tr>
+        <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, auth screens, and the 11-domain shell</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../frontend/src/api"><code>frontend/src/api</code></a></th><td>The one backend boundary: same-origin fetch, CSRF double-submit, RFC 9457 errors, 401 session-expired signal</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/functions/api/[[path]].ts"><code>frontend/functions/api</code></a></th><td>Production same-origin reverse proxy to Fly.io</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../context/foundation"><code>context/foundation</code></a></th><td>Canonical product, data, security, deployment, and roadmap decisions</td><td>design source</td></tr>
       </tbody>
