@@ -43,8 +43,10 @@ jobs:
           # ASSIGN FIRST, then match — see the comment in backend.yml. Piping into
           # the `if` condition would let a `git diff` fatal read as "nothing
           # changed", skipping lint/test/build and the Trivy gate on a green check.
+          # `.trivyignore` and `trivy-report.yaml` are gate inputs — see the note
+          # in backend.yml on why a suppression-only PR must not skip the scan.
           changed=$(git diff --name-only "$range")
-          if grep -qE '^(frontend/|\.github/workflows/frontend\.yml$)' <<<"$changed"; then
+          if grep -qE '^(frontend/|\.trivyignore$|\.github/(workflows/frontend\.yml|trivy-report\.yaml)$)' <<<"$changed"; then
             echo "frontend=true" >> "$GITHUB_OUTPUT"
           else
             echo "frontend=false" >> "$GITHUB_OUTPUT"

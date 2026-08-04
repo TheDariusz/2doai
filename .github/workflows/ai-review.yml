@@ -49,7 +49,21 @@ jobs:
         run: |
           # Diff-only context: whole-repo context inflates both hallucination
           # rate and cost. The pathspec is where doc filtering lives now.
-          git diff --find-renames "$BASE...HEAD" -- backend frontend ':(exclude)**/*.md' >diff.txt
+          #
+          # `.github` IS IN SCOPE, and is the reason to be careful about dropping
+          # it "to save tokens". It is the highest-privilege code in the repo —
+          # it holds FLY_API_TOKEN, CLOUDFLARE_API_TOKEN and OPENROUTER_CI_KEY,
+          # and it is where the findings this pass is actually good at live:
+          # GitHub expression interpolation into a `run:` block, a
+          # pull_request_target on an untrusted ref, over-broad `permissions:`.
+          # The repo went public on 2026-08-03, so a fork PR editing a workflow
+          # is a real path. While this pathspec read `backend frontend`, the
+          # pipeline reviewed everything except itself.
+          #
+          # Do not write a literal GitHub expression in this comment. Actions
+          # interpolates `run:` blocks before bash sees them, so even a commented
+          # one is parsed — an empty one fails the whole workflow to compile.
+          git diff --find-renames "$BASE...HEAD" -- backend frontend .github ':(exclude)**/*.md' >diff.txt
 
           LINES=$(wc -l <diff.txt)
           echo "lines=$LINES" >>"$GITHUB_OUTPUT"

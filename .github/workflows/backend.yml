@@ -64,8 +64,13 @@ jobs:
           # As a plain assignment, the runner's `bash -e` aborts the step instead.
           # Do NOT "fix" this with `set -o pipefail`: `grep -q` exits on first
           # match and SIGPIPEs git, which turns a normal hit into exit 141.
+          # `.trivyignore` is in the list because it is an input to the gate, not
+          # just config: a PR that only adds a suppression would otherwise set
+          # backend=false, skip every Trivy step, and merge a new exception
+          # without the gate ever running against it. That is the one change you
+          # most want re-scanned.
           changed=$(git diff --name-only "$range")
-          if grep -qE '^(backend/|\.github/workflows/backend\.yml$)' <<<"$changed"; then
+          if grep -qE '^(backend/|\.trivyignore$|\.github/workflows/backend\.yml$)' <<<"$changed"; then
             echo "backend=true" >> "$GITHUB_OUTPUT"
           else
             echo "backend=false" >> "$GITHUB_OUTPUT"
