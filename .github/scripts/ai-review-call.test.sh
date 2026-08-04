@@ -50,11 +50,11 @@ respond NETFAIL
 
 fail=0
 
-expect() { # <want-exit> <mode> <diff-file> <why> [VAR=VAL ...]
-  local want="$1" mode="$2" diff="$3" why="$4" got
-  shift 4
+expect() { # <want-exit> <diff-file> <why> [VAR=VAL ...]
+  local want="$1" diff="$2" why="$3" got
+  shift 3
   env PATH="$WORK/shim:$PATH" GITHUB_STEP_SUMMARY=/dev/null "$@" \
-    bash "$CALL" "$mode" "$diff" out.json >/dev/null 2>&1
+    bash "$CALL" "$diff" out.json >/dev/null 2>&1
   got=$?
   if [ "$got" -ne "$want" ]; then
     echo "FAIL  expected exit $want, got $got  ($why)"
@@ -65,35 +65,33 @@ expect() { # <want-exit> <mode> <diff-file> <why> [VAR=VAL ...]
 }
 
 echo "-- our configuration is wrong: must fail CLOSED --"
-expect 1 security diff.txt "missing key is a config bug, not an outage — must not report green" \
+expect 1 diff.txt "missing key is a config bug, not an outage — must not report green" \
   OPENROUTER_CI_KEY= AI_MODELS=a/b
-expect 1 security diff.txt "empty AI_MODELS is a config bug" \
+expect 1 diff.txt "empty AI_MODELS is a config bug" \
   OPENROUTER_CI_KEY=k AI_MODELS=
-expect 1 security diff.txt "unset AI_MODELS must annotate, not die on set -u" \
+expect 1 diff.txt "unset AI_MODELS must annotate, not die on set -u" \
   OPENROUTER_CI_KEY=k
-expect 1 bogus diff.txt "unknown mode is a programming bug" \
-  OPENROUTER_CI_KEY=k AI_MODELS=a/b
 
 echo "-- the world is wrong: must fail OPEN --"
 respond NETFAIL
-expect 0 security diff.txt "curl network failure or timeout" \
+expect 0 diff.txt "curl network failure or timeout" \
   OPENROUTER_CI_KEY=k AI_MODELS=a/b
 respond '{"error":{"message":"rate limited"}}'
-expect 0 security diff.txt "OpenRouter 429/error body" \
+expect 0 diff.txt "OpenRouter 429/error body" \
   OPENROUTER_CI_KEY=k AI_MODELS=a/b
 respond '<html>502 Bad Gateway</html>' 502
-expect 0 security diff.txt "gateway HTML on a 502 — reported as a status, not as an empty body" \
+expect 0 diff.txt "gateway HTML on a 502 — reported as a status, not as an empty body" \
   OPENROUTER_CI_KEY=k AI_MODELS=a/b
 respond '{"error":{"message":"forbidden"}}' 403
-expect 0 security diff.txt "403 with a JSON error body" \
+expect 0 diff.txt "403 with a JSON error body" \
   OPENROUTER_CI_KEY=k AI_MODELS=a/b
 respond '{"choices":[{"message":{"content":"I am happy to review this!"}}]}'
-expect 0 security diff.txt "model returns prose instead of the schema" \
+expect 0 diff.txt "model returns prose instead of the schema" \
   OPENROUTER_CI_KEY=k AI_MODELS=a/b
 respond '{"choices":[{"message":{"content":null},"finish_reason":"length"}]}'
-expect 0 security diff.txt "max_tokens exhausted mid-answer (finish_reason: length)" \
+expect 0 diff.txt "max_tokens exhausted mid-answer (finish_reason: length)" \
   OPENROUTER_CI_KEY=k AI_MODELS=a/b
-expect 0 security empty.txt "empty diff is nothing to review, not a failure" \
+expect 0 empty.txt "empty diff is nothing to review, not a failure" \
   OPENROUTER_CI_KEY=k AI_MODELS=a/b
 
 echo "-- wrong shape must not reach the gate looking like a clean review --"
@@ -107,22 +105,22 @@ assert_empty_out() { # <why>
 }
 
 respond '{"choices":[{"message":{"content":"{\"summary\":\"looks good\"}"}}]}'
-expect 0 security diff.txt "a JSON object with no findings key" OPENROUTER_CI_KEY=k AI_MODELS=a/b
+expect 0 diff.txt "a JSON object with no findings key" OPENROUTER_CI_KEY=k AI_MODELS=a/b
 assert_empty_out "  ...and it is not written through to the out file"
 
 respond '{"choices":[{"message":{"content":"{\"findings\":\"not-an-array\"}"}}]}'
-expect 0 security diff.txt "findings as a string, not an array" OPENROUTER_CI_KEY=k AI_MODELS=a/b
+expect 0 diff.txt "findings as a string, not an array" OPENROUTER_CI_KEY=k AI_MODELS=a/b
 assert_empty_out "  ...and it is not written through to the out file"
 
 respond '{"choices":[{"message":{"content":"{\"findings\":[]}{\"findings\":[]}"}}]}'
-expect 0 security diff.txt "two concatenated JSON documents" OPENROUTER_CI_KEY=k AI_MODELS=a/b
+expect 0 diff.txt "two concatenated JSON documents" OPENROUTER_CI_KEY=k AI_MODELS=a/b
 assert_empty_out "  ...and it is not written through to the out file"
 
 echo "-- the request body still says what we think it says --"
 respond '{"choices":[{"message":{"content":"{\"findings\":[]}"}}]}'
 env PATH="$WORK/shim:$PATH" GITHUB_STEP_SUMMARY=/dev/null \
   OPENROUTER_CI_KEY=k AI_MODELS=x/one,y/two \
-  bash "$CALL" security diff.txt out.json >/dev/null 2>&1
+  bash "$CALL" diff.txt out.json >/dev/null 2>&1
 
 assert_jq() { # <why> <jq-filter> [file]
   if jq -e "$2" "${3:-request.json}" >/dev/null 2>&1; then
@@ -153,7 +151,7 @@ echo "-- the run summary still explains a response it could not parse --"
 respond '<html>502 Bad Gateway</html>' 502
 env PATH="$WORK/shim:$PATH" GITHUB_STEP_SUMMARY="$WORK/summary.md" \
   OPENROUTER_CI_KEY=k AI_MODELS=a/b \
-  bash "$CALL" security diff.txt out.json >/dev/null 2>&1
+  bash "$CALL" diff.txt out.json >/dev/null 2>&1
 
 assert_grep() { # <why> <literal>
   if grep -qF -- "$2" "$WORK/summary.md"; then # `--`: every pattern here starts with a dash

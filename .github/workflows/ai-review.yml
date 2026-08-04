@@ -21,9 +21,24 @@ jobs:
     # SEPARATE secrets store — in both cases OPENROUTER_CI_KEY would arrive as an
     # empty string and the job would fail confusingly instead of skipping, while
     # still burning two OpenRouter calls per dependency bump.
+    #
+    # DRAFT PRs ARE SKIPPED. `pull_request` fires on every push (`synchronize`),
+    # and this is the only paid step in the pipeline — iterating on a branch was
+    # buying a full review per push. Marking the PR ready (or opening it
+    # non-draft) runs it; pushing to a draft does not. Two other levers exist and
+    # are cheaper than editing this file: add the `skip-ai-review` label to pause
+    # it on an open PR, or push docs-only changes, which the `diff` step below
+    # already filters to `reviewable=false` without spending anything.
+    #
+    # This has to stay a JOB-LEVEL `if:`. Removing `synchronize` from the trigger
+    # instead would look equivalent and would pin every PR at "Expected — waiting
+    # for status to be reported" forever, because `ai-review` is a required check
+    # and a workflow that never runs never reports. A job skipped by `if:` still
+    # reports, as a green skip. Same reasoning as the fork and Dependabot guards.
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository
       && github.actor != 'dependabot[bot]'
+      && github.event.pull_request.draft == false
       && !contains(github.event.pull_request.labels.*.name, 'skip-ai-review')
     permissions:
       contents: read
@@ -85,22 +100,15 @@ jobs:
             echo "gate=true" >>"$GITHUB_OUTPUT"
           fi
 
-      - name: Advisory review
-        if: steps.diff.outputs.reviewable == 'true'
-        # This pass is advisory and must never fail the check. The script exits 0
-        # on every model/network failure by design, but it exits 1 on a
-        # configuration bug (missing key, empty AI_MODELS) — and one red is
-        # enough, so let the security pass below be the one that reports it.
-        continue-on-error: true
-        env:
-          OPENROUTER_CI_KEY: ${{ secrets.OPENROUTER_CI_KEY }}
-        run: .github/scripts/ai-review-call.sh general diff.txt findings-general.json
-
+      # ONE PASS ONLY. There was an advisory pass here covering correctness and
+      # style; it could never block, its prompt asked for volume, and on a large
+      # diff it ran two minutes and blew its token budget producing nothing
+      # usable. Deleting it halves the spend per push. See ai-review-call.sh.
       - name: Security review
         if: steps.diff.outputs.reviewable == 'true'
         env:
           OPENROUTER_CI_KEY: ${{ secrets.OPENROUTER_CI_KEY }}
-        run: .github/scripts/ai-review-call.sh security diff.txt findings-security.json
+        run: .github/scripts/ai-review-call.sh diff.txt findings-security.json
 
       # Posted with event COMMENT, never REQUEST_CHANGES: a bot REQUEST_CHANGES
       # on a solo repo blocks your own merges until manually dismissed. The exit
@@ -112,32 +120,39 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
         run: |
+          file=findings-security.json
           {
-            echo '## 🤖 AI review'
+            echo '## 🤖 AI security review'
             echo
-            for pass in general security; do
-              file="findings-${pass}.json"
-              if [ ! -s "$file" ]; then
-                echo "**${pass}** — no result; the pass failed open (see the run log)."
-                echo
-                continue
-              fi
+            if [ ! -s "$file" ]; then
+              echo 'No result — the review failed open (see the run log).'
+            else
               n=$(jq '.findings | length' "$file" 2>/dev/null || echo 0)
               if [ "$n" -eq 0 ]; then
-                echo "**${pass}** — no findings."
+                echo 'No findings.'
+              else
+                echo "${n} finding(s):"
                 echo
-                continue
+                # `|| true` so one malformed finding cannot kill the whole block
+                # and take `gh pr review` below with it under `bash -e`.
+                #
+                # Single quotes are required, not accidental: `\(.file)` is jq
+                # interpolation and must reach jq untouched. SC2016 flags exactly
+                # that shape, so it is noise on this one line.
+                # shellcheck disable=SC2016
+                jq -r '.findings[]
+                  | "- `\(.file):\(.line)` — **\(.title)**  \n  _\(.severity) / \(.category) / confidence \(.confidence)_  \n  \(.why)"' "$file" || true
               fi
-              echo "**${pass}** — ${n} finding(s):"
-              echo
-              jq -r '.findings[]
-                | "- `\(.file):\(.line)` — **\(.title)**  \n  _\(.severity) / \(.category) / confidence \(.confidence)_  \n  \(.why)"' "$file"
-              echo
-            done
-            echo '<sub>Advisory findings never block. The security pass blocks only on severity `high` **and** category `security` **and** confidence ≥ 0.8.</sub>'
+            fi
+            echo
+            # Backticks here are markdown code spans in the rendered comment, so
+            # single quotes are again required rather than incidental.
+            # shellcheck disable=SC2016
+            echo '<sub>Blocks only on severity `high` **and** category `security` **and** confidence ≥ 0.8. Everything else is advisory.</sub>'
           } >comment.md
 
-          gh pr review "$PR" --comment --body-file comment.md
+          gh pr review "$PR" --comment --body-file comment.md ||
+            echo '::warning title=AI security review::findings computed but the PR comment could not be posted'
 
       - name: Security gate
         if: steps.diff.outputs.reviewable == 'true' && steps.diff.outputs.gate == 'true'

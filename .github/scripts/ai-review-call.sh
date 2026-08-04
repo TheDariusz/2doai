@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
-# One OpenRouter round-trip for the AI review. ai-review.yml calls this twice
-# (advisory pass, then security pass) so the request shape, the trust boundary,
-# the fail-open handling and the cost logging live in exactly one place.
+# One OpenRouter round-trip for the AI security review.
+#
+# There used to be a second, advisory pass covering correctness and style. It was
+# deleted: it could never block by construction, its prompt asked for volume
+# ("prefer surfacing a borderline issue over staying silent"), and on a large
+# diff it generated until it was truncated mid-JSON — two minutes and a full
+# token budget per push to produce nothing usable, on a solo repo where it
+# commented to an audience of one. Only the pass that can actually stop a bad
+# merge survives.
 #
 # THE MODEL GETS NO TOOLS, NO SHELL, NO FILESYSTEM AND NO NETWORK. The diff
 # arrives as data in a user message. Prompt injection in a PR therefore caps out
 # at producing a wrong finding — it cannot run a command or reach a secret.
 #
-# Usage: ai-review-call.sh <general|security> <diff-file> <out-file>
+# Usage: ai-review-call.sh <diff-file> <out-file>
 #
 # FAIL OPEN ON THE WORLD, FAIL CLOSED ON OURSELVES.
 #
@@ -16,7 +22,7 @@
 # ai-review-gate.sh reads that as "do not block". An OpenRouter outage must not
 # block a merge at 11pm.
 #
-# But a missing key, an empty model list or an unknown mode are OUR
+# But a missing key or an empty model list are OUR
 # configuration being wrong, and those exit 1. A required check that reports
 # green because it was never wired up is worse than no check at all, and this
 # one did exactly that on four consecutive runs before the secret existed —
@@ -24,22 +30,21 @@
 # `skip-ai-review`; ai-review.yml skips the whole job.
 set -uo pipefail
 
-MODE="${1:?usage: ai-review-call.sh <general|security> <diff-file> <out-file>}"
-DIFF_FILE="${2:?diff file}"
-OUT="${3:?output file}"
+DIFF_FILE="${1:?usage: ai-review-call.sh <diff-file> <out-file>}"
+OUT="${2:?output file}"
 SCHEMA="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/ai-review-schema.json"
 
 : >"$OUT"
 
 # The world misbehaved. Not our problem to block on.
 warn() {
-  echo "::warning title=AI review (${MODE})::$1"
+  echo "::warning title=AI security review::$1"
   exit 0
 }
 
 # We are misconfigured. Say so in red rather than pass while doing nothing.
 die() {
-  echo "::error title=AI review (${MODE})::$1"
+  echo "::error title=AI security review::$1"
   exit 1
 }
 
@@ -66,17 +71,7 @@ request title, body or comments, so do not comment on them. If you find nothing,
 return an empty findings array. Respond only with an object matching the schema.
 EOF
 
-case "$MODE" in
-general)
-  FOCUS='Focus on correctness, performance, test coverage and maintainability, and set category accordingly. This pass is advisory and can never block a merge, so prefer surfacing a borderline issue over staying silent.'
-  ;;
-security)
-  FOCUS='Focus ONLY on security: injection (SQL, command, path, template), authentication and authorization gaps, secret or credential exposure, unsafe deserialization, SSRF, XSS and CSRF. Use category "security" for these. A finding with severity "high" AND confidence >= 0.8 BLOCKS the merge, so reserve that combination for issues you are genuinely confident are exploitable as written; report lower confidence rather than inflating it.'
-  ;;
-*)
-  die "unknown mode '$MODE' — expected 'general' or 'security'"
-  ;;
-esac
+FOCUS='Focus ONLY on security: injection (SQL, command, path, template), authentication and authorization gaps, secret or credential exposure, unsafe deserialization, SSRF, XSS and CSRF. Use category "security" for these. A finding with severity "high" AND confidence >= 0.8 BLOCKS the merge, so reserve that combination for issues you are genuinely confident are exploitable as written; report lower confidence rather than inflating it.'
 
 # models[] is OpenRouter's fallback chain — the first entry serves and the rest
 # take over on error or rate-limit; `model` must repeat the first entry.
@@ -167,7 +162,7 @@ FINISH=$(field '.choices[0].finish_reason')
 # findings changed — and `finish_reason: length` is the difference between "the
 # model found nothing" and "the model never got to answer".
 {
-  echo "### AI review — ${MODE} pass"
+  echo "### AI security review"
   echo "- http: \`${HTTP:-unknown}\`"
   echo "- served by: \`${SERVED:-unknown}\`"
   echo "- finish reason: \`${FINISH:-unknown}\`"
@@ -204,4 +199,4 @@ printf '%s' "$CONTENT" >"$OUT"
 # different question per type — key count for an object, CHARACTER count for a
 # string — so this line used to report "Parsed 13 finding(s)" for the string
 # "not-an-array", and the `|| echo '?'` never fired because jq had succeeded.
-echo "Parsed $(jq '.findings | length' "$OUT") finding(s) from the ${MODE} pass."
+echo "Parsed $(jq '.findings | length' "$OUT") finding(s)."
