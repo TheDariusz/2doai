@@ -41,6 +41,17 @@ GATING=$(jq -c '
 
 COUNT=$(jq 'length' <<<"$GATING" 2>/dev/null) || warn "could not evaluate findings — not gating"
 
+# The `|| warn` above cannot catch every malformed body: jq exits 0 on a
+# whitespace-only input (COUNT="") and on a multi-document stream, where it
+# prints one length per document (COUNT="0\n0"). Either value makes the
+# arithmetic test below fail, and without `set -e` that error falls straight
+# into the blocking branch — the gate would block a merge while reporting zero
+# findings, the one outcome this script promises cannot happen. A count that is
+# not a plain number means "unevaluable", which fails OPEN like everything else.
+case "$COUNT" in
+'' | *[!0-9]*) warn "findings count is not a number ('${COUNT//$'\n'/ }') — not gating" ;;
+esac
+
 if [ "$COUNT" -eq 0 ]; then
   echo "No high-confidence high-severity security findings. Gate passes."
   exit 0

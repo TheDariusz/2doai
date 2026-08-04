@@ -31,6 +31,13 @@ expect 0 style-only.json     "high + 0.95 but category style — severity alone 
 expect 0 empty.json          "no findings is the common case and must stay green"
 expect 0 malformed.json      "prose instead of JSON fails open, never closed"
 
+# Both of these once exited 1 with a COUNT that was not a number ("0\n0" and ""),
+# i.e. the gate blocked the merge while reporting zero findings. A required check
+# failing closed on a malformed model response is the one outcome this script
+# promises cannot happen, so both stay pinned.
+expect 0 multi-document.json "two concatenated JSON docs must fail open, not block on a non-numeric count"
+expect 0 whitespace.json     "a whitespace-only body is not a finding — must fail open"
+
 if [ "$fail" -eq 0 ]; then
   echo "All gate predicate cases passed."
 else

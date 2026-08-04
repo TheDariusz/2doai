@@ -38,7 +38,11 @@ jobs:
             exit 0
           fi
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then range="$BASE...HEAD"; else range="$BASE..HEAD"; fi
-          if git diff --name-only "$range" | grep -qE '^(frontend/|\.github/workflows/frontend\.yml$)'; then
+          # ASSIGN FIRST, then match — see the comment in backend.yml. Piping into
+          # the `if` condition would let a `git diff` fatal read as "nothing
+          # changed", skipping lint/test/build and the Trivy gate on a green check.
+          changed=$(git diff --name-only "$range")
+          if grep -qE '^(frontend/|\.github/workflows/frontend\.yml$)' <<<"$changed"; then
             echo "frontend=true" >> "$GITHUB_OUTPUT"
           else
             echo "frontend=false" >> "$GITHUB_OUTPUT"

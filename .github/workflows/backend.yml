@@ -44,7 +44,18 @@ jobs:
             exit 0
           fi
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then range="$BASE...HEAD"; else range="$BASE..HEAD"; fi
-          if git diff --name-only "$range" | grep -qE '^(backend/|\.github/workflows/backend\.yml$)'; then
+          # ASSIGN FIRST, then match. Piping `git diff` straight into the `if`
+          # condition makes the pipeline's status grep's alone (bash suspends -e
+          # inside a condition, and pipefail is off), so a `git diff` fatal — e.g.
+          # "no merge base" after a base-branch rebase, which the guard above does
+          # NOT catch because the commit itself resolves — would read as "nothing
+          # changed". Every step below is `if:`-gated on this output, so the job
+          # would skip the tests and both Trivy gates and still report green.
+          # As a plain assignment, the runner's `bash -e` aborts the step instead.
+          # Do NOT "fix" this with `set -o pipefail`: `grep -q` exits on first
+          # match and SIGPIPEs git, which turns a normal hit into exit 141.
+          changed=$(git diff --name-only "$range")
+          if grep -qE '^(backend/|\.github/workflows/backend\.yml$)' <<<"$changed"; then
             echo "backend=true" >> "$GITHUB_OUTPUT"
           else
             echo "backend=false" >> "$GITHUB_OUTPUT"
