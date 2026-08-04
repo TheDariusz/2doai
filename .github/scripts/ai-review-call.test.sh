@@ -140,6 +140,10 @@ assert_jq "the diff is wrapped in the <diff> trust boundary" \
 assert_jq "response_format still carries the committed schema" \
   "$(printf '.response_format.json_schema.schema == %s' "$(cat "$SCHEMA")")"
 assert_jq "structured output is strict" '.response_format.json_schema.strict == true'
+# Pins the fix for the run where reasoning ate the whole budget and both passes
+# returned finish_reason "length" with empty content, green and inert.
+assert_jq "reasoning is explicitly bounded" '.reasoning.effort == "low"'
+assert_jq "max_tokens leaves room for content after thinking" '.max_tokens >= 32000'
 assert_jq "a well-formed response is written through to the out file" '.findings == []' out.json
 
 echo "-- the run summary still explains a response it could not parse --"

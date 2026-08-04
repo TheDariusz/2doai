@@ -100,7 +100,20 @@ jq -n \
      models: $models,
      temperature: 0,
      seed: 7,
-     max_tokens: 8000,
+     # REASONING SHARES THIS BUDGET. OpenRouter: "max_tokens must be strictly
+     # higher than the reasoning budget to ensure there are tokens available for
+     # the final response after thinking." At 8000 with an unbounded default,
+     # a reasoning model spent the entire allowance thinking about a 1370-line
+     # diff and returned finish_reason "length" with EMPTY content — both passes,
+     # every run, failing open. The gate was green and inert.
+     #
+     # So: bound the thinking explicitly and leave generous room after it.
+     # `effort` rather than a token count because it is the portable form across
+     # the fallback chain; OpenRouter maps it to each provider's own budget.
+     # This is a CEILING, not a spend — a typical small diff costs a fraction.
+     # If findings ever read thin, `effort` is the knob to turn up first.
+     max_tokens: 32000,
+     reasoning: { effort: "low" },
      usage: { include: true },
      provider: {
        # Without require_parameters a provider may silently ignore
