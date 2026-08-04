@@ -23,9 +23,19 @@ jobs:
     name: backend quality
     runs-on: ubuntu-latest
     # Own group so a PR run never queues behind (or cancels) a master deploy.
+    #
+    # CANCEL ON PRs, NEVER ON MASTER. Every master push shares the one group
+    # `backend-quality-refs/heads/master`, and since the trigger-level `paths:`
+    # filter is gone, an unrelated push (docs-only, frontend-only) now starts
+    # this job too. With unconditional cancellation it would kill an in-flight
+    # backend run, taking that run's deploy with it via `needs:` — while its own
+    # `changes` step, which diffs only `before..HEAD`, cannot see the cancelled
+    # push's backend files and so reports `backend=false`. Net: a backend change
+    # sits on master undeployed, one run cancelled, one green, nothing red.
+    # On master the runs serialize instead; `deploy` has its own group anyway.
     concurrency:
       group: backend-quality-${{ github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
     outputs:
       backend: ${{ steps.changes.outputs.backend }}
     steps:

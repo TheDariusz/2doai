@@ -17,9 +17,11 @@ jobs:
     name: frontend quality
     runs-on: ubuntu-latest
     # Own group so a PR run never queues behind (or cancels) a master deploy.
+    # Cancel on PRs, never on master — see the comment in backend.yml for the
+    # sequence where a later unrelated push drops an earlier push's deploy.
     concurrency:
       group: frontend-quality-${{ github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
     outputs:
       frontend: ${{ steps.changes.outputs.frontend }}
     steps:
