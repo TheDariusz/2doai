@@ -73,8 +73,10 @@ jobs:
 
       - name: Advisory review
         if: steps.diff.outputs.reviewable == 'true'
-        # Belt and braces: the script already exits 0 on every failure path, and
-        # this pass must never be able to fail the check regardless.
+        # This pass is advisory and must never fail the check. The script exits 0
+        # on every model/network failure by design, but it exits 1 on a
+        # configuration bug (missing key, empty AI_MODELS) — and one red is
+        # enough, so let the security pass below be the one that reports it.
         continue-on-error: true
         env:
           OPENROUTER_CI_KEY: ${{ secrets.OPENROUTER_CI_KEY }}

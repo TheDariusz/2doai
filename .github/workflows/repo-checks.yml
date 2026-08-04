@@ -26,6 +26,12 @@ jobs:
       - name: AI review gate predicate
         run: .github/scripts/ai-review-gate.test.sh
 
+      # Pins the fail-open/fail-closed split in the call script: an outage must
+      # not block a merge, but a missing key must not report green either. Both
+      # directions regress silently, and `curl` is shimmed so this needs no key.
+      - name: AI review call script
+        run: .github/scripts/ai-review-call.test.sh
+
       - name: fly.toml declares [[vm]] memory
         # infrastructure.md:87 — always declare `[[vm]] memory`; never rely solely
         # on `fly scale memory`, which a redeploy silently reverts.

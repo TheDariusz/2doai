@@ -9,9 +9,19 @@
 #
 # Usage: ai-review-call.sh <general|security> <diff-file> <out-file>
 #
-# ALWAYS EXITS 0. On success it writes {"findings":[...]} to <out-file>; on any
-# failure it leaves that file empty and warns. ai-review-gate.sh decides what an
-# empty file means — which is "do not block".
+# FAIL OPEN ON THE WORLD, FAIL CLOSED ON OURSELVES.
+#
+# Anything the model or the network gets wrong — 429, 5xx, timeout, prose
+# instead of JSON, empty body — warns and exits 0, leaving <out-file> empty;
+# ai-review-gate.sh reads that as "do not block". An OpenRouter outage must not
+# block a merge at 11pm.
+#
+# But a missing key, an empty model list or an unknown mode are OUR
+# configuration being wrong, and those exit 1. A required check that reports
+# green because it was never wired up is worse than no check at all, and this
+# one did exactly that on four consecutive runs before the secret existed —
+# green every time, having reviewed nothing. To bypass on purpose, label the PR
+# `skip-ai-review`; ai-review.yml skips the whole job.
 set -uo pipefail
 
 MODE="${1:?usage: ai-review-call.sh <general|security> <diff-file> <out-file>}"
@@ -21,12 +31,20 @@ SCHEMA="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/ai-review-schema.json"
 
 : >"$OUT"
 
+# The world misbehaved. Not our problem to block on.
 warn() {
   echo "::warning title=AI review (${MODE})::$1"
   exit 0
 }
 
-[ -n "${OPENROUTER_CI_KEY:-}" ] || warn "OPENROUTER_CI_KEY is unset — review skipped"
+# We are misconfigured. Say so in red rather than pass while doing nothing.
+die() {
+  echo "::error title=AI review (${MODE})::$1"
+  exit 1
+}
+
+[ -n "${OPENROUTER_CI_KEY:-}" ] ||
+  die "OPENROUTER_CI_KEY is unset — a configuration bug, not an outage. Set the secret, or label the PR 'skip-ai-review' to bypass deliberately."
 [ -s "$DIFF_FILE" ] || warn "diff is empty — nothing to review"
 
 # The trust boundary is shared by both passes on purpose: stated once, it cannot
@@ -56,14 +74,19 @@ security)
   FOCUS='Focus ONLY on security: injection (SQL, command, path, template), authentication and authorization gaps, secret or credential exposure, unsafe deserialization, SSRF, XSS and CSRF. Use category "security" for these. A finding with severity "high" AND confidence >= 0.8 BLOCKS the merge, so reserve that combination for issues you are genuinely confident are exploitable as written; report lower confidence rather than inflating it.'
   ;;
 *)
-  warn "unknown mode '$MODE'"
+  die "unknown mode '$MODE' — expected 'general' or 'security'"
   ;;
 esac
 
 # models[] is OpenRouter's fallback chain — the first entry serves and the rest
 # take over on error or rate-limit; `model` must repeat the first entry.
-IFS=',' read -r -a MODELS <<<"$(tr -d '[:space:]' <<<"$AI_MODELS")"
-[ "${#MODELS[@]}" -gt 0 ] || warn "AI_MODELS is empty"
+# `${AI_MODELS:-}` because this is the one variable with no default: unset, it
+# would trip `set -u` and abort with a bare "unbound variable" on stderr, where
+# no ::error annotation reaches the run summary. Let it read as empty and take
+# the same path as empty, which is a configuration bug either way.
+IFS=',' read -r -a MODELS <<<"$(tr -d '[:space:]' <<<"${AI_MODELS:-}")"
+[ "${#MODELS[@]}" -gt 0 ] ||
+  die "AI_MODELS is unset or empty — a configuration bug; ai-review.yml sets it with a literal fallback"
 
 # Body goes to a file, not argv: a large diff would otherwise risk ARG_MAX.
 jq -n \
