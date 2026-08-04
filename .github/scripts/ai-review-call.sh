@@ -119,29 +119,72 @@ jq -n \
      ]
    }' >request.json || warn "could not build the request body"
 
+# `-w '\n%{http_code}'` because without it there is no status anywhere: a 502
+# gateway page, a 403 HTML error or a proxy error all exit 0 and flow on looking
+# like a completion, then collapse into one misleading "empty body" warning.
 RESP=$(curl -sS --max-time 300 \
   -H "Authorization: Bearer ${OPENROUTER_CI_KEY}" \
   -H 'Content-Type: application/json' \
   -d @request.json \
+  -w '\n%{http_code}' \
   https://openrouter.ai/api/v1/chat/completions) ||
   warn "OpenRouter request failed (network or timeout) — not gating"
 
-# WHICH model served and WHAT it cost. Without this a fallback silently swaps the
-# reviewer mid-gate and there is no way to explain why findings changed.
+# The status is the last line; the body is everything before it. Bodies contain
+# newlines, so both strips anchor on the LAST one.
+HTTP="${RESP##*$'\n'}"
+RESP="${RESP%$'\n'*}"
+
+# jq exits 5 with EMPTY stdout on a body it cannot parse, so an in-filter
+# `// "unknown"` never runs — the fallback has to be on the shell side, or the
+# one log designed to survive a bad response is the only thing that doesn't.
+field() { # <jq-path> -> value, or empty
+  jq -r "$1 // empty" <<<"$RESP" 2>/dev/null || true
+}
+SERVED=$(field '.model')
+COST=$(field '.usage.cost')
+FINISH=$(field '.choices[0].finish_reason')
+
+# WHICH model served, WHY it stopped and WHAT it cost. Without this a fallback
+# silently swaps the reviewer mid-gate and there is no way to explain why
+# findings changed — and `finish_reason: length` is the difference between "the
+# model found nothing" and "the model never got to answer".
 {
   echo "### AI review — ${MODE} pass"
-  echo "- served by: \`$(jq -r '.model // "unknown"' <<<"$RESP" 2>/dev/null)\`"
-  echo "- cost: \$$(jq -r '.usage.cost // "unknown"' <<<"$RESP" 2>/dev/null)"
+  echo "- http: \`${HTTP:-unknown}\`"
+  echo "- served by: \`${SERVED:-unknown}\`"
+  echo "- finish reason: \`${FINISH:-unknown}\`"
+  echo "- cost: \$${COST:-unknown}"
 } >>"${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 
-ERR=$(jq -r '.error.message // empty' <<<"$RESP" 2>/dev/null)
+case "$HTTP" in
+2*) ;;
+*) warn "OpenRouter returned HTTP ${HTTP:-?} — not gating (body: $(head -c 200 <<<"$RESP" | tr -d '\n'))" ;;
+esac
+
+ERR=$(field '.error.message')
 [ -z "$ERR" ] || warn "OpenRouter returned an error: ${ERR} — not gating"
 
-CONTENT=$(jq -r '.choices[0].message.content // empty' <<<"$RESP" 2>/dev/null)
-[ -n "$CONTENT" ] || warn "empty response body — not gating"
+CONTENT=$(field '.choices[0].message.content')
+[ -n "$CONTENT" ] ||
+  warn "no content in the response (finish_reason: ${FINISH:-unknown}) — not gating. 'length' here means max_tokens was exhausted, reasoning tokens included."
 
-jq -e 'type == "object"' >/dev/null 2>&1 <<<"$CONTENT" ||
-  warn "model returned something other than a JSON object — not gating"
+# REQUIRE THE SHAPE THE SCHEMA PROMISES, not merely "some JSON object".
+# `type == "object"` passed three bodies that are not reviews: `{"summary":"ok"}`
+# (no findings key), `{"findings":"..."}` (a string), and a multi-document stream,
+# where jq prints `true` once per document and still exits 0. All three reached
+# ai-review-gate.sh, whose `.findings[]?` swallows the mismatch and reports a
+# clean review — so a response containing a real high-severity finding could be
+# dropped while the gate printed "Gate passes".
+#
+# `-s` slurps every document into one array, so `length == 1` is what rejects the
+# multi-document case; the gate's own numeric guard is the backstop, not this.
+jq -e -s 'length == 1 and (.[0].findings | type) == "array"' >/dev/null 2>&1 <<<"$CONTENT" ||
+  warn "response is not a single {\"findings\": [...]} object — not gating"
 
 printf '%s' "$CONTENT" >"$OUT"
-echo "Parsed $(jq '.findings | length' "$OUT" 2>/dev/null || echo '?') finding(s) from the ${MODE} pass."
+# Honest now that `.findings` is guaranteed to be an array: `jq length` answers a
+# different question per type — key count for an object, CHARACTER count for a
+# string — so this line used to report "Parsed 13 finding(s)" for the string
+# "not-an-array", and the `|| echo '?'` never fired because jq had succeeded.
+echo "Parsed $(jq '.findings | length' "$OUT") finding(s) from the ${MODE} pass."
