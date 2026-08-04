@@ -23,6 +23,14 @@ jobs:
       # The AI review's gate predicate is the one piece of genuinely new logic
       # in this pipeline, and it runs in a job that only fires on PRs touching
       # code. Running its fixtures here keeps it from rotting unnoticed.
+      # Preinstalled on ubuntu-latest, so this costs a second. Earns its place:
+      # the jq request body is one long single-quoted string, and a stray
+      # apostrophe inside a comment in it closes the quote and mangles the
+      # request. shellcheck names that (SC1011) in one line; without it the
+      # symptom surfaces as an unrelated failure three steps later.
+      - name: Shell scripts lint
+        run: shellcheck .github/scripts/*.sh
+
       - name: AI review gate predicate
         run: .github/scripts/ai-review-gate.test.sh
 

@@ -109,9 +109,13 @@ jq -n \
      #
      # So: bound the thinking explicitly and leave generous room after it.
      # `effort` rather than a token count because it is the portable form across
-     # the fallback chain; OpenRouter maps it to each provider's own budget.
+     # the fallback chain, and OpenRouter maps it onto each provider budget.
      # This is a CEILING, not a spend — a typical small diff costs a fraction.
      # If findings ever read thin, `effort` is the knob to turn up first.
+     #
+     # NO APOSTROPHES ANYWHERE IN THIS jq PROGRAM, not even inside a comment.
+     # The whole program is one single-quoted shell string, so a stray
+     # apostrophe closes it early and mangles the request. `bash -n` catches it.
      max_tokens: 32000,
      reasoning: { effort: "low" },
      usage: { include: true },
