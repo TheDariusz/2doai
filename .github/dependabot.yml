@@ -6,10 +6,23 @@ version: 2
 # risk — pinned SHAs never receive security fixes on their own, but Dependabot
 # understands them and bumps the pin along with its version comment.
 #
-# Every ecosystem is grouped into a single PR. Grouping is what makes `weekly`
-# viable: the ceiling is 3 PRs/week rather than one per package.
+# Every ecosystem is grouped into a single PR, which is what makes `weekly`
+# viable: 3 VERSION-update PRs a week rather than one per package.
+#
+# THAT IS NOT A TOTAL. Grouping governs version updates only. Security updates
+# come from Dependabot alerts, and GitHub is explicit that they are separate:
+# "Dependabot will not group dependencies from different package ecosystems
+# together, and it will not group security updates with version updates", and
+# "there is no interaction between the settings specified in the dependabot.yml
+# file and Dependabot security alerts". They arrive one per advisory, whenever
+# an advisory lands, and nothing here throttles them — PRs #10/#11/#12 were
+# exactly that: three separate ungrouped npm PRs.
+#
+# Editing this file also triggers an immediate off-schedule run, so a change
+# here produces PRs now, not next week.
 updates:
-  # Looks inside .github/workflows/ itself, so "/" is correct — "/.github" is not.
+  # Looks inside .github/workflows/, AND a root action.yml if one ever exists,
+  # so "/" is correct. ("/.github" is not documented as valid.)
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
