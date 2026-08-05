@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from './App'
 import { AuthContext, type Auth } from './auth/auth-context'

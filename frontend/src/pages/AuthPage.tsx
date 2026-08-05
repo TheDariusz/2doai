@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useLocation, useNavigate, type Path } from 'react-router-dom'
+import { Link, useLocation, useNavigate, type Path } from 'react-router'
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/auth-context'
 

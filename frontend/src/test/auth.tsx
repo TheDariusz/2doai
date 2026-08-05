@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 import { vi } from 'vitest'
 import { AuthContext, type Auth } from '../auth/auth-context'
 
