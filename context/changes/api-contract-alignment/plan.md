@@ -307,27 +307,27 @@ ignores it behaves exactly as today. The frontend and backend can ship independe
 
 #### Automated
 
-- [x] 1.1 Backend suite passes: `mvn test`
-- [x] 1.2 Both contract tests pass by name
-- [x] 1.3 `openapi.yaml` still parses
-- [x] 1.4 The spec's eleven codes match the seed, in order
+- [x] 1.1 Backend suite passes: `mvn test` — 19e3034
+- [x] 1.2 Both contract tests pass by name — 19e3034
+- [x] 1.3 `openapi.yaml` still parses — 19e3034
+- [x] 1.4 The spec's eleven codes match the seed, in order — 19e3034
 
 #### Manual
 
-- [ ] 1.5 The new `auth-session-model.md` section reads as a decision record
-- [ ] 1.6 The DELETE 403 description is implementable without reading the Java
+- [x] 1.5 The new `auth-session-model.md` section reads as a decision record — 19e3034
+- [x] 1.6 The DELETE 403 description is implementable without reading the Java — 19e3034
 
 ### Phase 2: Frontend
 
 #### Automated
 
-- [ ] 2.1 Frontend tests pass: `npm test`
-- [ ] 2.2 Lint passes: `npm run lint`
-- [ ] 2.3 Typecheck + build pass: `npm run build`
-- [ ] 2.4 Full gate green: `/check`
+- [x] 2.1 Frontend tests pass: `npm test`
+- [x] 2.2 Lint passes: `npm run lint`
+- [x] 2.3 Typecheck + build pass: `npm run build`
+- [x] 2.4 Full gate green: `/check`
 
 #### Manual
 
-- [ ] 2.5 Wrong password shows "Nieprawidłowe hasło." and the session survives
-- [ ] 2.6 Correct password still deletes and routes to `/login`
-- [ ] 2.7 DevTools shows the URN on the 403 body
+- [x] 2.5 Wrong password shows "Nieprawidłowe hasło." and the session survives
+- [x] 2.6 Correct password still deletes and routes to `/login`
+- [x] 2.7 DevTools shows the URN on the 403 body
