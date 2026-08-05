@@ -2,7 +2,7 @@
 id: api-contract-alignment
 title: "Align openapi.yaml with the implementation — a `type` URN for the re-auth 403, the real 11 domain codes, the undocumented 503"
 linear_id: DEV-31
-status: implemented
+status: impl_reviewed
 created: 2026-08-05
 updated: 2026-08-05
 prd_refs:

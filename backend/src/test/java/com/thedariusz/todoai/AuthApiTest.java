@@ -175,6 +175,32 @@ class AuthApiTest extends ApiTestBase {
 				.body("type", not(equalTo("urn:2doai:problem:re-auth-failed")));
 	}
 
+	/**
+	 * The endpoint the discriminator exists for: {@code DELETE /api/users/me} is the only one that
+	 * can answer 403 for either cause. A CSRF denial here must not wear the re-auth URN, or the SPA
+	 * would tell a user their password was wrong when their token was simply stale.
+	 */
+	@Test
+	void deniesADeletionCarryingNoCsrfTokenWithoutTheReAuthProblemType() {
+		givenLoggedInUser();
+
+		client()
+				.body(Map.of("password", "correct-horse"))
+				.when()
+				.delete("/api/users/me")
+				.then()
+				.statusCode(403)
+				.contentType("application/problem+json")
+				.body("type", not(equalTo("urn:2doai:problem:re-auth-failed")));
+
+		// And nothing was deleted — the session still resolves.
+		client()
+				.when()
+				.get("/api/users/me")
+				.then()
+				.statusCode(200);
+	}
+
 	@Test
 	void deletesTheAccountInvalidatesTheSessionAndFreesTheEmail() {
 		String email = givenLoggedInUser();

@@ -188,8 +188,8 @@ context. The URN appears here as the canonical decided value.
 
 - Backend suite passes: `cd backend && mvn test`
 - The two contract tests pass by name: `mvn test -Dtest=AuthApiTest#rejectsDeletionWhenTheReAuthPasswordIsWrong+rejectsAnAuthenticatedMutationCarryingNoCsrfToken`
-- `openapi.yaml` still parses: `python3 -c "import yaml,sys; yaml.safe_load(open('context/changes/account-and-auth/openapi.yaml'))"`
-- The spec's eleven codes match the seed, in order: `diff <(grep -A12 'x-extensible-enum' context/changes/account-and-auth/openapi.yaml | grep -oE '[A-Z_]{3,}') <(grep -oE "'[A-Z_]{3,}'" backend/src/main/resources/db/migration/V2__seed_categories.sql | tr -d "'")`
+- `openapi.yaml` still parses: `ruby -ryaml -e "YAML.safe_load(File.read('context/changes/account-and-auth/openapi.yaml')); puts 'yaml OK'"` — was `python3 -c "import yaml…"`, but PyYAML is not installed on this machine; Ruby ships with Psych
+- The spec's eleven codes match the seed, in order: `diff <(grep -A11 'x-extensible-enum' context/changes/account-and-auth/openapi.yaml | grep -oE '[A-Z_]{3,}') <(grep -oE "'[A-Z_]{3,}'" backend/src/main/resources/db/migration/V2__seed_categories.sql | tr -d "'")` — `-A11`, not `-A12`: the twelfth line is `example: HEALTH` and reports a spurious twelfth code
 
 #### Manual Verification:
 

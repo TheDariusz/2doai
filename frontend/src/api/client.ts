@@ -50,8 +50,8 @@ export async function api<T = void>(
     // bootstrap 401 — so no cookie means that response has not landed yet.
     const token = csrfToken()
     if (!token) {
-      // Fail here rather than send a request the server is bound to reject: its 403 is
-      // indistinguishable from the 403 a wrong re-auth password produces. Status 0 marks a
+      // Fail here rather than spend a round-trip on a request the server is bound to reject —
+      // without a token there is nothing for the double-submit check to match. Status 0 marks a
       // failure that never reached the server; screens map it to their generic copy.
       throw new ApiError(0, 'No XSRF-TOKEN cookie — the priming response has not landed yet')
     }
