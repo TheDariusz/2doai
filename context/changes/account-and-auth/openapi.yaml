@@ -120,9 +120,19 @@ paths:
         '204':
           description: Account and all data deleted; session invalidated.
         '401':
-          $ref: '#/components/responses/Unauthorized'       # not logged in, or wrong password
+          $ref: '#/components/responses/Unauthorized'       # not logged in / session expired — never a wrong password
         '403':
-          $ref: '#/components/responses/Forbidden'          # missing / invalid CSRF token
+          description: >
+            Two distinct causes, told apart by the Problem `type` (never by parsing `detail`):
+            `urn:2doai:problem:re-auth-failed` means the confirmation password is wrong — the session
+            is intact and the user may retry; any other `type` (`about:blank`) is a missing or
+            invalid CSRF token, which a page reload fixes. A wrong password is deliberately NOT a
+            401: on an authenticated call every SPA reads 401 as "session expired" and would log the
+            user out over a typo.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
 
@@ -168,6 +178,8 @@ paths:
           $ref: '#/components/responses/Forbidden'          # missing / invalid CSRF token
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable' # login is the only operation that loads a user
 
   /sessions/current:
     delete:
@@ -305,18 +317,18 @@ components:
           type: string
           description: Language-neutral identity, mirrors the LifeDomain enum.
           # #112 open-ended enum so a 12th domain never breaks clients.
-          x-extensible-enum:
+          x-extensible-enum:                                # in display_order, mirroring V2__seed_categories.sql
             - HEALTH
-            - RELATIONSHIPS
-            - CAREER
             - FINANCE
-            - PERSONAL_GROWTH
-            - RECREATION
-            - SPIRITUALITY
+            - CAREER
+            - EDUCATION
+            - RELATIONSHIPS
             - HOME
-            - COMMUNITY
-            - CREATIVITY
-            - EMOTIONS
+            - LEISURE
+            - ADMIN
+            - SAFETY
+            - TRANSPORT
+            - INNER_GROWTH
           example: HEALTH
         name_pl:
           type: string
@@ -375,6 +387,16 @@ components:
             $ref: '#/components/schemas/Problem'
     UnprocessableEntity:
       description: The request was well-formed but failed validation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ServiceUnavailable:
+      description: >
+        Authentication could not be completed for an infrastructure reason (a connection-pool
+        timeout, a database cold start that overran) — deliberately NOT reported as 401, which would
+        tell every user their password is wrong during an outage. Retry; the credentials were never
+        judged.
       content:
         application/problem+json:
           schema:

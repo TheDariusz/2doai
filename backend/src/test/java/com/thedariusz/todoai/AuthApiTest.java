@@ -17,6 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -166,7 +167,12 @@ class AuthApiTest extends ApiTestBase {
 				.statusCode(403)
 				.contentType("application/problem+json")
 				.body("title", equalTo("Forbidden"))
-				.body("status", equalTo(403));
+				.body("status", equalTo(403))
+				// The negative half of the discriminator: a CSRF denial must never look like a
+				// mistyped re-auth password. Written as "not equal to" rather than "absent" because
+				// Spring emits about:blank for an unset type. (Literal, not a shared constant — an
+				// accidental rename of the URN must break this test.)
+				.body("type", not(equalTo("urn:2doai:problem:re-auth-failed")));
 	}
 
 	@Test
@@ -212,6 +218,8 @@ class AuthApiTest extends ApiTestBase {
 				.then()
 				.statusCode(403)
 				.contentType("application/problem+json")
+				.body("type", equalTo("urn:2doai:problem:re-auth-failed"))
+				.body("title", equalTo("Re-authentication failed"))
 				.body("detail", containsString("password"));
 
 		// And the session survives — the user is still logged in, free to retry.
