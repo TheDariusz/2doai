@@ -53,7 +53,7 @@ jobs:
       # context/foundation/ai-provider.md.
       AI_MODELS: ${{ vars.AI_REVIEW_MODELS || 'anthropic/claude-opus-5,anthropic/claude-sonnet-5,z-ai/glm-5.2' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # need the merge base to diff base...head
 
