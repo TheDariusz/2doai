@@ -1,4 +1,4 @@
-import { useOutletContext, useParams } from 'react-router-dom'
+import { useOutletContext, useParams } from 'react-router'
 import type { Domain } from '../layout/AppLayout'
 
 export function DomainPlaceholder() {

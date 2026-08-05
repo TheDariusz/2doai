@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet } from 'react-router'
 import { api } from '../api/client'
 import { AccountMenu } from '../auth/AccountMenu'
 
