@@ -38,6 +38,17 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+    ignore:
+      # TS 7 (the Go compiler) type-checks and builds this app fine, but
+      # typescript-eslint hard-`throw`s on import against it — it is a deliberate
+      # version guard, not a stale peer range, and no release or canary lifts it
+      # yet. Upstream is tracking support for TS >= 7.1
+      # (typescript-eslint/typescript-eslint#10940), so ignore only 7.0.x rather
+      # than blocking the major outright: when 7.1 lands Dependabot proposes it
+      # again and the gate tells us whether lint survived. No line to remember to
+      # delete.
+      - dependency-name: typescript
+        versions: ["7.0.x"]
 
   - package-ecosystem: maven
     directory: "/backend"
