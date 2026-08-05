@@ -321,13 +321,13 @@ ignores it behaves exactly as today. The frontend and backend can ship independe
 
 #### Automated
 
-- [x] 2.1 Frontend tests pass: `npm test`
-- [x] 2.2 Lint passes: `npm run lint`
-- [x] 2.3 Typecheck + build pass: `npm run build`
-- [x] 2.4 Full gate green: `/check`
+- [x] 2.1 Frontend tests pass: `npm test` — 3eb176e
+- [x] 2.2 Lint passes: `npm run lint` — 3eb176e
+- [x] 2.3 Typecheck + build pass: `npm run build` — 3eb176e
+- [x] 2.4 Full gate green: `/check` — 3eb176e
 
 #### Manual
 
-- [x] 2.5 Wrong password shows "Nieprawidłowe hasło." and the session survives
-- [x] 2.6 Correct password still deletes and routes to `/login`
-- [x] 2.7 DevTools shows the URN on the 403 body
+- [x] 2.5 Wrong password shows "Nieprawidłowe hasło." and the session survives — 3eb176e
+- [x] 2.6 Correct password still deletes and routes to `/login` — 3eb176e
+- [x] 2.7 DevTools shows the URN on the 403 body — 3eb176e
