@@ -1,0 +1,64 @@
+name: Dependabot auto-merge
+
+# Lets GREEN, non-major bumps of APPLICATION dependencies merge without a human.
+#
+# This lands with branch protection (runbook 5.1) rather than with dependabot.yml,
+# and the ordering is load-bearing: `gh pr merge --auto` only *queues* the merge
+# when required checks exist. Without branch protection it merges IMMEDIATELY,
+# turning "auto-merge when green" into "merge unreviewed, untested".
+on: pull_request
+
+permissions: {}
+
+jobs:
+  auto-merge:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    # Dependabot-triggered runs get a read-only GITHUB_TOKEN by default; this
+    # block is what elevates it enough to enable auto-merge.
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for patch/minor app dependencies
+        # Two independent conditions, both required:
+        #
+        #   1. Not a major. dependabot.yml groups each ecosystem into ONE PR, so a
+        #      single PR can carry patch, minor and major bumps together.
+        #      `update-type` is expected to report the HIGHEST bump across the
+        #      group, which makes this reject any group containing a major —
+        #      VERIFY THAT before trusting it (plan 4.11). The silent failure mode
+        #      is auto-merging a major.
+        #
+        #   2. Not the github-actions ecosystem. Action bumps change which code CI
+        #      itself executes, so auto-accepting an unreviewed SHA bump would
+        #      undercut the whole reason those actions are SHA-pinned. Review
+        #      those by hand. (fetch-metadata reports npm as `npm_and_yarn`.)
+        if: >-
+          (steps.meta.outputs.update-type == 'version-update:semver-patch'
+            || steps.meta.outputs.update-type == 'version-update:semver-minor')
+          && (steps.meta.outputs.package-ecosystem == 'npm_and_yarn'
+            || steps.meta.outputs.package-ecosystem == 'npm'
+            || steps.meta.outputs.package-ecosystem == 'maven')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"
+
+      - name: Explain a skip
+        if: >-
+          !((steps.meta.outputs.update-type == 'version-update:semver-patch'
+            || steps.meta.outputs.update-type == 'version-update:semver-minor')
+          && (steps.meta.outputs.package-ecosystem == 'npm_and_yarn'
+            || steps.meta.outputs.package-ecosystem == 'npm'
+            || steps.meta.outputs.package-ecosystem == 'maven'))
+        run: |
+          echo "Not auto-merging: ecosystem=${{ steps.meta.outputs.package-ecosystem }} update-type=${{ steps.meta.outputs.update-type }}" \
+            >>"$GITHUB_STEP_SUMMARY"
+          echo "Majors and github-actions bumps are merged by hand on purpose." >>"$GITHUB_STEP_SUMMARY"

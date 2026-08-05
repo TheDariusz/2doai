@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.0.6</version>
+		<version>4.0.7</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.thedariusz</groupId>
@@ -32,6 +32,13 @@
 		<!-- REST Assured is not managed by the Spring Boot 4 BOM. 6.x targets Hamcrest 3 / Groovy 4 /
 		     Java 17+ — aligned with Boot 4's stack (5.x is built for Hamcrest 2). -->
 		<rest-assured.version>6.0.1</rest-assured.version>
+		<!-- Patch-level overrides of BOM-managed versions, ahead of the Boot 4.0.x release that
+		     picks them up. Both clear fixable HIGH/CRITICAL findings that the CI Trivy gate fails
+		     on; drop each override once the Boot parent manages an equal-or-newer version.
+		     netty is compile-scope via spring-ai-starter-model-openai (the OpenRouter client),
+		     so these are reachable, not test-only. -->
+		<netty.version>4.2.16.Final</netty.version>
+		<postgresql.version>42.7.12</postgresql.version>
 	</properties>
 	<dependencyManagement>
 		<dependencies>

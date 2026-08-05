@@ -1,0 +1,170 @@
+name: Backend (quality + deploy to Fly.io)
+
+# NO trigger-level `paths:` filter. The quality job is a required status check on
+# master, and a required check that never runs pins the PR at "Expected — waiting
+# for status to be reported" forever. Path filtering therefore lives INSIDE the
+# jobs (the `changes` step below), which preserves today's "a frontend-only change
+# never redeploys the JVM" behaviour while still always reporting a result.
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    # Explicit name because frontend.yml has a job keyed `quality` too, and a
+    # required status check is matched by NAME, not by workflow. Two contexts
+    # both called `quality` let a green frontend run satisfy the requirement
+    # while the backend one is red. Renaming the key instead would churn the
+    # `needs:` references below; `name:` is what the check context reads from.
+    name: backend quality
+    runs-on: ubuntu-latest
+    # Own group so a PR run never queues behind (or cancels) a master deploy.
+    #
+    # CANCEL ON PRs, NEVER ON MASTER. Every master push shares the one group
+    # `backend-quality-refs/heads/master`, and since the trigger-level `paths:`
+    # filter is gone, an unrelated push (docs-only, frontend-only) now starts
+    # this job too. With unconditional cancellation it would kill an in-flight
+    # backend run, taking that run's deploy with it via `needs:` — while its own
+    # `changes` step, which diffs only `before..HEAD`, cannot see the cancelled
+    # push's backend files and so reports `backend=false`. Net: a backend change
+    # sits on master undeployed, one run cancelled, one green, nothing red.
+    # On master the runs serialize instead; `deploy` has its own group anyway.
+    concurrency:
+      group: backend-quality-${{ github.ref }}
+      cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # `changes` diffs against the base commit
+
+      - name: Detect backend changes
+        id: changes
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # No usable base (new branch, force-push, all-zeroes SHA) -> assume touched.
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then range="$BASE...HEAD"; else range="$BASE..HEAD"; fi
+          # ASSIGN FIRST, then match. Piping `git diff` straight into the `if`
+          # condition makes the pipeline's status grep's alone (bash suspends -e
+          # inside a condition, and pipefail is off), so a `git diff` fatal — e.g.
+          # "no merge base" after a base-branch rebase, which the guard above does
+          # NOT catch because the commit itself resolves — would read as "nothing
+          # changed". Every step below is `if:`-gated on this output, so the job
+          # would skip the tests and both Trivy gates and still report green.
+          # As a plain assignment, the runner's `bash -e` aborts the step instead.
+          # Do NOT "fix" this with `set -o pipefail`: `grep -q` exits on first
+          # match and SIGPIPEs git, which turns a normal hit into exit 141.
+          # `.trivyignore` is in the list because it is an input to the gate, not
+          # just config: a PR that only adds a suppression would otherwise set
+          # backend=false, skip every Trivy step, and merge a new exception
+          # without the gate ever running against it. That is the one change you
+          # most want re-scanned.
+          changed=$(git diff --name-only "$range")
+          if grep -qE '^(backend/|\.trivyignore$|\.github/workflows/backend\.yml$)' <<<"$changed"; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK 25
+        if: steps.changes.outputs.backend == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Test
+        if: steps.changes.outputs.backend == 'true'
+        working-directory: backend
+        # spring-boot-docker-compose is runtime-scoped, so it sits on the test
+        # classpath; set the skip explicitly rather than leaning on Boot's default.
+        run: mvn -B test -Dspring.docker.compose.skip.in-tests=true
+
+      # ORDERING IS LOAD-BEARING: Trivy re-implements Maven resolution and calls
+      # Maven Central live, which hard-FATALs with `429 Too Many Requests,
+      # Retry-After: 1800` on a cold ~/.m2 — it does not degrade to a partial
+      # result. Running after `mvn test` leaves the cache warm, so resolution is
+      # offline-clean (176 packages, ~2 s). Never move these above the Test step.
+      - name: Trivy — dependency report (informational)
+        if: steps.changes.outputs.backend == 'true'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: backend
+          scanners: vuln
+          trivyignores: .trivyignore
+          format: table
+          output: trivy-backend.txt
+          exit-code: '0'
+
+      - name: Publish backend dependency report
+        if: steps.changes.outputs.backend == 'true'
+        run: |
+          {
+            echo '## Backend dependencies (Trivy, all severities)'
+            echo '```'
+            cat trivy-backend.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload backend dependency report
+        if: steps.changes.outputs.backend == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-backend
+          path: trivy-backend.txt
+
+      # `skip-setup-trivy` reuses the binary and vulnerability DB the pass above
+      # already fetched, so this second pass costs no extra download.
+      - name: Trivy — dependency gate (fixable HIGH/CRITICAL)
+        if: steps.changes.outputs.backend == 'true'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: backend
+          scanners: vuln
+          trivyignores: .trivyignore
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          skip-setup-trivy: true
+
+  deploy:
+    needs: quality
+    if: github.event_name == 'push' && needs.quality.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-backend
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master @ 2026-08-03
+
+      - name: Record current image (for rollback)
+        # Fly has no one-shot rollback — log the live image so a bad deploy can be
+        # reverted with: fly deploy --image <recorded-image>
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          echo "Current image before deploy:"
+          flyctl status --json | jq -r '.ImageRef // "unknown"' || true
+
+      - name: Deploy
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --remote-only

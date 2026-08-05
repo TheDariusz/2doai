@@ -1,0 +1,29 @@
+{
+  /* The Cloudflare Pages `/api/*` reverse proxy. It ships with every Pages deploy
+     but belongs to neither of the other two projects: it needs Workers globals,
+     and pulling @cloudflare/workers-types into tsconfig.app.json breaks src/
+     (Workers' Response.json() returns {} where DOM's returns any). Hence: no DOM
+     lib, its own project, referenced from the solution root so `tsc -b` covers it. */
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.functions.tsbuildinfo",
+    "target": "es2023",
+    "lib": ["ES2023"],
+    "module": "esnext",
+    "types": ["@cloudflare/workers-types"],
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    /* Linting */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["functions"]
+}

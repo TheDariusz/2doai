@@ -74,8 +74,10 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 > jeszcze wywołań produkcyjnych (seamy podłączają S-03/S-04/S-09). S-01 zamknięty (PR #8, 2026-08-03):
 > backend oraz frontend (routing, klient API z CSRF, ekrany auth, powłoka z 11 domenami) na `master`;
 > PWA (S-10) nadal otwarte.
-> Testy biegają wyłącznie w workflow deploy (push na `master`) — brak CI na PR (chore `pr-branch-ci`
-> w Backlog Handoff).
+> ~~Testy biegają wyłącznie w workflow deploy (push na `master`) — brak CI na PR.~~ **Zaadresowane
+> (2026-08-03, chore `ci-pipeline`):** quality gate na każdym PR (backend `mvn test`, frontend
+> lint/test/build/typecheck), deploy bramkowany za `needs: quality`, skany Trivy (zależności +
+> sekrety), Dependabot i agentic AI code review przez OpenRouter.
 
 ## Foundations
 
@@ -252,7 +254,7 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 | S-08       | unified-three-layer-view   | Jednolity widok 3 warstw z filtrami                    | no                    | Czeka na S-02 + S-07. Fast-path: odroczone do po S-05. |
 | S-09       | ai-category-autotag        | Auto-tag kategorii przez AI przy tworzeniu             | no                    | F-02 done; czeka na S-02. Równoległe do pętli. |
 | S-10       | offline-read-only          | Offline read-only (PWA) dla 3 warstw                   | no                    | Czeka na S-02 + S-07. Fast-path: odroczone do po S-05. |
-| —          | pr-branch-ci               | Chore: CI na pull requestach (backend `mvn test` + frontend lint/test/build) | yes | Ops (2026-07-07): dziś testy biegają tylko w workflow deploy na `master`. Mały, niezależny od slice'ów. |
+| —          | ci-pipeline                | Chore: CI komplementarne do CD — quality gate na PR, skany Trivy, Dependabot, agentic AI code review | in progress | Ops (2026-07-07): testy biegały tylko w workflow deploy na `master`. Zakres wyrósł ponad pierwotne framing „tylko testy na PR" — stąd zmiana change-id na `ci-pipeline`. Mały, niezależny od slice'ów. Linear: DEV-25. |
 
 ## Open Roadmap Questions
 

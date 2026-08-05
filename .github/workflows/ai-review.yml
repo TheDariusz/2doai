@@ -1,0 +1,159 @@
+name: AI review
+
+# NO trigger-level `paths-ignore`. The security gate is a required status check
+# on master, and a required check whose workflow never runs pins the PR at
+# "Expected — waiting for status to be reported" forever. Doc-only filtering
+# therefore lives INSIDE the job (the `diff` step below), which still spends
+# nothing on `context/**` churn while always reporting a result. Same shape and
+# same reasoning as backend.yml.
+#
+# A job skipped by a job-level `if:` DOES report (as a green skip), which is why
+# the fork / Dependabot / label guards below are safe on a required check while
+# a trigger-level filter is not.
+on: pull_request
+
+permissions: {}
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    # Fork PRs receive no repository secrets, and Dependabot PRs read from a
+    # SEPARATE secrets store — in both cases OPENROUTER_CI_KEY would arrive as an
+    # empty string and the job would fail confusingly instead of skipping, while
+    # still burning two OpenRouter calls per dependency bump.
+    #
+    # DRAFT PRs ARE SKIPPED. `pull_request` fires on every push (`synchronize`),
+    # and this is the only paid step in the pipeline — iterating on a branch was
+    # buying a full review per push. Marking the PR ready (or opening it
+    # non-draft) runs it; pushing to a draft does not. Two other levers exist and
+    # are cheaper than editing this file: add the `skip-ai-review` label to pause
+    # it on an open PR, or push docs-only changes, which the `diff` step below
+    # already filters to `reviewable=false` without spending anything.
+    #
+    # This has to stay a JOB-LEVEL `if:`. Removing `synchronize` from the trigger
+    # instead would look equivalent and would pin every PR at "Expected — waiting
+    # for status to be reported" forever, because `ai-review` is a required check
+    # and a workflow that never runs never reports. A job skipped by `if:` still
+    # reports, as a green skip. Same reasoning as the fork and Dependabot guards.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+      && github.actor != 'dependabot[bot]'
+      && github.event.pull_request.draft == false
+      && !contains(github.event.pull_request.labels.*.name, 'skip-ai-review')
+    permissions:
+      contents: read
+      pull-requests: write
+    concurrency:
+      group: ai-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    env:
+      # vars.* resolves to an empty string rather than an error when unset, so
+      # the literal fallback is what keeps the job valid on a fresh clone.
+      # Verify a candidate supports structured outputs before adding it — see
+      # context/foundation/ai-provider.md.
+      AI_MODELS: ${{ vars.AI_REVIEW_MODELS || 'anthropic/claude-opus-5,anthropic/claude-sonnet-5,z-ai/glm-5.2' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need the merge base to diff base...head
+
+      - name: Collect reviewable diff
+        id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # Diff-only context: whole-repo context inflates both hallucination
+          # rate and cost. The pathspec is where doc filtering lives now.
+          #
+          # `.github` IS IN SCOPE, and is the reason to be careful about dropping
+          # it "to save tokens". It is the highest-privilege code in the repo —
+          # it holds FLY_API_TOKEN, CLOUDFLARE_API_TOKEN and OPENROUTER_CI_KEY,
+          # and it is where the findings this pass is actually good at live:
+          # GitHub expression interpolation into a `run:` block, a
+          # pull_request_target on an untrusted ref, over-broad `permissions:`.
+          # The repo went public on 2026-08-03, so a fork PR editing a workflow
+          # is a real path. While this pathspec read `backend frontend`, the
+          # pipeline reviewed everything except itself.
+          #
+          # Do not write a literal GitHub expression in this comment. Actions
+          # interpolates `run:` blocks before bash sees them, so even a commented
+          # one is parsed — an empty one fails the whole workflow to compile.
+          git diff --find-renames "$BASE...HEAD" -- backend frontend .github ':(exclude)**/*.md' >diff.txt
+
+          LINES=$(wc -l <diff.txt)
+          echo "lines=$LINES" >>"$GITHUB_OUTPUT"
+
+          if [ "$LINES" -eq 0 ]; then
+            echo "reviewable=false" >>"$GITHUB_OUTPUT"
+            echo 'No reviewable backend/frontend changes — AI review skipped, nothing spent.' >>"$GITHUB_STEP_SUMMARY"
+          else
+            echo "reviewable=true" >>"$GITHUB_OUTPUT"
+          fi
+
+          # Past ~1500 changed lines the model cannot hold the diff well enough
+          # for its verdict to carry a merge block; downgrade to advisory rather
+          # than gate on a review it could not actually perform.
+          if [ "$LINES" -gt 1500 ]; then
+            echo "gate=false" >>"$GITHUB_OUTPUT"
+            echo "::warning title=AI review::diff is ${LINES} lines (>1500) — security pass downgraded to advisory"
+          else
+            echo "gate=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      # ONE PASS ONLY. There was an advisory pass here covering correctness and
+      # style; it could never block, its prompt asked for volume, and on a large
+      # diff it ran two minutes and blew its token budget producing nothing
+      # usable. Deleting it halves the spend per push. See ai-review-call.sh.
+      - name: Security review
+        if: steps.diff.outputs.reviewable == 'true'
+        env:
+          OPENROUTER_CI_KEY: ${{ secrets.OPENROUTER_CI_KEY }}
+        run: .github/scripts/ai-review-call.sh diff.txt findings-security.json
+
+      # Posted with event COMMENT, never REQUEST_CHANGES: a bot REQUEST_CHANGES
+      # on a solo repo blocks your own merges until manually dismissed. The exit
+      # code of the gate step is the enforcement; this comment is just the message.
+      - name: Post findings
+        if: steps.diff.outputs.reviewable == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          file=findings-security.json
+          {
+            echo '## 🤖 AI security review'
+            echo
+            if [ ! -s "$file" ]; then
+              echo 'No result — the review failed open (see the run log).'
+            else
+              n=$(jq '.findings | length' "$file" 2>/dev/null || echo 0)
+              if [ "$n" -eq 0 ]; then
+                echo 'No findings.'
+              else
+                echo "${n} finding(s):"
+                echo
+                # `|| true` so one malformed finding cannot kill the whole block
+                # and take `gh pr review` below with it under `bash -e`.
+                #
+                # Single quotes are required, not accidental: `\(.file)` is jq
+                # interpolation and must reach jq untouched. SC2016 flags exactly
+                # that shape, so it is noise on this one line.
+                # shellcheck disable=SC2016
+                jq -r '.findings[]
+                  | "- `\(.file):\(.line)` — **\(.title)**  \n  _\(.severity) / \(.category) / confidence \(.confidence)_  \n  \(.why)"' "$file" || true
+              fi
+            fi
+            echo
+            # Backticks here are markdown code spans in the rendered comment, so
+            # single quotes are again required rather than incidental.
+            # shellcheck disable=SC2016
+            echo '<sub>Blocks only on severity `high` **and** category `security` **and** confidence ≥ 0.8. Everything else is advisory.</sub>'
+          } >comment.md
+
+          gh pr review "$PR" --comment --body-file comment.md ||
+            echo '::warning title=AI security review::findings computed but the PR comment could not be posted'
+
+      - name: Security gate
+        if: steps.diff.outputs.reviewable == 'true' && steps.diff.outputs.gate == 'true'
+        run: .github/scripts/ai-review-gate.sh findings-security.json

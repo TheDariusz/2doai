@@ -1010,30 +1010,120 @@ sequenceDiagram
 
 <section id="cicd">
   <h2>Delivery and operations <span class="badge badge-live">implemented</span></h2>
-  <p>Two independent, <strong>path-filtered</strong> GitHub Actions workflows trigger on push to
-  <code>master</code>—a frontend-only change never redeploys the JVM and vice versa.</p>
-  <div class="callout"><strong>Current validation boundary.</strong> There is no pull-request
-  validation workflow. Tests currently gate production deployment after merge rather than gate
-  merging, and changes under <code>docs/</code> are neither checked nor deployed by these
-  workflows.</div>
+  <p>Five GitHub Actions workflows across two triggers. The two deployment workflows stay
+  <strong>independent and path-filtered</strong>—a frontend-only change never redeploys the JVM and
+  vice versa—but each is now split into a <code>quality</code> job that runs on <em>both</em> pull
+  requests and <code>master</code> pushes, and a <code>deploy</code> job that declares
+  <code>needs: quality</code> and runs only on push.</p>
+  <div class="callout"><strong>Current validation boundary.</strong> Every pull request runs a
+  pull-request quality gate—backend tests, the frontend lint/test/build chain, repo-wide checks,
+  dependency and secret scanning, and an AI code review—and a deploy cannot start until that same
+  gate passes on the merge commit. Changes under <code>docs/</code> are validated by
+  <code>repo-checks.yml</code> but are not deployed by these workflows.</div>
+  <div class="callout"><strong>Why no workflow filters on <code>paths:</code>.</strong> A required
+  status check whose workflow is filtered out never reports, so the pull request sits at
+  <em>“Expected — waiting for status to be reported”</em> forever. Every workflow here therefore
+  filters by path <em>inside</em> the job and always reports a result. Re-adding a trigger-level
+  <code>paths:</code> or <code>paths-ignore:</code> to any required check silently converts “skip
+  this PR” into “block this PR permanently”—a human can force-merge past it, but Dependabot
+  cannot.</div>
   <pre class="mermaid">
-flowchart LR
-  P[push to master] --> F{path filter}
-  F -- "backend/**" --> B1[JDK 25 temurin&lt;br/&gt;mvn -B test] --> B2[record live image ref&lt;br/&gt;for rollback] --> B3[flyctl deploy --remote-only] --> FLY[Fly.io machine]
-  F -- "frontend/**" --> W1[Node 22: npm ci,&lt;br/&gt;lint, test, build] --> W2[wrangler pages deploy dist&lt;br/&gt;project: 2doai-web] --> CFP[Cloudflare Pages]
+flowchart TB
+  PR[pull request] --> Q{path filter&lt;br/&gt;inside each job}
+  PUSH[push to master] --> Q
+  Q -- "backend/**" --> B1[JDK 25 temurin&lt;br/&gt;mvn -B test]
+  B1 --> BT[Trivy fs: report + gate&lt;br/&gt;needs a warm ~/.m2]
+  Q -- "frontend/**" --> W1[Node 22: npm ci,&lt;br/&gt;lint, test, build]
+  W1 --> WT[Trivy fs: report incl. dev deps,&lt;br/&gt;gate on prod deps only]
+  PR --> RC[repo-checks: docs test, fly.toml memory,&lt;br/&gt;secret scan, gate-predicate test]
+  PR --> AI[ai-review: advisory pass&lt;br/&gt;+ blocking security pass]
+  BT -- "push only" --> B2[record live image ref&lt;br/&gt;for rollback] --> B3[flyctl deploy --remote-only] --> FLY[Fly.io machine]
+  WT -- "push only" --> W2[wrangler pages deploy dist&lt;br/&gt;project: 2doai-web] --> CFP[Cloudflare Pages]
   FLY -. Flyway migrates on boot .-> PG[(Neon PostgreSQL 18)]
   </pre>
-  <h3><a href="../.github/workflows/deploy-backend.yml"><code>deploy-backend.yml</code></a></h3>
+  <h3><a href="../.github/workflows/backend.yml"><code>backend.yml</code></a></h3>
   <ul>
-    <li>Tests gate the deploy: <code>mvn -B test</code> must pass first.</li>
-    <li><code>concurrency: deploy-backend, cancel-in-progress: false</code>—deploys queue and do not cancel mid-flight.</li>
+    <li>Two jobs: <code>quality</code> runs <code>mvn -B test</code> on pull requests and on <code>master</code>; <code>deploy</code> declares <code>needs: quality</code> and runs only on push.</li>
+    <li>No trigger-level <code>paths:</code> filter—a required check that never runs blocks the pull request forever, so path filtering moved into the job.</li>
+    <li><code>concurrency: deploy-backend, cancel-in-progress: false</code> on the deploy job—deploys queue and do not cancel mid-flight. The quality job has its own per-ref group so pull requests never queue behind a deploy.</li>
     <li>The workflow records the live Fly image before deploying. Rollback uses <code>fly deploy --image &lt;recorded-image&gt;</code>; expand-only migrations keep the older image compatible.</li>
+    <li><strong>Trivy runs after <code>mvn -B test</code>, in the same job—this ordering is a correctness constraint, not a preference.</strong> Trivy re-implements Maven resolution and calls Maven Central live; against a cold <code>~/.m2</code> it hard-fails with <code>429 Too Many Requests, Retry-After: 1800</code> rather than degrading to a partial result. Running after the test suite leaves the cache warm, so resolution is offline-clean.</li>
   </ul>
-  <h3><a href="../.github/workflows/deploy-frontend.yml"><code>deploy-frontend.yml</code></a></h3>
+  <h3><a href="../.github/workflows/frontend.yml"><code>frontend.yml</code></a></h3>
   <ul>
-    <li>Gate: <code>npm ci &amp;&amp; npm run lint &amp;&amp; npm test &amp;&amp; npm run build</code>.</li>
+    <li>Same split. Gate: <code>npm ci &amp;&amp; npm run lint &amp;&amp; npm test &amp;&amp; npm run build</code>. The build <em>is</em> the typecheck—<code>npm run build</code> is <code>tsc -b &amp;&amp; vite build</code>, and <code>tsconfig.functions.json</code> pulls the Cloudflare Pages <code>/api/*</code> proxy into that compile.</li>
     <li><code>cancel-in-progress: true</code>—only the newest frontend deploy matters.</li>
     <li>Publishes <code>frontend/dist</code> to Cloudflare Pages.</li>
+    <li>Trivy reads <code>package-lock.json</code> directly; no <code>npm install</code> is needed for the scan.</li>
+  </ul>
+  <h3>Dependency scanning: report loudly, gate narrowly</h3>
+  <p>Both quality jobs run Trivy <strong>twice</strong>. The first pass is informational
+  (<code>exit-code: 0</code>): it renders a full table into <code>$GITHUB_STEP_SUMMARY</code> and
+  uploads it as an artifact. The second reuses the first pass's binary and vulnerability database
+  (<code>skip-setup-trivy: true</code>, so no second download) and is the one that can fail the
+  build—restricted to <code>severity: HIGH,CRITICAL</code> with <code>ignore-unfixed: true</code>,
+  because a finding with no available fix is noise a contributor cannot act on.</p>
+  <p>On the frontend the two passes deliberately see <em>different</em> dependency sets: the report
+  includes <code>devDependencies</code> so build-time supply-chain risk stays visible, while the gate
+  scans production dependencies only. A vulnerable test runner should be known about; it should not
+  block a merge.</p>
+  <div class="callout"><strong>Config file, not an environment variable.</strong> Including dev
+  dependencies requires <a href="../.github/trivy-report.yaml"><code>.github/trivy-report.yaml</code></a>:
+  <code>trivy-action</code> exposes no matching input, and <code>TRIVY_INCLUDE_DEV_DEPS</code> is
+  <em>silently ignored</em>—it reports 7 packages with the variable set and 272 with the real flag. A
+  silently-ignored setting is worse than none, because the report looks like it covers dev
+  dependencies when it does not.</div>
+  <h3><a href="../.github/workflows/repo-checks.yml"><code>repo-checks.yml</code></a></h3>
+  <ul>
+    <li>Checks belonging to neither side: the <code>docs/index.html</code> link and anchor test, and an assertion that <code>backend/fly.toml</code> still declares <code>memory</code> under <code>[[vm]]</code>.</li>
+    <li><strong>Repo-wide secret scanning</strong> via <code>trivy fs --scanners secret</code>. No longer the <em>only</em> secret detection here: the repository went public on 2026-08-03, which made GitHub's own secret scanning and push protection free, and both are now enabled. They are complementary—GitHub's is preventive but limited to known provider patterns, Trivy's is post-hoc but matches more shapes.</li>
+    <li>The secret scan sets <code>TRIVY_OFFLINE_SCAN=true</code>: a secret-only scan still runs the POM analyzer, and unlike the backend job there is no warm <code>~/.m2</code> here to save it from the same 429.</li>
+    <li>Runs the AI review's gate-predicate fixtures, so the one piece of genuinely new logic cannot rot unnoticed in a workflow that only fires on code changes.</li>
+    <li>Unfiltered by design—everything here runs in seconds.</li>
+  </ul>
+  <h3><a href="../.github/workflows/ai-review.yml"><code>ai-review.yml</code></a></h3>
+  <p>A hand-rolled <code>diff → OpenRouter → strict JSON schema → gate</code> job, deliberately not
+  an off-the-shelf reviewer. <strong>The model receives the diff as data and is given no tools, no
+  shell, no filesystem and no network</strong>, so prompt injection inside a pull request caps out at
+  producing a wrong finding rather than running a command. The system prompt declares everything
+  between <code>&lt;diff&gt;</code> and <code>&lt;/diff&gt;</code> untrusted third-party data whose
+  instructions must never be followed—the same render-boundary discipline the project already
+  requires for stored content reaching an LLM.</p>
+  <ul>
+    <li>Two passes. The <strong>advisory</strong> pass covers correctness, performance, tests and maintainability and can never fail the check. The <strong>security</strong> pass is the only one that may exit non-zero.</li>
+    <li>The gate needs <em>two independent keys</em>, because severity alone costs a model nothing to inflate: it blocks only on <code>category == "security"</code> <strong>and</strong> <code>severity == "high"</code> <strong>and</strong> <code>confidence &gt;= 0.8</code>.</li>
+    <li><strong>Fails open on everything else.</strong> A 429, a 5xx, a timeout, malformed JSON, an empty body or a missing key logs a warning and exits 0. An OpenRouter outage must not block a merge at 11pm; only a successfully parsed finding may.</li>
+    <li>Findings post through the reviews API with <code>event: COMMENT</code>, never <code>REQUEST_CHANGES</code>—on a solo repository a bot requesting changes blocks your own merges until manually dismissed. The exit code is the enforcement; the comment is only the message.</li>
+    <li>Guarded against fork pull requests (no secrets), Dependabot (separate secrets store), and a <code>skip-ai-review</code> label. Diffs over ~1500 lines downgrade to advisory rather than gate on a review the model cannot hold.</li>
+    <li>Model choice is one repository variable, <code>AI_REVIEW_MODELS</code>, with a literal fallback—changing reviewer needs no commit. Both passes log the serving model and cost to the step summary, so a silent provider fallback cannot swap the reviewer unnoticed.</li>
+  </ul>
+  <p class="note">The workflow is inert until the <code>OPENROUTER_CI_KEY</code> secret exists: both
+  passes warn <em>“review skipped”</em> and the check goes green. Setup and model-swap rules live in
+  <a href="../context/foundation/ai-provider.md"><code>ai-provider.md</code></a>.</p>
+  <h3>Supply-chain hygiene</h3>
+  <p>Every third-party action is pinned to a <strong>full 40-character commit SHA</strong>, with the
+  human-readable tag as a trailing comment. This is not generic hygiene—it is the documented
+  remediation for a real incident: in March 2026, 76 of 77 <code>trivy-action</code> tags were
+  force-pushed to credential-stealing commits, and a tag is a mutable pointer that can be moved
+  under you.</p>
+  <p>Pinning trades a tag-hijack risk for a staleness risk, since an immutable SHA never receives
+  security fixes either. <a href="../.github/dependabot.yml"><code>dependabot.yml</code></a> is the
+  counterweight: it understands SHA pins and bumps them together with their version comment. Its
+  three ecosystems—<code>github-actions</code> at the repository root, <code>npm</code> under
+  <code>/frontend</code>, <code>maven</code> under <code>/backend</code>—are each grouped into a
+  single weekly pull request, capping the noise at three per week. Trivy and Dependabot are
+  complementary rather than redundant: Trivy detects and fails the merge, Dependabot opens the pull
+  request that fixes.</p>
+  <p>Findings that are genuinely unfixable or unreachable go in
+  <a href="../.trivyignore"><code>.trivyignore</code></a>, and <strong>every entry carries an
+  expiry</strong> (<code>exp:YYYY-MM-DD</code>). Once the date passes Trivy stops honouring the line
+  and the gate goes red again, which forces a re-decision instead of letting a stale exception live
+  forever.</p>
+  <h3><a href="../.github/workflows/dependabot-auto-merge.yml"><code>dependabot-auto-merge.yml</code></a></h3>
+  <ul>
+    <li>Enables <code>gh pr merge --auto --squash</code> for <strong>patch and minor</strong> bumps of <strong>npm and maven</strong> dependencies only, expressed as an allow-list so anything unanticipated is excluded by construction.</li>
+    <li><code>github-actions</code> bumps are deliberately excluded: they change which code CI itself executes, and auto-accepting an unreviewed SHA bump would undercut the whole reason those actions are pinned.</li>
+    <li>Ordering matters—<code>--auto</code> only <em>queues</em> the merge when required checks exist. Without branch protection it merges immediately, turning “auto-merge when green” into “merge unreviewed”.</li>
   </ul>
   <div class="table-wrap">
     <table>
@@ -1045,10 +1135,46 @@ flowchart LR
         <tr><th scope="row">Fly.io</th><td>Backend host (single machine)</td><td><code>FLY_API_TOKEN</code>; database credentials via <code>SPRING_DATASOURCE_*</code> Fly secrets</td></tr>
         <tr><th scope="row">Cloudflare Pages</th><td>Frontend host and <code>/api/*</code> reverse proxy</td><td><code>CLOUDFLARE_API_TOKEN</code>, <code>CLOUDFLARE_ACCOUNT_ID</code></td></tr>
         <tr><th scope="row">Neon</th><td>Managed PostgreSQL 18 (EU/Frankfurt), pooled SSL connection, autosuspend</td><td>Consumed by the backend only</td></tr>
-        <tr><th scope="row">GitHub Actions</th><td>Post-merge validation and deployment runner</td><td>Path-filtered workflow files</td></tr>
+        <tr><th scope="row">GitHub Actions</th><td>Pull-request validation and deployment runner</td><td>Five workflows; path filtering lives inside the jobs, never on the trigger</td></tr>
+        <tr><th scope="row">OpenRouter (CI)</th><td>Model gateway for the AI code review</td><td><code>OPENROUTER_CI_KEY</code>—a <em>separate</em>, credit-capped key; the application's <code>OPENROUTER_API_KEY</code> stays a Fly secret and never enters GitHub</td></tr>
       </tbody>
     </table>
   </div>
+  <h3>Enforcement <span class="badge badge-live">implemented</span></h3>
+  <p>Every gate above is decoration until <code>master</code> requires it. Branch protection has
+  required all four checks below since 2026-08-03—each safe to require precisely because none of
+  their workflows filters on <code>paths:</code>:</p>
+  <div class="callout"><strong>Enforcing this required making the repository public.</strong>
+  Branch protection is itself a paid feature on private repositories: the API answered
+  <code>403 Upgrade to GitHub Pro or make this repository public</code>, which meant every gate on
+  this page was unenforceable. Going public was chosen over GitHub Pro and gated on a clean audit
+  of the entire commit history. It also made Code Scanning and GitHub secret scanning free.</div>
+  <div class="table-wrap">
+    <table>
+      <caption>Required status checks on <code>master</code></caption>
+      <thead>
+        <tr><th scope="col">Check</th><th scope="col">Workflow</th><th scope="col">Blocks on</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row"><code>backend quality</code></th><td><code>backend.yml</code></td><td>Test failure, or a fixable HIGH/CRITICAL backend dependency</td></tr>
+        <tr><th scope="row"><code>frontend quality</code></th><td><code>frontend.yml</code></td><td>Lint, test, typecheck or build failure, or a fixable HIGH/CRITICAL production dependency</td></tr>
+        <tr><th scope="row"><code>checks</code></th><td><code>repo-checks.yml</code></td><td>Docs link rot, a missing <code>[[vm]] memory</code> declaration, a detected secret, or a gate-predicate regression</td></tr>
+        <tr><th scope="row"><code>ai-review</code></th><td><code>ai-review.yml</code></td><td>A high-confidence, high-severity security finding only—never the advisory pass</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Both quality jobs originally carried the job key <code>quality</code>, so both
+  emitted a status context of that one name. Required checks are matched by <em>name</em>, not by
+  workflow, so a green frontend run could satisfy the rule while the backend one was red; each job
+  now sets an explicit <code>name:</code>. The inverse also bites—renaming a required job without
+  updating the protection rule leaves the pull request waiting forever on a context that no longer
+  reports.</p>
+  <p class="note">Branch protection, the <code>OPENROUTER_CI_KEY</code> secret and the Dependabot
+  alert toggles are repository settings rather than code, so they live outside this repository. All
+  three were configured on 2026-08-03 and are recorded in
+  <a href="../context/foundation/deployment-runbook.md">the runbook</a>, sections 5.1 and 5.2.
+  Enabling Dependabot alerts surfaced 17 pre-existing npm advisories on the first scan. SARIF upload
+  to the Security tab became possible with the visibility change and is deliberately still unwired.</p>
   <p>Local-development instructions live in the <a href="../README.md">root README</a>. First-time
   deployment, manual rollback, log inspection, and incident steps live in the
   <a href="../context/foundation/deployment-runbook.md">deployment runbook</a>.</p>

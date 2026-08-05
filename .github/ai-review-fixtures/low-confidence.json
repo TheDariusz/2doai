@@ -1,0 +1,13 @@
+{
+  "findings": [
+    {
+      "file": "backend/src/main/java/com/thedariusz/todoai/task/TaskRepository.java",
+      "line": 42,
+      "severity": "high",
+      "confidence": 0.5,
+      "category": "security",
+      "title": "Possible SQL injection via string-concatenated query",
+      "why": "The value may be attacker-controlled, but the surrounding validation is not visible in the diff, so exploitability is unconfirmed."
+    }
+  ]
+}

@@ -20,7 +20,8 @@ The version-controlled plumbing already lives in the repo:
 - `frontend/functions/api/[[path]].ts` — Pages Function that reverse-proxies `/api/*` to Fly
 - `frontend/wrangler.toml` — `BACKEND_ORIGIN = https://2doai.fly.dev`
 - `frontend/vite.config.ts` — dev proxy `/api → localhost:8080`
-- `.github/workflows/deploy-backend.yml`, `.github/workflows/deploy-frontend.yml` — path-filtered auto-deploy on push to `master`
+- `.github/workflows/backend.yml`, `.github/workflows/frontend.yml` — per-side `quality` (every PR and push) + `deploy` (push to `master` only, `needs: quality`, path-filtered inside the job)
+- `.github/workflows/repo-checks.yml` — repo-wide PR checks (docs link test, `fly.toml` `[[vm]] memory` assertion)
 
 What follows is everything that could **not** be committed: the external accounts, CLI auth, and secrets.
 
@@ -54,7 +55,7 @@ For this project we use it for one job — shipping the frontend:
   the `BACKEND_ORIGIN` var) so you don't pass those flags by hand.
 
 You can run it without installing globally via `npx wrangler ...`. In CI we don't call it
-directly — the `cloudflare/wrangler-action` GitHub Action wraps it (see `deploy-frontend.yml`).
+directly — the `cloudflare/wrangler-action` GitHub Action wraps it (see `frontend.yml`).
 
 ---
 
@@ -144,9 +145,79 @@ GitHub repo → **Settings → Secrets and variables → Actions → New reposit
 | `FLY_API_TOKEN` | `FlyV1 fm2_...` (whole string from Phase 4) |
 | `CLOUDFLARE_API_TOKEN` | token from Phase 3 |
 | `CLOUDFLARE_ACCOUNT_ID` | account ID from Phase 3 |
+| `OPENROUTER_CI_KEY` | `sk-or-...` — **a second, separate OpenRouter key** for the AI code review (`ci-pipeline`, 2026-08-03) |
+
+> **`OPENROUTER_CI_KEY` is deliberately not the app's key.** Give it its own low credit cap on the
+> OpenRouter dashboard. The application key stays a **Fly secret** (`OPENROUTER_API_KEY`, Phase 7.3)
+> and never enters GitHub, so a runaway CI loop can exhaust only the CI cap and never the production
+> budget. Two consumers, two keys, two caps — see `ai-provider.md` → *Drugi konsument*.
+
+> **`gh secret set NAME` needs a real TTY.** With no `--body`, gh prompts only when stdin is a
+> terminal; otherwise it *reads stdin* — and an empty stdin sets the secret to an **empty string**,
+> exits 0, and prints nothing. The secret then shows up in `gh secret list` with a fresh timestamp
+> while behaving exactly like an unset one. This bit us on 2026-08-03 setting `OPENROUTER_CI_KEY`
+> from a non-interactive shell. Set secrets from a real terminal or the web UI, never by piping.
+> Symptom to recognise: `##[warning]OPENROUTER_CI_KEY is unset — review skipped` on a secret you
+> just "set". Don't use `--body '<value>'` as the workaround — that puts the key in shell history.
+
+Optionally set repo **variable** `AI_REVIEW_MODELS` (Settings → Secrets and variables → Actions →
+**Variables**) to change the review model without a commit; the workflow carries a literal fallback,
+so leaving it unset is fine. Model-swap rules: `ai-provider.md` → *Zmiana modelu bez commita*.
 
 After this, a push to `master` touching `backend/**` redeploys Fly, and `frontend/**`
-redeploys Pages — independently (path-filtered workflows).
+redeploys Pages — independently (path filtering now lives inside the jobs, not on the trigger).
+
+### 5.1 — Required status checks on `master`
+
+Every gate in `ci-pipeline` is decoration until `master` requires it. Settings → Branches → branch
+protection for `master` → **Require status checks to pass before merging**, then select the checks
+below using the exact names GitHub reports **after each workflow has run at least once**:
+
+| Check | Workflow | Blocking? |
+| --- | --- | --- |
+| `backend quality` | `backend.yml` | yes |
+| `frontend quality` | `frontend.yml` | yes |
+| `checks` | `repo-checks.yml` | yes |
+| `ai-review` | `ai-review.yml` | yes — but only its **security** step can fail; the advisory pass is `continue-on-error` |
+
+> **Give every required job an explicit, unique `name:`.** A required status check is matched by
+> check-run *name*, not by workflow — so two jobs both keyed `quality` (which is what `backend.yml`
+> and `frontend.yml` shipped with) produce two contexts with one name, and a green frontend run can
+> satisfy the rule while the backend one is red. Fixed 2026-08-03 by naming them `backend quality` /
+> `frontend quality`. Renaming a required job's `name:` later **silently drops the requirement** —
+> the old context stops reporting and the rule waits forever; update the rule in the same change.
+
+> **Never add a trigger-level `paths:` / `paths-ignore:` to any of these four workflows.** A required
+> check whose workflow is filtered out never reports, and the PR sits at *"Expected — waiting for
+> status to be reported"* forever. All four filter by path **inside** the job precisely so they can
+> be required. A human can force-merge past it; Dependabot cannot, so it would simply stall.
+
+### 5.2 — GitHub security features: what this repo has
+
+> **The repo went public on 2026-08-03, and that is what unlocked this section.** While it was
+> private on a Free account, branch protection and rulesets both returned
+> `403 Upgrade to GitHub Pro or make this repository public` — so every gate in `ci-pipeline` was
+> unenforceable and 5.1 above was impossible. Going public was chosen over GitHub Pro. It was gated
+> on a full-history secret audit (all 80 commits: no `.env` ever tracked, no token-shaped strings,
+> single author email) — **run that audit again before ever flipping visibility on another repo.**
+> Side effect: the paid tiers below stopped mattering, because these features are free on public
+> repos.
+
+| Feature | State (verified 2026-08-03) | Consequence |
+| --- | --- | --- |
+| **Code Scanning / SARIF upload** | **Available, not wired up** — free on public repos (was ~$30/committer/mo and org-scoped when this repo was private) | Trivy findings still go to `$GITHUB_STEP_SUMMARY` + artifacts. Routing them to the Security tab via `github/codeql-action/upload-sarif` is now possible and is **open follow-up work**, not done. |
+| **GitHub secret scanning + push protection** | **Enabled** | No longer Trivy-only. Push protection blocks a known-pattern secret at push time — *preventive*, where `repo-checks.yml`'s Trivy pass is post-hoc. Keep both: Trivy catches patterns GitHub doesn't. |
+| **Dependabot alerts + security updates** | **Enabled** — the "expected free, unverified" row is now confirmed | Surfaced **17 open alerts immediately** (npm only: undici, vite, postcss, react-router, brace-expansion). Security updates will open bump PRs for them automatically. |
+
+> The distinction that matters: `.github/dependabot.yml` (added by `ci-pipeline`) drives **version**
+> updates on a weekly schedule. Alert-driven **security** updates are a separate repository toggle
+> and are the half that reacts within hours of an advisory rather than waiting for the next weekly
+> run. Enabling the config file does **not** enable the toggle.
+
+> **Public-repo consequence for CI:** pull requests can now arrive from forks. Fork PRs get no
+> repository secrets and a read-only `GITHUB_TOKEN`, which is why `ai-review.yml` guards on
+> `github.event.pull_request.head.repo.full_name == github.repository` — it skips rather than failing
+> confusingly, and a job skipped by a job-level `if:` still reports green to the required check.
 
 ---
 
@@ -233,7 +304,13 @@ fly secrets list                                # shows the name + a digest, nev
 
 `application.properties` binds it as `spring.ai.openai.api-key=${OPENROUTER_API_KEY:}` — the
 empty default keeps boot and the hermetic suite green when the key is absent (the OpenAI client
-runs key-less), so CI never needs the secret.
+runs key-less), so **the test suite never needs this secret** and `OPENROUTER_API_KEY` stays a Fly
+secret only.
+
+> That statement is scoped to the **test suite**, not to CI as a whole. Since `ci-pipeline`
+> (2026-08-03) the repo has a *separate* OpenRouter consumer — the agentic code review in
+> `.github/workflows/ai-review.yml` — which uses its own GitHub secret `OPENROUTER_CI_KEY` with its
+> own credit cap (Phase 5 table). The app key above still never enters GitHub.
 
 ### 7.4 — Live verification (gated test)
 
@@ -251,7 +328,7 @@ OpenRouter. (Without the key the same command reports `Tests run: 2 … Skipped:
 
 ### 7.5 — Deploy
 
-Merge to `master` touching `backend/**` → the path-filtered `deploy-backend.yml` redeploys Fly
+Merge to `master` touching `backend/**` → `backend.yml`'s `deploy` job redeploys Fly
 with the new config. No user-visible change; confirm the app boots with the secret resolvable:
 
 ```bash

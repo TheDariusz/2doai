@@ -1,0 +1,67 @@
+name: Repo checks
+
+# Deliberately unfiltered: both checks are sub-second, and per-job path filtering
+# would cost more than it saves. Also a required check — see backend.yml on why
+# trigger-level `paths:` is forbidden here.
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: repo-checks-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docs link/anchor test
+        run: node --test docs/index.test.mjs
+
+      # The AI review's gate predicate is the one piece of genuinely new logic
+      # in this pipeline, and it runs in a job that only fires on PRs touching
+      # code. Running its fixtures here keeps it from rotting unnoticed.
+      # Preinstalled on ubuntu-latest, so this costs a second. Earns its place:
+      # the jq request body is one long single-quoted string, and a stray
+      # apostrophe inside a comment in it closes the quote and mangles the
+      # request. shellcheck names that (SC1011) in one line; without it the
+      # symptom surfaces as an unrelated failure three steps later.
+      - name: Shell scripts lint
+        run: shellcheck .github/scripts/*.sh
+
+      - name: AI review gate predicate
+        run: .github/scripts/ai-review-gate.test.sh
+
+      # Pins the fail-open/fail-closed split in the call script: an outage must
+      # not block a merge, but a missing key must not report green either. Both
+      # directions regress silently, and `curl` is shimmed so this needs no key.
+      - name: AI review call script
+        run: .github/scripts/ai-review-call.test.sh
+
+      - name: fly.toml declares [[vm]] memory
+        # infrastructure.md:87 — always declare `[[vm]] memory`; never rely solely
+        # on `fly scale memory`, which a redeploy silently reverts.
+        run: |
+          awk '/^\[\[vm\]\]/{v=1;next} /^\[/{v=0} v && /^[[:space:]]*memory[[:space:]]*=/{ok=1} END{exit !ok}' \
+            backend/fly.toml \
+            || { echo "::error file=backend/fly.toml::no 'memory' declared under a [[vm]] section"; exit 1; }
+
+      # Not the only secret scanning any more — the repo went public 2026-08-03,
+      # which made GitHub's own secret scanning + push protection free, and both
+      # are now on. Keep this pass anyway: GitHub's is preventive but limited to
+      # known provider patterns, Trivy's is post-hoc but catches more shapes.
+      - name: Trivy — secret scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          # A secret-only scan STILL runs the POM analyzer, which resolves against
+          # Maven Central live and hard-FATALs on 429. Unlike the backend job there
+          # is no warm ~/.m2 here, so resolution must be forced offline.
+          TRIVY_OFFLINE_SCAN: 'true'
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: secret
+          exit-code: '1'
+          skip-dirs: node_modules,target,dist
