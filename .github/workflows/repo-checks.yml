@@ -15,7 +15,7 @@ jobs:
       group: repo-checks-${{ github.ref }}
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Docs link/anchor test
         run: node --test docs/index.test.mjs
