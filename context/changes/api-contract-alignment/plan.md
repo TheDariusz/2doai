@@ -100,6 +100,13 @@ null, so an assertion that the CSRF 403 lacks the re-auth URN should be written 
 URN* rather than *absent*. That phrasing is correct whether Spring emits `"about:blank"` or omits the
 field, and does not need verifying first.
 
+> **Correction (post-merge, DEV-31 review).** This is false on this stack: Boot 4 / spring-web 7
+> **omits** `type` entirely for an unset `ProblemDetail` — the CSRF 403 body has no `type` member.
+> The *"and does not need verifying first"* is the real mistake here; the claim was never run. It
+> propagated into `openapi.yaml`'s 403 description, `ApiExceptionHandler`'s Javadoc and a review
+> finding against the frontend fixtures before anyone executed it. `AuthApiTest` now pins the
+> absence with `nullValue()` instead of the un-failable *not equal to the URN*.
+
 ## Phase 1: Backend + Contract
 
 ### Overview

@@ -55,9 +55,10 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	/**
 	 * The other 403 reachable on {@code DELETE /api/users/me} is a CSRF denial from
 	 * {@code ProblemDetailsSecurityHandler}, and with Spring's defaults the two are identical on the
-	 * wire — same status, same {@code Forbidden} title, {@code about:blank} type — leaving only the
-	 * {@code detail} prose, which RFC 9457 says clients must not parse. The URN is the discriminator
-	 * that lets the SPA say "wrong password" instead of hedging across both causes.
+	 * wire — same status, same {@code Forbidden} title, and no {@code type} member at all (Boot 4
+	 * omits it for an unset {@link ProblemDetail} rather than emitting {@code about:blank}) —
+	 * leaving only the {@code detail} prose, which RFC 9457 says clients must not parse. The URN is
+	 * the discriminator that lets the SPA say "wrong password" instead of hedging across both causes.
 	 */
 	@ExceptionHandler(ReAuthenticationFailedException.class)
 	ProblemDetail handleReAuthenticationFailed(ReAuthenticationFailedException ex) {

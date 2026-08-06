@@ -91,10 +91,14 @@ describe('AccountMenu', () => {
   })
 
   it('stays generic on a 403 that is not the re-auth type (a stale CSRF token)', async () => {
+    // No `type` at all — Boot 4 omits the member for an untyped ProblemDetail rather than
+    // serializing about:blank, as AuthApiTest.rejectsAnAuthenticatedMutationCarryingNoCsrfToken pins.
     await submitDeletion(new ApiError(403, 'The authenticated request is not allowed'))
 
     // Nothing here may blame the password — this 403 is the CSRF filter's, not a wrong password.
-    expect(await screen.findByRole('alert')).toHaveTextContent('Nie udało się usunąć konta. Spróbuj ponownie.')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Nie udało się usunąć konta. Odśwież stronę i spróbuj ponownie.',
+    )
     expect(screen.queryByText('ekran logowania')).not.toBeInTheDocument()
   })
 })

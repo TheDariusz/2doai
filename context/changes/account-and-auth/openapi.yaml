@@ -53,6 +53,8 @@ paths:
         must be unique; a taken email returns 409.
       operationId: createUser
       security: []                                          # public (#104 exception: registration)
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'         # public, but still a mutation — CSRF applies
       requestBody:
         required: true
         content:
@@ -73,12 +75,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'          # missing / invalid CSRF token
         '409':
           $ref: '#/components/responses/Conflict'           # email already in use
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
-        '400':
-          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /users/me:
     get:
@@ -98,6 +104,8 @@ paths:
                 $ref: '#/components/schemas/User'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
     delete:
       tags: [users]
       summary: Delete the current user and all their data (FR-019)
@@ -119,22 +127,26 @@ paths:
       responses:
         '204':
           description: Account and all data deleted; session invalidated.
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'       # not logged in / session expired — never a wrong password
         '403':
+          # 3.1 lets a Reference Object override the target's description, so the shared Forbidden
+          # response stays the single definition of the media type and schema.
+          $ref: '#/components/responses/Forbidden'
           description: >
             Two distinct causes, told apart by the Problem `type` (never by parsing `detail`):
             `urn:2doai:problem:re-auth-failed` means the confirmation password is wrong — the session
-            is intact and the user may retry; any other `type` (`about:blank`) is a missing or
-            invalid CSRF token, which a page reload fixes. A wrong password is deliberately NOT a
-            401: on an authenticated call every SPA reads 401 as "session expired" and would log the
-            user out over a typo.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
+            is intact and the user may retry. Any other `type`, **including its absence** (the server
+            omits the member entirely on this path), is a missing or invalid CSRF token, which only a
+            page reload re-primes, so a client must not offer a bare retry as the remedy for it.
+            A wrong password is deliberately NOT a 401: on an authenticated call every SPA reads 401
+            as "session expired" and would log the user out over a typo.
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /sessions:
     post:
@@ -172,12 +184,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'       # generic bad-credentials
         '403':
           $ref: '#/components/responses/Forbidden'          # missing / invalid CSRF token
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
         '503':
           $ref: '#/components/responses/ServiceUnavailable' # login is the only operation that loads a user
 
@@ -195,6 +211,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /categories:
     get:
@@ -213,6 +231,8 @@ paths:
                 $ref: '#/components/schemas/CategoryCollection'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
 components:
   securitySchemes:
@@ -387,6 +407,15 @@ components:
             $ref: '#/components/schemas/Problem'
     UnprocessableEntity:
       description: The request was well-formed but failed validation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalServerError:
+      description: >
+        An unhandled server fault. Reachable on every operation — `ApiExceptionHandler` and
+        `ProblemErrorController` render it as Problem JSON like any other error, so a client parses
+        it the same way rather than falling into an unrecognized-status branch.
       content:
         application/problem+json:
           schema:

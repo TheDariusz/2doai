@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router'
 import { ApiError } from '../api/client'
 import { useAuth } from './auth-context'
 
-/** The Problem `type` the backend puts on a failed re-authentication; see openapi.yaml. */
+/**
+ * The Problem `type` the backend puts on a failed re-authentication. `openapi.yaml` is the anchor
+ * for this literal, not this file: `AuthApiTest.emitsTheReAuthUrnTheContractAndTheSpaBothHardcode`
+ * holds the spec, this line and the server's value together, so a rename on any one side goes red
+ * (lessons.md). Nothing else may hardcode it.
+ */
 const RE_AUTH_FAILED = 'urn:2doai:problem:re-auth-failed'
 
 /** Header controls for the two session-ending actions. */
@@ -43,7 +48,9 @@ export function AccountMenu() {
       setError(
         failure instanceof ApiError && failure.type === RE_AUTH_FAILED
           ? 'Nieprawidłowe hasło.'
-          : 'Nie udało się usunąć konta. Spróbuj ponownie.',
+          : // The other 403 here is a stale CSRF token, which only a reload re-primes — so the
+            // fallback names that remedy too, as openapi.yaml's 403 description says it should.
+            'Nie udało się usunąć konta. Odśwież stronę i spróbuj ponownie.',
       )
     } finally {
       setPending(false)
