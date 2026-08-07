@@ -7,14 +7,22 @@ const CSRF_COOKIE = 'XSRF-TOKEN='
 
 type Method = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
-/** A backend failure carrying its HTTP status, so callers can map it to copy that fits. */
+/**
+ * A backend failure carrying its HTTP status, so callers can map it to copy that fits — plus the
+ * RFC 9457 `type` where the server sets one, which is the only sanctioned way to tell two failures
+ * sharing a status apart (`detail` is prose and must not be parsed). Optional: failures raised
+ * client-side never have one.
+ */
 export class ApiError extends Error {
   readonly status: number
 
-  constructor(status: number, detail: string) {
+  readonly type?: string
+
+  constructor(status: number, detail: string, type?: string) {
     super(detail)
     this.name = 'ApiError'
     this.status = status
+    this.type = type
   }
 }
 
@@ -42,8 +50,8 @@ export async function api<T = void>(
     // bootstrap 401 — so no cookie means that response has not landed yet.
     const token = csrfToken()
     if (!token) {
-      // Fail here rather than send a request the server is bound to reject: its 403 is
-      // indistinguishable from the 403 a wrong re-auth password produces. Status 0 marks a
+      // Fail here rather than spend a round-trip on a request the server is bound to reject —
+      // without a token there is nothing for the double-submit check to match. Status 0 marks a
       // failure that never reached the server; screens map it to their generic copy.
       throw new ApiError(0, 'No XSRF-TOKEN cookie — the priming response has not landed yet')
     }
@@ -67,7 +75,7 @@ export async function api<T = void>(
     // RFC 9457 Problem JSON. The fallback is the status, not `statusText`: the latter is always
     // empty over HTTP/2, which is what both Cloudflare and Fly serve.
     const problem = await response.json().catch(() => null)
-    throw new ApiError(response.status, problem?.detail ?? `HTTP ${response.status}`)
+    throw new ApiError(response.status, problem?.detail ?? `HTTP ${response.status}`, problem?.type)
   }
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T)
 }

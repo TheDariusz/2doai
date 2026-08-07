@@ -1,5 +1,8 @@
 package com.thedariusz.todoai;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -18,6 +21,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * End-to-end HTTP tests of the account lifecycle — register, log in, read the current user, log
@@ -166,7 +170,41 @@ class AuthApiTest extends ApiTestBase {
 				.statusCode(403)
 				.contentType("application/problem+json")
 				.body("title", equalTo("Forbidden"))
-				.body("status", equalTo(403));
+				.body("status", equalTo(403))
+				// The negative half of the discriminator: a CSRF denial must never look like a
+				// mistyped re-auth password. Pinned as *absent* rather than "not the URN" — the
+				// latter also passes for any other value, so it could not tell the frontend's
+				// fixtures what a real CSRF 403 looks like. Boot 4 omits `type` for an unset
+				// ProblemDetail; it does NOT serialize about:blank (verified, not assumed).
+				.body("type", nullValue());
+	}
+
+	/**
+	 * The irreversible operation must not run for a caller who cannot prove same-origin, even with a
+	 * valid session and the right password. {@code CsrfFilter} answers before the controller, so this
+	 * pins the rejection <em>and</em> that the row survived it.
+	 */
+	@Test
+	void deniesADeletionCarryingNoCsrfTokenAndKeepsTheAccount() {
+		String email = givenLoggedInUser();
+
+		client()
+				.body(Map.of("password", "correct-horse"))
+				.when()
+				.delete("/api/users/me")
+				.then()
+				.statusCode(403)
+				.contentType("application/problem+json");
+
+		// And nothing was deleted. Asserted against the database, not the session: GET /users/me
+		// answers from the in-memory principal and would still return 200 for an erased account.
+		newBrowser();
+		csrfAware()
+				.body(Map.of("email", email, "password", "correct-horse"))
+				.when()
+				.post("/api/users")
+				.then()
+				.statusCode(409);
 	}
 
 	@Test
@@ -212,6 +250,8 @@ class AuthApiTest extends ApiTestBase {
 				.then()
 				.statusCode(403)
 				.contentType("application/problem+json")
+				.body("type", equalTo("urn:2doai:problem:re-auth-failed"))
+				.body("title", equalTo("Re-authentication failed"))
 				.body("detail", containsString("password"));
 
 		// And the session survives — the user is still logged in, free to retry.
@@ -220,6 +260,40 @@ class AuthApiTest extends ApiTestBase {
 				.get("/api/users/me")
 				.then()
 				.statusCode(200);
+	}
+
+	/**
+	 * The one check that spans the backend/frontend boundary (lessons.md). Every side otherwise
+	 * asserts against its <em>own</em> copy of the URN, so both suites stay green while the two
+	 * disagree — a backend rename that dutifully updates the Java and its tests leaves the SPA
+	 * falling through to generic copy, and nothing fails. Here the value the running server emits
+	 * is held against the spec <em>and</em> against the TypeScript that branches on it, so renaming
+	 * any one of the three goes red. It lives on this side because only this side has a real server;
+	 * Vite denies the frontend suite any file above its root.
+	 */
+	@Test
+	void emitsTheReAuthUrnTheContractAndTheSpaBothHardcode() throws IOException {
+		givenLoggedInUser();
+
+		String onTheWire = csrfAware()
+				.body(Map.of("password", "not-the-password"))
+				.when()
+				.delete("/api/users/me")
+				.then()
+				.statusCode(403)
+				.extract()
+				.path("type");
+
+		assertThat(read("../context/changes/account-and-auth/openapi.yaml"))
+				.as("openapi.yaml is the anchor for every wire literal both sides hardcode")
+				.contains(onTheWire);
+		assertThat(read("../frontend/src/auth/AccountMenu.tsx"))
+				.as("the SPA discriminates the two 403s on this exact string")
+				.contains(onTheWire);
+	}
+
+	private static String read(String path) throws IOException {
+		return Files.readString(Path.of(path));
 	}
 
 	/**

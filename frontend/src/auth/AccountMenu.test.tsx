@@ -72,19 +72,33 @@ describe('AccountMenu', () => {
     expect(deleteAccount).toHaveBeenCalledTimes(1)
   })
 
-  it('reports a mistyped password (403) without ending the session', async () => {
-    const auth = stubAuth({
-      ...loggedIn,
-      deleteAccount: async () => { throw new ApiError(403, 'Re-authentication failed') },
-    })
-    renderMenu(auth)
+  async function submitDeletion(failure: ApiError) {
+    renderMenu(stubAuth({ ...loggedIn, deleteAccount: async () => { throw failure } }))
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('button', { name: 'Usuń konto' }))
     await user.type(screen.getByLabelText('Potwierdź hasłem'), 'zlehaslo')
     await user.click(screen.getByRole('button', { name: 'Usuń konto na zawsze' }))
+  }
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/hasło/i)
+  it('names the mistyped password (403 + the re-auth type) without ending the session', async () => {
+    await submitDeletion(
+      new ApiError(403, 'The password you entered is incorrect', 'urn:2doai:problem:re-auth-failed'),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Nieprawidłowe hasło.')
+    expect(screen.queryByText('ekran logowania')).not.toBeInTheDocument()
+  })
+
+  it('stays generic on a 403 that is not the re-auth type (a stale CSRF token)', async () => {
+    // No `type` at all — Boot 4 omits the member for an untyped ProblemDetail rather than
+    // serializing about:blank, as AuthApiTest.rejectsAnAuthenticatedMutationCarryingNoCsrfToken pins.
+    await submitDeletion(new ApiError(403, 'The authenticated request is not allowed'))
+
+    // Nothing here may blame the password — this 403 is the CSRF filter's, not a wrong password.
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Nie udało się usunąć konta. Odśwież stronę i spróbuj ponownie.',
+    )
     expect(screen.queryByText('ekran logowania')).not.toBeInTheDocument()
   })
 })

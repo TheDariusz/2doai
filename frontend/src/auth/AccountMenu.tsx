@@ -3,6 +3,14 @@ import { useNavigate } from 'react-router'
 import { ApiError } from '../api/client'
 import { useAuth } from './auth-context'
 
+/**
+ * The Problem `type` the backend puts on a failed re-authentication. `openapi.yaml` is the anchor
+ * for this literal, not this file: `AuthApiTest.emitsTheReAuthUrnTheContractAndTheSpaBothHardcode`
+ * holds the spec, this line and the server's value together, so a rename on any one side goes red
+ * (lessons.md). Nothing else may hardcode it.
+ */
+const RE_AUTH_FAILED = 'urn:2doai:problem:re-auth-failed'
+
 /** Header controls for the two session-ending actions. */
 export function AccountMenu() {
   const { user, logout, deleteAccount } = useAuth()
@@ -34,13 +42,15 @@ export function AccountMenu() {
       await deleteAccount(password)
       navigate('/login', { replace: true })
     } catch (failure) {
-      // 403 means the session is intact but the request was refused — almost always a mistyped
-      // password, but a CSRF token that went stale with an expired session lands here too, and the
-      // two are indistinguishable by status. The copy has to cover both.
+      // The server types a wrong re-auth password (DEV-31), so this can name it instead of hedging
+      // across every 403. Branching on the status alone would put this copy on a CSRF denial too,
+      // which has nothing to do with the password the user just typed.
       setError(
-        failure instanceof ApiError && failure.status === 403
-          ? 'Nie udało się potwierdzić. Sprawdź hasło lub odśwież stronę.'
-          : 'Nie udało się usunąć konta. Spróbuj ponownie.',
+        failure instanceof ApiError && failure.type === RE_AUTH_FAILED
+          ? 'Nieprawidłowe hasło.'
+          : // The other 403 here is a stale CSRF token, which only a reload re-primes — so the
+            // fallback names that remedy too, as openapi.yaml's 403 description says it should.
+            'Nie udało się usunąć konta. Odśwież stronę i spróbuj ponownie.',
       )
     } finally {
       setPending(false)

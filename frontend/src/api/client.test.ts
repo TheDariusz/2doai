@@ -42,6 +42,26 @@ describe('api client', () => {
     await expect(api('/users/me')).rejects.toBeInstanceOf(ApiError)
   })
 
+  it('carries the Problem JSON type so callers can tell two 403s apart', async () => {
+    fetchMock.mockResolvedValue(
+      response(403, { type: 'urn:2doai:problem:re-auth-failed', detail: 'The password you entered is incorrect' }),
+    )
+
+    await expect(api('/users/me', { method: 'DELETE', body: { password: 'zle' } })).rejects.toMatchObject({
+      status: 403,
+      type: 'urn:2doai:problem:re-auth-failed',
+    })
+  })
+
+  it('leaves the type undefined when the body carries none', async () => {
+    fetchMock.mockResolvedValue(response(403, { detail: 'The authenticated request is not allowed' }))
+
+    await expect(api('/users/me', { method: 'DELETE', body: {} })).rejects.toMatchObject({
+      status: 403,
+      type: undefined,
+    })
+  })
+
   it('refuses a mutation instead of sending one the server is bound to reject', async () => {
     // No XSRF-TOKEN cookie yet — e.g. a login submitted before the bootstrap GET primed it.
     document.cookie = 'XSRF-TOKEN=; max-age=0'

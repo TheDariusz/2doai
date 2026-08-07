@@ -49,3 +49,37 @@ Decyzja wynika z **konkretnych ograniczeń tego projektu**, które unieważniaj�
 - **Kiedy rewidować:** **wyłącznie** gdy porzucimy pojedynczą maszynę (multi-region lub repliki poziome, tj. zejście z `min_machines_running = 1`). Wtedy migracja: sesje in-memory → **podpisane ciasteczko (stateless)** albo **cookie + zewnętrzny magazyn (np. Redis)**. **Nigdy cookie + sesje w Neon** — to samo naruszenie reguły z pkt. 4 Rationale. Bezstanowość JWT staje się warta swoich kosztów dopiero w tym momencie, nie wcześniej.
 - **Front (PWA, offline read-only / FR-017):** tryb offline pokazuje dane z cache i nie wykonuje uwierzytelnionych wywołań, więc niedostępność ciasteczka dla JS (`HttpOnly`) jest neutralna; stan „czy zalogowany" offline opiera się na zcache'owanym profilu, nie na odczycie tokenu.
 - **Spring Security 6:** ścieżka domyślna (`SecurityFilterChain`, konfiguracja ciasteczka, wbudowany CSRF); brak `oauth2-resource-server` (to droga JWT) w zakresie MVP.
+
+## Decyzja uzupełniająca (2026-08-05, DEV-31): status nieudanej re-autentykacji przy `DELETE /api/users/me`
+
+FR-019 wymaga potwierdzenia hasłem przed usunięciem konta. Pytanie: jakim statusem odpowiedzieć, gdy
+hasło potwierdzające jest błędne — i jak klient ma odróżnić tę odmowę od drugiej odmowy możliwej na
+tym samym endpoincie (odrzucenie CSRF przez `ProblemDetailsSecurityHandler`).
+
+**Rozstrzygnięcie: zostaje 403, dochodzi `type` URI jako dyskryminator.** Problem JSON nieudanej
+re-autentykacji niesie `type: urn:2doai:problem:re-auth-failed` oraz `title: Re-authentication
+failed` (`ApiExceptionHandler.handleReAuthenticationFailed`). To jest kanoniczna, zadeklarowana
+wartość — pinuje ją `AuthApiTest` (literałem, nie wspólną stałą, żeby przypadkowa zmiana nazwy URN-a
+zerwała test) i dokumentuje `openapi.yaml`. Odrzucenie CSRF zostaje przy `about:blank`: jeden
+dyskryminator wystarcza, bo klient ma dokładnie jedno pytanie — „czy to złe hasło, czy coś innego".
+
+**Odrzucone: 401.** Na wywołaniu uwierzytelnionym 401 znaczy dla każdego SPA „sesja wygasła" — nasz
+własny `client.ts` zamienia je na zdarzenie `session-expired` i zrzuca użytkownika na `/login`.
+Zwracanie 401 za literówkę w haśle wylogowywałoby użytkownika za literówkę. Nie ma tu też przesłanki
+z enumeracji kont (jak przy logowaniu): wołający jest już uwierzytelniony i już wie, że konto
+istnieje.
+
+**Odrzucone: 422.** Kuszące („to błąd walidacji ciała żądania"), ale kolidowałoby z 422, które ten
+sam endpoint zwraca z Bean Validation dla hasła pustego lub przekraczającego limit bajtów bcrypta.
+Klient i tak potrzebowałby dyskryminatora, żeby odróżnić „hasło się nie zgadza" od „hasło nie
+przeszło walidacji" — 422 nie kupuje więc niczego, a kosztuje zmianę statusu w opublikowanym
+kontrakcie.
+
+**Ustalenie na marginesie: scenariusz „wygasła sesja → nieaktualny token CSRF → 403 bez wyrzucenia na
+`/login`" jest w tej architekturze nieosiągalny.** Wymaga repozytorium tokenów CSRF związanego z
+sesją; my używamy `CookieCsrfTokenRepository.withHttpOnlyFalse()` (`SecurityConfig`) — bezstanowego
+double-submit, gdzie token żyje we własnym ciasteczku i jest walidowany względem ciasteczka tego
+samego żądania. Wygaśnięcie sesji nie unieważnia `XSRF-TOKEN`, więc żądanie przechodzi `CsrfFilter`,
+dociera nieuwierzytelnione do filtra autoryzacji i dostaje **401** z entry pointu — czyli dokładnie
+to, co SPA zamienia na przekierowanie do logowania. Spisane, żeby nikt nie wyprowadzał tego wniosku
+drugi raz.

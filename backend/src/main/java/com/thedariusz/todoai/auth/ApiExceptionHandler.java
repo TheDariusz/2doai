@@ -1,5 +1,7 @@
 package com.thedariusz.todoai.auth;
 
+import java.net.URI;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -25,6 +27,9 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 @RestControllerAdvice
 class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
+	/** Documented in openapi.yaml; this class is its only producer. */
+	private static final URI RE_AUTH_FAILED = URI.create("urn:2doai:problem:re-auth-failed");
+
 	/**
 	 * Validation → <b>422</b>, not Spring's default 400: the request parsed fine, its content failed
 	 * the contract's constraints. The detail stays generic — field-level messages would echo the
@@ -47,9 +52,20 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 		return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
 	}
 
+	/**
+	 * The other 403 reachable on {@code DELETE /api/users/me} is a CSRF denial from
+	 * {@code ProblemDetailsSecurityHandler}, and with Spring's defaults the two are identical on the
+	 * wire — same status, same {@code Forbidden} title, and no {@code type} member at all (Boot 4
+	 * omits it for an unset {@link ProblemDetail} rather than emitting {@code about:blank}) —
+	 * leaving only the {@code detail} prose, which RFC 9457 says clients must not parse. The URN is
+	 * the discriminator that lets the SPA say "wrong password" instead of hedging across both causes.
+	 */
 	@ExceptionHandler(ReAuthenticationFailedException.class)
 	ProblemDetail handleReAuthenticationFailed(ReAuthenticationFailedException ex) {
-		return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+		ProblemDetail body = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+		body.setType(RE_AUTH_FAILED);
+		body.setTitle("Re-authentication failed");
+		return body;
 	}
 
 	/**
