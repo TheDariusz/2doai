@@ -352,19 +352,19 @@ V6 is expand-only (new table, no altered objects) — safe under image rollback 
 
 #### Automated
 
-- [x] 2.1 API + contract tests pass: `mvn test -Dtest=GoalApiTest`
-- [x] 2.2 Account deletion still green with goals present: `mvn test -Dtest=AccountDeletionIntegrationTest`
-- [x] 2.3 Full backend suite: `mvn test`
+- [x] 2.1 API + contract tests pass: `mvn test -Dtest=GoalApiTest` — d425d83
+- [x] 2.2 Account deletion still green with goals present: `mvn test -Dtest=AccountDeletionIntegrationTest` — d425d83
+- [x] 2.3 Full backend suite: `mvn test` — d425d83
 
 ### Phase 3: Frontend
 
 #### Automated
 
-- [ ] 3.1 Frontend tests pass: `npm test`
-- [ ] 3.2 Lint clean: `npm run lint`
-- [ ] 3.3 Typecheck + build: `npm run build`
-- [ ] 3.4 Full gate: `/check`
-- [ ] 3.5 Contract-anchor test fully green: `mvn test -Dtest=GoalApiTest`
+- [x] 3.1 Frontend tests pass: `npm test`
+- [x] 3.2 Lint clean: `npm run lint`
+- [x] 3.3 Typecheck + build: `npm run build`
+- [x] 3.4 Full gate: `/check`
+- [x] 3.5 Contract-anchor test fully green: `mvn test -Dtest=GoalApiTest`
 
 #### Manual
 

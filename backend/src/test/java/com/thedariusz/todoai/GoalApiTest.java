@@ -301,19 +301,26 @@ class GoalApiTest extends ApiTestBase {
 	 * <p>The set is compared, not merely searched for: a substring check would pass happily after a
 	 * value was <em>deleted</em> from the spec.
 	 *
-	 * <p>The frontend leg of this guard — asserting the same literals appear in the SPA's goal type —
-	 * arrives with the page itself in Phase 3, since there is nothing to read until then.
+	 * <p>The frontend leg reads the SPA's goal type, which hardcodes the same literals in its union
+	 * types. It lives here rather than in Vitest because Vite denies that suite any file above its
+	 * root, so only this side can see all three copies at once (same reason as
+	 * {@code AuthApiTest.emitsTheReAuthUrnTheContractAndTheSpaBothHardcode}).
 	 */
 	@Test
 	void publishesTheWireEnumsTheContractAnchors() throws IOException {
 		Map<String, Object> spec = new Yaml().load(Files.readString(
 				Path.of("../context/changes/account-and-auth/openapi.yaml")));
+		String spa = Files.readString(Path.of("../frontend/src/pages/GoalsPage.tsx"));
 
 		assertThat(extensibleEnum(spec, "GoalLayer"))
 				.as("openapi.yaml is the anchor for every wire literal the stack hardcodes")
 				.containsExactlyInAnyOrderElementsOf(constantNames(GoalLayer.values()));
 		assertThat(extensibleEnum(spec, "GoalHorizon"))
 				.containsExactlyInAnyOrderElementsOf(constantNames(GoalHorizon.values()));
+		assertThat(spa)
+				.as("the SPA's goal type spells out the same literals it sends and switches on")
+				.contains(constantNames(GoalLayer.values()))
+				.contains(constantNames(GoalHorizon.values()));
 	}
 
 	private static List<String> constantNames(Enum<?>[] constants) {

@@ -2,24 +2,7 @@ import { screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '../App'
 import { LOGGED_IN, renderWithAuth, response, stubAuth } from '../test/auth'
-
-/**
- * The 11 seeded categories, verbatim from `V2__seed_categories.sql` (codes are the English
- * `LifeDomain` constants; `name_pl` is the label), in the `display_order` the server sorts by.
- */
-const DOMAINS = [
-  { code: 'HEALTH', name_pl: 'Zdrowie' },
-  { code: 'FINANCE', name_pl: 'Finanse' },
-  { code: 'CAREER', name_pl: 'Kariera i rozwój zawodowy' },
-  { code: 'EDUCATION', name_pl: 'Edukacja i rozwój osobisty' },
-  { code: 'RELATIONSHIPS', name_pl: 'Relacje' },
-  { code: 'HOME', name_pl: 'Dom i otoczenie' },
-  { code: 'LEISURE', name_pl: 'Czas wolny i hobby' },
-  { code: 'ADMIN', name_pl: 'Sprawy formalne i administracyjne' },
-  { code: 'SAFETY', name_pl: 'Bezpieczeństwo i przygotowanie na sytuacje awaryjne' },
-  { code: 'TRANSPORT', name_pl: 'Transport i mobilność' },
-  { code: 'INNER_GROWTH', name_pl: 'Rozwój wewnętrzny / wartości' },
-]
+import { DOMAINS } from '../test/domains'
 
 const fetchMock = vi.fn()
 
@@ -37,12 +20,26 @@ describe('AppLayout', () => {
   it('renders the 11 domains in the order the server sends', async () => {
     renderShell('/')
 
-    const links = await screen.findAllByRole('link')
+    // Waited on by name: the static "Cele i marzenia" link is in the DOM before the fetch lands,
+    // so `findAllByRole('link')` alone would resolve on a nav that has no domains in it yet.
+    await screen.findByRole('link', { name: 'Zdrowie' })
+    const links = screen
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('href')?.startsWith('/domena/'))
 
     expect(links).toHaveLength(11)
     expect(links.map((link) => link.textContent)).toEqual(DOMAINS.map((d) => d.name_pl))
     expect(links[0]).toHaveAttribute('href', '/domena/HEALTH')
     expect(fetchMock).toHaveBeenCalledWith('/api/categories', expect.anything())
+  })
+
+  it('offers the goals screen alongside the domains', async () => {
+    renderShell('/')
+
+    expect(await screen.findByRole('link', { name: 'Cele i marzenia' })).toHaveAttribute(
+      'href',
+      '/cele',
+    )
   })
 
   it('says so when the domains cannot be loaded, rather than showing an empty nav', async () => {
