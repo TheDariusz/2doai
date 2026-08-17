@@ -360,13 +360,13 @@ V6 is expand-only (new table, no altered objects) — safe under image rollback 
 
 #### Automated
 
-- [x] 3.1 Frontend tests pass: `npm test`
-- [x] 3.2 Lint clean: `npm run lint`
-- [x] 3.3 Typecheck + build: `npm run build`
-- [x] 3.4 Full gate: `/check`
-- [x] 3.5 Contract-anchor test fully green: `mvn test -Dtest=GoalApiTest`
+- [x] 3.1 Frontend tests pass: `npm test` — 6fed09c
+- [x] 3.2 Lint clean: `npm run lint` — 6fed09c
+- [x] 3.3 Typecheck + build: `npm run build` — 6fed09c
+- [x] 3.4 Full gate: `/check` — 6fed09c
+- [x] 3.5 Contract-anchor test fully green: `mvn test -Dtest=GoalApiTest` — 6fed09c
 
 #### Manual
 
-- [ ] 3.6 Live flow verified (create / edit / convert / complete / un-complete / persist / auth gate)
-- [ ] 3.7 Visual check: collapsed "Ukończone" sections + nav link, light and dark
+- [x] 3.6 Live flow verified (create / edit / convert / complete / un-complete / persist / auth gate)
+- [x] 3.7 Visual check: collapsed "Ukończone" sections + nav link, light and dark

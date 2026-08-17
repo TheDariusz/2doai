@@ -1,7 +1,7 @@
 ---
 change_id: goals-and-dreams
 title: Goals and dreams
-status: implementing
+status: implemented
 created: 2026-08-17
 updated: 2026-08-17
 archived_at: null
