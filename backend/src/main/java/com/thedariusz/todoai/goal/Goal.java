@@ -109,10 +109,19 @@ public class Goal implements UserOwned {
 		this.completedAt = null;
 	}
 
+	/**
+	 * The layer × horizon rule, stated once in Java so the aggregate and both request DTOs cannot
+	 * drift apart. A null layer passes here — {@code @NotNull} reports that as its own violation
+	 * rather than letting this rule blame the horizon for it.
+	 */
+	static boolean hasConsistentHorizon(GoalLayer layer, GoalHorizon horizon) {
+		return layer == null || (layer == GoalLayer.GOAL) == (horizon != null);
+	}
+
 	private void apply(String content, GoalLayer layer, GoalHorizon horizon, LifeDomain category) {
 		this.content = Objects.requireNonNull(content, "content");
 		this.layer = Objects.requireNonNull(layer, "layer");
-		if ((layer == GoalLayer.GOAL) != (horizon != null)) {
+		if (!hasConsistentHorizon(layer, horizon)) {
 			throw new IllegalArgumentException("a GOAL requires a horizon and a DREAM forbids one, got "
 					+ layer + " with horizon " + horizon);
 		}

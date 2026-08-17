@@ -344,17 +344,17 @@ V6 is expand-only (new table, no altered objects) — safe under image rollback 
 
 #### Automated
 
-- [x] 1.1 Persistence tests pass: `mvn test -Dtest=GoalPersistenceTest`
-- [x] 1.2 ArchUnit rule passes: `mvn test -Dtest=UserOwnedConventionTest`
-- [x] 1.3 Full backend suite green: `mvn test`
+- [x] 1.1 Persistence tests pass: `mvn test -Dtest=GoalPersistenceTest` — 1ffc7b0
+- [x] 1.2 ArchUnit rule passes: `mvn test -Dtest=UserOwnedConventionTest` — 1ffc7b0
+- [x] 1.3 Full backend suite green: `mvn test` — 1ffc7b0
 
 ### Phase 2: API + contract
 
 #### Automated
 
-- [ ] 2.1 API + contract tests pass: `mvn test -Dtest=GoalApiTest`
-- [ ] 2.2 Account deletion still green with goals present: `mvn test -Dtest=AccountDeletionIntegrationTest`
-- [ ] 2.3 Full backend suite: `mvn test`
+- [x] 2.1 API + contract tests pass: `mvn test -Dtest=GoalApiTest`
+- [x] 2.2 Account deletion still green with goals present: `mvn test -Dtest=AccountDeletionIntegrationTest`
+- [x] 2.3 Full backend suite: `mvn test`
 
 ### Phase 3: Frontend
 
