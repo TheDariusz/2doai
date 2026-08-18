@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useOutletContext } from 'react-router'
-import { api } from '../api/client'
+import { ApiError, api } from '../api/client'
 import type { Domain } from '../layout/AppLayout'
 
 /**
@@ -8,8 +8,11 @@ import type { Domain } from '../layout/AppLayout'
  * `openapi.yaml` defines it (snake_case straight off the wire).
  *
  * The four literals below are the wire contract, hardcoded here as they are in the spec and in the
- * backend enums. `GoalApiTest.publishesTheWireEnumsTheContractAnchors` reads all three copies and
- * fails if any one is renamed — the guard lessons.md asks for whenever a literal spans the stack.
+ * backend enums. `GoalApiTest.publishesTheWireEnumsTheContractAnchors` parses the unions below and
+ * set-compares them against the spec and the backend enums, so adding, removing or renaming a
+ * literal on any side goes red — the guard lessons.md asks for whenever a literal spans the stack.
+ * It parses rather than searches on purpose: each literal also appears in the label maps and in
+ * `layer === 'GOAL'`, so widening these fields to `string` would leave a text search green.
  */
 export type Goal = {
   id: string
@@ -55,6 +58,24 @@ function draftOf(goal: Goal): GoalDraft {
   }
 }
 
+/**
+ * Copy per failure, in the shape `AuthPage.messageFor` established. A single "try again" would be
+ * wrong twice over: a 422 repeats identically however many times it is retried, and a missing CSRF
+ * cookie needs a reload rather than a retry.
+ */
+function messageFor(status: number): string {
+  if (status === 422) {
+    // The form caps length and requires content, so this means the entry broke the layer × horizon
+    // rule — the one validation a caller can hit without bypassing the form.
+    return 'Serwer odrzucił ten wpis — cel wymaga horyzontu, marzenie go nie ma.'
+  }
+  if (status === 0) {
+    // Never reached the server: the CSRF priming response has not landed. A reload primes it.
+    return 'Odśwież stronę i spróbuj ponownie.'
+  }
+  return 'Nie udało się zapisać zmiany. Spróbuj ponownie.'
+}
+
 /** The whole S-02 screen: both layers, grouped, with completed entries folded away. */
 export function GoalsPage() {
   const domains = useOutletContext<Domain[]>()
@@ -70,8 +91,13 @@ export function GoalsPage() {
           setError(null)
         },
         // A 401 already routes to /login via the session-expired event. Anything else would leave
-        // an empty screen that looks like "you have no goals yet" — a lie worth avoiding.
-        () => setError('Nie udało się wczytać celów — odśwież stronę.'),
+        // an empty screen that looks like "you have no goals yet" — a lie worth avoiding. The
+        // failure is bound and recorded because the copy is deliberately generic: without this,
+        // a 500 and a parse bug are indistinguishable from the outside and leave no trace.
+        (failure: unknown) => {
+          console.error('goals: load failed', failure)
+          setError('Nie udało się wczytać celów — odśwież stronę.')
+        },
       ),
     [],
   )
@@ -90,8 +116,21 @@ export function GoalsPage() {
       await request
       await load()
       return true
-    } catch {
-      setError('Nie udało się zapisać zmiany. Spróbuj ponownie.')
+    } catch (failure) {
+      console.error('goals: save failed', failure)
+      const status = failure instanceof ApiError ? failure.status : -1
+
+      if (status === 404) {
+        // The entry is gone — deleted from another tab, or the account erased elsewhere. Leaving
+        // the stale row on screen with "try again" invites a retry that can only 404 again, so
+        // refetch and let the list tell the truth. The message goes after the reload, which clears
+        // it on success.
+        await load()
+        setError('Ten wpis już nie istnieje — lista została odświeżona.')
+        return false
+      }
+
+      setError(messageFor(status))
       return false
     }
   }
@@ -129,8 +168,9 @@ export function GoalsPage() {
 
 /**
  * The create form and the inline edit form are the same four fields, so they are the same
- * component — `layer` is the one piece of state, because the horizon field exists only for a goal
- * (a dream carrying one is a 422 from the server, and an invariant we can simply not offer).
+ * component — `layer` is the only field value held in React rather than read off the DOM at submit,
+ * because the horizon field exists only for a goal (a dream carrying one is a 422 from the server,
+ * and an invariant we can simply not offer).
  */
 function GoalForm({
   name,
@@ -158,8 +198,8 @@ function GoalForm({
     const saved = await onSubmit({
       content: String(data.get('content') ?? ''),
       layer,
-      // Not merely hidden — omitted from the payload, so a layer switch cannot smuggle the old
-      // horizon along and trip the cross-field rule.
+      // Forced to null rather than merely left unrendered: PUT is a full replace, so a layer
+      // switch would otherwise resend whatever horizon the entry had and trip the cross-field rule.
       horizon: layer === 'GOAL' ? (data.get('horizon') as Goal['horizon']) : null,
       category_code: String(data.get('category_code') ?? '') || null,
     })

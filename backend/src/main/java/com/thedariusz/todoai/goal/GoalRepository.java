@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.repository.Repository;
 
 /**
  * Spring Data access to the {@code goal} aggregate. Every finder is scoped by {@code userId} per the
@@ -12,10 +12,18 @@ import org.springframework.data.jpa.repository.JpaRepository;
  * client-supplied id can never reach a row it does not own (a foreign id and a nonexistent one are
  * deliberately indistinguishable: both yield the same 404).
  *
+ * <p>That sentence is only true because this extends the bare {@link Repository} marker rather than
+ * {@code JpaRepository}: the convenient inherited finders ({@code findById}, {@code findAll},
+ * {@code getReferenceById}) are <b>unscoped</b>, and the next person to need a goal by id would
+ * otherwise reach for the one that compiles and skip the ownership check. The four methods below are
+ * the entire surface, so the isolation contract holds by construction instead of by convention.
+ *
  * <p>Unparameterized list + client-side grouping is deliberate at single-user scale; S-08 owns the
  * real filter contract.
  */
-public interface GoalRepository extends JpaRepository<Goal, UUID> {
+public interface GoalRepository extends Repository<Goal, UUID> {
+
+	Goal saveAndFlush(Goal goal);
 
 	List<Goal> findByUserIdOrderByCreatedAtDesc(UUID userId);
 

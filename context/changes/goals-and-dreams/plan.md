@@ -13,7 +13,7 @@ Full-stack CRUD-minus-delete for the two non-task layers: long-term goals (conte
 - Errors are RFC 9457 Problem JSON. Bean-validation failures → **422** with a generic detail (`auth/ApiExceptionHandler.java:38-48`); malformed/unreadable bodies (including bad enum literals) → 400 via `ResponseEntityExceptionHandler`. There is **no "resource not found for this user" exception yet** — S-02 introduces the first.
 - No `@Enumerated` mapping exists anywhere yet — S-02 sets the precedent.
 - `/api/goals` will be authenticated by default (`SecurityConfig.java:86-114` — `anyRequest().authenticated()`); no security config change.
-- The authoritative OpenAPI spec lives at `context/changes/account-and-auth/openapi.yaml` (header declares it authoritative). The pending `category-contract-guards` change owns promoting it to a neutral path — S-02 extends it **in place**.
+- The authoritative OpenAPI spec lives at `context/foundation/openapi.yaml` (header declares it authoritative). S-02 promoted it there from `context/changes/account-and-auth/`: it is the cross-slice anchor two test suites read, so leaving it in a completed change's folder meant `/10x-archive` would silently break them.
 - Frontend: react-router 8 with `ProtectedRoute` → `AppLayout`; the 11 domains are fetched once in `AppLayout.tsx:19-26` and passed to nested routes via `<Outlet context={domains}>` (`AppLayout.tsx:47`) — a category picker costs zero extra requests. Forms are uncontrolled + `FormData` + native validation (`AuthPage.tsx`), errors render as `<p role="alert">`, copy is Polish, styling is one global `index.css`. Tests: Vitest + RTL, `vi.stubGlobal('fetch', ...)`, helpers in `src/test/auth.tsx`.
 
 ## Desired End State
@@ -185,7 +185,7 @@ boolean isHorizonConsistentWithLayer() { ... }
 
 #### 6. OpenAPI spec extension
 
-**File**: `context/changes/account-and-auth/openapi.yaml`
+**File**: `context/foundation/openapi.yaml`
 
 **Intent**: Extend the authoritative spec in place: tag `goals`, paths `/goals` (get, post) and `/goals/{id}` (put), schemas `Goal`, `GoalCreation`, `GoalUpdate`, `GoalCollection`, a new shared `NotFound` response component, `x-extensible-enum` for `layer` and `horizon` (same open-ended pattern as category codes), XSRF parameter on mutations, snake_case properties, `readOnly` on server-set fields.
 
@@ -334,7 +334,7 @@ V6 is expand-only (new table, no altered objects) — safe under image rollback 
 - Isolation contract: `backend/src/main/java/com/thedariusz/todoai/security/UserOwned.java`, `security/CurrentUser.java`
 - Contract-anchor precedent: `backend/src/test/java/com/thedariusz/todoai/auth/AuthApiTest.java:274-297`
 - Form/test idioms: `frontend/src/pages/AuthPage.tsx`, `frontend/src/layout/AppLayout.test.tsx`
-- Spec: `context/changes/account-and-auth/openapi.yaml`
+- Spec: `context/foundation/openapi.yaml`
 
 ## Progress
 

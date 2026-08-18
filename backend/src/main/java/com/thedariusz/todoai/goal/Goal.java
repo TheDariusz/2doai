@@ -41,7 +41,13 @@ import org.hibernate.annotations.UuidGenerator;
 @Table(name = "goal")
 public class Goal implements UserOwned {
 
-	/** Mirrored by the {@code @Size} below and by {@code goal.content}'s column width in {@code V6}. */
+	/**
+	 * Referenced by the {@code @Size}/{@code @Column} below, so those cannot drift — but copied by
+	 * hand into {@code goal.content}'s width in {@code V6}, the spec's {@code GoalContent.maxLength}
+	 * and the SPA's {@code maxLength}, which can. {@code ddl-auto=validate} does not catch the
+	 * migration copy (it ignores column length), so
+	 * {@code GoalApiTest.publishesTheWireEnumsTheContractAnchors} holds all four together.
+	 */
 	public static final int MAX_CONTENT_LENGTH = 500;
 
 	/** Stated once: both request DTOs use it as their {@code @AssertTrue} message. */
@@ -102,9 +108,18 @@ public class Goal implements UserOwned {
 		apply(content, layer, horizon, category);
 	}
 
-	/** Mark done at the given moment; idempotent-by-overwrite, the latest completion wins. */
+	/**
+	 * Mark done at the given moment. Truly idempotent: an entry that is already done keeps its
+	 * original moment, because {@link #update} re-asserts completion on every full-replace PUT and
+	 * the SPA sends the entry's own state back with each edit — re-stamping here would move the date
+	 * every time someone fixes a typo, and the moment S-03 reads is unrecoverable once overwritten.
+	 * Going back through {@link #reopen} and completing again is the only way to set a new one.
+	 */
 	public void complete(OffsetDateTime at) {
-		this.completedAt = Objects.requireNonNull(at, "at");
+		Objects.requireNonNull(at, "at");
+		if (this.completedAt == null) {
+			this.completedAt = at;
+		}
 	}
 
 	/** Back to active. No delete exists in S-02 — un-completing is the only way back. */

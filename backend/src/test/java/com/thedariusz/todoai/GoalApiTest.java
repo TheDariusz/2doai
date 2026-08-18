@@ -3,11 +3,15 @@ package com.thedariusz.todoai;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.goal.GoalHorizon;
@@ -145,6 +149,24 @@ class GoalApiTest extends ApiTestBase {
 				.statusCode(422);
 	}
 
+	/**
+	 * The length cap is a contract term the SPA also enforces client-side, so it is only reachable by
+	 * a caller that bypasses the form — which is precisely why the server has to answer 422 rather
+	 * than letting an over-long string reach the column and surface as a 500.
+	 */
+	@Test
+	void rejectsContentLongerThanTheCapWith422() {
+		givenLoggedInUser();
+
+		csrfAware()
+				.body(goalPayload("a".repeat(Goal.MAX_CONTENT_LENGTH + 1), "DREAM", null, null))
+				.when()
+				.post("/api/goals")
+				.then()
+				.statusCode(422)
+				.contentType("application/problem+json");
+	}
+
 	/** An unknown literal fails Jackson deserialization, so the request never becomes content: 400. */
 	@Test
 	void rejectsUnknownWireLiteralsWith400() {
@@ -246,6 +268,42 @@ class GoalApiTest extends ApiTestBase {
 	}
 
 	/**
+	 * The completion moment is data S-03 reads, not a flag. PUT is a full replace and the SPA sends
+	 * an entry's own completion state back with every edit, so a re-stamp on each write would move
+	 * the date every time someone fixes a typo — and the original moment is unrecoverable.
+	 */
+	@Test
+	void keepsTheOriginalCompletionMomentWhenACompletedEntryIsEdited() {
+		givenLoggedInUser();
+		String id = createGoal(goalPayload("Przeczytać 12 książek", "GOAL", "THIS_YEAR", "EDUCATION"));
+
+		String completedAt = csrfAware()
+				.body(updatePayload("Przeczytać 12 książek", "GOAL", "THIS_YEAR", "EDUCATION", true))
+				.when()
+				.put("/api/goals/" + id)
+				.then()
+				.statusCode(200)
+				.extract()
+				.path("completed_at");
+
+		String afterTheEdit = csrfAware()
+				.body(updatePayload("Przeczytać 12 książek (poprawka)", "GOAL", "THIS_YEAR", "EDUCATION", true))
+				.when()
+				.put("/api/goals/" + id)
+				.then()
+				.statusCode(200)
+				.body("content", equalTo("Przeczytać 12 książek (poprawka)"))
+				.extract()
+				.path("completed_at");
+
+		// Compared as instants: a freshly written row serializes in the server's offset, one read back
+		// from timestamptz comes out as UTC, and both are the same moment.
+		assertThat(OffsetDateTime.parse(afterTheEdit).toInstant())
+				.as("editing a completed entry must not move its completion moment")
+				.isEqualTo(OffsetDateTime.parse(completedAt).toInstant());
+	}
+
+	/**
 	 * Someone else's id and an id that never existed must be indistinguishable — otherwise a caller
 	 * can probe which UUIDs belong to other accounts by watching the status code or the body.
 	 */
@@ -302,15 +360,20 @@ class GoalApiTest extends ApiTestBase {
 	 * <p>The set is compared, not merely searched for: a substring check would pass happily after a
 	 * value was <em>deleted</em> from the spec.
 	 *
-	 * <p>The frontend leg reads the SPA's goal type, which hardcodes the same literals in its union
-	 * types. It lives here rather than in Vitest because Vite denies that suite any file above its
-	 * root, so only this side can see all three copies at once (same reason as
+	 * <p>The frontend leg <b>parses the union out of the SPA's {@code Goal} type</b> rather than
+	 * searching the file for the literals. A whole-file search is the same trap in a different shape:
+	 * each literal also appears in {@code LAYER_LABEL}/{@code HORIZON_LABEL} and in
+	 * {@code layer === 'GOAL'}, so widening the type to {@code layer: string} — losing the contract
+	 * entirely — would leave every literal present and the search green.
+	 *
+	 * <p>It lives here rather than in Vitest because only this side can see all three copies at once:
+	 * the spec and the SPA both sit above the frontend package root (same reason as
 	 * {@code AuthApiTest.emitsTheReAuthUrnTheContractAndTheSpaBothHardcode}).
 	 */
 	@Test
 	void publishesTheWireEnumsTheContractAnchors() throws IOException {
 		Map<String, Object> spec = new Yaml().load(Files.readString(
-				Path.of("../context/changes/account-and-auth/openapi.yaml")));
+				Path.of("../context/foundation/openapi.yaml")));
 		String spa = Files.readString(Path.of("../frontend/src/pages/GoalsPage.tsx"));
 
 		assertThat(extensibleEnum(spec, "GoalLayer"))
@@ -318,18 +381,57 @@ class GoalApiTest extends ApiTestBase {
 				.containsExactlyInAnyOrderElementsOf(constantNames(GoalLayer.values()));
 		assertThat(extensibleEnum(spec, "GoalHorizon"))
 				.containsExactlyInAnyOrderElementsOf(constantNames(GoalHorizon.values()));
-		assertThat(spa)
-				.as("the SPA's goal type spells out the same literals it sends and switches on")
-				.contains(constantNames(GoalLayer.values()))
-				.contains(constantNames(GoalHorizon.values()));
+		String goalType = spaGoalType(spa);
+		assertThat(unionLiterals(goalType, "layer"))
+				.as("the SPA's goal type spells out the same layer literals it sends and switches on")
+				.containsExactlyInAnyOrderElementsOf(constantNames(GoalLayer.values()));
+		assertThat(unionLiterals(goalType, "horizon"))
+				.as("the SPA's goal type spells out the same horizon literals")
+				.containsExactlyInAnyOrderElementsOf(constantNames(GoalHorizon.values()));
 
-		// The content limit spans the same three copies as the enums. The column width is already
-		// pinned to the mapping by ddl-auto=validate; the spec and the SPA's maxLength are not.
+		// The content limit spans four copies, not three. ddl-auto=validate does NOT pin the column
+		// width to the mapping — Hibernate's validator compares JDBC type codes and ignores length,
+		// so goal.content could be narrowed to VARCHAR(200) against a @Size(max = 500) and boot
+		// cleanly, failing only at runtime on the first long value. Hence the migration is read here
+		// like any other copy.
 		assertThat(schema(spec, "GoalContent").get("maxLength"))
 				.isEqualTo(Goal.MAX_CONTENT_LENGTH);
 		assertThat(spa)
 				.as("the SPA caps the same field at the same length the server enforces")
 				.contains("maxLength={" + Goal.MAX_CONTENT_LENGTH + "}");
+		assertThat(migrationContentWidth())
+				.as("goal.content's column width is not pinned by ddl-auto=validate, only by this")
+				.isEqualTo(Goal.MAX_CONTENT_LENGTH);
+	}
+
+	/** The declared width of {@code goal.content} in {@code V6} — the fourth copy of the cap. */
+	private static int migrationContentWidth() throws IOException {
+		String migration = Files.readString(
+				Path.of("../backend/src/main/resources/db/migration/V6__create_goal.sql"));
+		Matcher column = Pattern.compile("content\\s+VARCHAR\\((\\d+)\\)").matcher(migration);
+		assertThat(column.find()).as("V6 declares goal.content as VARCHAR(n)").isTrue();
+		return Integer.parseInt(column.group(1));
+	}
+
+	/** The body of {@code export type Goal = { … }}, so the search cannot stray into label maps. */
+	private static String spaGoalType(String spa) {
+		Matcher block = Pattern.compile("export type Goal = \\{(.*?)\\n\\}", Pattern.DOTALL).matcher(spa);
+		assertThat(block.find()).as("the SPA exports a Goal type for the contract to anchor").isTrue();
+		return block.group(1);
+	}
+
+	/** The quoted literals of one field's union — empty if the field was widened to a bare type. */
+	private static List<String> unionLiterals(String goalType, String field) {
+		Matcher declaration = Pattern.compile("^\\s*" + field + ": (.+)$", Pattern.MULTILINE)
+				.matcher(goalType);
+		assertThat(declaration.find()).as("the SPA's goal type declares %s", field).isTrue();
+
+		Matcher literal = Pattern.compile("'([^']+)'").matcher(declaration.group(1));
+		List<String> literals = new ArrayList<>();
+		while (literal.find()) {
+			literals.add(literal.group(1));
+		}
+		return literals;
 	}
 
 	private static List<String> constantNames(Enum<?>[] constants) {

@@ -237,3 +237,118 @@ describe('GoalsPage — zmiany na wpisie', () => {
     expect(screen.queryByRole('form', { name: 'Edytuj wpis' })).not.toBeInTheDocument()
   })
 })
+
+/**
+ * PUT is a full replace, so every edit resends the whole entry. These pin the fields the form has
+ * to carry along untouched — each one is invisible in the UI and silently destroyed if the payload
+ * drops it, which no amount of clicking through the happy path would reveal.
+ */
+describe('GoalsPage — edycja zachowuje resztę wpisu', () => {
+  it('keeps a completed entry completed when only its text is edited', async () => {
+    stubApi([COOKING])
+    const user = userEvent.setup()
+
+    renderGoals()
+    await user.click((await item('Nauczyć się gotować')).getByRole('button', { name: 'Edytuj' }))
+
+    const form = within(screen.getByRole('form', { name: 'Edytuj wpis' }))
+    await user.clear(form.getByLabelText('Treść'))
+    await user.type(form.getByLabelText('Treść'), 'Nauczyć się gotować (poprawka)')
+    await user.click(form.getByRole('button', { name: 'Zapisz' }))
+
+    expect(JSON.parse(mutations()[0][1].body)).toMatchObject({
+      content: 'Nauczyć się gotować (poprawka)',
+      completed: true,
+    })
+  })
+
+  it("carries a goal's horizon and category through a text-only edit", async () => {
+    stubApi([RUN])
+    const user = userEvent.setup()
+
+    renderGoals()
+    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Edytuj' }))
+
+    const form = within(screen.getByRole('form', { name: 'Edytuj wpis' }))
+    expect(form.getByLabelText('Horyzont')).toHaveValue('THIS_YEAR')
+    expect(form.getByLabelText('Kategoria')).toHaveValue('HEALTH')
+
+    await user.clear(form.getByLabelText('Treść'))
+    await user.type(form.getByLabelText('Treść'), 'Przebiec maraton')
+    await user.click(form.getByRole('button', { name: 'Zapisz' }))
+
+    expect(JSON.parse(mutations()[0][1].body)).toEqual({
+      content: 'Przebiec maraton',
+      layer: 'GOAL',
+      horizon: 'THIS_YEAR',
+      category_code: 'HEALTH',
+      completed: false,
+    })
+  })
+})
+
+/** Answers the goals GET normally and fails every mutation with the given status. */
+function stubFailingMutations(goals: Goal[], status: number, detail = 'boom') {
+  fetchMock.mockImplementation((url: string, init: { method?: string } = {}) => {
+    if (url === '/api/categories') return Promise.resolve(response(200, { items: DOMAINS }))
+    if ((init.method ?? 'GET') === 'GET') return Promise.resolve(response(200, { items: [...goals] }))
+    return Promise.resolve(response(status, { detail }))
+  })
+}
+
+function goalFetches() {
+  return fetchMock.mock.calls.filter(([url]) => url === '/api/goals')
+}
+
+describe('GoalsPage — nieudany zapis', () => {
+  it('says what is wrong when the server rejects the entry, not just "try again"', async () => {
+    stubFailingMutations([RUN], 422)
+    const user = userEvent.setup()
+
+    renderGoals()
+    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Ukończ' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/odrzuc/i)
+  })
+
+  it('refetches when the entry is already gone, so the stale row disappears', async () => {
+    stubFailingMutations([RUN], 404)
+    const user = userEvent.setup()
+
+    renderGoals()
+    await screen.findByText('Przebiec półmaraton')
+    const before = goalFetches().length
+
+    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Ukończ' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/już nie istnieje/i)
+    expect(goalFetches().length).toBeGreaterThan(before)
+  })
+
+  it('keeps what the user typed when the save fails', async () => {
+    stubFailingMutations([], 500)
+    const user = userEvent.setup()
+
+    renderGoals()
+    const form = await createForm()
+    await user.type(form.getByLabelText('Treść'), 'Przebiec półmaraton')
+    await user.selectOptions(form.getByLabelText('Rodzaj'), 'DREAM')
+    await user.click(form.getByRole('button', { name: 'Dodaj' }))
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(form.getByLabelText('Treść')).toHaveValue('Przebiec półmaraton')
+  })
+
+  it('records the failure, so a save that breaks in production is not invisible', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    stubFailingMutations([RUN], 500)
+    const user = userEvent.setup()
+
+    renderGoals()
+    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Ukończ' }))
+
+    await screen.findByRole('alert')
+    expect(logged).toHaveBeenCalled()
+    logged.mockRestore()
+  })
+})

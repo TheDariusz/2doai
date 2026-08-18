@@ -264,7 +264,8 @@ paths:
       description: >
         Creates an entry in either layer. A GOAL requires a `horizon` and a DREAM must omit it;
         breaking that rule returns 422 (the body parsed, its content is invalid), whereas an
-        unrecognized `layer` or `category_code` literal never deserializes and returns 400.
+        unrecognized enum literal in any field — `layer`, `horizon` or `category_code` — never
+        deserializes and returns 400.
       operationId: createGoal
       parameters:
         - $ref: '#/components/parameters/XsrfToken'
@@ -298,13 +299,20 @@ paths:
       summary: Replace a goal or dream
       description: >
         Full replace (#137 PUT semantics), so one operation covers every S-02 write: editing the
-        text, re-categorizing, converting between layers (a dream that gains a horizon becomes a
-        goal, and back), and completing or un-completing via `completed`. There is no DELETE —
+        text, re-categorizing, converting between layers (sending `layer: GOAL` together with a
+        `horizon` converts a dream, and `layer: DREAM` with a null `horizon` converts it back — a
+        horizon alone is a 422), and completing or un-completing via `completed`. There is no DELETE —
         FR-004/FR-005 omit it deliberately; withdrawal is S-04 and erasure is FR-019.
 
 
-        A goal owned by another account and a goal that never existed return the **same** 404, body
-        included: distinguishing them would let a caller probe other accounts' identifiers.
+        A goal owned by another account and a goal that never existed return the **same** 404 with
+        the same `detail`: distinguishing them would let a caller probe other accounts' identifiers.
+        Only `instance` differs, and it merely echoes the id the caller already supplied.
+
+
+        Completion is recorded once: re-sending `completed: true` on an already-completed entry
+        leaves `completed_at` at its original moment, so editing a finished entry never moves its
+        completion date. Un-completing and completing again is the only way to set a new one.
       operationId: replaceGoal
       parameters:
         - $ref: '#/components/parameters/GoalId'

@@ -14,7 +14,6 @@ import com.tngtech.archunit.core.domain.JavaField;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.lang.ArchRule;
-import com.thedariusz.todoai.ai.memory.AiMemoryRepository;
 import com.thedariusz.todoai.goal.GoalRepository;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.Test;
@@ -76,8 +75,10 @@ class UserOwnedConventionTest {
 	 * forever while guarding nothing. {@link LeakyEntity} deliberately violates the convention and
 	 * lives outside the {@code com.thedariusz.todoai} package so Hibernate's entity scan never sees it.
 	 *
-	 * <p>No companion test names today's aggregates: ArchUnit's {@code archRule.failOnEmptyShould}
-	 * defaults to true, so a predicate matching zero classes already fails the rule above.
+	 * <p>Nothing here re-enumerates today's aggregates for the rule above's sake: ArchUnit's
+	 * {@code archRule.failOnEmptyShould} defaults to true, so a predicate matching zero classes
+	 * already fails it. (The repository-surface test below does name {@code GoalRepository}, because
+	 * it asserts a property of one interface rather than a rule over the whole package.)
 	 */
 	@Test
 	void theRuleRejectsAnEntityThatCarriesUserIdWithoutTheMarker() {
@@ -88,13 +89,28 @@ class UserOwnedConventionTest {
 				.hasMessageContaining("LeakyEntity");
 	}
 
+	/**
+	 * The scoped-access convention, asserted as a <b>structural</b> property rather than by naming
+	 * methods that happen to exist. The predecessor of this test checked that
+	 * {@code findByIdAndUserId} was declared — which proves nothing about what callers use, since
+	 * {@code JpaRepository}'s inherited {@code findById} compiles just as readily and skips the
+	 * ownership check entirely. {@link GoalRepository} therefore extends the bare
+	 * {@code Repository} marker, and this pins that decision: the unscoped finders must not be on
+	 * the surface at all.
+	 *
+	 * <p>{@code AiMemoryRepository} still extends {@code JpaRepository} and is deliberately not
+	 * covered yet — narrowing it is its own change. Its reads go through {@code findByUserId} today.
+	 */
 	@Test
-	void perUserAggregatesAreReadThroughUserScopedFinders() throws NoSuchMethodException {
-		// The scoped-access convention: per-user reads go through a user-scoped finder — including the
-		// by-id one, so a client-supplied aggregate id can never reach a row it does not own.
-		assertThat(AiMemoryRepository.class.getMethod("findByUserId", UUID.class).getReturnType())
-				.isEqualTo(java.util.Optional.class);
-		Method scopedById = GoalRepository.class.getMethod("findByIdAndUserId", UUID.class, UUID.class);
-		assertThat(scopedById.getReturnType()).isEqualTo(java.util.Optional.class);
+	void userOwnedRepositoriesDoNotPublishUnscopedFinders() throws NoSuchMethodException {
+		assertThat(GoalRepository.class.getMethods())
+				.extracting(Method::getName)
+				.as("an unscoped finder on a UserOwned repository is a cross-account read waiting to "
+						+ "happen — the next caller reaches for the one that compiles")
+				.doesNotContain("findById", "findAll", "getReferenceById", "existsById", "deleteById");
+
+		// And the scoped by-id read that replaces it is present (getMethod throws if it is not).
+		assertThat(GoalRepository.class.getMethod("findByIdAndUserId", UUID.class, UUID.class))
+				.isNotNull();
 	}
 }

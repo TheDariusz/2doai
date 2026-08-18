@@ -119,7 +119,8 @@ migration.
 
 Every later slice inherits these rules (also recorded in `CLAUDE.md`):
 
-- **Domain aggregates** (User, Goal, Dream, CurrentTask, AI-memory, …) use a **UUID v7**
+- **Domain aggregates** (User, Goal — one aggregate covering both the goal and dream layers,
+  CurrentTask, AI-memory, …) use a **UUID v7**
   surrogate primary key, generated via Hibernate `@UuidGenerator`
   (RFC 9562, `UuidVersion7Strategy` — time-ordered, index-friendly).
 - **Audit columns**: every domain table carries `created_at` and `updated_at` of type
@@ -135,13 +136,12 @@ Every later slice inherits these rules (also recorded in `CLAUDE.md`):
 These tables arrive with later slices and are intentionally **not drawn** here yet, to
 avoid pre-deciding their schema:
 
-- **`app_user`** and auth-related tables — S-01 (`account-and-auth`). (`app_user`, not
-  `user` — reserved word in Postgres.)
 - **`current_task`** — S-07.
 
 Each will reference `category.code` where it needs a life domain.
 
 > The AI-memory tables (`ai_memory`, `ai_memory_profile_fact`, `ai_memory_episode`) were
-> in this list until F-02; they are now drawn above. So were **`goal`** and **`dream`**,
-> listed as two tables before the schema was designed — S-02 settled on a single `goal`
-> table with a `layer` discriminator, drawn above.
+> in this list until F-02; they are now drawn above. So was **`app_user`**, until S-01
+> shipped it in `V4`/`V5`. So were **`goal`** and **`dream`**, listed as two tables before
+> the schema was designed — S-02 settled on a single `goal` table with a `layer`
+> discriminator, drawn above.
