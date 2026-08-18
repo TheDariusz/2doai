@@ -2,6 +2,7 @@ package com.thedariusz.todoai.auth;
 
 import java.net.URI;
 
+import com.thedariusz.todoai.goal.GoalNotFoundException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -50,6 +51,21 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	@ExceptionHandler(EmailAlreadyRegisteredException.class)
 	ProblemDetail handleEmailAlreadyRegistered(EmailAlreadyRegisteredException ex) {
 		return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+	}
+
+	/**
+	 * The first "no such resource for this user" 404 (S-02 goals; later slices reuse the shape).
+	 *
+	 * <p>The detail is a <b>fixed string, not {@code ex.getMessage()}</b> — unlike the 409 above. The
+	 * exception message names the id for the server log, and echoing it would make the response differ
+	 * between a goal owned by somebody else and one that never existed, handing a caller an oracle for
+	 * other accounts' ids. Both causes must be identical on the wire, so nothing request-specific may
+	 * reach the body.
+	 */
+	@ExceptionHandler(GoalNotFoundException.class)
+	ProblemDetail handleGoalNotFound(GoalNotFoundException ex) {
+		logger.warn("Scoped lookup missed: " + ex.getMessage());
+		return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "No such goal");
 	}
 
 	/**

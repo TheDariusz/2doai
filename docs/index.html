@@ -206,7 +206,8 @@
         <tr><th scope="row">Account and session auth</th><td><span class="badge badge-live">implemented</span></td><td>Spring Security, server-side in-memory sessions, account erasure</td></tr>
         <tr><th scope="row">Categories</th><td><span class="badge badge-live">implemented</span></td><td>Seeded reference table, <code>LifeDomain</code>, startup drift check</td></tr>
         <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens, 11-domain shell; <code>/api</code> proxies in development and production</td></tr>
-        <tr><th scope="row">Goals, dreams, and tasks</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slices S-02 and S-07</td></tr>
+        <tr><th scope="row">Goals and dreams</th><td><span class="badge badge-live">implemented</span></td><td>One <code>goal</code> aggregate for both layers, <code>/api/goals</code>, and the <code>/cele</code> screen (S-02)</td></tr>
+        <tr><th scope="row">Current tasks</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-07</td></tr>
         <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slices S-04 and S-05</td></tr>
         <tr><th scope="row">PWA/offline behavior</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-10</td></tr>
       </tbody>
@@ -215,15 +216,18 @@
   <p><strong>Frontend status:</strong> a React 19 single-page application on react-router. Session
   bootstrap, login, registration, logout, account deletion, and the 11-domain navigation shell all
   consume the API through one CSRF-aware client; the <code>/api</code> development proxy and
-  production reverse proxy are implemented. Domain pages are still placeholders — task, goal, and
-  dream UI and PWA behavior are planned.</p>
+  production reverse proxy are implemented. The <code>/cele</code> screen adds the first data UI:
+  goals and dreams are created, edited, converted between layers, completed, and reopened against
+  the live API. Per-domain pages are still placeholders — current-task UI and PWA behavior are
+  planned.</p>
   <p>These projects build independently; there is no root workspace. Local setup and execution
   belong in the <a href="../README.md">root README</a>. Product and architecture intent remain
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
-  <p class="note">Verified against repository snapshot <code>2556799</code> on 2026-08-03. To
-  review drift, run <code>git log 2556799.. -- backend frontend .github/workflows context/foundation docs/index.html</code>.</p>
+  <p class="note">Verified against the <code>goals-and-dreams</code> change (S-02) on 2026-08-17;
+  the previous verified snapshot was <code>2556799</code> on 2026-08-03. To review drift, run
+  <code>git log 2556799.. -- backend frontend .github/workflows context/foundation docs/index.html</code>.</p>
 </section>
 <section id="architecture">
   <h2>System context and containers</h2>
@@ -297,9 +301,10 @@ flowchart LR
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/security"><code>backend/…/security</code></a></th><td>Filter chain, CSRF, session identity, and RFC 9457 security errors</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/account"><code>backend/…/account</code></a></th><td>Modular per-user erasure coordinated before the user row is deleted</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/category"><code>backend/…/category</code></a></th><td>Fixed life-domain reference data and enum/table drift detection</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/goal"><code>backend/…/goal</code></a></th><td>Goal/dream aggregate for both non-task layers, its CRUD-minus-delete API, and its erasure adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai"><code>backend/…/ai</code></a></th><td>Provider-neutral LLM port, schema contract, and Spring AI adapter</td><td><span class="badge badge-foundation">foundation</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai/memory"><code>backend/…/ai/memory</code></a></th><td>Personal AI-memory aggregate, rendering, persistence, and erasure adapter</td><td><span class="badge badge-foundation">foundation</span></td></tr>
-        <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, auth screens, and the 11-domain shell</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, auth screens, the 11-domain shell, and the goals/dreams screen</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/src/api"><code>frontend/src/api</code></a></th><td>The one backend boundary: same-origin fetch, CSRF double-submit, RFC 9457 errors, 401 session-expired signal</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/functions/api/[[path]].ts"><code>frontend/functions/api</code></a></th><td>Production same-origin reverse proxy to Fly.io</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../context/foundation"><code>context/foundation</code></a></th><td>Canonical product, data, security, deployment, and roadmap decisions</td><td>design source</td></tr>
@@ -357,6 +362,14 @@ flowchart LR
     <dt>Category</dt>
     <dd>One fixed life-domain classification, such as HEALTH or FINANCE. The database
     <code>category</code> row and Java <code>LifeDomain</code> enum represent the same set.</dd>
+    <dt>Goal</dt>
+    <dd>A long-term intention the user commits to, carrying a horizon of either this year or the
+    coming months. Stored in the <code>goal</code> table with <code>layer = GOAL</code>.</dd>
+    <dt>Dream</dt>
+    <dd>A someday aspiration with no timeframe — the same <code>goal</code> table with
+    <code>layer = DREAM</code> and no horizon. One aggregate serves both because every later slice
+    consumes the union and nothing but the horizon differs. Converting one into the other is an
+    ordinary edit, not a move between tables.</dd>
     <dt>AI memory</dt>
     <dd>The per-user aggregate that provides personal context to AI prompts. It contains durable
     profile facts and an append-only history of relevant events.</dd>
@@ -490,12 +503,16 @@ classDiagram
   class AiMemoryDataDeleter {
     &lt;&lt;module adapter&gt;&gt;
   }
+  class GoalDataDeleter {
+    &lt;&lt;module adapter&gt;&gt;
+  }
   class UserRepository {
     &lt;&lt;persistence adapter / Spring Data&gt;&gt;
   }
   AccountDeletionService o-- PerUserDataDeleter : all registered beans
   AccountDeletionService --> UserRepository : delete(user) last — FK fails loudly if a deleter is missing
   PerUserDataDeleter &lt;|.. AiMemoryDataDeleter
+  PerUserDataDeleter &lt;|.. GoalDataDeleter
   </pre>
 
   <h3>category</h3>
@@ -525,6 +542,62 @@ classDiagram
   CategoryController --> CategoryRepository
   CategorySyncCheck --> CategoryRepository
   CategorySyncCheck ..> LifeDomain : compares codes
+  </pre>
+
+  <h3>goal</h3>
+  <p>One aggregate carries both non-task layers. The layer × horizon rule — a goal requires a
+  horizon, a dream forbids one — is enforced at three depths: the request records return 422, the
+  aggregate constructor and <code>update</code> throw for any future caller, and the
+  <code>chk_goal_layer_horizon</code> database constraint cannot be bypassed at all. Reads never
+  take an owner from the client: <code>findByIdAndUserId</code> makes another account's identifier
+  and a nonexistent one answer with the same 404.</p>
+  <pre class="mermaid">
+classDiagram
+  class Goal {
+    &lt;&lt;aggregate root&gt;&gt;
+    UUID id
+    UUID userId
+    String content
+    GoalLayer layer
+    GoalHorizon horizon — null for a DREAM
+    LifeDomain category — optional
+    OffsetDateTime completedAt — null means active
+    +update(content, layer, horizon, category)
+    +complete(OffsetDateTime)
+    +reopen()
+  }
+  class GoalLayer {
+    &lt;&lt;wire enumeration&gt;&gt;
+    GOAL, DREAM
+  }
+  class GoalHorizon {
+    &lt;&lt;wire enumeration&gt;&gt;
+    THIS_YEAR, FEW_MONTHS
+  }
+  class GoalController {
+    &lt;&lt;inbound adapter / REST&gt;&gt;
+    +list() GET /api/goals
+    +create() POST /api/goals
+    +update() PUT /api/goals/:id
+  }
+  class GoalService {
+    &lt;&lt;application service&gt;&gt;
+    scopes every read to CurrentUser
+  }
+  class GoalRepository {
+    &lt;&lt;persistence adapter / Spring Data&gt;&gt;
+    findByIdAndUserId — no existence oracle
+  }
+  class GoalDataDeleter {
+    &lt;&lt;module adapter&gt;&gt;
+  }
+  GoalController --> GoalService
+  GoalService --> GoalRepository
+  GoalRepository --> Goal
+  GoalDataDeleter --> GoalRepository
+  Goal --> GoalLayer
+  Goal --> GoalHorizon
+  Goal ..> LifeDomain : optional category
   </pre>
 
   <h3>ai + ai/memory</h3>
@@ -573,7 +646,9 @@ classDiagram
   <p class="note">Exact endpoints: <code>POST /api/users</code>, <code>GET /api/users/me</code>,
   <code>DELETE /api/users/me</code>, <code>POST /api/sessions</code>,
   <code>DELETE /api/sessions/current</code>, <code>GET /api/categories</code>,
-  <code>GET /api/ping</code>.</p>
+  <code>GET /api/goals</code>, <code>POST /api/goals</code>, <code>PUT /api/goals/{id}</code>,
+  <code>GET /api/ping</code>. There is deliberately no <code>DELETE /api/goals/{id}</code>:
+  FR-004/FR-005 omit it, and erasure is FR-019's job.</p>
 </section>
 
 <section id="ai-communication">
@@ -982,8 +1057,9 @@ sequenceDiagram
 <section id="data">
   <h2>Data architecture</h2>
   <p>Every user-owned aggregate carries an explicit owner boundary. The current model contains the
-  user, fixed category reference data, and the AI-memory aggregate; goals, dreams, current tasks,
-  proposal history, and scheduling state belong to the target model and are not yet implemented.</p>
+  user, fixed category reference data, the AI-memory aggregate, and the <code>goal</code> table
+  holding both non-task layers; current tasks, proposal history, and scheduling state belong to the
+  target model and are not yet implemented.</p>
   <div class="card-grid">
     <div class="card"><strong>Ownership and isolation</strong><br><code>AiMemory</code> is one
     aggregate per user. Child profile facts and episodes are reached through that root.</div>
@@ -996,13 +1072,18 @@ sequenceDiagram
     Hibernate remains on <code>ddl-auto=validate</code> as a mapping drift guard.</div>
   </div>
   <h3>Current model <span class="badge badge-live">implemented</span></h3>
-  <p>User identity, fixed categories, and personal AI memory are present. Profile facts are durable
-  semantic statements; episodes are a bounded event history stored with a JSON payload.</p>
-  <img class="diagram" src="../context/foundation/data-model-current.svg" width="1082" height="832" loading="lazy" alt="Current entity relationship model: app user, category, AI memory, profile facts, and episodes">
+  <p>User identity, fixed categories, personal AI memory, and the <code>goal</code> table are
+  present. Profile facts are durable semantic statements; episodes are a bounded event history
+  stored with a JSON payload. <code>goal</code> keeps its completion state as a nullable
+  <code>completed_at</code> rather than a boolean, because the memory enrichment that reads it next
+  needs to know when a thing was finished, not merely whether.</p>
+  <img class="diagram" src="../context/foundation/data-model-current.svg" width="1082" height="1012" loading="lazy" alt="Current entity relationship model: app user, goal, category, AI memory, profile facts, and episodes">
   <h3>Target model <span class="badge badge-planned">planned</span></h3>
-  <p>The target diagram shows product concepts that still require slice-level design and migration
-  work. It is direction, not an implemented database contract.</p>
-  <img class="diagram" src="../context/foundation/data-model-target.svg" width="2003" height="1228" loading="lazy" alt="Target entity relationship model including planned tasks, goals, dreams, and proactive proposal data">
+  <p>The target diagram shows the whole shape, migrated and not: solid tables exist today, ghosted
+  ones still need slice-level design and a migration. After S-02 only <code>current_task</code>
+  (S-07) and the proposal/scheduling data remain ghosted, so the ghosted half is direction rather
+  than an implemented database contract.</p>
+  <img class="diagram" src="../context/foundation/data-model-target.svg" width="2003" height="1268" loading="lazy" alt="Target entity relationship model: migrated app user, goal, category and AI memory alongside the planned current-task and proposal data">
   <p class="note">Canonical source:
   <a href="../context/foundation/data-model.md"><code>context/foundation/data-model.md</code></a>.
   Editable Draw.io sources live beside the exported SVGs.</p>
@@ -1182,10 +1263,11 @@ flowchart TB
 
 <section id="roadmap">
   <h2>Roadmap / target state <span class="badge badge-planned">planned</span></h2>
-  <p>What exists today is the account/auth slice plus the AI memory and category foundations.
-  The MVP roadmap builds vertical slices on top:</p>
-  <div class="card"><strong>Tasks</strong> — CRUD across the three layers (current / long-term / dreams),
-  AI classification into the 11 life domains at capture time.</div>
+  <p>What exists today is the account/auth slice, the goals-and-dreams slice, and the AI memory and
+  category foundations. The MVP roadmap builds vertical slices on top:</p>
+  <div class="card"><strong>Current tasks</strong> — the third layer, plus AI classification into the
+  11 life domains at capture time. Long-term goals and dreams already ship with a manual category
+  picker; the auto-tag replaces the picking, not the storage.</div>
   <div class="card"><strong>AI orchestration</strong> — <code>LlmClient</code> port already exists with a
   Spring AI adapter; JSON-schema-constrained structured output; per-user <code>AiMemory</code>
   (profile facts + episodes) rendered into prompts.</div>
@@ -1208,7 +1290,8 @@ flowchart TB
         <tr><th scope="col">Term</th><th scope="col">Meaning</th></tr>
       </thead>
       <tbody>
-        <tr><th scope="row">Task layer</th><td>One of three horizons a task lives in: <em>current</em> (actionable now), <em>long-term</em> (goals), <em>dreams</em> (aspirations). <span class="badge badge-planned">planned</span></td></tr>
+        <tr><th scope="row">Task layer</th><td>One of three horizons an item lives in: <em>current</em> (actionable now, <span class="badge badge-planned">planned</span>), <em>long-term</em> (goals) and <em>dreams</em> (aspirations) — the latter two implemented as one <code>goal</code> table with a <code>layer</code> discriminator.</td></tr>
+        <tr><th scope="row">Layer / horizon</th><td><code>GoalLayer</code> (GOAL, DREAM) discriminates the two non-task layers; <code>GoalHorizon</code> (THIS_YEAR, FEW_MONTHS) applies only to a goal. Both constant names are the wire literals, anchored in <code>openapi.yaml</code> and held against backend and frontend copies by <code>GoalApiTest</code>.</td></tr>
         <tr><th scope="row">Life domain</th><td>One of 11 fixed categories every task belongs to: HEALTH, FINANCE, CAREER, EDUCATION, RELATIONSHIPS, HOME, LEISURE, ADMIN, SAFETY, TRANSPORT, INNER_GROWTH. Enum <code>LifeDomain</code> mirrors the seeded <code>category</code> table; <code>CategorySyncCheck</code> fails boot on drift.</td></tr>
         <tr><th scope="row">Natural-rhythm reminder</th><td>A proactive nudge surfaced at a contextually right moment rather than a fixed alarm time. <span class="badge badge-planned">planned</span></td></tr>
         <tr><th scope="row">AiMemory</th><td>Per-user aggregate the AI consults; created atomically with the <code>User</code> at registration ("every user has exactly one memory").</td></tr>
