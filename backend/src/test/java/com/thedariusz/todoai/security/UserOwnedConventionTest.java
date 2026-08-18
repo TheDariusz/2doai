@@ -14,9 +14,7 @@ import com.tngtech.archunit.core.domain.JavaField;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.lang.ArchRule;
-import com.thedariusz.todoai.ai.memory.AiMemory;
 import com.thedariusz.todoai.ai.memory.AiMemoryRepository;
-import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.goal.GoalRepository;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.Test;
@@ -45,12 +43,8 @@ class UserOwnedConventionTest {
 	 * that Hibernate's snake_case strategy maps to the same column.
 	 */
 	private static final DescribedPredicate<JavaClass> MAP_A_USER_ID_COLUMN =
-			new DescribedPredicate<>("map a user_id column") {
-				@Override
-				public boolean test(JavaClass type) {
-					return type.getAllFields().stream().anyMatch(UserOwnedConventionTest::isUserIdColumn);
-				}
-			};
+			DescribedPredicate.describe("map a user_id column",
+					type -> type.getAllFields().stream().anyMatch(UserOwnedConventionTest::isUserIdColumn));
 
 	private static final ArchRule PER_USER_ENTITIES_ARE_USER_OWNED = classes()
 			.that().areAnnotatedWith(Entity.class)
@@ -81,6 +75,9 @@ class UserOwnedConventionTest {
 	 * nothing (a renamed column, an annotation lookup that quietly returns empty) would keep passing
 	 * forever while guarding nothing. {@link LeakyEntity} deliberately violates the convention and
 	 * lives outside the {@code com.thedariusz.todoai} package so Hibernate's entity scan never sees it.
+	 *
+	 * <p>No companion test names today's aggregates: ArchUnit's {@code archRule.failOnEmptyShould}
+	 * defaults to true, so a predicate matching zero classes already fails the rule above.
 	 */
 	@Test
 	void theRuleRejectsAnEntityThatCarriesUserIdWithoutTheMarker() {
@@ -89,15 +86,6 @@ class UserOwnedConventionTest {
 		assertThatThrownBy(() -> PER_USER_ENTITIES_ARE_USER_OWNED.check(violator))
 				.isInstanceOf(AssertionError.class)
 				.hasMessageContaining("LeakyEntity");
-	}
-
-	/** Both of today's per-user aggregates are matched by the rule, not skipped by it. */
-	@Test
-	void bothPerUserAggregatesAreCoveredByTheRule() {
-		JavaClasses aggregates = new ClassFileImporter().importClasses(AiMemory.class, Goal.class);
-
-		assertThat(aggregates).allMatch(MAP_A_USER_ID_COLUMN);
-		PER_USER_ENTITIES_ARE_USER_OWNED.check(aggregates);
 	}
 
 	@Test

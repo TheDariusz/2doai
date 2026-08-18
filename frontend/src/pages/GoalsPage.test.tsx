@@ -106,7 +106,6 @@ describe('GoalsPage', () => {
   })
 
   it('says so when the list cannot be loaded, rather than rendering as if it were empty', async () => {
-    stubApi([])
     fetchMock.mockImplementation((url: string) =>
       Promise.resolve(
         url === '/api/categories'

@@ -169,11 +169,13 @@
 
 		<!-- ArchUnit — structural convention guards that derive their subjects from the code rather
 		     than enumerating them by hand. Promoted in S-02, when the second per-user aggregate made
-		     the hand-rolled N = 1 UserOwned check untenable (see UserOwnedConventionTest). Not managed
+		     the hand-rolled N = 1 UserOwned check untenable (see UserOwnedConventionTest). The core
+		     artifact, not archunit-junit5: the rules run from a plain @Test via ClassFileImporter, so
+		     the JUnit engine extension (@AnalyzeClasses / @ArchTest) would be dead weight. Not managed
 		     by the Boot 4 BOM, hence the explicit version. -->
 		<dependency>
 			<groupId>com.tngtech.archunit</groupId>
-			<artifactId>archunit-junit5</artifactId>
+			<artifactId>archunit</artifactId>
 			<version>${archunit.version}</version>
 			<scope>test</scope>
 		</dependency>

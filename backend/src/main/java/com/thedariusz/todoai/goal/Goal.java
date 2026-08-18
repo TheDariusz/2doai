@@ -44,6 +44,9 @@ public class Goal implements UserOwned {
 	/** Mirrored by the {@code @Size} below and by {@code goal.content}'s column width in {@code V6}. */
 	public static final int MAX_CONTENT_LENGTH = 500;
 
+	/** Stated once: both request DTOs use it as their {@code @AssertTrue} message. */
+	static final String HORIZON_RULE = "a GOAL requires a horizon and a DREAM forbids one";
+
 	@Id
 	@UuidGenerator(style = UuidGenerator.Style.VERSION_7)
 	@Column(nullable = false, updatable = false)
@@ -122,8 +125,8 @@ public class Goal implements UserOwned {
 		this.content = Objects.requireNonNull(content, "content");
 		this.layer = Objects.requireNonNull(layer, "layer");
 		if (!hasConsistentHorizon(layer, horizon)) {
-			throw new IllegalArgumentException("a GOAL requires a horizon and a DREAM forbids one, got "
-					+ layer + " with horizon " + horizon);
+			throw new IllegalArgumentException(HORIZON_RULE + ", got " + layer
+					+ " with horizon " + horizon);
 		}
 		this.horizon = horizon;
 		this.category = category;

@@ -145,7 +145,8 @@ function GoalForm({
   domains: Domain[]
   onSubmit: (draft: GoalDraft) => Promise<boolean>
 }) {
-  const [layer, setLayer] = useState<Goal['layer']>(goal?.layer ?? 'GOAL')
+  const defaultLayer = goal?.layer ?? 'GOAL'
+  const [layer, setLayer] = useState<Goal['layer']>(defaultLayer)
   const [pending, setPending] = useState(false)
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -167,7 +168,7 @@ function GoalForm({
     if (saved) {
       form.reset()
       // `reset()` restores the DOM defaults; `layer` is React state and has to follow.
-      setLayer(goal?.layer ?? 'GOAL')
+      setLayer(defaultLayer)
     }
   }
 

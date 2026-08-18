@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.goal.GoalHorizon;
 import com.thedariusz.todoai.goal.GoalLayer;
 import org.junit.jupiter.api.Test;
@@ -321,6 +322,14 @@ class GoalApiTest extends ApiTestBase {
 				.as("the SPA's goal type spells out the same literals it sends and switches on")
 				.contains(constantNames(GoalLayer.values()))
 				.contains(constantNames(GoalHorizon.values()));
+
+		// The content limit spans the same three copies as the enums. The column width is already
+		// pinned to the mapping by ddl-auto=validate; the spec and the SPA's maxLength are not.
+		assertThat(schema(spec, "GoalContent").get("maxLength"))
+				.isEqualTo(Goal.MAX_CONTENT_LENGTH);
+		assertThat(spa)
+				.as("the SPA caps the same field at the same length the server enforces")
+				.contains("maxLength={" + Goal.MAX_CONTENT_LENGTH + "}");
 	}
 
 	private static List<String> constantNames(Enum<?>[] constants) {
@@ -334,11 +343,16 @@ class GoalApiTest extends ApiTestBase {
 	 */
 	@SuppressWarnings("unchecked")
 	private static List<String> extensibleEnum(Map<String, Object> spec, String schema) {
+		return (List<String>) schema(spec, schema).get("x-extensible-enum");
+	}
+
+	@SuppressWarnings("unchecked")
+	private static Map<String, Object> schema(Map<String, Object> spec, String name) {
 		Map<String, Object> components = (Map<String, Object>) spec.get("components");
 		Map<String, Object> schemas = (Map<String, Object>) components.get("schemas");
-		Map<String, Object> target = (Map<String, Object>) schemas.get(schema);
-		assertThat(target).as("schema %s is missing from openapi.yaml", schema).isNotNull();
-		return (List<String>) target.get("x-extensible-enum");
+		Map<String, Object> target = (Map<String, Object>) schemas.get(name);
+		assertThat(target).as("schema %s is missing from openapi.yaml", name).isNotNull();
+		return target;
 	}
 
 	/** The {@code instance} member carries the request path, which differs between the two probes. */

@@ -33,7 +33,7 @@ public record GoalUpdate(
 		boolean completed) {
 
 	/** See {@link GoalCreation#isHorizonConsistentWithLayer()} — conversion re-checks the same rule. */
-	@AssertTrue(message = "a GOAL requires a horizon and a DREAM forbids one")
+	@AssertTrue(message = Goal.HORIZON_RULE)
 	boolean isHorizonConsistentWithLayer() {
 		return Goal.hasConsistentHorizon(layer, horizon);
 	}

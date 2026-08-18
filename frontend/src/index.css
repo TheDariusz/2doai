@@ -110,7 +110,8 @@ label {
   font-size: 15px;
 }
 
-input {
+input,
+select {
   font: inherit;
   padding: 8px 10px;
   border: 1px solid var(--border);
@@ -202,15 +203,6 @@ p {
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 12px;
-}
-
-.goals select {
-  font: inherit;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--text-h);
 }
 
 .goals ul {

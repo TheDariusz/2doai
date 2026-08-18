@@ -36,7 +36,7 @@ public record GoalCreation(
 	 * check the aggregate and the {@code chk_goal_layer_horizon} constraint make, at the outermost of
 	 * the three depths.
 	 */
-	@AssertTrue(message = "a GOAL requires a horizon and a DREAM forbids one")
+	@AssertTrue(message = Goal.HORIZON_RULE)
 	boolean isHorizonConsistentWithLayer() {
 		return Goal.hasConsistentHorizon(layer, horizon);
 	}
