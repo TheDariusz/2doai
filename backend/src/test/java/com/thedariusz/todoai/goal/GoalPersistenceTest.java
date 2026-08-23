@@ -124,17 +124,24 @@ class GoalPersistenceTest {
 				.isInstanceOf(DataIntegrityViolationException.class);
 	}
 
+	/**
+	 * The stamp is fed sub-microsecond precision on purpose: {@code timestamptz} keeps microseconds,
+	 * so a clock finer than that (Linux has one, macOS does not) would let the write response carry
+	 * a moment no later read can return.
+	 */
 	@Test
 	void completionIsATimestampThatSurvivesTheRoundTripAndCanBeCleared() {
 		UUID userId = persistedUserId();
-		OffsetDateTime completedAt = OffsetDateTime.parse("2026-08-17T09:30:00Z");
+		OffsetDateTime completedAt = OffsetDateTime.parse("2026-08-17T09:30:00.123456789Z");
 		Goal saved = goals.saveAndFlush(new Goal(userId, "Przeczytać 12 książek", GoalLayer.GOAL,
 				GoalHorizon.THIS_YEAR, LifeDomain.EDUCATION));
 
 		saved.complete(completedAt);
 		goals.saveAndFlush(saved);
 		assertThat(goals.findByIdAndUserId(saved.getId(), userId).orElseThrow().getCompletedAt())
-				.isEqualTo(completedAt);
+				.as("what a read returns must equal what the write path already exposed")
+				.isEqualTo(saved.getCompletedAt())
+				.isEqualTo(OffsetDateTime.parse("2026-08-17T09:30:00.123456Z"));
 
 		saved.reopen();
 		goals.saveAndFlush(saved);

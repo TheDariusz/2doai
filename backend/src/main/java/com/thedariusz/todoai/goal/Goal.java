@@ -1,6 +1,7 @@
 package com.thedariusz.todoai.goal;
 
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -114,11 +115,15 @@ public class Goal implements UserOwned {
 	 * the SPA sends the entry's own state back with each edit — re-stamping here would move the date
 	 * every time someone fixes a typo, and the moment S-03 reads is unrecoverable once overwritten.
 	 * Going back through {@link #reopen} and completing again is the only way to set a new one.
+	 *
+	 * <p>Truncated to microseconds because {@code timestamptz} holds no more: an untruncated clock
+	 * (nanosecond-capable on Linux, not on macOS) would make the write response disagree with every
+	 * later read of the same row, and the rounding is invisible until it isn't.
 	 */
 	public void complete(OffsetDateTime at) {
 		Objects.requireNonNull(at, "at");
 		if (this.completedAt == null) {
-			this.completedAt = at;
+			this.completedAt = at.truncatedTo(ChronoUnit.MICROS);
 		}
 	}
 
