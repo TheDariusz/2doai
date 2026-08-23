@@ -41,6 +41,20 @@ erDiagram
         timestamptz occurred_at "when the event happened (domain time)"
         timestamptz created_at "row-insert audit time"
     }
+
+    category |o--o{ goal : "tags"
+
+    goal {
+        uuid id PK "UUID v7"
+        uuid user_id FK "→ app_user(id), NO ACTION"
+        varchar content "max 500 chars"
+        varchar layer "GOAL | DREAM — the discriminator"
+        varchar horizon "THIS_YEAR | FEW_MONTHS; NULL for a DREAM"
+        varchar category_code FK "→ category.code; nullable (uncategorized)"
+        timestamptz completed_at "NULL = active; the completion state itself"
+        timestamptz created_at
+        timestamptz updated_at
+    }
 ```
 
 `category` is the reference table from the persistence baseline (F-01). It is **reference
@@ -64,6 +78,18 @@ as the seam for a post-MVP RAG extension.
 > `ON DELETE CASCADE`**: FR-019 account deletion is app-orchestrated, and the plain FK is the
 > DB backstop that makes an out-of-order delete fail loudly. The `UNIQUE` constraint still
 > enforces one memory per user.
+
+**`goal`** (S-02, Flyway `V6`) holds **both** non-task layers — long-term goals (FR-004) and
+someday dreams (FR-005) — in one table, discriminated by `layer`. One aggregate rather than
+two tables was decided on 2026-08-17: S-04/S-05/S-08/S-09 all consume the union, and nothing
+but the horizon differs. `horizon` is therefore conditional, and the rule is enforced at three
+depths — the request DTOs (→ 422), the aggregate constructor, and the DB constraint
+`chk_goal_layer_horizon`, which no future writer can bypass. `completed_at` **is** the
+completion state (null = active); a timestamp rather than a boolean because S-03's memory
+enrichment needs to know when, not merely whether. `category_code` is nullable: an entry may
+stay uncategorized, and S-09's auto-tag only ever fills it in. Like `ai_memory.user_id`, the
+FK to `app_user` is deliberately **not** `ON DELETE CASCADE` — FR-019 deletion is
+app-orchestrated (`GoalDataDeleter`) and the plain FK is the backstop.
 
 ### Internationalization
 
@@ -93,7 +119,8 @@ migration.
 
 Every later slice inherits these rules (also recorded in `CLAUDE.md`):
 
-- **Domain aggregates** (User, Goal, Dream, CurrentTask, AI-memory, …) use a **UUID v7**
+- **Domain aggregates** (User, Goal — one aggregate covering both the goal and dream layers,
+  CurrentTask, AI-memory, …) use a **UUID v7**
   surrogate primary key, generated via Hibernate `@UuidGenerator`
   (RFC 9562, `UuidVersion7Strategy` — time-ordered, index-friendly).
 - **Audit columns**: every domain table carries `created_at` and `updated_at` of type
@@ -109,12 +136,12 @@ Every later slice inherits these rules (also recorded in `CLAUDE.md`):
 These tables arrive with later slices and are intentionally **not drawn** here yet, to
 avoid pre-deciding their schema:
 
-- **`app_user`** and auth-related tables — S-01 (`account-and-auth`). (`app_user`, not
-  `user` — reserved word in Postgres.)
-- **`goal`**, **`dream`** — S-02 (`goals-and-dreams`).
 - **`current_task`** — S-07.
 
 Each will reference `category.code` where it needs a life domain.
 
 > The AI-memory tables (`ai_memory`, `ai_memory_profile_fact`, `ai_memory_episode`) were
-> in this list until F-02; they are now drawn above.
+> in this list until F-02; they are now drawn above. So was **`app_user`**, until S-01
+> shipped it in `V4`/`V5`. So were **`goal`** and **`dream`**, listed as two tables before
+> the schema was designed — S-02 settled on a single `goal` table with a `layer`
+> discriminator, drawn above.

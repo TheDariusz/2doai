@@ -32,6 +32,7 @@
 		<!-- REST Assured is not managed by the Spring Boot 4 BOM. 6.x targets Hamcrest 3 / Groovy 4 /
 		     Java 17+ — aligned with Boot 4's stack (5.x is built for Hamcrest 2). -->
 		<rest-assured.version>6.0.1</rest-assured.version>
+		<archunit.version>1.4.1</archunit.version>
 		<!-- Patch-level overrides of BOM-managed versions, ahead of the Boot 4.0.x release that
 		     picks them up. Both clear fixable HIGH/CRITICAL findings that the CI Trivy gate fails
 		     on; drop each override once the Boot parent manages an equal-or-newer version.
@@ -163,6 +164,19 @@
 		<dependency>
 			<groupId>org.testcontainers</groupId>
 			<artifactId>testcontainers-junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- ArchUnit — structural convention guards that derive their subjects from the code rather
+		     than enumerating them by hand. Promoted in S-02, when the second per-user aggregate made
+		     the hand-rolled N = 1 UserOwned check untenable (see UserOwnedConventionTest). The core
+		     artifact, not archunit-junit5: the rules run from a plain @Test via ClassFileImporter, so
+		     the JUnit engine extension (@AnalyzeClasses / @ArchTest) would be dead weight. Not managed
+		     by the Boot 4 BOM, hence the explicit version. -->
+		<dependency>
+			<groupId>com.tngtech.archunit</groupId>
+			<artifactId>archunit</artifactId>
+			<version>${archunit.version}</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>

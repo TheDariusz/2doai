@@ -1,7 +1,7 @@
 openapi: 3.1.0
 
-# API-first contract (Zalando #100/#101) for the S-01 account-and-auth slice: the users +
-# sessions + categories resources. Authoritative over any older path prose in plan.md.
+# API-first contract (Zalando #100/#101): the users + sessions + categories resources (S-01), and
+# the goals resource (S-02). Authoritative over any older path prose in plan.md.
 #
 # Design decisions worth calling out:
 #   - Verb-free, resource-oriented URLs (#141/#138): register = POST /users, login = POST
@@ -13,13 +13,14 @@ openapi: 3.1.0
 #   - snake_case properties (#118); collections wrapped in a top-level object (#110); errors as
 #     Problem JSON / RFC 9457 (#176); 422 for validation, 409 for conflict (#220).
 info:
-  title: 2do AI — Account & Auth API
+  title: 2do AI — API
   description: >
     Identity and session management for 2do AI (S-01): register an account, log in / out, read
     the current user, and permanently delete the account and all its data (FR-019). Also exposes
-    the read-only list of the 11 fixed life domains (categories) the app navigation is built from.
-    Session model is a server-side HttpSession cookie (not JWT); mutations are CSRF-protected via a
-    double-submit XSRF-TOKEN cookie echoed as the X-XSRF-TOKEN header.
+    the read-only list of the 11 fixed life domains (categories) the app navigation is built from,
+    and the goals resource (S-02) — long-term goals and someday dreams, per-user and
+    CRUD-minus-delete. Session model is a server-side HttpSession cookie (not JWT); mutations are
+    CSRF-protected via a double-submit XSRF-TOKEN cookie echoed as the X-XSRF-TOKEN header.
   version: 1.0.0
   contact:
     name: 2do AI
@@ -41,6 +42,8 @@ tags:
     description: Authentication sessions (login / logout).
   - name: categories
     description: The 11 fixed life-domain reference records.
+  - name: goals
+    description: Long-term goals and someday dreams — the two non-task layers.
 
 paths:
   /users:
@@ -234,6 +237,112 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /goals:
+    get:
+      tags: [goals]
+      summary: List the caller's goals and dreams
+      description: >
+        Every goal and dream owned by the authenticated user, newest first — both layers in one
+        collection, discriminated by `layer`. Deliberately unfiltered and unpaginated in S-02: the
+        SPA groups client-side at single-user scale, and S-08 defines the real filter contract.
+      operationId: getGoals
+      responses:
+        '200':
+          description: The caller's goals and dreams.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoalCollection'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags: [goals]
+      summary: Create a goal or a dream
+      description: >
+        Creates an entry in either layer. A GOAL requires a `horizon` and a DREAM must omit it;
+        breaking that rule returns 422 (the body parsed, its content is invalid), whereas an
+        unrecognized enum literal in any field — `layer`, `horizon` or `category_code` — never
+        deserializes and returns 400.
+      operationId: createGoal
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoalCreation'
+      responses:
+        '201':
+          description: The created goal or dream.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Goal'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /goals/{id}:
+    put:
+      tags: [goals]
+      summary: Replace a goal or dream
+      description: >
+        Full replace (#137 PUT semantics), so one operation covers every S-02 write: editing the
+        text, re-categorizing, converting between layers (sending `layer: GOAL` together with a
+        `horizon` converts a dream, and `layer: DREAM` with a null `horizon` converts it back — a
+        horizon alone is a 422), and completing or un-completing via `completed`. There is no DELETE —
+        FR-004/FR-005 omit it deliberately; withdrawal is S-04 and erasure is FR-019.
+
+
+        A goal owned by another account and a goal that never existed return the **same** 404 with
+        the same `detail`: distinguishing them would let a caller probe other accounts' identifiers.
+        Only `instance` differs, and it merely echoes the id the caller already supplied.
+
+
+        Completion is recorded once: re-sending `completed: true` on an already-completed entry
+        leaves `completed_at` at its original moment, so editing a finished entry never moves its
+        completion date. Un-completing and completing again is the only way to set a new one.
+      operationId: replaceGoal
+      parameters:
+        - $ref: '#/components/parameters/GoalId'
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoalUpdate'
+      responses:
+        '200':
+          description: The updated goal or dream.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Goal'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   securitySchemes:
     sessionCookie:
@@ -257,6 +366,15 @@ components:
         (#132 would spell this X-Xsrf-Token; the functional header Spring reads is X-XSRF-TOKEN.)
       schema:
         type: string
+
+    GoalId:
+      name: id
+      in: path
+      required: true
+      description: The goal's identifier (UUID v7 surrogate PK).
+      schema:
+        type: string
+        format: uuid
 
   schemas:
     User:
@@ -361,6 +479,124 @@ components:
           maximum: 11
           example: 1
 
+    GoalCollection:
+      # #110 — object at the top level, never a bare array.
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Goal'
+
+    GoalLayer:
+      # THE ANCHOR for these literals. Named once and $ref'd by Goal / GoalCreation / GoalUpdate —
+      # repeating the list in each would recreate, inside the anchor itself, the drift this file
+      # exists to prevent. Held against the backend enum by GoalApiTest and against the SPA's goal
+      # type by the same test (lessons.md: one check that spans the boundary).
+      type: string
+      description: Which non-task layer the entry belongs to — a long-term goal or a someday dream.
+      # #112 open-ended enum: a third layer must not break existing clients.
+      x-extensible-enum:
+        - GOAL
+        - DREAM
+      example: GOAL
+
+    GoalHorizon:
+      # Nullable at the schema level rather than at each use site: a DREAM has no horizon, so every
+      # place this appears legitimately admits null.
+      type: [string, 'null']
+      description: >
+        How far out a long-term goal reaches (FR-004). Required for layer GOAL, and must be null for
+        layer DREAM — the cross-field rule the API enforces with 422.
+      x-extensible-enum:
+        - THIS_YEAR
+        - FEW_MONTHS
+      example: THIS_YEAR
+
+    GoalContent:
+      type: string
+      minLength: 1
+      maxLength: 500                                      # mirrors Goal.MAX_CONTENT_LENGTH and the column width
+      description: What the user wants to achieve, in their own words.
+      example: Przebiec półmaraton
+
+    GoalCategoryCode:
+      # Deliberately NOT re-listing the 11 codes: Category.code above is their anchor, and a second
+      # copy here would be one more unguarded duplicate (see the open item in lessons.md).
+      type: [string, 'null']
+      description: >
+        Optional life domain, referencing `Category.code`. Null means uncategorized; S-09 adds the
+        AI auto-tag but a user may always leave an entry without a category.
+      example: HEALTH
+
+    Goal:
+      type: object
+      description: >
+        A long-term goal (FR-004) or a someday dream (FR-005). One representation for both layers:
+        `layer` discriminates, and `horizon` is present only for GOAL.
+      required: [id, content, layer, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid                                    # UUID v7 surrogate PK (intentional, #144)
+          readOnly: true
+        content:
+          $ref: '#/components/schemas/GoalContent'
+        layer:
+          $ref: '#/components/schemas/GoalLayer'
+        horizon:
+          $ref: '#/components/schemas/GoalHorizon'
+        category_code:
+          $ref: '#/components/schemas/GoalCategoryCode'
+        completed_at:
+          # The completion state IS this timestamp — null means active. A timestamp rather than a
+          # boolean because S-03's memory enrichment needs to know when, not merely whether.
+          type: [string, 'null']
+          format: date-time
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+
+    GoalCreation:
+      type: object
+      required: [content, layer]
+      properties:
+        content:
+          $ref: '#/components/schemas/GoalContent'
+        layer:
+          $ref: '#/components/schemas/GoalLayer'
+        horizon:
+          $ref: '#/components/schemas/GoalHorizon'
+        category_code:
+          $ref: '#/components/schemas/GoalCategoryCode'
+
+    GoalUpdate:
+      type: object
+      description: >
+        Full-replace payload. `completed` is not optional-by-omission: an absent value means active,
+        so the same request shape edits, converts, completes and un-completes.
+      required: [content, layer]
+      properties:
+        content:
+          $ref: '#/components/schemas/GoalContent'
+        layer:
+          $ref: '#/components/schemas/GoalLayer'
+        horizon:
+          $ref: '#/components/schemas/GoalHorizon'
+        category_code:
+          $ref: '#/components/schemas/GoalCategoryCode'
+        completed:
+          type: boolean
+          default: false
+          description: True marks the entry done (setting `completed_at`); false reopens it.
+
     Problem:
       # RFC 9457 Problem Details (#176). Emitted as application/problem+json for every error.
       type: object
@@ -395,6 +631,15 @@ components:
             $ref: '#/components/schemas/Problem'
     Forbidden:
       description: Authenticated but the request is not allowed (e.g. missing CSRF token).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: >
+        No such resource for this caller. Returned identically whether the resource does not exist or
+        belongs to another account — telling the two apart would turn the API into an existence
+        oracle for other users' identifiers, so the `detail` is fixed and carries no id.
       content:
         application/problem+json:
           schema:

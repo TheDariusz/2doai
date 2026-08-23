@@ -4,6 +4,7 @@ import { ProtectedRoute } from './auth/ProtectedRoute'
 import { AppLayout } from './layout/AppLayout'
 import { AuthPage } from './pages/AuthPage'
 import { DomainPlaceholder } from './pages/DomainPlaceholder'
+import { GoalsPage } from './pages/GoalsPage'
 
 /** The route tree, router-free so tests can mount it inside a `MemoryRouter`. */
 export function AppRoutes() {
@@ -15,6 +16,7 @@ export function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route index element={<p>Wybierz domenę z nawigacji.</p>} />
+          <Route path="cele" element={<GoalsPage />} />
           <Route path="domena/:code" element={<DomainPlaceholder />} />
         </Route>
       </Route>

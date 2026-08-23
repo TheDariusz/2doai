@@ -32,8 +32,11 @@ export function AppLayout() {
         <AccountMenu />
       </header>
 
-      <nav aria-label="Domeny życia">
+      <nav aria-label="Nawigacja">
         <ul>
+          <li>
+            <NavLink to="/cele">Cele i marzenia</NavLink>
+          </li>
           {failed && <li>Nie udało się wczytać domen — odśwież stronę.</li>}
           {domains.map((domain) => (
             <li key={domain.code}>

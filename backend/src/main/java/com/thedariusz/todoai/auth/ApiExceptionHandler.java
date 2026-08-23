@@ -2,6 +2,7 @@ package com.thedariusz.todoai.auth;
 
 import java.net.URI;
 
+import com.thedariusz.todoai.goal.GoalNotFoundException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -48,8 +49,30 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	}
 
 	@ExceptionHandler(EmailAlreadyRegisteredException.class)
-	ProblemDetail handleEmailAlreadyRegistered(EmailAlreadyRegisteredException ex) {
+	ProblemDetail handleEmailAlreadyRegistered(EmailAlreadyRegisteredException ex, WebRequest request) {
+		logger.warn("Request to " + request.getDescription(false) + " rejected with 409: "
+				+ ex.getClass().getSimpleName());
 		return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+	}
+
+	/**
+	 * The first "no such resource for this user" 404 (S-02 goals; later slices reuse the shape).
+	 *
+	 * <p>The detail is a <b>fixed string, not {@code ex.getMessage()}</b> — unlike the 409 above. The
+	 * exception message names the id for the server log, and echoing it would make the response differ
+	 * between a goal owned by somebody else and one that never existed, handing a caller an oracle for
+	 * other accounts' ids. Both causes must be identical apart from {@code instance}, which Spring
+	 * fills from the request path and which therefore only echoes the id the caller already sent —
+	 * nothing the caller did <em>not</em> already know may reach the body. {@code GoalApiTest} strips
+	 * {@code instance} before comparing the two responses for exactly that reason.
+	 *
+	 * <p>Logs with the request description because a bare id cannot be tied to an account: a stale
+	 * id of one's own and a probe of somebody else's look identical in the log otherwise.
+	 */
+	@ExceptionHandler(GoalNotFoundException.class)
+	ProblemDetail handleGoalNotFound(GoalNotFoundException ex, WebRequest request) {
+		logger.warn("Scoped lookup missed at " + request.getDescription(true) + ": " + ex.getMessage());
+		return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "No such goal");
 	}
 
 	/**
@@ -69,10 +92,15 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	}
 
 	/**
-	 * The single place every handled failure passes through, including the twenty exception types
-	 * {@link ResponseEntityExceptionHandler} maps for us — three of which are genuine 500-class server
-	 * bugs it would otherwise render silently. Without this a Jackson serialization failure on a
-	 * response returns a bare 500 and writes nothing to the log.
+	 * The single place every failure <b>Spring's own handlers</b> map passes through, including the
+	 * twenty exception types {@link ResponseEntityExceptionHandler} covers — three of which are
+	 * genuine 500-class server bugs it would otherwise render silently. Without this a Jackson
+	 * serialization failure on a response returns a bare 500 and writes nothing to the log.
+	 *
+	 * <p><b>It does not catch this class's own {@code @ExceptionHandler} methods.</b> Those return a
+	 * bare {@link ProblemDetail}, which {@code HttpEntityMethodProcessor} renders directly — the
+	 * override below is only reached from {@link ResponseEntityExceptionHandler}'s catch-all. Hence
+	 * the rule every handler here follows: <b>a handler returning {@code ProblemDetail} logs itself.</b>
 	 */
 	@Override
 	protected ResponseEntity<Object> handleExceptionInternal(Exception ex, Object body, HttpHeaders headers,

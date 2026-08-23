@@ -284,7 +284,7 @@ class AuthApiTest extends ApiTestBase {
 				.extract()
 				.path("type");
 
-		assertThat(read("../context/changes/account-and-auth/openapi.yaml"))
+		assertThat(read("../context/foundation/openapi.yaml"))
 				.as("openapi.yaml is the anchor for every wire literal both sides hardcode")
 				.contains(onTheWire);
 		assertThat(read("../frontend/src/auth/AccountMenu.tsx"))
