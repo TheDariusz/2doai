@@ -33,7 +33,7 @@ Osoby planujące długoterminowo wpisują cele i marzenia raz, a potem rzadko do
 | F-01 | persistence-baseline       | (fundament) trwała warstwa danych + zasiane 11 kategorii             | —                  | NFR (trwałość), FR-007       | done     |
 | F-02 | ai-memory-integration      | (fundament) klient LLM + zrębowy mechanizm pamięci + polityka prywatności | F-01          | NFR (prywatność), Open Q2    | done     |
 | S-01 | account-and-auth           | założyć konto (email+hasło), zalogować/wylogować, usunąć konto; trasy bramkowane; szkielet frontu | F-01 | FR-001, FR-002, FR-019       | done     |
-| S-02 | goals-and-dreams           | tworzyć/edytować/kończyć cel długoterminowy i marzenie + kategoria   | S-01, F-01         | FR-004, FR-005, FR-007       | proposed |
+| S-02 | goals-and-dreams           | tworzyć/edytować/kończyć cel długoterminowy i marzenie + kategoria   | S-01, F-01         | FR-004, FR-005, FR-007       | done     |
 | S-03 | ai-memory-seed             | zasiać pamięć AI onboardingiem; ukończone pozycje ją wzbogacają      | F-02, S-02         | FR-009, FR-010               | proposed |
 | S-04 | proactive-proposal-engine  | na żądanie dostać propozycję, odpowiedzieć i otrzymać pierwszy krok   | F-02, S-02, S-03   | FR-012, FR-013, FR-014, FR-015 | proposed |
 | S-05 | natural-rhythm-return      | **(gwiazda)** AI sama wraca w losowym rytmie (e-mail + in-app), bilansując kategorie | S-04, F-02 | FR-011, FR-018, US-01        | proposed |
@@ -43,7 +43,74 @@ Osoby planujące długoterminowo wpisują cele i marzenia raz, a potem rzadko do
 | S-09 | ai-category-autotag        | dostać sugestię kategorii od AI przy tworzeniu pozycji              | F-02, S-02         | FR-008                       | proposed |
 | S-10 | offline-read-only          | przeglądać (read-only) zapisane pozycje 3 warstw bez internetu       | S-02, S-07         | FR-017                       | proposed |
 
-> **Fast-path (przegląd 2026-07-07, zaktualizowany 2026-08-01):** najkrótsza ścieżka do gwiazdy: F-02 → S-01 (minimalny: email+hasło, bez magic linka) → S-02 → S-03 → S-04 → S-05. S-07 / S-08 / S-10 świadomie odroczone do czasu walidacji gwiazdy (S-05); S-06 i S-09 równolegle po swoich prerekwizytach. F-02 zmergowany i zarchiwizowany (2026-08-01). S-01 zamknięty (2026-08-03, PR #8): backend i frontend na `master` — następny konkretny krok to S-02.
+> **Fast-path (przegląd 2026-07-07, zaktualizowany 2026-08-01):** najkrótsza ścieżka do gwiazdy: F-02 → S-01 (minimalny: email+hasło, bez magic linka) → S-02 → S-03 → S-04 → S-05. S-07 / S-08 / S-10 świadomie odroczone do czasu walidacji gwiazdy (S-05); S-06 i S-09 równolegle po swoich prerekwizytach. F-02 zmergowany i zarchiwizowany (2026-08-01). S-01 zamknięty (2026-08-03, PR #8): backend i frontend na `master`. **S-02 zmergowany 2026-08-23 (PR #20, `ecb3301`).** Od 2026-08-23 kolejność do dnia zgłoszenia reguluje sekcja **Deadline plan (2026-09-14)** niżej — fast-path wraca po zgłoszeniu.
+
+## Deadline plan (2026-09-14)
+
+> **Twardy termin:** poniedziałek **2026-09-14** — zgłoszenie projektu do zaliczenia bloku 10xBuilder.
+> Ta sekcja **nadpisuje kolejność z Fast-path** do dnia zgłoszenia; potem fast-path wraca (S-05 = gwiazda).
+> Ustalone 2026-08-23. Okno: 3 tygodnie, praca wieczorami.
+
+### Minimalne wymagania 10xBuilder → stan na 2026-08-23
+
+| Wymaganie | Stan | Luka |
+| --------- | ---- | ---- |
+| **CRUD** (dodaj / wylistuj / edytuj / usuń) | częściowo — `GET` / `POST` / `PUT` na `/api/goals` | brak `DELETE /api/goals/{id}`. S-02 pominął go celowo (wycofanie = „nigdy" z S-04, kasowanie = FR-019) — wymaganie to nadpisuje |
+| **Logika biznesowa** | brak — `LlmClient` nie ma wywołań produkcyjnych | S-04a (deterministyczny wybór zaniedbanej pozycji) |
+| **Testy adresujące ryzyko z dokumentu test-plan** | częściowo — 28 klas testów backendu, bramka CI na PR | brak dokumentu `test-plan` z nazwanymi ryzykami |
+| **Autentykacja** | ✅ S-01 | — |
+
+### Zakres — „MVP, które da się pokazać i używać"
+
+Ponad minimum wymagań: trzy warstwy w jednym widoku i jedna widoczna funkcja AI.
+
+| # | Pozycja | Wieczory | Po co |
+| - | ------- | -------- | ----- |
+| 1 | `DELETE /api/goals/{id}` + spec + komentarze + testy + UI | 1 | wymaganie CRUD |
+| 2 | `context/foundation/test-plan.md` (`/10x-test-plan`) + mapowanie istniejących testów na ryzyka | 1 | wymaganie testów |
+| 3 | S-07 jako **trzecia warstwa** `GoalLayer.TASK` + nullable `due_date` | 2 | codzienna używalność |
+| 4 | S-08 — filtry po warstwie i kategorii | 1 | jeden widok |
+| 5 | **S-04a** — heurystyka zaniedbania + bilansowanie kategorii + `POST /api/proposals` | 1,5 | wymaganie logiki biznesowej |
+| 6 | **S-04b** — LLM formułuje propozycję, 4 odpowiedzi, pierwszy krok | 3 | to, co się pokazuje |
+| 7 | README, demo, weryfikacja produkcji | 2 | zgłoszenie |
+
+Razem **~11–12 wieczorów / 3 tygodnie ≈ 4 na tydzień**. Tempo z W31–W32 (28 i 34 commity) to daje; średnia z 12 tygodni (2,2 dnia aktywnego / tydzień) nie. Tydzień W33 (10–16.08) był zerowy — jedna taka przerwa w tym oknie kosztuje pozycję 6.
+
+### Harmonogram
+
+| Okno | Praca | Kamień milowy |
+| ---- | ----- | ------------- |
+| 08-23 | merge PR #20 (S-02) | ✅ zrobione (`ecb3301`) |
+| 08-24 – 08-25 | `DELETE` — repozytorium, serwis, kontroler, `openapi.yaml`, javadoc, testy, UI | **CRUD ✅** |
+| 08-26 | `test-plan.md` + mapowanie testów na ryzyka | **Testy ✅** |
+| 08-27 – 08-30 | S-07 (trzecia warstwa) + S-08 (filtry) | 🎯 aplikacja używalna codziennie |
+| 08-31 – 09-02 | S-04a — silnik wyboru | 🎯 **komplet wymagań — `master` zdatny do zgłoszenia** |
+| 09-03 – 09-08 | S-04b — propozycja formułowana przez LLM | 🎯 aplikacja do pokazania |
+| 09-09 – 09-10 | bufor | |
+| 09-11 | zamrożenie kodu; deploy i weryfikacja produkcji end-to-end na realnych danych | |
+| 09-12 – 09-13 | README, demo, **zgłoszenie w niedzielę** (nie w dniu terminu) | |
+
+### Decyzje i cięcia
+
+- **S-09 wypada z okna.** S-04a pokrywa wymaganie „logika biznesowa" mniejszym kosztem (1,5 vs 2–3 wieczory), a buduje funkcję różnicującą produkt zamiast funkcji obok niego. Auto-tag wraca po zgłoszeniu.
+- **S-05 (gwiazda) wypada z okna.** Scheduler + e-mail to jedyna nowa infrastruktura z nieznanymi (dostawca, weryfikacja domeny, cisza nocna, strefa czasowa). Demo odpala propozycję przyciskiem — wygląda tak samo. S-05 jest pierwszą pozycją po zgłoszeniu.
+- **S-06 i S-10 wypadają** — nie dotykają żadnego wymagania.
+- **S-07 nie dostaje własnego agregatu.** `GoalLayer.TASK` + nullable `due_date` na tabeli `goal`; niezmiennik rozszerza się do: `GOAL` → horyzont wymagany, `DREAM` → horyzont zabroniony, `TASK` → horyzont zabroniony + opcjonalny `due_date`. Cały frontend S-02 (formularz, lista, grupowanie, ukończenie) jest wtedy do ponownego użycia. Rozdzielenie agregatu dopiero, gdy zadania dostaną inny cykl życia (cykliczność, alarmy po terminie).
+- **`category-contract-guards` zaparkowane** (plan z 2026-08-07, niewykonany). Realny defekt — `CategorySyncCheck` psuje rollback obrazu — ale nie dotyka żadnego wymagania. Po zgłoszeniu.
+- **Ceremonia per-slice skrócona** dla pozycji 3–6: `/10x-plan` i TDD zostają, `/10x-impl-review` oraz archiwizacja czekają do po zgłoszeniu.
+
+### Bramki (decyduj, nie rozważaj)
+
+- **02.09 — S-04a niezmergowane** → stop dokładania zakresu; polish i zgłoszenie tego, co jest na `master`.
+- **08.09 — S-04b nie działa** → propozycja z szablonu tekstowego zamiast LLM („W styczniu wpisałeś *X* — minęło 8 miesięcy"). Pętla nadal się demonstruje, wymaganie nadal spełnione przez S-04a.
+- **11.09 — zamrożenie bezwzględne.** Po tej dacie na `master` wchodzą wyłącznie poprawki blokujące zgłoszenie. S-04b, jeśli niegotowe, zostaje na gałęzi.
+
+### Ryzyka
+
+- **Produkcja nigdy nie była zweryfikowana end-to-end** — probe'owany jest tylko `/actuator/health`. Neon autosuspend + realne dane to zadanie na 11.09, nie na 13.09.
+- **Brak testów e2e** (Playwright niepodpięty). Wymagania 10xBuilder ich nie żądają — świadomie nie dokładamy.
+- **README ma 71 linii.** Jeśli cokolwiek w zgłoszeniu jest czytane przez człowieka, to on — jeden wieczór, najtańsze punkty.
+- **Tempo.** Jedyne realne ryzyko harmonogramu; wszystkie bramki wyżej istnieją po to, żeby przekroczenie kosztowało zakres, nie termin.
 
 ## Streams
 
@@ -133,7 +200,7 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Substrat dla gwiazdy przewodniej — proaktywna pętla działa na celach i marzeniach, więc to one (a nie zadania bieżące) muszą istnieć najpierw. Proste CRUD, niskie ryzyko; kategoria ręczna (auto-tag dochodzi w S-09).
-- **Status:** proposed
+- **Status:** done
 
 ### S-03: Pamięć AI (seed + wzbogacanie)
 
