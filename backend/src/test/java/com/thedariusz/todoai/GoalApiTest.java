@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
 import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.goal.GoalHorizon;
 import com.thedariusz.todoai.goal.GoalLayer;
+import io.restassured.filter.cookie.CookieFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -28,8 +29,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * End-to-end HTTP tests of the goals resource (S-02) — the three operations that make up
- * CRUD-minus-delete for both non-task layers, driven with REST Assured against a real embedded
+ * End-to-end HTTP tests of the goals resource (S-02, plus DEV-44's DELETE) — the four operations
+ * that make up CRUD for both non-task layers, driven with REST Assured against a real embedded
  * server so the whole Spring Security filter chain (session cookie, CSRF double-submit) is in the
  * path. Lives in this package, like every other API test, because {@code ApiTestBase} is
  * package-private.
@@ -305,12 +306,18 @@ class GoalApiTest extends ApiTestBase {
 
 	/**
 	 * Someone else's id and an id that never existed must be indistinguishable — otherwise a caller
-	 * can probe which UUIDs belong to other accounts by watching the status code or the body.
+	 * can probe which UUIDs belong to other accounts by watching the status code or the body. Both
+	 * id-addressed operations are held to it: PUT and, since DEV-44, DELETE, which routes through the
+	 * same scoped lookup precisely so the property comes for free rather than being re-implemented.
+	 *
+	 * <p>The last assertion is the one a status-code check cannot make: Alice's goal is still there.
+	 * A DELETE that answered 404 and removed the row anyway would satisfy everything above it.
 	 */
 	@Test
 	void answersIdenticallyForAForeignGoalAndAGoalThatNeverExisted() {
 		givenLoggedInUser();
 		String aliceGoal = createGoal(goalPayload("Cel Alicji", "GOAL", "THIS_YEAR", "HEALTH"));
+		CookieFilter alice = currentBrowser();
 
 		newBrowser();
 		givenLoggedInUser();
@@ -328,6 +335,63 @@ class GoalApiTest extends ApiTestBase {
 		assertThat(withoutInstance(foreign))
 				.as("a foreign goal and a nonexistent one must not be tellable apart")
 				.isEqualTo(withoutInstance(nonexistent));
+
+		String foreignDelete = csrfAware()
+				.when().delete("/api/goals/" + aliceGoal)
+				.then().statusCode(404).contentType("application/problem+json")
+				.extract().asString();
+		String nonexistentDelete = csrfAware()
+				.when().delete("/api/goals/" + UUID.randomUUID())
+				.then().statusCode(404)
+				.extract().asString();
+
+		assertThat(withoutInstance(foreignDelete))
+				.as("delete is no existence oracle either")
+				.isEqualTo(withoutInstance(nonexistentDelete));
+
+		switchToBrowser(alice);
+		client().when().get("/api/goals").then().statusCode(200).body("items", hasSize(1));
+	}
+
+	/**
+	 * DEV-44 closes CRUD. A hard delete: the row is gone, not withdrawn, so the id stops resolving
+	 * entirely and a second delete is indistinguishable from any other id the caller does not own.
+	 */
+	@Test
+	void deletesTheCallersOwnGoal() {
+		givenLoggedInUser();
+		String id = createGoal(goalPayload("Cel do usunięcia", "GOAL", "THIS_YEAR", "HEALTH"));
+
+		csrfAware().when().delete("/api/goals/" + id).then().statusCode(204);
+
+		client().when().get("/api/goals").then().statusCode(200).body("items", hasSize(0));
+		csrfAware().when().delete("/api/goals/" + id).then().statusCode(404);
+	}
+
+	/**
+	 * The two denials a destructive operation has to answer, and they are <em>not</em> symmetric:
+	 * {@code CsrfFilter} runs ahead of {@code ExceptionTranslationFilter}, so a missing token is 403
+	 * for every caller and never gets downgraded to 401 (the contract
+	 * {@code AuthApiTest.rejectsAnAuthenticatedMutationCarryingNoCsrfToken} pins). The anonymous 401
+	 * is therefore only reachable <em>with</em> a valid token — which is exactly how a logged-out SPA
+	 * tab hits it, since the token cookie outlives the session.
+	 *
+	 * <p>Both probes end with the row still there: a delete that answered 403 or 401 and deleted
+	 * anyway would pass a status-code-only assertion.
+	 */
+	@Test
+	void deniesADeleteWithoutACsrfTokenOrWithoutASessionAndKeepsTheEntry() {
+		givenLoggedInUser();
+		String id = createGoal(goalPayload("Cel nie do ruszenia", "GOAL", "THIS_YEAR", "HEALTH"));
+		CookieFilter owner = currentBrowser();
+
+		client().when().delete("/api/goals/" + id).then().statusCode(403);
+
+		newBrowser();
+		csrfAware().when().delete("/api/goals/" + id).then().statusCode(401);
+
+		switchToBrowser(owner);
+		client().when().get("/api/goals").then().statusCode(200).body("items", hasSize(1));
 	}
 
 	/** FR-019: deleting the account takes the goals with it, and the deleter is genuinely wired in. */

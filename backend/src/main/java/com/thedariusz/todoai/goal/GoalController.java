@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 
 import com.thedariusz.todoai.goal.GoalResponse.GoalCollection;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,8 +20,9 @@ import org.springframework.web.bind.annotation.RestController;
  * The {@code goals} resource (S-02, FR-004/FR-005): both non-task layers behind one collection,
  * discriminated by {@code layer}.
  *
- * <p><b>No DELETE</b>, deliberately — FR-004/FR-005 omit it where FR-003 has it. Withdrawing a goal
- * is S-04's "nigdy" story and erasing everything is FR-019; neither is a resource delete.
+ * <p><b>DELETE is a hard delete</b> (DEV-44). S-02 left it out because FR-004/FR-005 omit it where
+ * FR-003 has it, but the 10xBuilder CRUD requirement overrides that. It is not the same thing as
+ * withdrawing a goal (S-04's "nigdy" story, which keeps the row) or erasing an account (FR-019).
  *
  * <p>Also <b>no query parameters</b>: the list is returned whole and grouped client-side. At
  * single-user scale that is one round-trip instead of several, and S-08 owns the real filter
@@ -50,5 +52,11 @@ class GoalController {
 	@PutMapping("/{id}")
 	GoalResponse update(@PathVariable UUID id, @Valid @RequestBody GoalUpdate request) {
 		return goals.update(id, request);
+	}
+
+	@DeleteMapping("/{id}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	void delete(@PathVariable UUID id) {
+		goals.delete(id);
 	}
 }

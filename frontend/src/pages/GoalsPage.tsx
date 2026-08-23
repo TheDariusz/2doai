@@ -40,12 +40,14 @@ type GoalDraft = Pick<Goal, 'content' | 'layer' | 'horizon' | 'category_code'>
 
 /**
  * What an entry can do to itself, handed down rather than re-derived per row: which row (if any)
- * is being edited, and the one PUT that covers editing, converting, completing and un-completing.
+ * is being edited, the one PUT that covers editing, converting, completing and un-completing, and
+ * the DELETE that ends it.
  */
 type ItemActions = {
   editing: string | null
   setEditing: (id: string | null) => void
   replace: (id: string, draft: GoalDraft, completed: boolean) => Promise<boolean>
+  remove: (id: string) => Promise<boolean>
 }
 
 /** The entry as the form sees it — PUT is a full replace, so untouched fields must be resent. */
@@ -140,6 +142,7 @@ export function GoalsPage() {
     setEditing,
     replace: (id, draft, completed) =>
       save(api(`/goals/${id}`, { method: 'PUT', body: { ...draft, completed } })),
+    remove: (id) => save(api(`/goals/${id}`, { method: 'DELETE' })),
   }
 
   return (
@@ -350,6 +353,23 @@ function Item({
       </button>
       <button type="button" onClick={() => actions.setEditing(goal.id)}>
         Edytuj
+      </button>
+      {/*
+        The delete is a hard one server-side, so it gets the one confirmation step the app has.
+        Native `confirm` rather than a modal of our own: it is blocking, focus-trapped and
+        screen-reader-announced for free, and a custom dialog would be a component to build and
+        keep accessible for a single yes/no. A 404 needs no special handling here — `save` already
+        refetches when the entry turns out to be gone, which is the same outcome as succeeding.
+      */}
+      <button
+        type="button"
+        onClick={() => {
+          if (window.confirm(`Usunąć „${goal.content}"? Tej operacji nie da się cofnąć.`)) {
+            actions.remove(goal.id)
+          }
+        }}
+      >
+        Usuń
       </button>
     </li>
   )

@@ -209,6 +209,38 @@ describe('GoalsPage — zmiany na wpisie', () => {
     expect(JSON.parse(mutations()[0][1].body)).toMatchObject({ completed: false })
   })
 
+  /**
+   * The delete is permanent server-side, so the confirmation is part of the behaviour, not chrome:
+   * the cancelled half asserts that nothing was sent, which is the only way a broken guard shows up
+   * — a `confirm` that is never consulted still passes every assertion about the confirmed path.
+   */
+  it('deletes an entry only once the user confirms, and the row goes with the refetch', async () => {
+    const stored = [RUN]
+    stubApi(stored)
+    const user = userEvent.setup()
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+
+    renderGoals()
+    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Usuń' }))
+
+    expect(confirm).toHaveBeenCalled()
+    expect(mutations()).toHaveLength(0)
+    expect(screen.getByText('Przebiec półmaraton')).toBeInTheDocument()
+
+    confirm.mockReturnValue(true)
+    // What the refetch that follows the DELETE will find — the list, not local state, is what
+    // removes the row.
+    stored.length = 0
+    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Usuń' }))
+
+    const [url, init] = mutations()[0]
+    expect(url).toBe('/api/goals/g1')
+    expect(init.method).toBe('DELETE')
+    expect(screen.queryByText('Przebiec półmaraton')).not.toBeInTheDocument()
+
+    confirm.mockRestore()
+  })
+
   it('converts a dream into a goal through the inline edit form', async () => {
     stubApi([JAPAN])
     const user = userEvent.setup()

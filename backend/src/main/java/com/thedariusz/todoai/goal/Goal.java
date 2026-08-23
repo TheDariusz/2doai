@@ -127,7 +127,7 @@ public class Goal implements UserOwned {
 		}
 	}
 
-	/** Back to active. No delete exists in S-02 — un-completing is the only way back. */
+	/** Back to active — the only way back, short of deleting the entry outright. */
 	public void reopen() {
 		this.completedAt = null;
 	}

@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * The write and read use cases for goals and dreams, and the one place the isolation contract is
  * applied: every operation scopes itself with {@link CurrentUser#requireId()} and never trusts an id
- * from the request on its own. {@link #update} therefore loads through
+ * from the request on its own. {@link #update} and {@link #delete} therefore load through
  * {@code findByIdAndUserId} — a foreign goal simply is not found, which is the same outcome as a
  * goal that never existed.
  */
@@ -59,5 +59,17 @@ class GoalService {
 			goal.reopen();
 		}
 		return GoalResponse.from(goals.saveAndFlush(goal));
+	}
+
+	/**
+	 * Hard delete (DEV-44): the row goes, and with it the id. Soft delete would buy an undo at the
+	 * cost of a {@code deleted_at} column every existing query then has to filter — S-04's "wycofane"
+	 * can introduce that properly if the product turns out to want it.
+	 */
+	void delete(UUID id) {
+		Goal goal = goals.findByIdAndUserId(id, currentUser.requireId())
+				.orElseThrow(() -> new GoalNotFoundException(id));
+
+		goals.delete(goal);
 	}
 }

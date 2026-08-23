@@ -14,9 +14,10 @@ import org.springframework.data.repository.Repository;
  *
  * <p>That sentence is only true because this extends the bare {@link Repository} marker rather than
  * {@code JpaRepository}: the convenient inherited finders ({@code findById}, {@code findAll},
- * {@code getReferenceById}) are <b>unscoped</b>, and the next person to need a goal by id would
- * otherwise reach for the one that compiles and skip the ownership check. The four methods below are
- * the entire surface, so the isolation contract holds by construction instead of by convention.
+ * {@code getReferenceById}, {@code deleteById}) are <b>unscoped</b>, and the next person to need a goal
+ * by id would otherwise reach for the one that compiles and skip the ownership check. The five
+ * methods below are the entire surface, so the isolation contract holds by construction instead of by
+ * convention.
  *
  * <p>Unparameterized list + client-side grouping is deliberate at single-user scale; S-08 owns the
  * real filter contract.
@@ -28,6 +29,12 @@ public interface GoalRepository extends Repository<Goal, UUID> {
 	List<Goal> findByUserIdOrderByCreatedAtDesc(UUID userId);
 
 	Optional<Goal> findByIdAndUserId(UUID id, UUID userId);
+
+	/**
+	 * Takes the entity, never the id: {@code deleteById(UUID)} would accept a path variable straight
+	 * from the request, whereas an entity can only have arrived through the scoped lookup above.
+	 */
+	void delete(Goal goal);
 
 	/** FR-019 erasure, driven by {@code GoalDataDeleter}. */
 	void deleteByUserId(UUID userId);
