@@ -238,7 +238,6 @@ describe('GoalsPage — zmiany na wpisie', () => {
     expect(init.method).toBe('DELETE')
     expect(screen.queryByText('Przebiec półmaraton')).not.toBeInTheDocument()
 
-    confirm.mockRestore()
   })
 
   it('converts a dream into a goal through the inline edit form', async () => {
@@ -381,6 +380,5 @@ describe('GoalsPage — nieudany zapis', () => {
 
     await screen.findByRole('alert')
     expect(logged).toHaveBeenCalled()
-    logged.mockRestore()
   })
 })

@@ -30,11 +30,8 @@ public interface GoalRepository extends Repository<Goal, UUID> {
 
 	Optional<Goal> findByIdAndUserId(UUID id, UUID userId);
 
-	/**
-	 * Takes the entity, never the id: {@code deleteById(UUID)} would accept a path variable straight
-	 * from the request, whereas an entity can only have arrived through the scoped lookup above.
-	 */
-	void delete(Goal goal);
+	/** Scoped like the finders, so an id the caller does not own deletes nothing and returns 0. */
+	long deleteByIdAndUserId(UUID id, UUID userId);
 
 	/** FR-019 erasure, driven by {@code GoalDataDeleter}. */
 	void deleteByUserId(UUID userId);

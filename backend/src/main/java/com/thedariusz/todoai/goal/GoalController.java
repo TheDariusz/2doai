@@ -20,9 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
  * The {@code goals} resource (S-02, FR-004/FR-005): both non-task layers behind one collection,
  * discriminated by {@code layer}.
  *
- * <p><b>DELETE is a hard delete</b> (DEV-44). S-02 left it out because FR-004/FR-005 omit it where
- * FR-003 has it, but the 10xBuilder CRUD requirement overrides that. It is not the same thing as
- * withdrawing a goal (S-04's "nigdy" story, which keeps the row) or erasing an account (FR-019).
+ * <p><b>DELETE is a hard delete</b> (DEV-44) — not withdrawing a goal (S-04's "nigdy" story, which
+ * keeps the row) and not erasing an account (FR-019).
  *
  * <p>Also <b>no query parameters</b>: the list is returned whole and grouped client-side. At
  * single-user scale that is one round-trip instead of several, and S-08 owns the real filter

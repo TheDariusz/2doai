@@ -32,7 +32,7 @@ Verify: `/check` green; manual flow in the browser against the live backend (cre
 
 ## What We're NOT Doing
 
-- **No DELETE endpoint** — FR-004/FR-005 deliberately omit delete (unlike FR-003); S-04's "nigdy" withdrawal and FR-019 cover the removal stories.
+- **No DELETE endpoint** — FR-004/FR-005 deliberately omit delete (unlike FR-003); S-04's "nigdy" withdrawal and FR-019 cover the removal stories. *Superseded by DEV-44, which added `DELETE /api/goals/{id}` for the 10xBuilder CRUD requirement.*
 - **No server-side filters** (`?layer=`, `?category=`) — GET returns everything; S-08 defines the real filter contract.
 - **No AI auto-tag** (S-09), no proposals (S-04), no memory enrichment on completion (S-03) — `completed_at` is the timestamp those slices will read.
 - **No per-domain goal lists** — domain pages stay placeholders; S-08 owns the unified view.

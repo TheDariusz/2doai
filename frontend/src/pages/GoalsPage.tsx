@@ -355,16 +355,14 @@ function Item({
         Edytuj
       </button>
       {/*
-        The delete is a hard one server-side, so it gets the one confirmation step the app has.
-        Native `confirm` rather than a modal of our own: it is blocking, focus-trapped and
-        screen-reader-announced for free, and a custom dialog would be a component to build and
-        keep accessible for a single yes/no. A 404 needs no special handling here — `save` already
-        refetches when the entry turns out to be gone, which is the same outcome as succeeding.
+        Native `confirm` rather than a dialog of our own: blocking, focus-trapped and
+        screen-reader-announced for free, for a single yes/no. A 404 needs no special handling —
+        `save` already refetches when the entry turns out to be gone.
       */}
       <button
         type="button"
         onClick={() => {
-          if (window.confirm(`Usunąć „${goal.content}"? Tej operacji nie da się cofnąć.`)) {
+          if (window.confirm(`Usunąć „${goal.content}”? Tej operacji nie da się cofnąć.`)) {
             actions.remove(goal.id)
           }
         }}

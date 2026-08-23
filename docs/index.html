@@ -301,7 +301,7 @@ flowchart LR
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/security"><code>backend/…/security</code></a></th><td>Filter chain, CSRF, session identity, and RFC 9457 security errors</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/account"><code>backend/…/account</code></a></th><td>Modular per-user erasure coordinated before the user row is deleted</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/category"><code>backend/…/category</code></a></th><td>Fixed life-domain reference data and enum/table drift detection</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/goal"><code>backend/…/goal</code></a></th><td>Goal/dream aggregate for both non-task layers, its CRUD-minus-delete API, and its erasure adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/goal"><code>backend/…/goal</code></a></th><td>Goal/dream aggregate for both non-task layers, its CRUD API, and its erasure adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai"><code>backend/…/ai</code></a></th><td>Provider-neutral LLM port, schema contract, and Spring AI adapter</td><td><span class="badge badge-foundation">foundation</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai/memory"><code>backend/…/ai/memory</code></a></th><td>Personal AI-memory aggregate, rendering, persistence, and erasure adapter</td><td><span class="badge badge-foundation">foundation</span></td></tr>
         <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, auth screens, the 11-domain shell, and the goals/dreams screen</td><td><span class="badge badge-live">implemented</span></td></tr>
@@ -579,6 +579,7 @@ classDiagram
     +list() GET /api/goals
     +create() POST /api/goals
     +update() PUT /api/goals/:id
+    +delete() DELETE /api/goals/:id
   }
   class GoalService {
     &lt;&lt;application service&gt;&gt;
@@ -647,8 +648,8 @@ classDiagram
   <code>DELETE /api/users/me</code>, <code>POST /api/sessions</code>,
   <code>DELETE /api/sessions/current</code>, <code>GET /api/categories</code>,
   <code>GET /api/goals</code>, <code>POST /api/goals</code>, <code>PUT /api/goals/{id}</code>,
-  <code>GET /api/ping</code>. There is deliberately no <code>DELETE /api/goals/{id}</code>:
-  FR-004/FR-005 omit it, and erasure is FR-019's job.</p>
+  <code>DELETE /api/goals/{id}</code>, <code>GET /api/ping</code>. The goal delete is a hard one and
+  is not FR-019 erasure: that removes the account and every entry at once.</p>
 </section>
 
 <section id="ai-communication">

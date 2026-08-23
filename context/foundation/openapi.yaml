@@ -350,11 +350,6 @@ paths:
         stops resolving, so repeating the call returns 404. This is not the "nigdy" state S-04
         introduces (which keeps the entry and marks it) nor FR-019 account erasure (which removes
         every entry at once).
-
-
-        Like the replace above, a goal owned by another account and a goal that never existed return
-        the **same** 404 — delete must not become an existence oracle for other accounts' identifiers
-        either.
       operationId: deleteGoal
       parameters:
         - $ref: '#/components/parameters/GoalId'

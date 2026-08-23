@@ -369,12 +369,10 @@ class GoalApiTest extends ApiTestBase {
 	}
 
 	/**
-	 * The two denials a destructive operation has to answer, and they are <em>not</em> symmetric:
-	 * {@code CsrfFilter} runs ahead of {@code ExceptionTranslationFilter}, so a missing token is 403
-	 * for every caller and never gets downgraded to 401 (the contract
-	 * {@code AuthApiTest.rejectsAnAuthenticatedMutationCarryingNoCsrfToken} pins). The anonymous 401
-	 * is therefore only reachable <em>with</em> a valid token — which is exactly how a logged-out SPA
-	 * tab hits it, since the token cookie outlives the session.
+	 * The two denials a destructive operation has to answer. They are <em>not</em> symmetric — the
+	 * missing token is 403 for everyone and the 401 is only reachable <em>with</em> a valid token; the
+	 * filter ordering behind that is pinned by
+	 * {@code AuthApiTest.rejectsAnAuthenticatedMutationCarryingNoCsrfToken}.
 	 *
 	 * <p>Both probes end with the row still there: a delete that answered 403 or 401 and deleted
 	 * anyway would pass a status-code-only assertion.
