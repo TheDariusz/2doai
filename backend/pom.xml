@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.1.0</version>
+		<version>4.1.1</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.thedariusz</groupId>
@@ -28,11 +28,11 @@
 	</scm>
 	<properties>
 		<java.version>25</java.version>
-		<spring-ai.version>2.0.0</spring-ai.version>
+		<spring-ai.version>2.0.1</spring-ai.version>
 		<!-- REST Assured is not managed by the Spring Boot 4 BOM. 6.x targets Hamcrest 3 / Groovy 4 /
 		     Java 17+ — aligned with Boot 4's stack (5.x is built for Hamcrest 2). -->
 		<rest-assured.version>6.0.1</rest-assured.version>
-		<archunit.version>1.4.1</archunit.version>
+		<archunit.version>1.5.0</archunit.version>
 		<!-- Patch-level overrides of BOM-managed versions, ahead of the Boot 4.0.x release that
 		     picks them up. Both clear fixable HIGH/CRITICAL findings that the CI Trivy gate fails
 		     on; drop each override once the Boot parent manages an equal-or-newer version.
