@@ -15,8 +15,10 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     css: false,
-    // Undoes every `vi.stubGlobal` / `vi.spyOn` after each test, so no test file needs its own
-    // teardown — and a failed assertion cannot leak a spy into the rest of the file.
+    // Restores every `vi.stubGlobal` / `vi.spyOn` *before* each test, so no test file needs its
+    // own teardown and a failed assertion cannot leak a spy into the next test. Mind the timing:
+    // a spy is still live during `afterEach`, and one installed in `beforeAll` is wiped before the
+    // first test rather than kept.
     unstubGlobals: true,
     restoreMocks: true,
   },

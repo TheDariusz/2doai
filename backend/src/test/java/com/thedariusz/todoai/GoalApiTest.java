@@ -307,8 +307,9 @@ class GoalApiTest extends ApiTestBase {
 	/**
 	 * Someone else's id and an id that never existed must be indistinguishable — otherwise a caller
 	 * can probe which UUIDs belong to other accounts by watching the status code or the body. Both
-	 * id-addressed operations are held to it: PUT and, since DEV-44, DELETE, which routes through the
-	 * same scoped lookup precisely so the property comes for free rather than being re-implemented.
+	 * id-addressed operations are held to it: PUT and, since DEV-44, DELETE. They are <em>separate</em>
+	 * derived queries — {@code findByIdAndUserId} and {@code deleteByIdAndUserId} — so the property is
+	 * re-asserted per method rather than inherited, which is why both verbs are probed here.
 	 *
 	 * <p>The last assertion is the one a status-code check cannot make: Alice's goal is still there.
 	 * A DELETE that answered 404 and removed the row anyway would satisfy everything above it.
@@ -356,15 +357,22 @@ class GoalApiTest extends ApiTestBase {
 	/**
 	 * DEV-44 closes CRUD. A hard delete: the row is gone, not withdrawn, so the id stops resolving
 	 * entirely and a second delete is indistinguishable from any other id the caller does not own.
+	 *
+	 * <p>The second goal is the point of the fixture. With one row, "deleted the addressed goal" and
+	 * "deleted every goal I own" are the same assertion — and it is the destructive direction that
+	 * loses data. The surviving entry is named, so a delete that took both fails here.
 	 */
 	@Test
 	void deletesTheCallersOwnGoal() {
 		givenLoggedInUser();
 		String id = createGoal(goalPayload("Cel do usunięcia", "GOAL", "THIS_YEAR", "HEALTH"));
+		createGoal(goalPayload("Cel do zachowania", "GOAL", "THIS_YEAR", "HEALTH"));
 
 		csrfAware().when().delete("/api/goals/" + id).then().statusCode(204);
 
-		client().when().get("/api/goals").then().statusCode(200).body("items", hasSize(0));
+		client().when().get("/api/goals").then().statusCode(200)
+				.body("items", hasSize(1))
+				.body("items[0].content", equalTo("Cel do zachowania"));
 		csrfAware().when().delete("/api/goals/" + id).then().statusCode(404);
 	}
 
