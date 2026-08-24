@@ -1,5 +1,7 @@
 package com.thedariusz.todoai.goal;
 
+import java.time.LocalDate;
+
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -28,13 +30,15 @@ public record GoalUpdate(
 
 		GoalHorizon horizon,
 
+		LocalDate dueDate,
+
 		LifeDomain categoryCode,
 
 		boolean completed) {
 
-	/** See {@link GoalCreation#isHorizonConsistentWithLayer()} — conversion re-checks the same rule. */
-	@AssertTrue(message = Goal.HORIZON_RULE)
-	boolean isHorizonConsistentWithLayer() {
-		return Goal.hasConsistentHorizon(layer, horizon);
+	/** See {@link GoalCreation#isTimeFieldsConsistentWithLayer()} — conversion re-checks the rule. */
+	@AssertTrue(message = Goal.TIME_FIELDS_RULE)
+	boolean isTimeFieldsConsistentWithLayer() {
+		return Goal.hasConsistentTimeFields(layer, horizon, dueDate);
 	}
 }

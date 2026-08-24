@@ -48,8 +48,9 @@ erDiagram
         uuid id PK "UUID v7"
         uuid user_id FK "→ app_user(id), NO ACTION"
         varchar content "max 500 chars"
-        varchar layer "GOAL | DREAM — the discriminator"
-        varchar horizon "THIS_YEAR | FEW_MONTHS; NULL for a DREAM"
+        varchar layer "GOAL | DREAM | TASK — the discriminator"
+        varchar horizon "THIS_YEAR | FEW_MONTHS; only for a GOAL"
+        date due_date "optional term; only for a TASK"
         varchar category_code FK "→ category.code; nullable (uncategorized)"
         timestamptz completed_at "NULL = active; the completion state itself"
         timestamptz created_at
@@ -79,12 +80,22 @@ as the seam for a post-MVP RAG extension.
 > DB backstop that makes an out-of-order delete fail loudly. The `UNIQUE` constraint still
 > enforces one memory per user.
 
-**`goal`** (S-02, Flyway `V6`) holds **both** non-task layers — long-term goals (FR-004) and
-someday dreams (FR-005) — in one table, discriminated by `layer`. One aggregate rather than
-two tables was decided on 2026-08-17: S-04/S-05/S-08/S-09 all consume the union, and nothing
-but the horizon differs. `horizon` is therefore conditional, and the rule is enforced at three
-depths — the request DTOs (→ 422), the aggregate constructor, and the DB constraint
-`chk_goal_layer_horizon`, which no future writer can bypass. `completed_at` **is** the
+**`goal`** (S-02, Flyway `V6`; widened by S-07, `V7`) holds **all three** layers — long-term
+goals (FR-004), someday dreams (FR-005) and current tasks (FR-003) — in one table,
+discriminated by `layer`. One aggregate rather than parallel tables was decided on 2026-08-17
+and extended on 2026-08-24: S-04/S-05/S-08/S-09/S-10 all consume the union, and nothing but the
+two time fields differs. Which one an entry may carry follows from its layer —
+
+| layer   | `horizon` | `due_date` |
+| ------- | --------- | ---------- |
+| `GOAL`  | required  | forbidden  |
+| `DREAM` | forbidden | forbidden  |
+| `TASK`  | forbidden | optional   |
+
+— and that one rule is enforced at three depths: the request DTOs (→ 422), the aggregate
+constructor, and the DB constraint `chk_goal_layer_horizon`, widened in `V7` and bypassable by
+no future writer. Splitting a `task` aggregate out waits until tasks get a different lifecycle
+(recurrence, overdue alarms); it would then be a migration, not a rewrite. `completed_at` **is** the
 completion state (null = active); a timestamp rather than a boolean because S-03's memory
 enrichment needs to know when, not merely whether. `category_code` is nullable: an entry may
 stay uncategorized, and S-09's auto-tag only ever fills it in. Like `ai_memory.user_id`, the
@@ -119,7 +130,7 @@ migration.
 
 Every later slice inherits these rules (also recorded in `CLAUDE.md`):
 
-- **Domain aggregates** (User, Goal — one aggregate covering both the goal and dream layers,
+- **Domain aggregates** (User, Goal — one aggregate covering the goal, dream and task layers,
   CurrentTask, AI-memory, …) use a **UUID v7**
   surrogate primary key, generated via Hibernate `@UuidGenerator`
   (RFC 9562, `UuidVersion7Strategy` — time-ordered, index-friendly).
@@ -133,15 +144,15 @@ Every later slice inherits these rules (also recorded in `CLAUDE.md`):
 
 ## Planned (not yet designed)
 
-These tables arrive with later slices and are intentionally **not drawn** here yet, to
-avoid pre-deciding their schema:
-
-- **`current_task`** — S-07.
-
-Each will reference `category.code` where it needs a life domain.
+No table is currently waiting to be designed. Later slices add theirs here; each will
+reference `category.code` where it needs a life domain.
 
 > The AI-memory tables (`ai_memory`, `ai_memory_profile_fact`, `ai_memory_episode`) were
 > in this list until F-02; they are now drawn above. So was **`app_user`**, until S-01
 > shipped it in `V4`/`V5`. So were **`goal`** and **`dream`**, listed as two tables before
 > the schema was designed — S-02 settled on a single `goal` table with a `layer`
-> discriminator, drawn above.
+> discriminator, drawn above. So was **`current_task`**, until S-07: rather than a fourth
+> table it became a third `layer` value plus a nullable `due_date` on that same `goal`.
+> The target diagram keeps a ghosted `task` box as the escape hatch, not as planned work —
+> the split earns its keep only once tasks get their own lifecycle (recurrence, overdue
+> alarms), and it is then a migration rather than a rewrite.

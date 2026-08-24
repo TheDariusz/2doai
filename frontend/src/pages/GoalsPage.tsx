@@ -4,21 +4,26 @@ import { ApiError, api } from '../api/client'
 import type { Domain } from '../layout/AppLayout'
 
 /**
- * A goal or a dream — one representation for both layers, exactly as the `Goal` schema in
- * `openapi.yaml` defines it (snake_case straight off the wire).
+ * A task, a goal or a dream — one representation for all three layers, exactly as the `Goal` schema
+ * in `openapi.yaml` defines it (snake_case straight off the wire).
  *
- * The four literals below are the wire contract, hardcoded here as they are in the spec and in the
+ * The five literals below are the wire contract, hardcoded here as they are in the spec and in the
  * backend enums. `GoalApiTest.publishesTheWireEnumsTheContractAnchors` parses the unions below and
  * set-compares them against the spec and the backend enums, so adding, removing or renaming a
  * literal on any side goes red — the guard lessons.md asks for whenever a literal spans the stack.
  * It parses rather than searches on purpose: each literal also appears in the label maps and in
  * `layer === 'GOAL'`, so widening these fields to `string` would leave a text search green.
+ *
+ * `horizon` and `due_date` are the two time fields, and the layer decides which one an entry may
+ * carry: a GOAL always has a horizon and never a term, a DREAM has neither, a TASK may have a term
+ * and never a horizon. The server answers 422 for any other combination.
  */
 export type Goal = {
   id: string
   content: string
-  layer: 'GOAL' | 'DREAM'
+  layer: 'GOAL' | 'DREAM' | 'TASK'
   horizon: 'THIS_YEAR' | 'FEW_MONTHS' | null
+  due_date: string | null
   category_code: string | null
   completed_at: string | null
   created_at: string
@@ -31,12 +36,13 @@ const HORIZON_LABEL: Record<NonNullable<Goal['horizon']>, string> = {
 }
 
 const LAYER_LABEL: Record<Goal['layer'], string> = {
+  TASK: 'Zadanie',
   GOAL: 'Cel',
   DREAM: 'Marzenie',
 }
 
 /** What both forms send: `GoalCreation` in the spec, and `GoalUpdate` once `completed` is added. */
-type GoalDraft = Pick<Goal, 'content' | 'layer' | 'horizon' | 'category_code'>
+type GoalDraft = Pick<Goal, 'content' | 'layer' | 'horizon' | 'due_date' | 'category_code'>
 
 /**
  * What an entry can do to itself, handed down rather than re-derived per row: which row (if any)
@@ -56,6 +62,7 @@ function draftOf(goal: Goal): GoalDraft {
     content: goal.content,
     layer: goal.layer,
     horizon: goal.horizon,
+    due_date: goal.due_date,
     category_code: goal.category_code,
   }
 }
@@ -67,9 +74,9 @@ function draftOf(goal: Goal): GoalDraft {
  */
 function messageFor(status: number): string {
   if (status === 422) {
-    // The form caps length and requires content, so this means the entry broke the layer × horizon
-    // rule — the one validation a caller can hit without bypassing the form.
-    return 'Serwer odrzucił ten wpis — cel wymaga horyzontu, marzenie go nie ma.'
+    // The form caps length and requires content, so this means the entry broke the layer × time
+    // fields rule — the one validation a caller can hit without bypassing the form.
+    return 'Serwer odrzucił ten wpis — horyzont ma tylko cel, termin tylko zadanie.'
   }
   if (status === 0) {
     // Never reached the server: the CSRF priming response has not landed. A reload primes it.
@@ -78,7 +85,7 @@ function messageFor(status: number): string {
   return 'Nie udało się zapisać zmiany. Spróbuj ponownie.'
 }
 
-/** The whole S-02 screen: both layers, grouped, with completed entries folded away. */
+/** The whole S-02 + S-07 screen: all three layers, grouped, completed entries folded away. */
 export function GoalsPage() {
   const domains = useOutletContext<Domain[]>()
   const [goals, setGoals] = useState<Goal[]>([])
@@ -99,7 +106,7 @@ export function GoalsPage() {
         // a 500 and a parse bug are indistinguishable from the outside and leave no trace.
         (failure: unknown) => {
           console.error('goals: load failed', failure)
-          setError('Nie udało się wczytać celów — odśwież stronę.')
+          setError('Nie udało się wczytać wpisów — odśwież stronę.')
           return false
         },
       ),
@@ -155,16 +162,24 @@ export function GoalsPage() {
 
   return (
     <div className="goals">
-      <h1>Cele i marzenia</h1>
+      <h1>Zadania, cele i marzenia</h1>
       {error && <p role="alert">{error}</p>}
 
       <GoalForm
-        name="Nowy cel lub marzenie"
+        name="Nowy wpis"
         submitLabel="Dodaj"
         domains={domains}
         onSubmit={(draft) => save(api('/goals', { method: 'POST', body: draft }))}
       />
 
+      {/* Tasks first: it is the layer that gives a reason to open the app on an ordinary day. */}
+      <Section
+        title="Zadania bieżące"
+        layer="TASK"
+        goals={goals}
+        domains={domains}
+        actions={actions}
+      />
       <Section
         title="Cele długoterminowe"
         layer="GOAL"
@@ -178,10 +193,10 @@ export function GoalsPage() {
 }
 
 /**
- * The create form and the inline edit form are the same four fields, so they are the same
- * component — `layer` is the only field value held in React rather than read off the DOM at submit,
- * because the horizon field exists only for a goal (a dream carrying one is a 422 from the server,
- * and an invariant we can simply not offer).
+ * The create form and the inline edit form are the same fields, so they are the same component —
+ * `layer` is the only value held in React rather than read off the DOM at submit, because it decides
+ * which time field is rendered at all: the horizon belongs to a goal, the term to a task, and an
+ * entry carrying the other one is a 422 from the server. An invariant we can simply not offer.
  */
 function GoalForm({
   name,
@@ -209,9 +224,12 @@ function GoalForm({
     const saved = await onSubmit({
       content: String(data.get('content') ?? ''),
       layer,
-      // Forced to null rather than merely left unrendered: PUT is a full replace, so a layer
-      // switch would otherwise resend whatever horizon the entry had and trip the cross-field rule.
+      // Both forced to null rather than merely left unrendered: PUT is a full replace, so a layer
+      // switch would otherwise resend whatever the entry had and trip the cross-field rule — and
+      // the two fields fail independently, which is why each states its own condition.
       horizon: layer === 'GOAL' ? (data.get('horizon') as Goal['horizon']) : null,
+      // An untouched date input reads as '', which is not a date the server would accept.
+      due_date: layer === 'TASK' ? String(data.get('due_date') ?? '') || null : null,
       category_code: String(data.get('category_code') ?? '') || null,
     })
     setPending(false)
@@ -254,6 +272,17 @@ function GoalForm({
               </option>
             ))}
           </select>
+        </label>
+      )}
+      {layer === 'TASK' && (
+        <label>
+          Termin
+          {/*
+            The native date control rather than a picker library: a calendar, keyboard entry,
+            locale-aware display and an ISO `YYYY-MM-DD` value — exactly what the wire wants — for
+            no bytes. Deliberately not `required`: most tasks have no deadline at all.
+          */}
+          <input type="date" name="due_date" defaultValue={goal?.due_date ?? undefined} />
         </label>
       )}
       <label>
@@ -350,7 +379,13 @@ function Item({
 
   // The wire carries the code; the label lives in the shell data the outlet already handed us.
   const category = domains.find((domain) => domain.code === goal.category_code)?.name_pl
-  const meta = [goal.horizon && HORIZON_LABEL[goal.horizon], category].filter(Boolean).join(' · ')
+  const meta = [
+    goal.horizon && HORIZON_LABEL[goal.horizon],
+    goal.due_date && `do ${goal.due_date}`,
+    category,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   return (
     <li>

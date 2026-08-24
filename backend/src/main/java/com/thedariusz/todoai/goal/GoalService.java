@@ -38,7 +38,7 @@ class GoalService {
 
 	GoalResponse create(GoalCreation request) {
 		Goal goal = new Goal(currentUser.requireId(), request.content(), request.layer(),
-				request.horizon(), request.categoryCode());
+				request.horizon(), request.dueDate(), request.categoryCode());
 		return GoalResponse.from(goals.saveAndFlush(goal));
 	}
 
@@ -51,7 +51,8 @@ class GoalService {
 		Goal goal = goals.findByIdAndUserId(id, currentUser.requireId())
 				.orElseThrow(() -> new GoalNotFoundException(id));
 
-		goal.update(request.content(), request.layer(), request.horizon(), request.categoryCode());
+		goal.update(request.content(), request.layer(), request.horizon(), request.dueDate(),
+				request.categoryCode());
 		if (request.completed()) {
 			goal.complete(OffsetDateTime.now());
 		}

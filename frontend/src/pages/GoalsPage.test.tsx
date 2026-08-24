@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Goal } from './GoalsPage'
@@ -11,6 +11,7 @@ const RUN = {
   content: 'Przebiec półmaraton',
   layer: 'GOAL',
   horizon: 'THIS_YEAR',
+  due_date: null,
   category_code: 'HEALTH',
   completed_at: null,
   created_at: '2026-08-17T10:00:00Z',
@@ -22,6 +23,7 @@ const JAPAN = {
   content: 'Pojechać do Japonii',
   layer: 'DREAM',
   horizon: null,
+  due_date: null,
   category_code: null,
   completed_at: null,
   created_at: '2026-08-17T11:00:00Z',
@@ -34,6 +36,18 @@ const COOKING = {
   content: 'Nauczyć się gotować',
   category_code: null,
   completed_at: '2026-08-16T09:00:00Z',
+} satisfies Goal
+
+const ELECTRICITY = {
+  id: 'g4',
+  content: 'Zapłacić za prąd',
+  layer: 'TASK',
+  horizon: null,
+  due_date: '2026-09-01',
+  category_code: 'HOME',
+  completed_at: null,
+  created_at: '2026-08-17T12:00:00Z',
+  updated_at: '2026-08-17T12:00:00Z',
 } satisfies Goal
 
 const fetchMock = vi.fn()
@@ -73,7 +87,16 @@ function section(name: string) {
  * an unscoped `getByLabelText` becomes ambiguous the moment one is open.
  */
 async function createForm() {
-  return within(await screen.findByRole('form', { name: 'Nowy cel lub marzenie' }))
+  return within(await screen.findByRole('form', { name: 'Nowy wpis' }))
+}
+
+/**
+ * `<input type="date">` is set, not typed. `userEvent.type` enters one character at a time and
+ * jsdom sanitizes every partial value ("2", "20", "202"…) back to the empty string, so the field
+ * ends up blank — the assertion then fails for a reason that has nothing to do with the component.
+ */
+function setDate(input: HTMLElement, value: string) {
+  fireEvent.change(input, { target: { value } })
 }
 
 /** One entry's row, so "Ukończ" resolves to that entry's button and not the other three. */
@@ -103,6 +126,18 @@ describe('GoalsPage', () => {
     const completed = screen.getByText('Nauczyć się gotować').closest('details')
     expect(completed).toBeInTheDocument()
     expect(completed).not.toHaveAttribute('open')
+  })
+
+  it('gives current tasks their own section, with the term on the entry', async () => {
+    stubApi([RUN, JAPAN, ELECTRICITY])
+
+    renderGoals()
+
+    const tasks = section('Zadania bieżące')
+    expect(await tasks.findByText('Zapłacić za prąd')).toBeInTheDocument()
+    expect(tasks.getByText(/2026-09-01/)).toBeInTheDocument()
+    expect(tasks.queryByText('Przebiec półmaraton')).not.toBeInTheDocument()
+    expect(section('Cele długoterminowe').queryByText('Zapłacić za prąd')).not.toBeInTheDocument()
   })
 
   it('says so when the list cannot be loaded, rather than rendering as if it were empty', async () => {
@@ -143,6 +178,7 @@ describe('GoalsPage — dodawanie', () => {
       content: 'Przebiec półmaraton',
       layer: 'GOAL',
       horizon: 'THIS_YEAR',
+      due_date: null,
       category_code: 'HEALTH',
     })
     expect(await screen.findByText('Przebiec półmaraton')).toBeInTheDocument()
@@ -162,6 +198,71 @@ describe('GoalsPage — dodawanie', () => {
 
     await user.selectOptions(form.getByLabelText('Rodzaj'), 'GOAL')
     expect(form.getByLabelText('Horyzont')).toBeInTheDocument()
+  })
+
+  /**
+   * The mirror of the horizon test, and the reason both fields are conditional: the server refuses a
+   * horizon and a term on the same entry with a 422, so a form that offered both would be a way to
+   * build a request that cannot succeed.
+   */
+  it('asks for a term only when the entry is a task, and never beside a horizon', async () => {
+    stubApi([])
+    const user = userEvent.setup()
+
+    renderGoals()
+    const form = await createForm()
+    expect(form.queryByLabelText('Termin')).not.toBeInTheDocument()
+
+    await user.selectOptions(form.getByLabelText('Rodzaj'), 'TASK')
+    expect(form.getByLabelText('Termin')).toBeInTheDocument()
+    expect(form.queryByLabelText('Horyzont')).not.toBeInTheDocument()
+
+    await user.selectOptions(form.getByLabelText('Rodzaj'), 'DREAM')
+    expect(form.queryByLabelText('Termin')).not.toBeInTheDocument()
+  })
+
+  it('posts a task with its term', async () => {
+    stubApi([])
+    const user = userEvent.setup()
+
+    renderGoals()
+    const form = await createForm()
+    await user.type(form.getByLabelText('Treść'), 'Zapłacić za prąd')
+    await user.selectOptions(form.getByLabelText('Rodzaj'), 'TASK')
+    setDate(form.getByLabelText('Termin'), '2026-09-01')
+    await user.selectOptions(form.getByLabelText('Kategoria'), 'HOME')
+    await user.click(form.getByRole('button', { name: 'Dodaj' }))
+
+    expect(JSON.parse(mutations()[0][1].body)).toEqual({
+      content: 'Zapłacić za prąd',
+      layer: 'TASK',
+      horizon: null,
+      due_date: '2026-09-01',
+      category_code: 'HOME',
+    })
+  })
+
+  /**
+   * A term is optional — most tasks are "next", not "by Friday". An untouched date input reads as
+   * the empty string, which the server rejects as a malformed date, so it has to leave as a null.
+   */
+  it('posts a task with no term as an explicit null, not an empty string', async () => {
+    stubApi([])
+    const user = userEvent.setup()
+
+    renderGoals()
+    const form = await createForm()
+    await user.type(form.getByLabelText('Treść'), 'Kupić chleb')
+    await user.selectOptions(form.getByLabelText('Rodzaj'), 'TASK')
+    await user.click(form.getByRole('button', { name: 'Dodaj' }))
+
+    expect(JSON.parse(mutations()[0][1].body)).toEqual({
+      content: 'Kupić chleb',
+      layer: 'TASK',
+      horizon: null,
+      due_date: null,
+      category_code: null,
+    })
   })
 
   it('offers the 11 domains plus an explicit "no category" choice', async () => {
@@ -194,6 +295,7 @@ describe('GoalsPage — zmiany na wpisie', () => {
       content: 'Przebiec półmaraton',
       layer: 'GOAL',
       horizon: 'THIS_YEAR',
+      due_date: null,
       category_code: 'HEALTH',
       completed: true,
     })
@@ -262,10 +364,63 @@ describe('GoalsPage — zmiany na wpisie', () => {
       content: 'Pojechać do Japonii',
       layer: 'GOAL',
       horizon: 'FEW_MONTHS',
+      due_date: null,
       category_code: null,
       completed: false,
     })
     expect(screen.queryByRole('form', { name: 'Edytuj wpis' })).not.toBeInTheDocument()
+  })
+
+  /**
+   * The conversions S-07 adds, in both directions — and the only place the two time fields can
+   * collide. PUT is a full replace, so a layer switch that resent the field the old layer owned
+   * would build a payload the server answers with 422: a task carrying the goal's horizon, or a
+   * goal carrying the task's term. Both directions are asserted because they fail independently.
+   */
+  it('converts a goal into a task, dropping the horizon and picking up a term', async () => {
+    stubApi([RUN])
+    const user = userEvent.setup()
+
+    renderGoals()
+    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Edytuj' }))
+
+    const form = within(screen.getByRole('form', { name: 'Edytuj wpis' }))
+    await user.selectOptions(form.getByLabelText('Rodzaj'), 'TASK')
+    setDate(form.getByLabelText('Termin'), '2026-09-01')
+    await user.click(form.getByRole('button', { name: 'Zapisz' }))
+
+    expect(JSON.parse(mutations()[0][1].body)).toEqual({
+      content: 'Przebiec półmaraton',
+      layer: 'TASK',
+      horizon: null,
+      due_date: '2026-09-01',
+      category_code: 'HEALTH',
+      completed: false,
+    })
+  })
+
+  it("drops a task's term when it becomes a long-term goal", async () => {
+    stubApi([ELECTRICITY])
+    const user = userEvent.setup()
+
+    renderGoals()
+    await user.click((await item('Zapłacić za prąd')).getByRole('button', { name: 'Edytuj' }))
+
+    const form = within(screen.getByRole('form', { name: 'Edytuj wpis' }))
+    expect(form.getByLabelText('Termin')).toHaveValue('2026-09-01')
+
+    await user.selectOptions(form.getByLabelText('Rodzaj'), 'GOAL')
+    await user.selectOptions(form.getByLabelText('Horyzont'), 'FEW_MONTHS')
+    await user.click(form.getByRole('button', { name: 'Zapisz' }))
+
+    expect(JSON.parse(mutations()[0][1].body)).toEqual({
+      content: 'Zapłacić za prąd',
+      layer: 'GOAL',
+      horizon: 'FEW_MONTHS',
+      due_date: null,
+      category_code: 'HOME',
+      completed: false,
+    })
   })
 })
 
@@ -312,6 +467,7 @@ describe('GoalsPage — edycja zachowuje resztę wpisu', () => {
       content: 'Przebiec maraton',
       layer: 'GOAL',
       horizon: 'THIS_YEAR',
+      due_date: null,
       category_code: 'HEALTH',
       completed: false,
     })
@@ -379,7 +535,7 @@ describe('GoalsPage — nieudany zapis', () => {
     await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Usuń' }))
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(/nie udało się wczytać celów/i)
+    expect(alert).toHaveTextContent(/nie udało się wczytać/i)
     expect(alert).not.toHaveTextContent(/odświeżona/i)
     expect(screen.getByText('Przebiec półmaraton')).toBeInTheDocument()
   })

@@ -1,7 +1,8 @@
 openapi: 3.1.0
 
 # API-first contract (Zalando #100/#101): the users + sessions + categories resources (S-01), and
-# the goals resource (S-02). Authoritative over any older path prose in plan.md.
+# the goals resource (S-02, widened to current tasks by S-07). Authoritative over any older path
+# prose in plan.md.
 #
 # Design decisions worth calling out:
 #   - Verb-free, resource-oriented URLs (#141/#138): register = POST /users, login = POST
@@ -18,8 +19,8 @@ info:
     Identity and session management for 2do AI (S-01): register an account, log in / out, read
     the current user, and permanently delete the account and all its data (FR-019). Also exposes
     the read-only list of the 11 fixed life domains (categories) the app navigation is built from,
-    and the goals resource (S-02) — long-term goals and someday dreams, per-user and full
-    CRUD. Session model is a server-side HttpSession cookie (not JWT); mutations are
+    and the goals resource (S-02/S-07) — current tasks, long-term goals and someday dreams,
+    per-user and full CRUD. Session model is a server-side HttpSession cookie (not JWT); mutations are
     CSRF-protected via a double-submit XSRF-TOKEN cookie echoed as the X-XSRF-TOKEN header.
   version: 1.0.0
   contact:
@@ -43,7 +44,7 @@ tags:
   - name: categories
     description: The 11 fixed life-domain reference records.
   - name: goals
-    description: Long-term goals and someday dreams — the two non-task layers.
+    description: Current tasks, long-term goals and someday dreams — all three layers.
 
 paths:
   /users:
@@ -240,15 +241,15 @@ paths:
   /goals:
     get:
       tags: [goals]
-      summary: List the caller's goals and dreams
+      summary: List the caller's entries across all three layers
       description: >
-        Every goal and dream owned by the authenticated user, newest first — both layers in one
-        collection, discriminated by `layer`. Deliberately unfiltered and unpaginated in S-02: the
+        Every task, goal and dream owned by the authenticated user, newest first — all three layers
+        in one collection, discriminated by `layer`. Deliberately unfiltered and unpaginated: the
         SPA groups client-side at single-user scale, and S-08 defines the real filter contract.
       operationId: getGoals
       responses:
         '200':
-          description: The caller's goals and dreams.
+          description: The caller's tasks, goals and dreams.
           content:
             application/json:
               schema:
@@ -260,12 +261,13 @@ paths:
 
     post:
       tags: [goals]
-      summary: Create a goal or a dream
+      summary: Create a task, a goal or a dream
       description: >
-        Creates an entry in either layer. A GOAL requires a `horizon` and a DREAM must omit it;
-        breaking that rule returns 422 (the body parsed, its content is invalid), whereas an
-        unrecognized enum literal in any field — `layer`, `horizon` or `category_code` — never
-        deserializes and returns 400.
+        Creates an entry in any of the three layers, subject to one rule over the two time fields: a
+        GOAL requires a `horizon`, a DREAM and a TASK must omit it, and only a TASK may carry a
+        `due_date` (which is itself optional). Breaking that rule returns 422 (the body parsed, its
+        content is invalid), whereas an unrecognized enum literal in any field — `layer`, `horizon`
+        or `category_code` — never deserializes and returns 400.
       operationId: createGoal
       parameters:
         - $ref: '#/components/parameters/XsrfToken'
@@ -277,7 +279,7 @@ paths:
               $ref: '#/components/schemas/GoalCreation'
       responses:
         '201':
-          description: The created goal or dream.
+          description: The created entry.
           content:
             application/json:
               schema:
@@ -296,12 +298,12 @@ paths:
   /goals/{id}:
     put:
       tags: [goals]
-      summary: Replace a goal or dream
+      summary: Replace an entry
       description: >
-        Full replace (#137 PUT semantics), so one operation covers every S-02 write: editing the
-        text, re-categorizing, converting between layers (sending `layer: GOAL` together with a
-        `horizon` converts a dream, and `layer: DREAM` with a null `horizon` converts it back — a
-        horizon alone is a 422), and completing or un-completing via `completed`.
+        Full replace (#137 PUT semantics), so one operation covers every write: editing the text,
+        re-categorizing, converting between any two layers, and completing or un-completing via
+        `completed`. A conversion has to move the time fields in the same request — a goal becoming
+        a task drops its `horizon` and may pick up a `due_date`; sending both is a 422.
 
 
         A goal owned by another account and a goal that never existed return the **same** 404 with
@@ -324,7 +326,7 @@ paths:
               $ref: '#/components/schemas/GoalUpdate'
       responses:
         '200':
-          description: The updated goal or dream.
+          description: The updated entry.
           content:
             application/json:
               schema:
@@ -344,7 +346,7 @@ paths:
 
     delete:
       tags: [goals]
-      summary: Delete a goal or dream
+      summary: Delete an entry
       description: >
         Removes the entry permanently — a hard delete, not a withdrawal: the row is gone and the id
         stops resolving, so repeating the call returns 404. This is not the "nigdy" state S-04
@@ -361,7 +363,7 @@ paths:
         - $ref: '#/components/parameters/XsrfToken'
       responses:
         '204':
-          description: The goal or dream was deleted.
+          description: The entry was deleted.
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -525,11 +527,15 @@ components:
       # exists to prevent. Held against the backend enum by GoalApiTest and against the SPA's goal
       # type by the same test (lessons.md: one check that spans the boundary).
       type: string
-      description: Which non-task layer the entry belongs to — a long-term goal or a someday dream.
-      # #112 open-ended enum: a third layer must not break existing clients.
+      description: >
+        Which layer the entry belongs to — a long-term goal (FR-004), a someday dream (FR-005) or a
+        current task (FR-003). It also decides which time fields are allowed: see `GoalHorizon` and
+        `GoalDueDate`.
+      # #112 open-ended enum: a fourth layer must not break existing clients.
       x-extensible-enum:
         - GOAL
         - DREAM
+        - TASK
       example: GOAL
 
     GoalHorizon:
@@ -538,11 +544,22 @@ components:
       type: [string, 'null']
       description: >
         How far out a long-term goal reaches (FR-004). Required for layer GOAL, and must be null for
-        layer DREAM — the cross-field rule the API enforces with 422.
+        layers DREAM and TASK — half of the cross-field rule the API enforces with 422.
       x-extensible-enum:
         - THIS_YEAR
         - FEW_MONTHS
       example: THIS_YEAR
+
+    GoalDueDate:
+      # The mirror of GoalHorizon, and the other half of the same cross-field rule. A date rather
+      # than a timestamp: a term is a day the user picks off a calendar, not a moment in a timezone,
+      # and `<input type="date">` sends exactly this.
+      type: [string, 'null']
+      format: date
+      description: >
+        A current task's optional term (FR-003). Allowed only for layer TASK, and must be null for
+        layers GOAL and DREAM. Null means the task simply has no deadline, which is the common case.
+      example: '2026-09-01'
 
     GoalContent:
       type: string
@@ -563,8 +580,9 @@ components:
     Goal:
       type: object
       description: >
-        A long-term goal (FR-004) or a someday dream (FR-005). One representation for both layers:
-        `layer` discriminates, and `horizon` is present only for GOAL.
+        A current task (FR-003), a long-term goal (FR-004) or a someday dream (FR-005). One
+        representation for all three layers: `layer` discriminates, `horizon` is present only for
+        GOAL, and `due_date` only for TASK.
       required: [id, content, layer, created_at, updated_at]
       properties:
         id:
@@ -577,6 +595,8 @@ components:
           $ref: '#/components/schemas/GoalLayer'
         horizon:
           $ref: '#/components/schemas/GoalHorizon'
+        due_date:
+          $ref: '#/components/schemas/GoalDueDate'
         category_code:
           $ref: '#/components/schemas/GoalCategoryCode'
         completed_at:
@@ -604,6 +624,8 @@ components:
           $ref: '#/components/schemas/GoalLayer'
         horizon:
           $ref: '#/components/schemas/GoalHorizon'
+        due_date:
+          $ref: '#/components/schemas/GoalDueDate'
         category_code:
           $ref: '#/components/schemas/GoalCategoryCode'
 
@@ -620,6 +642,8 @@ components:
           $ref: '#/components/schemas/GoalLayer'
         horizon:
           $ref: '#/components/schemas/GoalHorizon'
+        due_date:
+          $ref: '#/components/schemas/GoalDueDate'
         category_code:
           $ref: '#/components/schemas/GoalCategoryCode'
         completed:

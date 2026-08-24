@@ -20,7 +20,7 @@ describe('AppLayout', () => {
   it('renders the 11 domains in the order the server sends', async () => {
     renderShell('/')
 
-    // Waited on by name: the static "Cele i marzenia" link is in the DOM before the fetch lands,
+    // Waited on by name: the static entries link is in the DOM before the fetch lands,
     // so `findAllByRole('link')` alone would resolve on a nav that has no domains in it yet.
     await screen.findByRole('link', { name: 'Zdrowie' })
     const links = screen
@@ -33,10 +33,10 @@ describe('AppLayout', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/categories', expect.anything())
   })
 
-  it('offers the goals screen alongside the domains', async () => {
+  it('offers the three-layer screen alongside the domains', async () => {
     renderShell('/')
 
-    expect(await screen.findByRole('link', { name: 'Cele i marzenia' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Zadania, cele i marzenia' })).toHaveAttribute(
       'href',
       '/cele',
     )

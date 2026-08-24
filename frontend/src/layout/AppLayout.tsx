@@ -35,7 +35,7 @@ export function AppLayout() {
       <nav aria-label="Nawigacja">
         <ul>
           <li>
-            <NavLink to="/cele">Cele i marzenia</NavLink>
+            <NavLink to="/cele">Zadania, cele i marzenia</NavLink>
           </li>
           {failed && <li>Nie udało się wczytać domen — odśwież stronę.</li>}
           {domains.map((domain) => (

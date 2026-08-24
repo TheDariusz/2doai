@@ -1,5 +1,6 @@
 package com.thedariusz.todoai.goal;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
@@ -22,14 +23,26 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
- * A long-term goal or a someday dream (S-02, FR-004/FR-005) — one aggregate for both layers,
- * discriminated by {@link GoalLayer}, because everything downstream (S-04 proposals, S-08 views,
- * S-09 auto-tag) consumes the union and only the horizon differs.
+ * A current task, a long-term goal or a someday dream (S-02/S-07, FR-003/FR-004/FR-005) — one
+ * aggregate for all three layers, discriminated by {@link GoalLayer}, because everything downstream
+ * (S-04 proposals, S-08 views, S-09 auto-tag, S-10 offline) consumes the union and only the time
+ * fields differ. S-07 widened this rather than adding a parallel {@code Task}: splitting the
+ * aggregate is worth it when tasks get a different lifecycle (recurrence, overdue alarms), and then
+ * it is a migration rather than a rewrite.
  *
- * <p><b>The invariant</b>: a {@code GOAL} has a {@link GoalHorizon}, a {@code DREAM} has none.
- * It is enforced at three depths — the request DTOs ({@code @AssertTrue} → 422), this constructor
+ * <p><b>The invariant</b>, one rule over two nullable time fields:
+ *
+ * <table><caption>layer × time fields</caption>
+ * <tr><th>layer</th><th>{@code horizon}</th><th>{@code dueDate}</th></tr>
+ * <tr><td>{@code GOAL}</td><td>required</td><td>forbidden</td></tr>
+ * <tr><td>{@code DREAM}</td><td>forbidden</td><td>forbidden</td></tr>
+ * <tr><td>{@code TASK}</td><td>forbidden</td><td>optional</td></tr>
+ * </table>
+ *
+ * <p>It is enforced at three depths — the request DTOs ({@code @AssertTrue} → 422), this constructor
  * and {@link #update} ({@code IllegalArgumentException}, unreachable through the API but binding on
- * every future caller), and the {@code chk_goal_layer_horizon} CHECK constraint in {@code V6}.
+ * every future caller), and the {@code chk_goal_layer_horizon} CHECK constraint, created in
+ * {@code V6} and widened in {@code V7}.
  *
  * <p>Completion is modelled as a nullable timestamp rather than a boolean: {@code completedAt} is
  * both the state (null = active) and the moment S-03's memory enrichment will read.
@@ -52,7 +65,8 @@ public class Goal implements UserOwned {
 	public static final int MAX_CONTENT_LENGTH = 500;
 
 	/** Stated once: both request DTOs use it as their {@code @AssertTrue} message. */
-	static final String HORIZON_RULE = "a GOAL requires a horizon and a DREAM forbids one";
+	static final String TIME_FIELDS_RULE =
+			"only a GOAL has a horizon, and it always has one; only a TASK may have a due date";
 
 	@Id
 	@UuidGenerator(style = UuidGenerator.Style.VERSION_7)
@@ -77,6 +91,14 @@ public class Goal implements UserOwned {
 	@Column(length = 16)
 	private GoalHorizon horizon;
 
+	/**
+	 * A task's optional term, and the mirror of {@code horizon}. A {@code LocalDate} rather than a
+	 * timestamp because "do piątku" is a day the user picks off a calendar, not a moment in a
+	 * timezone — and {@code <input type="date">} sends exactly that.
+	 */
+	@Column(name = "due_date")
+	private LocalDate dueDate;
+
 	@Enumerated(EnumType.STRING)
 	@Column(name = "category_code", length = 32)
 	private LifeDomain category;
@@ -96,17 +118,21 @@ public class Goal implements UserOwned {
 		// JPA requires a no-arg constructor.
 	}
 
-	public Goal(UUID userId, String content, GoalLayer layer, GoalHorizon horizon, LifeDomain category) {
+	public Goal(UUID userId, String content, GoalLayer layer, GoalHorizon horizon, LocalDate dueDate,
+			LifeDomain category) {
 		this.userId = Objects.requireNonNull(userId, "userId");
-		apply(content, layer, horizon, category);
+		apply(content, layer, horizon, dueDate, category);
 	}
 
 	/**
 	 * Full-replace edit — the single write path behind {@code PUT /api/goals/{id}}, so it also covers
-	 * the dream ↔ goal conversion and therefore has to re-check the invariant.
+	 * every conversion between the three layers and therefore has to re-check the invariant. A dream
+	 * that becomes a task sheds nothing and may gain a term; a goal that becomes one must drop its
+	 * horizon in the same call, which is precisely what re-checking catches.
 	 */
-	public void update(String content, GoalLayer layer, GoalHorizon horizon, LifeDomain category) {
-		apply(content, layer, horizon, category);
+	public void update(String content, GoalLayer layer, GoalHorizon horizon, LocalDate dueDate,
+			LifeDomain category) {
+		apply(content, layer, horizon, dueDate, category);
 	}
 
 	/**
@@ -133,22 +159,26 @@ public class Goal implements UserOwned {
 	}
 
 	/**
-	 * The layer × horizon rule, stated once in Java so the aggregate and both request DTOs cannot
+	 * The layer × time-fields rule, stated once in Java so the aggregate and both request DTOs cannot
 	 * drift apart. A null layer passes here — {@code @NotNull} reports that as its own violation
-	 * rather than letting this rule blame the horizon for it.
+	 * rather than letting this rule blame a time field for it.
 	 */
-	static boolean hasConsistentHorizon(GoalLayer layer, GoalHorizon horizon) {
-		return layer == null || (layer == GoalLayer.GOAL) == (horizon != null);
+	static boolean hasConsistentTimeFields(GoalLayer layer, GoalHorizon horizon, LocalDate dueDate) {
+		return layer == null
+				|| ((layer == GoalLayer.GOAL) == (horizon != null)
+						&& (layer == GoalLayer.TASK || dueDate == null));
 	}
 
-	private void apply(String content, GoalLayer layer, GoalHorizon horizon, LifeDomain category) {
+	private void apply(String content, GoalLayer layer, GoalHorizon horizon, LocalDate dueDate,
+			LifeDomain category) {
 		this.content = Objects.requireNonNull(content, "content");
 		this.layer = Objects.requireNonNull(layer, "layer");
-		if (!hasConsistentHorizon(layer, horizon)) {
-			throw new IllegalArgumentException(HORIZON_RULE + ", got " + layer
-					+ " with horizon " + horizon);
+		if (!hasConsistentTimeFields(layer, horizon, dueDate)) {
+			throw new IllegalArgumentException(TIME_FIELDS_RULE + ", got " + layer
+					+ " with horizon " + horizon + " and due date " + dueDate);
 		}
 		this.horizon = horizon;
+		this.dueDate = dueDate;
 		this.category = category;
 	}
 
@@ -171,6 +201,10 @@ public class Goal implements UserOwned {
 
 	public GoalHorizon getHorizon() {
 		return horizon;
+	}
+
+	public LocalDate getDueDate() {
+		return dueDate;
 	}
 
 	public LifeDomain getCategory() {

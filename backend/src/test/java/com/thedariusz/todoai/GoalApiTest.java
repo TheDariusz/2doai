@@ -62,6 +62,15 @@ class GoalApiTest extends ApiTestBase {
 		return body;
 	}
 
+	/**
+	 * A term rides beside the payload helpers rather than inside them: only a TASK may carry one, so
+	 * every other test's entry legitimately has no {@code due_date} member at all.
+	 */
+	private static Map<String, Object> withDueDate(Map<String, Object> payload, String dueDate) {
+		payload.put("due_date", dueDate);
+		return payload;
+	}
+
 	private String createGoal(Map<String, Object> payload) {
 		return csrfAware()
 				.body(payload)
@@ -134,6 +143,100 @@ class GoalApiTest extends ApiTestBase {
 				.body(goalPayload("Marzenie z horyzontem", "DREAM", "THIS_YEAR", null))
 				.when()
 				.post("/api/goals")
+				.then()
+				.statusCode(422);
+	}
+
+	/**
+	 * The third layer (S-07, FR-003) on the same aggregate: a task is a goal's mirror image on the
+	 * time fields — no horizon, and the only layer allowed a {@code due_date}. The term is
+	 * <em>optional</em>, because most current tasks are "next", not "by Friday"; one that had to
+	 * invent a deadline would be a worse todo list than the paper it replaces.
+	 */
+	@Test
+	void createsATaskWithAndWithoutADueDate() {
+		givenLoggedInUser();
+
+		csrfAware()
+				.body(withDueDate(goalPayload("Zapłacić za prąd", "TASK", null, "HOME"), "2026-09-01"))
+				.when()
+				.post("/api/goals")
+				.then()
+				.statusCode(201)
+				.body("layer", equalTo("TASK"))
+				.body("horizon", nullValue())
+				.body("due_date", equalTo("2026-09-01"))
+				.body("category_code", equalTo("HOME"));
+
+		csrfAware()
+				.body(goalPayload("Kupić chleb", "TASK", null, null))
+				.when()
+				.post("/api/goals")
+				.then()
+				.statusCode(201)
+				.body("layer", equalTo("TASK"))
+				.body("due_date", nullValue());
+	}
+
+	/**
+	 * The invariant widens rather than splits. "Only a GOAL has a horizon" gains a mirror — "only a
+	 * TASK may have a due date" — and both halves are content failures (422) like the original: the
+	 * payload parses and every field is well-typed; it is the combination the domain refuses.
+	 */
+	@Test
+	void rejectsATaskWithAHorizonAndAGoalOrDreamWithADueDateWith422() {
+		givenLoggedInUser();
+
+		csrfAware()
+				.body(goalPayload("Zadanie z horyzontem", "TASK", "THIS_YEAR", null))
+				.when()
+				.post("/api/goals")
+				.then()
+				.statusCode(422)
+				.contentType("application/problem+json");
+
+		csrfAware()
+				.body(withDueDate(goalPayload("Cel z terminem", "GOAL", "THIS_YEAR", null), "2026-09-01"))
+				.when()
+				.post("/api/goals")
+				.then()
+				.statusCode(422);
+
+		csrfAware()
+				.body(withDueDate(goalPayload("Marzenie z terminem", "DREAM", null, null), "2026-09-01"))
+				.when()
+				.post("/api/goals")
+				.then()
+				.statusCode(422);
+	}
+
+	/**
+	 * FR-014's soft dependency in miniature: a long-term goal that becomes a concrete next action is
+	 * the same row changing layer. One full replace has to drop the horizon and pick up a term
+	 * together — and refuse the halfway state where the row would carry both.
+	 */
+	@Test
+	void convertsAGoalIntoATaskWithATerm() {
+		givenLoggedInUser();
+		String id = createGoal(goalPayload("Przebiec półmaraton", "GOAL", "THIS_YEAR", "HEALTH"));
+
+		csrfAware()
+				.body(withDueDate(updatePayload("Zapisać się na bieg", "TASK", null, "HEALTH", false),
+						"2026-09-01"))
+				.when()
+				.put("/api/goals/" + id)
+				.then()
+				.statusCode(200)
+				.body("layer", equalTo("TASK"))
+				.body("horizon", nullValue())
+				.body("due_date", equalTo("2026-09-01"));
+
+		// And on the way back: a task that regains a horizon must shed the term in the same request.
+		csrfAware()
+				.body(withDueDate(updatePayload("Zapisać się na bieg", "GOAL", "THIS_YEAR", "HEALTH", false),
+						"2026-09-01"))
+				.when()
+				.put("/api/goals/" + id)
 				.then()
 				.statusCode(422);
 	}

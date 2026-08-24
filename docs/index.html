@@ -207,7 +207,7 @@
         <tr><th scope="row">Categories</th><td><span class="badge badge-live">implemented</span></td><td>Seeded reference table, <code>LifeDomain</code>, startup drift check</td></tr>
         <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens, 11-domain shell; <code>/api</code> proxies in development and production</td></tr>
         <tr><th scope="row">Goals and dreams</th><td><span class="badge badge-live">implemented</span></td><td>One <code>goal</code> aggregate for both layers, <code>/api/goals</code>, and the <code>/cele</code> screen (S-02)</td></tr>
-        <tr><th scope="row">Current tasks</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-07</td></tr>
+        <tr><th scope="row">Current tasks</th><td><span class="badge badge-live">implemented</span></td><td>A third <code>GoalLayer</code> value plus an optional <code>due_date</code> on the same aggregate and screen (S-07)</td></tr>
         <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slices S-04 and S-05</td></tr>
         <tr><th scope="row">PWA/offline behavior</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-10</td></tr>
       </tbody>
@@ -217,9 +217,9 @@
   bootstrap, login, registration, logout, account deletion, and the 11-domain navigation shell all
   consume the API through one CSRF-aware client; the <code>/api</code> development proxy and
   production reverse proxy are implemented. The <code>/cele</code> screen adds the first data UI:
-  goals and dreams are created, edited, converted between layers, completed, reopened, and deleted
-  against the live API. Per-domain pages are still placeholders — current-task UI and PWA behavior are
-  planned.</p>
+  current tasks, goals and dreams are created, edited, converted between layers, completed, reopened,
+  and deleted against the live API. Per-domain pages are still placeholders — filters across the three
+  layers and PWA behavior are planned.</p>
   <p>These projects build independently; there is no root workspace. Local setup and execution
   belong in the <a href="../README.md">root README</a>. Product and architecture intent remain
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
@@ -367,9 +367,13 @@ flowchart LR
     coming months. Stored in the <code>goal</code> table with <code>layer = GOAL</code>.</dd>
     <dt>Dream</dt>
     <dd>A someday aspiration with no timeframe — the same <code>goal</code> table with
-    <code>layer = DREAM</code> and no horizon. One aggregate serves both because every later slice
-    consumes the union and nothing but the horizon differs. Converting one into the other is an
-    ordinary edit, not a move between tables.</dd>
+    <code>layer = DREAM</code> and no horizon. One aggregate serves all three layers because every
+    later slice consumes the union and nothing but the time fields differ. Converting one layer into
+    another is an ordinary edit, not a move between tables.</dd>
+    <dt>Task</dt>
+    <dd>A current, concrete action — the same <code>goal</code> table with
+    <code>layer = TASK</code>, no horizon, and an optional <code>due_date</code>. A task is the only
+    layer that may carry a due date, and the only time field a task may carry.</dd>
     <dt>AI memory</dt>
     <dd>The per-user aggregate that provides personal context to AI prompts. It contains durable
     profile facts and an append-only history of relevant events.</dd>
@@ -1079,13 +1083,13 @@ sequenceDiagram
   stored with a JSON payload. <code>goal</code> keeps its completion state as a nullable
   <code>completed_at</code> rather than a boolean, because the memory enrichment that reads it next
   needs to know when a thing was finished, not merely whether.</p>
-  <img class="diagram" src="../context/foundation/data-model-current.svg" width="1082" height="1012" loading="lazy" alt="Current entity relationship model: app user, goal, category, AI memory, profile facts, and episodes">
+  <img class="diagram" src="../context/foundation/data-model-current.svg" width="1082" height="1038" loading="lazy" alt="Current entity relationship model: app user, goal with its three layers, category, AI memory, profile facts, and episodes">
   <h3>Target model <span class="badge badge-planned">planned</span></h3>
   <p>The target diagram shows the whole shape, migrated and not: solid tables exist today, ghosted
   ones still need slice-level design and a migration. After S-02 only <code>current_task</code>
   (S-07) remains ghosted, so the ghosted half is direction rather than an implemented database
   contract.</p>
-  <img class="diagram" src="../context/foundation/data-model-target.svg" width="2003" height="1268" loading="lazy" alt="Target entity relationship model: migrated app user, goal, category and AI memory alongside the planned current-task table">
+  <img class="diagram" src="../context/foundation/data-model-target.svg" width="2003" height="1268" loading="lazy" alt="Target entity relationship model: migrated app user, goal, category and AI memory alongside the deferred task table">
   <p class="note">Canonical source:
   <a href="../context/foundation/data-model.md"><code>context/foundation/data-model.md</code></a>.
   Editable Draw.io sources live beside the exported SVGs.</p>
