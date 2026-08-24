@@ -197,8 +197,12 @@ p {
   margin: 24px 0;
 }
 
-/* Overrides the column layout `.auth form` uses — these fields are short and belong on one line. */
-.goals form {
+/* Overrides the column layout `.auth form` uses — these fields are short and belong on one line.
+   The filter row is the same shape (short labelled controls), so it shares the rule rather than
+   restating it; without this the global `label { flex-direction: column }` stacks the two selects
+   full-width, which reads nothing like the create form directly above them. */
+.goals form,
+.goals .filters {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;

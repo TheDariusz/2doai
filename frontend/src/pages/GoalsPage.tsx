@@ -255,7 +255,7 @@ function Filters({ domains }: { domains: Domain[] }) {
   }
 
   return (
-    <section aria-label="Filtry">
+    <section className="filters" aria-label="Filtry">
       <label>
         Pokaż rodzaj
         <select
