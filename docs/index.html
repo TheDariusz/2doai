@@ -226,10 +226,13 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
-  <p class="note">Verified against the S-04a selection engine (DEV-46) on 2026-08-24; the previous
-  verified snapshot was <code>012609c</code>, and that pass left the goal chapter and glossary still
-  describing two layers after S-07 had shipped the third. To review drift, run
-  <code>git log 012609c.. -- backend frontend .github/workflows context/foundation docs/index.html</code>.</p>
+  <p class="note">Verified against the S-04a selection engine (DEV-46) on 2026-08-24, including the
+  multi-agent review pass that corrected the proposal chapter above; the previous snapshot actually
+  <em>walked</em> was <code>012609c</code>, and that pass left the goal chapter and glossary still
+  describing two layers after S-07 had shipped the third. This note records the last commit walked,
+  not the last merged — pointing it at a newer merge would hide exactly that kind of drift. To
+  review, run <code>git log 012609c.. -- backend frontend .github/workflows context/foundation
+  docs/index.html</code>.</p>
 </section>
 <section id="architecture">
   <h2>System context and containers</h2>
@@ -619,11 +622,18 @@ classDiagram
   <p>The deterministic half of the proactive loop (S-04a). Two rules run in order.
   <strong>Neglect</strong> decides who is eligible: an active entry qualifies once it has been idle
   for its layer's patience — 7 days for a task, 14 for a goal, 30 for a dream — or, for a task
-  alone, once its <code>due_date</code> has passed. <strong>Balancing</strong> decides who wins
-  (FR-012): ranking by raw idle time would hand every proposal to whichever life domain the user
-  neglects hardest, so a domain is scored instead by how long the user has been <em>silent</em> in
-  it, the most silent domain goes first, and raw idle time only breaks the tie inside it. An entry
-  with no category competes as a domain of its own rather than falling out of the query.</p>
+  alone, once its <code>due_date</code> has passed — and a missed term ranks ahead of any amount of
+  silence, so an overdue task is proposed before a merely idle entry. <strong>Balancing</strong>
+  then decides who wins inside a tier (FR-012): ranking by raw idle time would hand every proposal
+  to whichever life domain the user neglects hardest, so a domain is scored instead by how long the
+  user has been <em>silent</em> in it — the idle time of its most recently touched entry, completed
+  ones included — and the most silent domain goes first. Raw idle time is the second key outright,
+  settling two equally silent domains as readily as two entries inside one. Entries with no category
+  are not dropped; they share a single bucket rather than one each.</p>
+  <p>Balancing never suppresses a proposal, only reorders one. For a user active in all eleven
+  domains every silence score ties, the first key goes constant, and the comparator collapses to raw
+  idle time — the ranking balancing exists to avoid. It switches itself off rather than falling
+  silent.</p>
   <p>The engine is a pure function: it takes the entries and the current moment as arguments and
   holds no clock, no repository, and no <code>LlmClient</code>. That is what lets
   <code>ProposalSelectorTest</code> state the whole product rule without a container, and it is why
@@ -645,9 +655,10 @@ classDiagram
   }
   class ProposalSelector {
     &lt;&lt;domain service&gt;&gt;
-    +select(candidates, now) Selection
+    +select(candidates, now) Optional
     idle patience by layer — 7, 14, 30 days
-    orders domains by silence
+    empty is the 204 answer
+    missed terms first, then domain silence
   }
   class Candidate {
     &lt;&lt;value object&gt;&gt;
@@ -1097,22 +1108,24 @@ sequenceDiagram
   <h4>Manual proposal trigger <span class="badge badge-live">implemented</span></h4>
   <pre class="mermaid">
 sequenceDiagram
-  actor SPA
+  actor API as API client
   participant PC as ProposalController
   participant PS as ProposalService
   participant SEL as ProposalSelector — pure logic
   participant PG as Postgres
-  SPA->>PC: POST /api/proposals
+  API->>PC: POST /api/proposals
   PC->>PS: propose()
   PS->>PG: every entry owned by the caller
   PG-->>PS: tasks, goals and dreams
   PS->>SEL: select(candidates, now)
   SEL-->>PS: the chosen entry and its idle days
-  PC-->>SPA: 200 with the entry — or 204 when nothing is neglected
+  PS-->>PC: the entry, or empty
+  PC-->>API: 200 with the entry — or 204 when nothing is neglected
   </pre>
   <p class="note">No AI provider appears in this flow, deliberately. S-04b puts
-  <code>LlmClient</code> between the selection and the wording the user reads; until then the engine
-  is the only production business logic and stays testable without a network.</p>
+  <code>LlmClient</code> between the selection and the wording the user reads; until then no
+  production code path calls <code>LlmClient</code> at all, and the engine stays testable without a
+  network. No screen calls this endpoint yet either — the SPA leg arrives with S-04b.</p>
 
   <h4>Natural-rhythm proposal <span class="badge badge-planned">planned</span></h4>
   <pre class="mermaid">
@@ -1162,7 +1175,13 @@ sequenceDiagram
   needs to know when a thing was finished, not merely whether. The selection engine added no column
   and no index: it measures neglect from <code>updated_at</code>, which is only honest while the
   user remains the sole writer of a <code>goal</code> row — the day a background job stamps one, the
-  engine needs a <code>last_interaction_at</code> of its own.</p>
+  engine needs a <code>last_interaction_at</code> of its own. The other clock decision is
+  <code>due_date</code>: it is a <code>LocalDate</code> the user picked off a calendar, so the engine
+  reads its clock in the user's zone rather than the server's. There is no <code>user.timezone</code>
+  column yet, so that zone is pinned to Europe/Warsaw in one line of <code>ProposalService</code>;
+  a UTC comparison would leave a task that fell due at Polish midnight unflagged until 02:00, and the
+  endpoint would answer 204 &mdash; the one place a real fault looks like a legitimate empty
+  answer.</p>
   <img class="diagram" src="../context/foundation/data-model-current.svg" width="1082" height="1038" loading="lazy" alt="Current entity relationship model: app user, goal with its three layers, category, AI memory, profile facts, and episodes">
   <h3>Target model <span class="badge badge-planned">planned</span></h3>
   <p>The target diagram shows the whole shape, migrated and not: solid tables exist today, ghosted
@@ -1384,7 +1403,7 @@ flowchart TB
         <tr><th scope="row">Layer / horizon</th><td><code>GoalLayer</code> (GOAL, DREAM, TASK) discriminates all three layers; <code>GoalHorizon</code> (THIS_YEAR, FEW_MONTHS) applies only to a goal, and <code>due_date</code> only to a task. All constant names are the wire literals, anchored in <code>openapi.yaml</code> and held against backend and frontend copies by <code>GoalApiTest</code>.</td></tr>
         <tr><th scope="row">Life domain</th><td>One of 11 fixed categories every task belongs to: HEALTH, FINANCE, CAREER, EDUCATION, RELATIONSHIPS, HOME, LEISURE, ADMIN, SAFETY, TRANSPORT, INNER_GROWTH. Enum <code>LifeDomain</code> mirrors the seeded <code>category</code> table; <code>CategorySyncCheck</code> fails boot on drift.</td></tr>
         <tr><th scope="row">Natural-rhythm reminder</th><td>A proactive nudge surfaced at a contextually right moment rather than a fixed alarm time. <span class="badge badge-planned">planned</span></td></tr>
-        <tr><th scope="row">Selection engine</th><td>The deterministic pick behind <code>POST /api/proposals</code>: <em>neglect</em> (idle 7 / 14 / 30 days by layer, or a task past its <code>due_date</code>) decides which entries are eligible, and <em>domain silence</em> (how long since the user touched anything in a life domain) decides which one wins. Pure Java in <code>ProposalSelector</code>; no LLM.</td></tr>
+        <tr><th scope="row">Selection engine</th><td>The deterministic pick behind <code>POST /api/proposals</code>: <em>neglect</em> (idle 7 / 14 / 30 days by layer, or a task past its <code>due_date</code>) decides which entries are eligible; a missed term ranks ahead of any amount of silence, and below that <em>domain silence</em> (how long since the user touched anything in a life domain — completed entries included) decides which one wins. Pure Java in <code>ProposalSelector</code>; no LLM.</td></tr>
         <tr><th scope="row">AiMemory</th><td>Per-user aggregate the AI consults; created atomically with the <code>User</code> at registration ("every user has exactly one memory").</td></tr>
         <tr><th scope="row">Episode</th><td>One append-only AI-memory event; payload stored as <code>jsonb</code>.</td></tr>
         <tr><th scope="row">Profile fact</th><td>A durable statement about the user inside <code>AiMemory</code>, rendered into prompts by <code>AiMemoryRenderer</code>.</td></tr>

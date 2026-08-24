@@ -1,12 +1,9 @@
 package com.thedariusz.todoai.proposal;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.goal.GoalRepository;
@@ -24,13 +21,18 @@ import org.springframework.transaction.annotation.Transactional;
  * <p><b>It reads the whole list, and deliberately adds no finder.</b> The obvious optimisation — a
  * {@code findNeglectedByUserId} carrying the thresholds into SQL — would be wrong twice over: the
  * balancing rule needs the domains the user <em>has</em> been active in, which is precisely the rows
- * such a query filters away, and {@code GoalRepository}'s existing unparameterized list is already
- * the shape {@code GET /api/goals} uses at single-user scale. Nothing new to keep {@code userId}-scoped,
+ * such a query filters away, and {@code GoalRepository}'s existing finder is already the unfiltered,
+ * user-scoped list {@code GET /api/goals} uses at single-user scale. Nothing new to keep {@code userId}-scoped,
  * no index on {@code due_date}, no migration. If the list ever outgrows one round-trip, S-08's filter
  * contract is where that gets solved for every reader at once.
  *
- * <p>{@code OffsetDateTime.now()} is read here rather than inside the engine, which takes it as an
- * argument — that is the whole reason the engine is testable without a clock.
+ * <p>The clock is read here rather than inside the engine, which takes it as an argument — that is
+ * the whole reason the engine is testable without a clock. It is read <b>in the user's zone</b>,
+ * because {@code due_date} is a {@code LocalDate} the user picked off a calendar: comparing it
+ * against a UTC server's date would leave a task that went overdue at Polish midnight unflagged
+ * until 02:00, and the endpoint would answer 204 "nothing gathering dust" — the one place a real
+ * fault is indistinguishable from a legitimate empty answer. The instant is unchanged, so the idle
+ * thresholds (whole 24h periods) are unaffected; only {@code toLocalDate()} moves.
  */
 @Service
 @Transactional(readOnly = true)
@@ -40,6 +42,10 @@ class ProposalService {
 
 	private final CurrentUser currentUser;
 
+	// ponytail: one hardcoded zone while every account is Polish; a user.timezone column is the
+	// upgrade, and this is the only line that reads it.
+	private static final ZoneId USER_ZONE = ZoneId.of("Europe/Warsaw");
+
 	ProposalService(GoalRepository goals, CurrentUser currentUser) {
 		this.goals = goals;
 		this.currentUser = currentUser;
@@ -48,12 +54,12 @@ class ProposalService {
 	/** @return the entry to bring back to the user, or empty when nothing has been neglected yet */
 	Optional<ProposalResponse> propose() {
 		List<Goal> entries = goals.findByUserIdOrderByCreatedAtDesc(currentUser.requireId());
-		Map<UUID, Goal> byId = entries.stream()
-				.collect(Collectors.toMap(Goal::getId, Function.identity()));
 
 		return ProposalSelector
-				.select(entries.stream().map(Candidate::of).toList(), OffsetDateTime.now())
-				.map(selection -> new ProposalResponse(GoalResponse.from(byId.get(selection.id())),
-						selection.neglectedDays()));
+				.select(entries.stream().map(Candidate::of).toList(), OffsetDateTime.now(USER_ZONE))
+				.map(selection -> new ProposalResponse(GoalResponse.from(entries.stream()
+						.filter(goal -> goal.getId().equals(selection.id()))
+						.findFirst()
+						.orElseThrow()), selection.neglectedDays()));
 	}
 }

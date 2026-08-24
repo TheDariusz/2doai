@@ -27,23 +27,30 @@ import com.thedariusz.todoai.goal.GoalLayer;
  * dream (PRD Open Question #6, which named the middle two; a task is the layer the user expects to
  * move fastest, so it gets the shortest fuse). A task that is past its {@code due_date} is neglected
  * outright, however recently it was edited: it is the only layer carrying an explicit term, and a
- * missed one is a stronger signal than any amount of silence.
+ * missed one is a stronger signal than any amount of silence — so it is also the comparator's first
+ * key, not merely a way in. Without that, an overdue task loses every contest it enters: being
+ * freshly edited it drives its own domain's silence to zero, which sorts it last.
  *
  * <p><i>Balancing</i> decides who wins, and it is the reason this is not simply "oldest entry
  * first". FR-012 asks that proposals not flood one life domain. Ranking by raw idle time does the
  * opposite: whichever domain the user neglects hardest owns every proposal forever. So a domain is
  * scored by how long the user has been <b>silent in it</b> — the idle time of its most recently
- * touched entry, completed ones included — and the most silent domain goes first; only inside it
- * does raw idle time break the tie. Touch anything in a domain and it goes quiet for a while, which
- * is what rotates the proposals. An entry with no {@code category_code} is not dropped: null is a
- * domain key like any other, so an uncategorised dream competes on equal terms.
+ * touched entry, completed ones included — and the most silent domain goes first. Raw idle time is
+ * the second key outright, so it settles two equally silent domains as readily as two entries inside
+ * one. Touch anything in a domain and it goes quiet for a while, which is what rotates the
+ * proposals. An entry with no {@code category_code} is not dropped: null is a map key like any
+ * other, so uncategorised entries compete on equal terms — as <em>one shared bucket</em>, though,
+ * not eleven. Touching any one of them quiets them all, which will read as coarse once S-09's
+ * auto-tagging leaves a tail of untagged rows behind.
  *
- * <p>The ceiling that buys: a domain the user works in daily is never the most silent one, so its
- * own neglected dream stays quiet until they stop. That is the product's thesis rather than a bug —
- * a friend asks about the thing you <em>stopped</em> doing — but it does mean someone active across
- * all eleven domains hears nothing. Weighting silence against raw idle time instead of ordering them
- * is the upgrade, and it is the same comparator; it needs the FR-016 priority categories to have
- * something to weigh, so it waits for them.
+ * <p>The ceiling that buys: a domain the user works in daily scores zero silence and ranks last, so
+ * its own neglected dream waits behind quieter domains. That is the product's thesis rather than a
+ * bug — a friend asks about the thing you <em>stopped</em> doing. Note what it does <em>not</em> do:
+ * balancing never suppresses a proposal. For a user active in all eleven domains every silence score
+ * ties, the first key goes constant, and the comparator collapses to raw idle time — the very
+ * "oldest entry first" ranking balancing exists to avoid. It switches itself off rather than falling
+ * silent. Weighting silence against idle time instead of ordering them is the upgrade, and it is the
+ * same comparator with a coefficient (PRD Open Question #4 proposes a plain weight).
  *
  * <p><b>What "last interaction" is measured from</b> is settled in {@link Candidate#of(Goal)}, and
  * it is {@code updated_at}: today the user is the only writer, so the column already means "when the
@@ -100,11 +107,13 @@ final class ProposalSelector {
 		entries.forEach(entry -> silence.merge(entry.category(), idleDays(entry, now), Math::min));
 
 		Comparator<Candidate> mostNeglectedFirst = Comparator
-				.comparingLong((Candidate entry) -> silence.get(entry.category()))
+				// false sorts before true, so reversing puts the missed terms first.
+				.comparing((Candidate entry) -> isOverdue(entry, today))
+				.thenComparingLong(entry -> silence.get(entry.category()))
 				.thenComparingLong(entry -> idleDays(entry, now))
 				.reversed()
 				// A total order, so the same rows in a different sequence cannot yield a different
-				// proposal. Ids are UUID v7, so ascending is oldest-entry-first.
+				// proposal. Ids ascend with creation, so this is oldest-entry-first.
 				.thenComparing(Candidate::id);
 
 		return entries.stream()
@@ -117,9 +126,17 @@ final class ProposalSelector {
 		if (entry.completed()) {
 			return false;
 		}
-		// dueDate is non-null only on a TASK — the aggregate's layer x time-fields invariant.
-		return idleDays(entry, now) >= idlePatience(entry.layer())
-				|| (entry.dueDate() != null && entry.dueDate().isBefore(today));
+		return idleDays(entry, now) >= idlePatience(entry.layer()) || isOverdue(entry, today);
+	}
+
+	/**
+	 * Both an eligibility rule and the comparator's first key — a missed term is the one signal that
+	 * outranks silence. Guarded on {@code dueDate} rather than dispatched on {@code layer}: the
+	 * aggregate already promises only a TASK carries one, so re-checking the layer here would be a
+	 * fourth enforcement of an invariant {@code Goal} holds three ways.
+	 */
+	private static boolean isOverdue(Candidate entry, LocalDate today) {
+		return entry.dueDate() != null && entry.dueDate().isBefore(today);
 	}
 
 	private static long idleDays(Candidate entry, OffsetDateTime now) {

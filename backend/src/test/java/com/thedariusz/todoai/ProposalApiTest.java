@@ -50,8 +50,10 @@ class ProposalApiTest extends ApiTestBase {
 	@Test
 	void proposesTheEntryWhoseTermHasAlreadyPassed() {
 		givenLoggedInUser();
-		createTask(task("Zapłacić ZUS", "FINANCE", LocalDate.now().plusDays(3)));
+		// The overdue one is created first: the repository sorts createdAt DESC, so if it were
+		// created last, "return the newest row" would satisfy this assertion just as well.
 		String overdue = createTask(task("Oddać książkę", "EDUCATION", LocalDate.now().minusDays(2)));
+		createTask(task("Zapłacić ZUS", "FINANCE", LocalDate.now().plusDays(3)));
 
 		csrfAware()
 				.when()
@@ -83,12 +85,34 @@ class ProposalApiTest extends ApiTestBase {
 
 		newBrowser();
 		givenLoggedInUser();
+		String ownOverdue = createTask(task("Wymienić opony", "TRANSPORT", LocalDate.now().minusDays(5)));
 
-		// A second account sees an empty engine, not the first account's overdue task.
+		// The second account has a neglected entry of its own, so a 204 could not be mistaken for
+		// "the engine returns empty regardless" — it must propose its own row, never the first's.
 		csrfAware()
 				.when()
 				.post("/api/proposals")
 				.then()
-				.statusCode(204);
+				.statusCode(200)
+				.body("entry.id", equalTo(ownOverdue))
+				.body("entry.content", equalTo("Wymienić opony"));
+	}
+
+	@Test
+	void refusesAnonymousAccess() {
+		// A fresh browser that never logged in, but carrying a real CSRF token — /api/ping primes one
+		// for anonymous clients, which is what registration relies on. Without it the CSRF filter
+		// would answer 403 first and this would prove nothing about authentication.
+		newBrowser();
+
+		csrfAware().when().post("/api/proposals").then().statusCode(401);
+	}
+
+	@Test
+	void refusesAProposalWithoutTheCsrfToken() {
+		givenLoggedInUser();
+
+		// The spec publishes 403 on this path; being a POST it is a mutation like any other.
+		client().when().post("/api/proposals").then().statusCode(403);
 	}
 }

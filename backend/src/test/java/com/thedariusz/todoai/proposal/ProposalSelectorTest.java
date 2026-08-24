@@ -32,8 +32,10 @@ class ProposalSelectorTest {
 	private static final OffsetDateTime NOW = OffsetDateTime.parse("2026-08-24T20:00:00Z");
 
 	/**
-	 * Ids ascend in creation order, exactly as the real UUID v7 keys do — which is what makes the
-	 * tie-break assertion below meaningful rather than accidental.
+	 * Ids ascend in creation order, standing in for the time-ordered UUID v7 keys production uses —
+	 * which is what makes the tie-break assertion below meaningful rather than accidental. They are
+	 * not v7-shaped ({@code new UUID(0, n)} has no timestamp in its high bits); only the ordering
+	 * property the tie-break relies on is reproduced.
 	 */
 	private long nextId;
 
@@ -71,6 +73,78 @@ class ProposalSelectorTest {
 	}
 
 	@Test
+	void putsAMissedTermAheadOfAnyAmountOfSilence() {
+		Candidate overdueTask = new Candidate(id(), GoalLayer.TASK, LifeDomain.FINANCE,
+				NOW.toLocalDate().minusDays(9), NOW, false);
+		Candidate abandonedDream = entry(GoalLayer.DREAM, LifeDomain.LEISURE, 100);
+
+		assertThat(select(List.of(overdueTask, abandonedDream)))
+				.as("a missed term is the one signal that outranks silence — otherwise an overdue "
+						+ "task, being freshly edited, silences its own domain and always sorts last")
+				.get().extracting(Selection::id).isEqualTo(overdueTask.id());
+	}
+
+	@Test
+	void stillBalancesDomainsAmongTheEntriesWhoseTermHasPassed() {
+		// Idle three days: under a task's patience, so both are eligible on their term alone.
+		Candidate lateInABusyDomain = new Candidate(id(), GoalLayer.TASK, LifeDomain.HEALTH,
+				NOW.toLocalDate().minusDays(30), NOW.minusDays(3), false);
+		Candidate noiseKeepingHealthAlive = entry(GoalLayer.GOAL, LifeDomain.HEALTH, 0);
+		Candidate lateInAQuietDomain = new Candidate(id(), GoalLayer.TASK, LifeDomain.ADMIN,
+				NOW.toLocalDate().minusDays(1), NOW.minusDays(3), false);
+
+		assertThat(select(List.of(lateInABusyDomain, noiseKeepingHealthAlive, lateInAQuietDomain)))
+				.as("promoting missed terms must not switch balancing off inside that tier")
+				.get().extracting(Selection::id).isEqualTo(lateInAQuietDomain.id());
+	}
+
+	@Test
+	void neverProposesATaskTheUserFinishedAfterItsTermHadPassed() {
+		Candidate done = new Candidate(id(), GoalLayer.TASK, LifeDomain.HEALTH,
+				NOW.toLocalDate().minusDays(2), NOW, true);
+
+		assertThat(select(List.of(done)))
+				.as("ticking a late task off must retire it, not pin it to the top of every proposal")
+				.isEmpty();
+	}
+
+	@Test
+	void countsAnEntryTheUserCompletedTodayAsProofTheDomainIsStillAlive() {
+		Candidate abandonedDream = entry(GoalLayer.DREAM, LifeDomain.HEALTH, 100);
+		Candidate doneToday = new Candidate(id(), GoalLayer.TASK, LifeDomain.HEALTH, null, NOW, true);
+		Candidate quietGoal = entry(GoalLayer.GOAL, LifeDomain.FINANCE, 20);
+
+		assertThat(select(List.of(abandonedDream, doneToday, quietGoal)))
+				.as("finishing something in HEALTH is the user speaking — completed rows are why the "
+						+ "engine is handed the whole list rather than a findNeglected query")
+				.get().extracting(Selection::id).isEqualTo(quietGoal.id());
+	}
+
+	@Test
+	void breaksATieBetweenEquallySilentDomainsOnRawIdleTime() {
+		Candidate olderInOneDomain = entry(GoalLayer.GOAL, LifeDomain.CAREER, 60);
+		Candidate newerInAnother = entry(GoalLayer.GOAL, LifeDomain.HOME, 20);
+
+		assertThat(select(List.of(newerInAnother, olderInOneDomain)))
+				.as("idle time is the second key outright — it settles equally silent domains too, "
+						+ "not only entries inside one domain")
+				.get().extracting(Selection::id).isEqualTo(olderInOneDomain.id());
+	}
+
+	@Test
+	void scoresADomainByItsQuietestEntryWhicheverOrderTheRowsArriveIn() {
+		Candidate abandoned = entry(GoalLayer.DREAM, LifeDomain.HEALTH, 100);
+		Candidate freshInTheSameDomain = entry(GoalLayer.TASK, LifeDomain.HEALTH, 0);
+		Candidate quietGoal = entry(GoalLayer.GOAL, LifeDomain.FINANCE, 20);
+
+		assertThat(select(List.of(abandoned, freshInTheSameDomain, quietGoal)).orElseThrow().id())
+				.isEqualTo(quietGoal.id());
+		assertThat(select(List.of(freshInTheSameDomain, abandoned, quietGoal)).orElseThrow().id())
+				.as("silence folds with min, so the domain scores the same whichever row lands first")
+				.isEqualTo(quietGoal.id());
+	}
+
+	@Test
 	void ignoresEntriesTheUserHasAlreadyCompleted() {
 		Candidate done = new Candidate(id(), GoalLayer.DREAM, LifeDomain.HEALTH, null,
 				NOW.minusDays(400), true);
@@ -85,18 +159,31 @@ class ProposalSelectorTest {
 		Candidate quietGoal = entry(GoalLayer.GOAL, LifeDomain.FINANCE, 20);
 
 		assertThat(select(List.of(abandonedDream, freshTaskInTheSameDomain, quietGoal)))
-				.as("HEALTH heard from the user today; FINANCE has been silent for three weeks — "
+				.as("HEALTH heard from the user today; FINANCE has been silent for twenty days — "
 						+ "raw idle time alone would have flooded HEALTH")
 				.get().extracting(Selection::id).isEqualTo(quietGoal.id());
 	}
 
 	@Test
-	void letsUncategorisedEntriesCompeteAsADomainOfTheirOwn() {
+	void doesNotChokeOnAnUncategorisedEntry() {
 		Candidate uncategorised = entry(GoalLayer.DREAM, null, 40);
 
 		assertThat(select(List.of(uncategorised)))
-				.as("category_code is nullable, and an entry without one is still neglected")
+				.as("category_code is nullable, and a null domain key would have thrown under "
+						+ "Collectors#groupingBy — an entry without one is still neglected")
 				.get().extracting(Selection::id).isEqualTo(uncategorised.id());
+	}
+
+	@Test
+	void poolsEveryUncategorisedEntryIntoOneSharedBucket() {
+		Candidate abandonedUncategorised = entry(GoalLayer.DREAM, null, 100);
+		Candidate freshUncategorised = entry(GoalLayer.TASK, null, 0);
+		Candidate quietGoal = entry(GoalLayer.GOAL, LifeDomain.FINANCE, 20);
+
+		assertThat(select(List.of(abandonedUncategorised, freshUncategorised, quietGoal)))
+				.as("null is one bucket, not eleven — touching any uncategorised entry quiets them "
+						+ "all, so FINANCE is the more silent domain here")
+				.get().extracting(Selection::id).isEqualTo(quietGoal.id());
 	}
 
 	@Test
@@ -108,6 +195,11 @@ class ProposalSelectorTest {
 				.as("silence picks the domain, raw idle time picks within it — a comparator whose "
 						+ "second key runs the wrong way still answers every cross-domain case right")
 				.get().extracting(Selection::id).isEqualTo(quietestDomainsOldest.id());
+
+		assertThat(select(List.of(quietestDomainsOldest, quietestDomainsNewest)).orElseThrow()
+				.neglectedDays())
+				.as("the entry's own idle time, not its domain's silence — which here would be 30")
+				.isEqualTo(90);
 	}
 
 	@Test

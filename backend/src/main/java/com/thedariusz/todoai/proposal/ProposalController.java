@@ -10,9 +10,10 @@ import org.springframework.web.bind.annotation.RestController;
  * neglected entry to act on.
  *
  * <p><b>POST, not GET</b>, and no request body. Asking for a proposal is an action the user takes,
- * and S-04b will make it a genuinely unsafe one: the same call will then record what was proposed so
- * the natural rhythm (FR-011) does not repeat itself. Choosing GET now for a body-less read would
- * make that a breaking change, and would invite caching of an answer that must not be cached.
+ * and it becomes a genuinely unsafe one as soon as state sits behind it: the four responses of
+ * FR-013 ("każda odpowiedź wpływa na przyszłe propozycje") and the at-most-one-pending rule of
+ * FR-018 both do. Choosing GET now for a body-less read would make that a breaking change, and would
+ * invite caching of an answer that must not be cached.
  *
  * <p><b>204 when nothing is neglected</b>, never 404: the resource exists and answered, the user
  * simply has nothing gathering dust. A 404 here would say the endpoint is gone. Authenticated by

@@ -385,14 +385,17 @@ paths:
         Runs the deterministic selection engine (S-04a, FR-012/FR-015 — "daj mi coś teraz") over the
         caller's entries and returns the single one worth coming back to. An entry counts as
         neglected once it has been idle for its layer's patience — 7 days for a TASK, 14 for a GOAL,
-        30 for a DREAM — or, for a TASK alone, once its `due_date` has passed. Among those, the
-        engine prefers the life domain the user has been silent in longest, so proposals rotate
-        between domains instead of flooding whichever one is most neglected; entries with no
-        `category_code` compete as a domain of their own.
+        30 for a DREAM — or, for a TASK alone, once its `due_date` has passed. A missed term ranks
+        ahead of any amount of silence, so an overdue task is proposed before a merely idle entry.
+        Within a tier the engine prefers the life domain the user has been silent in longest, so
+        proposals rotate between domains instead of flooding whichever one is most neglected — and a
+        domain counts as active if anything in it was touched recently, **completed entries
+        included**. Entries with no `category_code` share a single bucket rather than one each.
 
 
-        POST rather than GET, with no request body: asking is an action, and S-04b will make it a
-        genuinely unsafe one by recording what was proposed. The answer must never be cached.
+        POST rather than GET, with no request body: asking is an action, and it becomes an unsafe one
+        as soon as state sits behind it — FR-013's four responses and FR-018's at-most-one-pending
+        rule both do. The answer must never be cached.
 
 
         Nothing neglected yet is **204**, not 404 — the resource answered, the caller simply has
