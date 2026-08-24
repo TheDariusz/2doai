@@ -6,6 +6,7 @@ AI partner designed to return proactively in a natural rhythm.
 - [Architecture and developer documentation](docs/index.html)
 - [Product requirements](context/foundation/prd.md)
 - [Roadmap](context/foundation/roadmap.md)
+- [Test plan](context/foundation/test-plan.md) — named risks and the suites that defend them
 - [Deployment runbook](context/foundation/deployment-runbook.md)
 
 The repository contains two independent projects. There is no root workspace or shared build.
@@ -66,6 +67,10 @@ Architecture documentation:
 ```sh
 node --test docs/index.test.mjs
 ```
+
+Before adding a test, read [the test plan](context/foundation/test-plan.md): it names the risks this
+project protects against, maps each one to the suite that already defends it, and records what is
+deliberately left untested.
 
 Before committing, run the repository `/check` skill for the complete backend and frontend quality
 gate.

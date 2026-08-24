@@ -57,7 +57,7 @@ Osoby planujące długoterminowo wpisują cele i marzenia raz, a potem rzadko do
 | --------- | ---- | ---- |
 | **CRUD** (dodaj / wylistuj / edytuj / usuń) | ✅ — `GET` / `POST` / `PUT` / `DELETE` na `/api/goals` | domknięte przez DEV-44 (PR #21); twardy delete, nie wycofanie (S-04) ani kasowanie konta (FR-019) |
 | **Logika biznesowa** | brak — `LlmClient` nie ma wywołań produkcyjnych | S-04a (deterministyczny wybór zaniedbanej pozycji) |
-| **Testy adresujące ryzyko z dokumentu test-plan** | częściowo — 28 klas testów backendu, bramka CI na PR | brak dokumentu `test-plan` z nazwanymi ryzykami |
+| **Testy adresujące ryzyko z dokumentu test-plan** | ✅ — `context/foundation/test-plan.md`: 7 nazwanych ryzyk, każde zmapowane na istniejące suity | domknięte przez DEV-45; żaden test nie pisany „na zapas" |
 | **Autentykacja** | ✅ S-01 | — |
 
 ### Zakres — „MVP, które da się pokazać i używać"
@@ -82,7 +82,7 @@ Razem **~11–12 wieczorów / 3 tygodnie ≈ 4 na tydzień**. Tempo z W31–W32 
 | ---- | ----- | ------------- |
 | 08-23 | merge PR #20 (S-02) | ✅ zrobione (`ecb3301`) |
 | 08-24 | `DELETE` — repozytorium, serwis, kontroler, `openapi.yaml`, javadoc, testy, UI | **CRUD ✅** (PR #21) |
-| 08-26 | `test-plan.md` + mapowanie testów na ryzyka | **Testy ✅** |
+| 08-24 | `test-plan.md` + mapowanie testów na ryzyka | **Testy ✅** (DEV-45, dwa dni przed oknem) |
 | 08-27 – 08-30 | S-07 (trzecia warstwa) + S-08 (filtry) | 🎯 aplikacja używalna codziennie |
 | 08-31 – 09-02 | S-04a — silnik wyboru | 🎯 **komplet wymagań — `master` zdatny do zgłoszenia** |
 | 09-03 – 09-08 | S-04b — propozycja formułowana przez LLM | 🎯 aplikacja do pokazania |
