@@ -1,5 +1,6 @@
 package com.thedariusz.todoai.goal;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -19,6 +20,7 @@ public record GoalResponse(
 		String content,
 		GoalLayer layer,
 		GoalHorizon horizon,
+		LocalDate dueDate,
 		LifeDomain categoryCode,
 		OffsetDateTime completedAt,
 		OffsetDateTime createdAt,
@@ -26,7 +28,8 @@ public record GoalResponse(
 
 	static GoalResponse from(Goal goal) {
 		return new GoalResponse(goal.getId(), goal.getContent(), goal.getLayer(), goal.getHorizon(),
-				goal.getCategory(), goal.getCompletedAt(), goal.getCreatedAt(), goal.getUpdatedAt());
+				goal.getDueDate(), goal.getCategory(), goal.getCompletedAt(), goal.getCreatedAt(),
+				goal.getUpdatedAt());
 	}
 
 	/**

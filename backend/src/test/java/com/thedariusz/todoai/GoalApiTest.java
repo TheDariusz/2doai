@@ -12,12 +12,15 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.goal.GoalHorizon;
 import com.thedariusz.todoai.goal.GoalLayer;
 import io.restassured.filter.cookie.CookieFilter;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.yaml.snakeyaml.Yaml;
@@ -29,14 +32,14 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * End-to-end HTTP tests of the goals resource (S-02, plus DEV-44's DELETE) — the four operations
- * that make up CRUD for both non-task layers, driven with REST Assured against a real embedded
+ * End-to-end HTTP tests of the goals resource (S-02/S-07, plus DEV-44's DELETE) — the four
+ * operations that make up CRUD for all three layers, driven with REST Assured against a real embedded
  * server so the whole Spring Security filter chain (session cookie, CSRF double-submit) is in the
  * path. Lives in this package, like every other API test, because {@code ApiTestBase} is
  * package-private.
  *
  * <p>Two behaviours here are worth more than the happy paths. The <b>422/400 split</b>: a payload
- * that parses but breaks the layer × horizon rule is unprocessable content (422), while an unknown
+ * that parses but breaks the layer × time-fields rule is unprocessable content (422), while an unknown
  * wire literal never deserializes at all and is a malformed request (400) — clients branch on that
  * difference. And <b>404 indistinguishability</b>: someone else's goal and a goal that never existed
  * must answer identically, or the API becomes an existence oracle for other accounts' ids.
@@ -60,6 +63,15 @@ class GoalApiTest extends ApiTestBase {
 		Map<String, Object> body = goalPayload(content, layer, horizon, category);
 		body.put("completed", completed);
 		return body;
+	}
+
+	/**
+	 * A term rides beside the payload helpers rather than inside them: only a TASK may carry one, so
+	 * every other test's entry legitimately has no {@code due_date} member at all.
+	 */
+	private static Map<String, Object> withDueDate(Map<String, Object> payload, String dueDate) {
+		payload.put("due_date", dueDate);
+		return payload;
 	}
 
 	private String createGoal(Map<String, Object> payload) {
@@ -113,27 +125,99 @@ class GoalApiTest extends ApiTestBase {
 				.body("category_code", nullValue());
 	}
 
+	/** Every way to break the layer × time-fields rule, one per case so a failure names itself. */
+	private static Stream<Map<String, Object>> inconsistentTimeFields() {
+		return Stream.of(
+				goalPayload("Cel bez horyzontu", "GOAL", null, null),
+				goalPayload("Marzenie z horyzontem", "DREAM", "THIS_YEAR", null),
+				goalPayload("Zadanie z horyzontem", "TASK", "THIS_YEAR", null),
+				withDueDate(goalPayload("Cel z terminem", "GOAL", "THIS_YEAR", null), "2026-09-01"),
+				withDueDate(goalPayload("Marzenie z terminem", "DREAM", null, null), "2026-09-01"));
+	}
+
 	/**
 	 * The cross-field invariant is a <em>content</em> failure, not a syntax one: the body parsed
 	 * cleanly and every field is individually well-typed. 422, and deliberately with a generic detail
 	 * — {@code ApiExceptionHandler} drops field messages on purpose.
+	 *
+	 * <p>S-07 widened the rule rather than splitting it: "only a GOAL has a horizon" gained the mirror
+	 * "only a TASK may have a due date", so both halves belong to one test rather than two named in
+	 * two vocabularies.
 	 */
-	@Test
-	void rejectsALayerHorizonMismatchWith422() {
+	@ParameterizedTest
+	@MethodSource("inconsistentTimeFields")
+	void rejectsInconsistentTimeFieldsWith422(Map<String, Object> payload) {
 		givenLoggedInUser();
 
 		csrfAware()
-				.body(goalPayload("Cel bez horyzontu", "GOAL", null, null))
+				.body(payload)
 				.when()
 				.post("/api/goals")
 				.then()
 				.statusCode(422)
 				.contentType("application/problem+json");
+	}
+
+	/**
+	 * The third layer (S-07, FR-003) on the same aggregate: a task is a goal's mirror image on the
+	 * time fields — no horizon, and the only layer allowed a {@code due_date}. The term is
+	 * <em>optional</em>, because most current tasks are "next", not "by Friday"; one that had to
+	 * invent a deadline would be a worse todo list than the paper it replaces.
+	 */
+	@Test
+	void createsATaskWithAndWithoutADueDate() {
+		givenLoggedInUser();
 
 		csrfAware()
-				.body(goalPayload("Marzenie z horyzontem", "DREAM", "THIS_YEAR", null))
+				.body(withDueDate(goalPayload("Zapłacić za prąd", "TASK", null, "HOME"), "2026-09-01"))
 				.when()
 				.post("/api/goals")
+				.then()
+				.statusCode(201)
+				.body("layer", equalTo("TASK"))
+				.body("horizon", nullValue())
+				.body("due_date", equalTo("2026-09-01"))
+				.body("category_code", equalTo("HOME"));
+
+		csrfAware()
+				.body(goalPayload("Kupić chleb", "TASK", null, null))
+				.when()
+				.post("/api/goals")
+				.then()
+				.statusCode(201)
+				.body("layer", equalTo("TASK"))
+				.body("due_date", nullValue());
+	}
+
+
+
+	/**
+	 * FR-014's soft dependency in miniature: a long-term goal that becomes a concrete next action is
+	 * the same row changing layer. One full replace has to drop the horizon and pick up a term
+	 * together — and refuse the halfway state where the row would carry both.
+	 */
+	@Test
+	void convertsAGoalIntoATaskWithATerm() {
+		givenLoggedInUser();
+		String id = createGoal(goalPayload("Przebiec półmaraton", "GOAL", "THIS_YEAR", "HEALTH"));
+
+		csrfAware()
+				.body(withDueDate(updatePayload("Zapisać się na bieg", "TASK", null, "HEALTH", false),
+						"2026-09-01"))
+				.when()
+				.put("/api/goals/" + id)
+				.then()
+				.statusCode(200)
+				.body("layer", equalTo("TASK"))
+				.body("horizon", nullValue())
+				.body("due_date", equalTo("2026-09-01"));
+
+		// And on the way back: a task that regains a horizon must shed the term in the same request.
+		csrfAware()
+				.body(withDueDate(updatePayload("Zapisać się na bieg", "GOAL", "THIS_YEAR", "HEALTH", false),
+						"2026-09-01"))
+				.when()
+				.put("/api/goals/" + id)
 				.then()
 				.statusCode(422);
 	}

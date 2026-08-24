@@ -95,10 +95,15 @@ test('status language distinguishes what is implemented from the target product'
   // The frontend stopped being a scaffold once routing, the API client, auth and the shell landed.
   assert.doesNotMatch(html, /scaffold/i)
   assert.match(html, /CSRF-aware client/)
-  // S-02 shipped the goals/dreams UI, so the line that lumped it in with tasks is gone. What still
-  // needs guarding is the distinction itself: one implemented data screen, current tasks planned.
-  assert.match(html, /current-task UI and PWA behavior are\s+planned/)
+  // S-02 shipped the goals/dreams UI and S-07 folded current tasks into the same screen, so the
+  // line that called task UI planned is gone. What still needs guarding is the distinction itself:
+  // the three-layer data screen is implemented, filters and PWA behavior are not.
+  assert.match(html, /filters across the three\s+layers and PWA behavior are planned/)
   assert.match(html, /<code>\/cele<\/code> screen adds the first data UI/)
+  // S-07 shipped current tasks as a third `goal` layer, so the one ghosted box is a deferred split,
+  // not planned work. Without this the prose can quietly re-promise the table the slice rejected.
+  assert.doesNotMatch(html, /current_task/)
+  assert.match(html, /deferred split rather than planned work/)
   assert.match(html, /Mutable domain tables use/)
   assert.match(html, /append-only event tables may omit/)
   assert.match(html, /repository snapshot/)

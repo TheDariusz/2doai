@@ -10,12 +10,12 @@
         <mxCell id="title" value="2do AI — Target Data Model  (current + planned aggregates)" style="text;html=1;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;fontColor=#333333;" vertex="1" parent="1">
           <mxGeometry x="60" y="24" width="900" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="subtitle" value="Solid = migrated today (F-01 category, F-02 AI-memory, S-01 app_user, S-02 goal).   Ghosted = planned, schema not yet designed (data-model.md).   Every layer references category.code by identity." style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#777777;" vertex="1" parent="1">
+        <mxCell id="subtitle" value="Solid = migrated today (F-01 category, F-02 AI-memory, S-01 app_user, S-02/S-07 goal).   Ghosted = planned, schema not yet designed (data-model.md).   Every layer references category.code by identity." style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#777777;" vertex="1" parent="1">
           <mxGeometry x="60" y="52" width="1200" height="20" as="geometry" />
         </mxCell>
 
         <!-- ============ Life-layer aggregates group (planned) ============ -->
-        <mxCell id="lifegrp" value="Life-layer aggregates (FR-007)  —  goal + dream share ONE aggregate; current_task planned" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 6;strokeColor=#b3b3b3;strokeWidth=2;fillColor=none;verticalAlign=top;fontStyle=2;fontColor=#777777;fontSize=13;spacingTop=8;" vertex="1" parent="1">
+        <mxCell id="lifegrp" value="Life-layer aggregates (FR-007)  —  all three layers share ONE aggregate" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 6;strokeColor=#b3b3b3;strokeWidth=2;fillColor=none;verticalAlign=top;fontStyle=2;fontColor=#777777;fontSize=13;spacingTop=8;" vertex="1" parent="1">
           <mxGeometry x="560" y="340" width="620" height="350" as="geometry" />
         </mxCell>
 
@@ -70,18 +70,18 @@
         </mxCell>
 
         <!-- ============ current_task (PLANNED — S-07) ============ -->
-        <mxCell id="ct" value="current_task   «root · S-07»" style="swimlane;startSize=26;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;dashPattern=6 4;fontColor=#666666;fontStyle=3;align=center;whiteSpace=wrap;" vertex="1" parent="1">
+        <mxCell id="ct" value="task   «deferred split · not planned»" style="swimlane;startSize=26;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;dashPattern=6 4;fontColor=#666666;fontStyle=3;align=center;whiteSpace=wrap;" vertex="1" parent="1">
           <mxGeometry x="590" y="400" width="210" height="196" as="geometry" />
         </mxCell>
-        <mxCell id="ct_b" value="current layer&#xa;&#xa;PK   id : UUID «v7»&#xa;FK   user_id → app_user&#xa;FK   category_code → category&#xa;         … task fields TBD&#xa;         created_at / updated_at" style="text;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fontSize=11;fontColor=#666666;whiteSpace=wrap;" vertex="1" parent="ct">
+        <mxCell id="ct_b" value="S-07 did NOT create this table.&#xa;&#xa;The current layer went onto goal as a&#xa;third layer value + optional due_date.&#xa;&#xa;Split it out only when tasks get their&#xa;own lifecycle (recurrence, overdue&#xa;alarms) — then a migration, not a rewrite." style="text;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fontSize=11;fontColor=#666666;whiteSpace=wrap;" vertex="1" parent="ct">
           <mxGeometry x="0" y="26" width="210" height="170" as="geometry" />
         </mxCell>
 
         <!-- ============ goal (MIGRATED — S-02, V6: long-term AND dreams layers in one table) ============ -->
-        <mxCell id="gl" value="goal  «root · S-02 · GOAL or DREAM»" style="swimlane;startSize=26;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;fontStyle=1;align=center;whiteSpace=wrap;" vertex="1" parent="1">
+        <mxCell id="gl" value="goal  «root · S-02/S-07 · TASK, GOAL or DREAM»" style="swimlane;startSize=26;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;fontStyle=1;align=center;whiteSpace=wrap;" vertex="1" parent="1">
           <mxGeometry x="830" y="400" width="320" height="230" as="geometry" />
         </mxCell>
-        <mxCell id="gl_b" value="long-term layer + dreams layer&#xa;&#xa;PK   id : UUID «v7»&#xa;FK   user_id → app_user  «NO ACTION»&#xa;         content : VARCHAR(500)&#xa;         layer : GOAL / DREAM  «discriminator»&#xa;         horizon : null for DREAM&#xa;FK   category_code → category  «nullable»&#xa;         completed_at  «null = active»&#xa;         created_at / updated_at&#xa;&#xa;CHK  GOAL has a horizon · DREAM has none" style="text;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fontSize=11;whiteSpace=wrap;" vertex="1" parent="gl">
+        <mxCell id="gl_b" value="all three layers&#xa;&#xa;PK   id : UUID «v7»&#xa;FK   user_id → app_user  «NO ACTION»&#xa;         content : VARCHAR(500)&#xa;         layer : TASK / GOAL / DREAM  «discriminator»&#xa;         horizon : only for GOAL&#xa;         due_date : only for TASK&#xa;FK   category_code → category  «nullable»&#xa;         completed_at  «null = active»&#xa;         created_at / updated_at&#xa;&#xa;CHK  horizon only on GOAL · due_date only on TASK" style="text;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fontSize=11;whiteSpace=wrap;" vertex="1" parent="gl">
           <mxGeometry x="0" y="26" width="320" height="204" as="geometry" />
         </mxCell>
 
@@ -314,13 +314,13 @@
         <mxCell id="lg4" value="" style="rounded=0;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;dashPattern=6 4;" vertex="1" parent="legend">
           <mxGeometry x="12" y="106" width="30" height="16" as="geometry" />
         </mxCell>
-        <mxCell id="lg4t" value="Planned aggregate root — schema not yet designed (S-07 current_task)" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#666666;" vertex="1" parent="legend">
+        <mxCell id="lg4t" value="Deferred aggregate — kept as the escape hatch, not as planned work" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#666666;" vertex="1" parent="legend">
           <mxGeometry x="50" y="104" width="410" height="20" as="geometry" />
         </mxCell>
         <mxCell id="lg5" value="" style="rounded=0;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="legend">
           <mxGeometry x="12" y="130" width="30" height="16" as="geometry" />
         </mxCell>
-        <mxCell id="lg5b" value="Migrated identity + user-owned domain table (S-01 app_user, S-02 goal)" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="legend">
+        <mxCell id="lg5b" value="Migrated identity + user-owned domain table (S-01 app_user, S-02/S-07 goal)" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="legend">
           <mxGeometry x="50" y="128" width="410" height="20" as="geometry" />
         </mxCell>
         <mxCell id="lg5t" value="Dashed grey edge = planned / deferred FK, referenced by identity (code or id) across aggregate boundaries." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#555555;" vertex="1" parent="legend">
@@ -329,7 +329,7 @@
         <mxCell id="lg6t" value="Crow's foot: one (│) → many (⋔).   «v7» = UUID v7 (time-ordered).   Conventions: data-model.md." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#555555;" vertex="1" parent="legend">
           <mxGeometry x="12" y="180" width="450" height="18" as="geometry" />
         </mxCell>
-        <mxCell id="lg7t" value="The three task layers (current / long-term / dreams) are the FR-007 product core. Long-term and dreams share ONE aggregate — see data-model.md." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#555555;" vertex="1" parent="legend">
+        <mxCell id="lg7t" value="The three task layers (current / long-term / dreams) are the FR-007 product core. All three share ONE aggregate — see data-model.md." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#555555;" vertex="1" parent="legend">
           <mxGeometry x="12" y="202" width="450" height="30" as="geometry" />
         </mxCell>
 

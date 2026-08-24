@@ -1,5 +1,7 @@
 package com.thedariusz.todoai.goal;
 
+import java.time.LocalDate;
+
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -28,16 +30,18 @@ public record GoalCreation(
 
 		GoalHorizon horizon,
 
+		LocalDate dueDate,
+
 		LifeDomain categoryCode) {
 
 	/**
 	 * The cross-field invariant, riding the existing bean-validation machinery so it comes back as a
 	 * 422 like any other content failure. The rule itself lives on {@link Goal} — this is the same
-	 * check the aggregate and the {@code chk_goal_layer_horizon} constraint make, at the outermost of
+	 * check the aggregate and the {@code chk_goal_layer_time_fields} constraint make, at the outermost of
 	 * the three depths.
 	 */
-	@AssertTrue(message = Goal.HORIZON_RULE)
-	boolean isHorizonConsistentWithLayer() {
-		return Goal.hasConsistentHorizon(layer, horizon);
+	@AssertTrue(message = Goal.TIME_FIELDS_RULE)
+	boolean isTimeFieldsConsistentWithLayer() {
+		return Goal.hasConsistentTimeFields(layer, horizon, dueDate);
 	}
 }
