@@ -20,7 +20,7 @@ A logged-in user at `/cele` creates, edits, completes, and un-completes goals an
 | --- | --- | --- |
 | Aggregate shape | **One aggregate**, `layer` discriminator + nullable `horizon` | S-04/S-05/S-08/S-09 all consume the union; only the horizon field differs |
 | Naming | `goal` table, `goal/` package, `/api/goals` | Boring and greppable; a dream is a goal without a timeframe |
-| Delete | **No delete endpoint** | FR-004/FR-005 deliberately omit it; S-04 "nigdy" + FR-019 cover removal stories |
+| Delete | **No delete endpoint** *(superseded by DEV-44)* | FR-004/FR-005 deliberately omit it; S-04 "nigdy" + FR-019 cover removal stories — until the 10xBuilder CRUD requirement overrode it |
 | Completion | Reversible — nullable `completed_at` | One column is both flag and the timestamp S-03 will read; mistake-friendly |
 | Layer conversion | Editable — dream ↔ goal via PUT | "Dream matures into a goal" is the core product story; one-aggregate makes it a field update |
 | UI shape | Single `/cele` page | One screen delivers the outcome; S-08 owns the unified filtered view |
@@ -34,7 +34,7 @@ A logged-in user at `/cele` creates, edits, completes, and un-completes goals an
 
 **In scope:** V6 migration (CHECK + FKs + indexes) · `Goal` aggregate/repo/service/controller (`GET`/`POST /api/goals`, `PUT /api/goals/{id}`) · first domain 404 (no existence leak) · `GoalDataDeleter` (FR-019) · ArchUnit promotion · spec extension + contract-anchor test · `/cele` page with create/edit/complete + category picker · docs (data-model.md, roadmap)
 
-**Out of scope:** delete endpoint · server-side filters · AI auto-tag (S-09) · memory enrichment (S-03) · proposals (S-04) · per-domain lists / unified view (S-08) · moving openapi.yaml (`category-contract-guards`)
+**Out of scope:** delete endpoint *(superseded by DEV-44)* · server-side filters · AI auto-tag (S-09) · memory enrichment (S-03) · proposals (S-04) · per-domain lists / unified view (S-08) · moving openapi.yaml (`category-contract-guards`)
 
 ## Architecture / Approach
 

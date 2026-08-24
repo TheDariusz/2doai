@@ -217,17 +217,17 @@
   bootstrap, login, registration, logout, account deletion, and the 11-domain navigation shell all
   consume the API through one CSRF-aware client; the <code>/api</code> development proxy and
   production reverse proxy are implemented. The <code>/cele</code> screen adds the first data UI:
-  goals and dreams are created, edited, converted between layers, completed, and reopened against
-  the live API. Per-domain pages are still placeholders — current-task UI and PWA behavior are
+  goals and dreams are created, edited, converted between layers, completed, reopened, and deleted
+  against the live API. Per-domain pages are still placeholders — current-task UI and PWA behavior are
   planned.</p>
   <p>These projects build independently; there is no root workspace. Local setup and execution
   belong in the <a href="../README.md">root README</a>. Product and architecture intent remain
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
-  <p class="note">Verified against the <code>goals-and-dreams</code> change (S-02) on 2026-08-17;
-  the previous verified snapshot was <code>2556799</code> on 2026-08-03. To review drift, run
-  <code>git log 2556799.. -- backend frontend .github/workflows context/foundation docs/index.html</code>.</p>
+  <p class="note">Verified against the DEV-44 delete change on 2026-08-24; the previous verified
+  snapshot was <code>ecb3301</code> on 2026-08-23. To review drift, run
+  <code>git log ecb3301.. -- backend frontend .github/workflows context/foundation docs/index.html</code>.</p>
 </section>
 <section id="architecture">
   <h2>System context and containers</h2>
@@ -548,9 +548,10 @@ classDiagram
   <p>One aggregate carries both non-task layers. The layer × horizon rule — a goal requires a
   horizon, a dream forbids one — is enforced at three depths: the request records return 422, the
   aggregate constructor and <code>update</code> throw for any future caller, and the
-  <code>chk_goal_layer_horizon</code> database constraint cannot be bypassed at all. Reads never
-  take an owner from the client: <code>findByIdAndUserId</code> makes another account's identifier
-  and a nonexistent one answer with the same 404.</p>
+  <code>chk_goal_layer_horizon</code> database constraint cannot be bypassed at all. No operation
+  takes an owner from the client: <code>findByIdAndUserId</code> and
+  <code>deleteByIdAndUserId</code> make another account's identifier and a nonexistent one answer
+  with the same 404, and a foreign <code>DELETE</code> removes nothing.</p>
   <pre class="mermaid">
 classDiagram
   class Goal {

@@ -51,11 +51,11 @@ Osoby planujące długoterminowo wpisują cele i marzenia raz, a potem rzadko do
 > Ta sekcja **nadpisuje kolejność z Fast-path** do dnia zgłoszenia; potem fast-path wraca (S-05 = gwiazda).
 > Ustalone 2026-08-23. Okno: 3 tygodnie, praca wieczorami.
 
-### Minimalne wymagania 10xBuilder → stan na 2026-08-23
+### Minimalne wymagania 10xBuilder → stan na 2026-08-24
 
 | Wymaganie | Stan | Luka |
 | --------- | ---- | ---- |
-| **CRUD** (dodaj / wylistuj / edytuj / usuń) | częściowo — `GET` / `POST` / `PUT` na `/api/goals` | brak `DELETE /api/goals/{id}`. S-02 pominął go celowo (wycofanie = „nigdy" z S-04, kasowanie = FR-019) — wymaganie to nadpisuje |
+| **CRUD** (dodaj / wylistuj / edytuj / usuń) | ✅ — `GET` / `POST` / `PUT` / `DELETE` na `/api/goals` | domknięte przez DEV-44 (PR #21); twardy delete, nie wycofanie (S-04) ani kasowanie konta (FR-019) |
 | **Logika biznesowa** | brak — `LlmClient` nie ma wywołań produkcyjnych | S-04a (deterministyczny wybór zaniedbanej pozycji) |
 | **Testy adresujące ryzyko z dokumentu test-plan** | częściowo — 28 klas testów backendu, bramka CI na PR | brak dokumentu `test-plan` z nazwanymi ryzykami |
 | **Autentykacja** | ✅ S-01 | — |
@@ -81,7 +81,7 @@ Razem **~11–12 wieczorów / 3 tygodnie ≈ 4 na tydzień**. Tempo z W31–W32 
 | Okno | Praca | Kamień milowy |
 | ---- | ----- | ------------- |
 | 08-23 | merge PR #20 (S-02) | ✅ zrobione (`ecb3301`) |
-| 08-24 – 08-25 | `DELETE` — repozytorium, serwis, kontroler, `openapi.yaml`, javadoc, testy, UI | **CRUD ✅** |
+| 08-24 | `DELETE` — repozytorium, serwis, kontroler, `openapi.yaml`, javadoc, testy, UI | **CRUD ✅** (PR #21) |
 | 08-26 | `test-plan.md` + mapowanie testów na ryzyka | **Testy ✅** |
 | 08-27 – 08-30 | S-07 (trzecia warstwa) + S-08 (filtry) | 🎯 aplikacja używalna codziennie |
 | 08-31 – 09-02 | S-04a — silnik wyboru | 🎯 **komplet wymagań — `master` zdatny do zgłoszenia** |

@@ -350,6 +350,11 @@ paths:
         stops resolving, so repeating the call returns 404. This is not the "nigdy" state S-04
         introduces (which keeps the entry and marks it) nor FR-019 account erasure (which removes
         every entry at once).
+
+
+        A goal owned by another account and a goal that never existed return the **same** 404, and
+        the foreign row is left untouched — telling them apart would let a caller probe other
+        accounts' identifiers.
       operationId: deleteGoal
       parameters:
         - $ref: '#/components/parameters/GoalId'
@@ -357,6 +362,8 @@ paths:
       responses:
         '204':
           description: The goal or dream was deleted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
