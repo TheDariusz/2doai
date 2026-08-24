@@ -629,8 +629,7 @@ describe('GoalsPage — filtry', () => {
 
   /**
    * The filters live in the query string, not in React state: a reload, a back button and a link
-   * pasted to yourself all land on the same view for no code of ours. The controls read from the
-   * URL rather than mirroring it, so there is one source of truth and nothing to keep in sync.
+   * pasted to yourself all land on the same view for no code of ours.
    */
   it('reads both filters off the URL, so a reload or a shared link lands on the same view', async () => {
     stubApi([RUN, JAPAN, ELECTRICITY])

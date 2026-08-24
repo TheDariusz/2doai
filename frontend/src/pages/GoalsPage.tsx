@@ -110,7 +110,7 @@ export function GoalsPage() {
   // for a dozen dropdown fiddles is not what the back button is for.
   // ponytail: an unknown value (only reachable by hand-editing the URL) filters everything away
   // rather than falling back to "all" — normalise here if that ever stops being hypothetical.
-  const [params, setParams] = useSearchParams()
+  const [params] = useSearchParams()
   const layer = params.get('layer') ?? ''
   const category = params.get('category') ?? ''
   const [goals, setGoals] = useState<Goal[]>([])
@@ -189,9 +189,7 @@ export function GoalsPage() {
   // — `Section` already picks its own layer out of whatever list it is handed, and doing it twice
   // would be a filter that silently disagreed with itself.
   const visible = category
-    ? goals.filter((goal) =>
-        category === NO_CATEGORY ? !goal.category_code : goal.category_code === category,
-      )
+    ? goals.filter((goal) => (goal.category_code || NO_CATEGORY) === category)
     : goals
 
   const sectionProps = { goals: visible, domains, actions }
@@ -208,18 +206,10 @@ export function GoalsPage() {
         onSubmit={(draft) => save(api('/goals', { method: 'POST', body: draft }))}
       />
 
-      <Filters
-        layer={layer}
-        category={category}
-        domains={domains}
-        onChange={(key, value) => {
-          const next = new URLSearchParams(params)
-          if (value) next.set(key, value)
-          else next.delete(key)
-          setParams(next, { replace: true })
-        }}
-      />
+      <Filters domains={domains} />
 
+      {/* A filtered-out layer loses its heading along with its entries: an empty
+          "Cele długoterminowe" would read as "you have no goals". */}
       {SECTIONS.filter((section) => !layer || section.layer === layer).map((section) => (
         <Section key={section.layer} {...section} {...sectionProps} />
       ))}
@@ -228,26 +218,28 @@ export function GoalsPage() {
 }
 
 /**
- * The two filter axes. Both are plain `<select>`s over the same label maps the form uses, so the
- * words for a layer and a category are stated once — and a filtered-out layer loses its heading
- * along with its entries, because an empty "Cele długoterminowe" reads as "you have no goals".
+ * The two filter axes, reading and writing the query string themselves — `useSearchParams` is
+ * context-backed, so this call and the page's see the same URL and there is nothing to pass down
+ * or keep in sync. The layer options reuse `LAYER_LABEL`, so a layer is worded once.
  */
-function Filters({
-  layer,
-  category,
-  domains,
-  onChange,
-}: {
-  layer: string
-  category: string
-  domains: Domain[]
-  onChange: (key: 'layer' | 'category', value: string) => void
-}) {
+function Filters({ domains }: { domains: Domain[] }) {
+  const [params, setParams] = useSearchParams()
+
+  function set(key: 'layer' | 'category', value: string) {
+    const next = new URLSearchParams(params)
+    if (value) next.set(key, value)
+    else next.delete(key)
+    setParams(next, { replace: true })
+  }
+
   return (
     <section aria-label="Filtry">
       <label>
         Rodzaj
-        <select value={layer} onChange={(event) => onChange('layer', event.target.value)}>
+        <select
+          value={params.get('layer') ?? ''}
+          onChange={(event) => set('layer', event.target.value)}
+        >
           <option value="">Wszystkie</option>
           {Object.entries(LAYER_LABEL).map(([value, label]) => (
             <option key={value} value={value}>
@@ -258,7 +250,10 @@ function Filters({
       </label>
       <label>
         Kategoria
-        <select value={category} onChange={(event) => onChange('category', event.target.value)}>
+        <select
+          value={params.get('category') ?? ''}
+          onChange={(event) => set('category', event.target.value)}
+        >
           <option value="">Wszystkie</option>
           <option value={NO_CATEGORY}>Bez kategorii</option>
           {domains.map((domain) => (

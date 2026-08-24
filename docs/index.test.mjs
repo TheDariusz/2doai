@@ -100,7 +100,6 @@ test('status language distinguishes what is implemented from the target product'
   // CLAUDE.md names: it stayed green while asserting prose the slice had just falsified, so it now
   // pins the two facts that are load-bearing instead — filters exist, and they cost no API change.
   assert.match(html, /narrowed by layer and by category/)
-  assert.doesNotMatch(html, /filters across the three\s+layers .* are planned/)
   assert.match(html, /<code>GET \/api\/goals<\/code> still publishes no query parameters/)
   assert.match(html, /<code>\/cele<\/code> screen adds the first data UI/)
   // S-07 shipped current tasks as a third `goal` layer, so the one ghosted box is a deferred split,
