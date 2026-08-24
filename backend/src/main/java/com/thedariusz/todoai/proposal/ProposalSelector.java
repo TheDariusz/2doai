@@ -38,6 +38,13 @@ import com.thedariusz.todoai.goal.GoalLayer;
  * is what rotates the proposals. An entry with no {@code category_code} is not dropped: null is a
  * domain key like any other, so an uncategorised dream competes on equal terms.
  *
+ * <p>The ceiling that buys: a domain the user works in daily is never the most silent one, so its
+ * own neglected dream stays quiet until they stop. That is the product's thesis rather than a bug —
+ * a friend asks about the thing you <em>stopped</em> doing — but it does mean someone active across
+ * all eleven domains hears nothing. Weighting silence against raw idle time instead of ordering them
+ * is the upgrade, and it is the same comparator; it needs the FR-016 priority categories to have
+ * something to weigh, so it waits for them.
+ *
  * <p><b>What "last interaction" is measured from</b> is settled in {@link Candidate#of(Goal)}, and
  * it is {@code updated_at}: today the user is the only writer, so the column already means "when the
  * user last engaged with this". Balancing then falls out for free — answering a proposal is a write,
