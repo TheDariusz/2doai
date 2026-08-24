@@ -23,8 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
  * balancing rule needs the domains the user <em>has</em> been active in, which is precisely the rows
  * such a query filters away, and {@code GoalRepository}'s existing finder is already the unfiltered,
  * user-scoped list {@code GET /api/goals} uses at single-user scale. Nothing new to keep {@code userId}-scoped,
- * no index on {@code due_date}, no migration. If the list ever outgrows one round-trip, S-08's filter
- * contract is where that gets solved for every reader at once.
+ * no index on {@code due_date}, no migration. If the list ever outgrows one round-trip, a
+ * {@code GET /api/goals} filter contract is where that gets solved for every reader at once —
+ * S-08 deliberately did not add one, filtering by layer and category in the browser instead.
  *
  * <p>The clock is read here rather than inside the engine, which takes it as an argument — that is
  * the whole reason the engine is testable without a clock. It is read <b>in the user's zone</b>,

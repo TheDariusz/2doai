@@ -24,8 +24,10 @@ import org.springframework.web.bind.annotation.RestController;
  * keeps the row) and not erasing an account (FR-019).
  *
  * <p>Also <b>no query parameters</b>: the list is returned whole and grouped client-side. At
- * single-user scale that is one round-trip instead of several, and S-08 owns the real filter
- * contract. Authenticated by default via {@code SecurityConfig}; mutations need the CSRF header.
+ * single-user scale that is one round-trip instead of several — S-08 shipped the layer and category
+ * filters in the browser and deliberately left this signature alone. A server-side filter contract
+ * waits for a list that outgrows the round-trip. Authenticated by default via
+ * {@code SecurityConfig}; mutations need the CSRF header.
  */
 @RestController
 @RequestMapping("/api/goals")

@@ -246,8 +246,11 @@ paths:
       summary: List the caller's entries across all three layers
       description: >
         Every task, goal and dream owned by the authenticated user, newest first — all three layers
-        in one collection, discriminated by `layer`. Deliberately unfiltered and unpaginated: the
-        SPA groups client-side at single-user scale, and S-08 defines the real filter contract.
+        in one collection, discriminated by `layer`. Deliberately unfiltered and unpaginated, and
+        S-08 kept it that way rather than adding the filter contract this line used to promise: the
+        SPA holds both filters in the query string and applies them in the browser, which at
+        single-user scale costs one unfiltered round-trip and no wire surface. A server-side
+        contract waits for a list that outgrows that round-trip.
       operationId: getGoals
       responses:
         '200':
