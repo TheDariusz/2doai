@@ -356,6 +356,34 @@ describe('GoalsPage — nieudany zapis', () => {
     expect(goalFetches().length).toBeGreaterThan(before)
   })
 
+  /**
+   * The refetch that answers a 404 can fail too. When it does, the row is still on screen, so
+   * "lista została odświeżona" is a claim the code cannot back up — and it used to overwrite the
+   * banner that told the truth. Armed on the DELETE because that is the irreversible one: the user
+   * needs to know whether what they see is current.
+   */
+  it('does not claim the list was refreshed when the refetch failed too', async () => {
+    let refetch = false
+    fetchMock.mockImplementation((url: string, init: { method?: string } = {}) => {
+      if (url === '/api/categories') return Promise.resolve(response(200, { items: DOMAINS }))
+      if ((init.method ?? 'GET') === 'GET') {
+        return Promise.resolve(refetch ? response(500, { detail: 'boom' }) : response(200, { items: [RUN] }))
+      }
+      refetch = true
+      return Promise.resolve(response(404, { detail: 'No such goal' }))
+    })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const user = userEvent.setup()
+
+    renderGoals()
+    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Usuń' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/nie udało się wczytać celów/i)
+    expect(alert).not.toHaveTextContent(/odświeżona/i)
+    expect(screen.getByText('Przebiec półmaraton')).toBeInTheDocument()
+  })
+
   it('keeps what the user typed when the save fails', async () => {
     stubFailingMutations([], 500)
     const user = userEvent.setup()
