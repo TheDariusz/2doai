@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { useOutletContext } from 'react-router'
+import { useOutletContext, useSearchParams } from 'react-router'
 import { ApiError, api } from '../api/client'
 import type { Domain } from '../layout/AppLayout'
 
@@ -40,6 +40,22 @@ const LAYER_LABEL: Record<Goal['layer'], string> = {
   GOAL: 'Cel',
   DREAM: 'Marzenie',
 }
+
+/** The three layers, in the order the screen shows them — the layer filter picks from this list. */
+const SECTIONS = [
+  // Tasks first: it is the layer that gives a reason to open the app on an ordinary day.
+  { layer: 'TASK', title: 'Zadania bieżące' },
+  { layer: 'GOAL', title: 'Cele długoterminowe' },
+  { layer: 'DREAM', title: 'Marzenia' },
+] as const
+
+/**
+ * The category filter's value for `category_code: null`. Not the empty string, because that is
+ * already taken by "no filter at all" — and the distinction is the point: the proposal engine
+ * treats null as one shared bucket, so uncategorised entries are a group a user can ask for, not
+ * an absence to be hidden.
+ */
+const NO_CATEGORY = 'NONE'
 
 /** What both forms send: `GoalCreation` in the spec, and `GoalUpdate` once `completed` is added. */
 type GoalDraft = Pick<Goal, 'content' | 'layer' | 'horizon' | 'due_date' | 'category_code'>
@@ -88,6 +104,15 @@ function messageFor(status: number): string {
 /** The whole S-02 + S-07 screen: all three layers, grouped, completed entries folded away. */
 export function GoalsPage() {
   const domains = useOutletContext<Domain[]>()
+  // The filters live in the query string rather than in React state: a reload, the back button and
+  // a link pasted to yourself all keep the view for free, and the controls read from the URL rather
+  // than mirroring it, so there is one source of truth. `replace` because a dozen history entries
+  // for a dozen dropdown fiddles is not what the back button is for.
+  // ponytail: an unknown value (only reachable by hand-editing the URL) filters everything away
+  // rather than falling back to "all" — normalise here if that ever stops being hypothetical.
+  const [params, setParams] = useSearchParams()
+  const layer = params.get('layer') ?? ''
+  const category = params.get('category') ?? ''
   const [goals, setGoals] = useState<Goal[]>([])
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
@@ -160,7 +185,16 @@ export function GoalsPage() {
     remove: (id) => save(api(`/goals/${id}`, { method: 'DELETE' })),
   }
 
-  const sectionProps = { goals, domains, actions }
+  // Category filters the list; layer filters the sections. Two axes, two places, applied once each
+  // — `Section` already picks its own layer out of whatever list it is handed, and doing it twice
+  // would be a filter that silently disagreed with itself.
+  const visible = category
+    ? goals.filter((goal) =>
+        category === NO_CATEGORY ? !goal.category_code : goal.category_code === category,
+      )
+    : goals
+
+  const sectionProps = { goals: visible, domains, actions }
 
   return (
     <div className="goals">
@@ -174,11 +208,67 @@ export function GoalsPage() {
         onSubmit={(draft) => save(api('/goals', { method: 'POST', body: draft }))}
       />
 
-      {/* Tasks first: it is the layer that gives a reason to open the app on an ordinary day. */}
-      <Section title="Zadania bieżące" layer="TASK" {...sectionProps} />
-      <Section title="Cele długoterminowe" layer="GOAL" {...sectionProps} />
-      <Section title="Marzenia" layer="DREAM" {...sectionProps} />
+      <Filters
+        layer={layer}
+        category={category}
+        domains={domains}
+        onChange={(key, value) => {
+          const next = new URLSearchParams(params)
+          if (value) next.set(key, value)
+          else next.delete(key)
+          setParams(next, { replace: true })
+        }}
+      />
+
+      {SECTIONS.filter((section) => !layer || section.layer === layer).map((section) => (
+        <Section key={section.layer} {...section} {...sectionProps} />
+      ))}
     </div>
+  )
+}
+
+/**
+ * The two filter axes. Both are plain `<select>`s over the same label maps the form uses, so the
+ * words for a layer and a category are stated once — and a filtered-out layer loses its heading
+ * along with its entries, because an empty "Cele długoterminowe" reads as "you have no goals".
+ */
+function Filters({
+  layer,
+  category,
+  domains,
+  onChange,
+}: {
+  layer: string
+  category: string
+  domains: Domain[]
+  onChange: (key: 'layer' | 'category', value: string) => void
+}) {
+  return (
+    <section aria-label="Filtry">
+      <label>
+        Rodzaj
+        <select value={layer} onChange={(event) => onChange('layer', event.target.value)}>
+          <option value="">Wszystkie</option>
+          {Object.entries(LAYER_LABEL).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Kategoria
+        <select value={category} onChange={(event) => onChange('category', event.target.value)}>
+          <option value="">Wszystkie</option>
+          <option value={NO_CATEGORY}>Bez kategorii</option>
+          {domains.map((domain) => (
+            <option key={domain.code} value={domain.code}>
+              {domain.name_pl}
+            </option>
+          ))}
+        </select>
+      </label>
+    </section>
   )
 }
 

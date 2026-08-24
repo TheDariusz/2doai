@@ -208,6 +208,7 @@
         <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens, 11-domain shell; <code>/api</code> proxies in development and production</td></tr>
         <tr><th scope="row">Goals and dreams</th><td><span class="badge badge-live">implemented</span></td><td>One <code>goal</code> aggregate for both layers, <code>/api/goals</code>, and the <code>/cele</code> screen (S-02)</td></tr>
         <tr><th scope="row">Current tasks</th><td><span class="badge badge-live">implemented</span></td><td>A third <code>GoalLayer</code> value plus an optional <code>due_date</code> on the same aggregate and screen (S-07)</td></tr>
+        <tr><th scope="row">Unified three-layer view</th><td><span class="badge badge-live">implemented</span></td><td>All three layers on one <code>/cele</code> screen, narrowed by layer and by category from the query string — filtered in the browser, no API change (S-08)</td></tr>
         <tr><th scope="row">Selection engine</th><td><span class="badge badge-live">implemented</span></td><td>Deterministic neglect heuristic and category balancing behind <code>POST /api/proposals</code> (S-04a); no AI provider in the path</td></tr>
         <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-planned">planned</span></td><td>The AI-phrased proposal, its four responses, and the non-fixed rhythm — roadmap slices S-04b and S-05</td></tr>
         <tr><th scope="row">PWA/offline behavior</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-10</td></tr>
@@ -219,20 +220,25 @@
   consume the API through one CSRF-aware client; the <code>/api</code> development proxy and
   production reverse proxy are implemented. The <code>/cele</code> screen adds the first data UI:
   current tasks, goals and dreams are created, edited, converted between layers, completed, reopened,
-  and deleted against the live API. Per-domain pages are still placeholders — filters across the three
-  layers and PWA behavior are planned.</p>
+  and deleted against the live API, and narrowed by layer and by category. Both filters are held in
+  the query string (<code>?layer=&amp;category=</code>) and applied in the browser, so a reload or a
+  shared link restores the view and <code>GET /api/goals</code> still publishes no query parameters —
+  the deliberate choice at single-user scale. Uncategorised entries are their own filter choice
+  rather than a gap, matching the selection engine's treatment of a null category as one shared
+  bucket. Per-domain pages are still placeholders; PWA behavior is planned.</p>
   <p>These projects build independently; there is no root workspace. Local setup and execution
   belong in the <a href="../README.md">root README</a>. Product and architecture intent remain
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
-  <p class="note">Verified against the S-04a selection engine (DEV-46) on 2026-08-24, including the
-  multi-agent review pass that corrected the proposal chapter above; the previous snapshot actually
-  <em>walked</em> was <code>012609c</code>, and that pass left the goal chapter and glossary still
-  describing two layers after S-07 had shipped the third. This note records the last commit walked,
-  not the last merged — pointing it at a newer merge would hide exactly that kind of drift. To
-  review, run <code>git log 012609c.. -- backend frontend .github/workflows context/foundation
-  docs/index.html</code>.</p>
+  <p class="note">Verified against the S-08 unified three-layer view with filters (DEV-28) on
+  2026-08-24; the previous snapshot actually <em>walked</em> was <code>b3c0908</code>, the S-04a
+  selection engine (DEV-46). The pass before that one left the goal chapter and glossary still
+  describing two layers after S-07 had shipped the third, and this slice found the page — and the
+  docs test — still calling filters planned while they were being written. This note records the
+  last commit walked, not the last merged: pointing it at a newer merge would hide exactly that kind
+  of drift. To review, run <code>git log b3c0908.. -- backend frontend .github/workflows
+  context/foundation docs/index.html</code>.</p>
 </section>
 <section id="architecture">
   <h2>System context and containers</h2>
@@ -310,7 +316,7 @@ flowchart LR
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/proposal"><code>backend/…/proposal</code></a></th><td>Deterministic selection engine — neglect heuristic, category balancing, and <code>POST /api/proposals</code></td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai"><code>backend/…/ai</code></a></th><td>Provider-neutral LLM port, schema contract, and Spring AI adapter</td><td><span class="badge badge-foundation">foundation</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai/memory"><code>backend/…/ai/memory</code></a></th><td>Personal AI-memory aggregate, rendering, persistence, and erasure adapter</td><td><span class="badge badge-foundation">foundation</span></td></tr>
-        <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, auth screens, the 11-domain shell, and the goals/dreams screen</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, auth screens, the 11-domain shell, and the filtered three-layer screen</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/src/api"><code>frontend/src/api</code></a></th><td>The one backend boundary: same-origin fetch, CSRF double-submit, RFC 9457 errors, 401 session-expired signal</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/functions/api/[[path]].ts"><code>frontend/functions/api</code></a></th><td>Production same-origin reverse proxy to Fly.io</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../context/foundation"><code>context/foundation</code></a></th><td>Canonical product, data, security, deployment, and roadmap decisions</td><td>design source</td></tr>
@@ -1403,6 +1409,7 @@ flowchart TB
         <tr><th scope="row">Layer / horizon</th><td><code>GoalLayer</code> (GOAL, DREAM, TASK) discriminates all three layers; <code>GoalHorizon</code> (THIS_YEAR, FEW_MONTHS) applies only to a goal, and <code>due_date</code> only to a task. All constant names are the wire literals, anchored in <code>openapi.yaml</code> and held against backend and frontend copies by <code>GoalApiTest</code>.</td></tr>
         <tr><th scope="row">Life domain</th><td>One of 11 fixed categories every task belongs to: HEALTH, FINANCE, CAREER, EDUCATION, RELATIONSHIPS, HOME, LEISURE, ADMIN, SAFETY, TRANSPORT, INNER_GROWTH. Enum <code>LifeDomain</code> mirrors the seeded <code>category</code> table; <code>CategorySyncCheck</code> fails boot on drift.</td></tr>
         <tr><th scope="row">Natural-rhythm reminder</th><td>A proactive nudge surfaced at a contextually right moment rather than a fixed alarm time. <span class="badge badge-planned">planned</span></td></tr>
+        <tr><th scope="row">Unified three-layer view</th><td><span class="badge badge-live">implemented</span></td><td>All three layers on one <code>/cele</code> screen, narrowed by layer and by category from the query string — filtered in the browser, no API change (S-08)</td></tr>
         <tr><th scope="row">Selection engine</th><td>The deterministic pick behind <code>POST /api/proposals</code>: <em>neglect</em> (idle 7 / 14 / 30 days by layer, or a task past its <code>due_date</code>) decides which entries are eligible; a missed term ranks ahead of any amount of silence, and below that <em>domain silence</em> (how long since the user touched anything in a life domain — completed entries included) decides which one wins. Pure Java in <code>ProposalSelector</code>; no LLM.</td></tr>
         <tr><th scope="row">AiMemory</th><td>Per-user aggregate the AI consults; created atomically with the <code>User</code> at registration ("every user has exactly one memory").</td></tr>
         <tr><th scope="row">Episode</th><td>One append-only AI-memory event; payload stored as <code>jsonb</code>.</td></tr>

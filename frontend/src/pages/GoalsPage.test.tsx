@@ -73,8 +73,8 @@ function mutations() {
   return fetchMock.mock.calls.filter(([, init]) => init?.method && init.method !== 'GET')
 }
 
-function renderGoals() {
-  renderWithAuth(<AppRoutes />, { path: '/cele', auth: stubAuth(LOGGED_IN) })
+function renderGoals(path = '/cele') {
+  renderWithAuth(<AppRoutes />, { path, auth: stubAuth(LOGGED_IN) })
 }
 
 /** The `<section>` a heading belongs to, so item assertions cannot match the other layer's list. */
@@ -569,5 +569,77 @@ describe('GoalsPage — nieudany zapis', () => {
 
     await screen.findByRole('alert')
     expect(logged).toHaveBeenCalled()
+  })
+})
+
+/**
+ * The filter controls, scoped by the region's accessible name — "Kategoria" is also the create
+ * form's own field label, so an unscoped `getByLabelText` is ambiguous the moment the page renders.
+ */
+function filters() {
+  return within(screen.getByRole('region', { name: 'Filtry' }))
+}
+
+describe('GoalsPage — filtry', () => {
+  it('shows one layer at a time, heading and all, when narrowed by rodzaj', async () => {
+    stubApi([RUN, JAPAN, ELECTRICITY])
+    const user = userEvent.setup()
+
+    renderGoals()
+    await screen.findByText('Przebiec półmaraton')
+    await user.selectOptions(filters().getByLabelText('Rodzaj'), 'TASK')
+
+    expect(screen.getByText('Zapłacić za prąd')).toBeInTheDocument()
+    expect(screen.queryByText('Przebiec półmaraton')).not.toBeInTheDocument()
+    // The heading goes with its entries: an empty "Cele długoterminowe" would read as "no goals".
+    expect(screen.queryByRole('heading', { name: 'Cele długoterminowe' })).not.toBeInTheDocument()
+  })
+
+  it('narrows by category across all three layers at once', async () => {
+    stubApi([RUN, JAPAN, ELECTRICITY])
+    const user = userEvent.setup()
+
+    renderGoals()
+    await screen.findByText('Przebiec półmaraton')
+    await user.selectOptions(filters().getByLabelText('Kategoria'), 'HEALTH')
+
+    expect(screen.getByText('Przebiec półmaraton')).toBeInTheDocument()
+    expect(screen.queryByText('Zapłacić za prąd')).not.toBeInTheDocument()
+    // Category cuts across the layers rather than replacing them — all three stay on screen.
+    expect(screen.getByRole('heading', { name: 'Marzenia' })).toBeInTheDocument()
+  })
+
+  /**
+   * `category_code` is nullable and the proposal engine treats null as one shared bucket, not as
+   * eleven absences. Uncategorised entries therefore get a choice of their own: without it they are
+   * reachable only by clearing the filter, which is indistinguishable from "there are none".
+   */
+  it('keeps uncategorised entries reachable, under an explicit choice of their own', async () => {
+    stubApi([RUN, JAPAN, ELECTRICITY])
+    const user = userEvent.setup()
+
+    renderGoals()
+    await screen.findByText('Przebiec półmaraton')
+    await user.selectOptions(filters().getByLabelText('Kategoria'), 'NONE')
+
+    expect(screen.getByText('Pojechać do Japonii')).toBeInTheDocument()
+    expect(screen.queryByText('Przebiec półmaraton')).not.toBeInTheDocument()
+    expect(screen.queryByText('Zapłacić za prąd')).not.toBeInTheDocument()
+  })
+
+  /**
+   * The filters live in the query string, not in React state: a reload, a back button and a link
+   * pasted to yourself all land on the same view for no code of ours. The controls read from the
+   * URL rather than mirroring it, so there is one source of truth and nothing to keep in sync.
+   */
+  it('reads both filters off the URL, so a reload or a shared link lands on the same view', async () => {
+    stubApi([RUN, JAPAN, ELECTRICITY])
+
+    renderGoals('/cele?layer=TASK&category=HOME')
+
+    expect(await screen.findByText('Zapłacić za prąd')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Marzenia' })).not.toBeInTheDocument()
+    expect(filters().getByLabelText('Rodzaj')).toHaveValue('TASK')
+    expect(filters().getByLabelText('Kategoria')).toHaveValue('HOME')
   })
 })
