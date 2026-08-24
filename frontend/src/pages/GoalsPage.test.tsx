@@ -1,5 +1,6 @@
 import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Goal } from './GoalsPage'
 import { AppRoutes } from '../App'
@@ -73,8 +74,20 @@ function mutations() {
   return fetchMock.mock.calls.filter(([, init]) => init?.method && init.method !== 'GET')
 }
 
-function renderGoals(path = '/cele') {
-  renderWithAuth(<AppRoutes />, { path, auth: stubAuth(LOGGED_IN) })
+/** Renders the current URL, so the filters' *writes* can be asserted and not just their reads. */
+function LocationProbe() {
+  const { pathname, search } = useLocation()
+  return <span data-testid="location">{pathname + search}</span>
+}
+
+function renderGoals(path = '/goals') {
+  renderWithAuth(
+    <>
+      <AppRoutes />
+      <LocationProbe />
+    </>,
+    { path, auth: stubAuth(LOGGED_IN) },
+  )
 }
 
 /** The `<section>` a heading belongs to, so item assertions cannot match the other layer's list. */
@@ -279,7 +292,7 @@ describe('GoalsPage — dodawanie', () => {
 
     expect(options.map((option) => option.textContent)).toEqual([
       'Bez kategorii',
-      ...DOMAINS.map((domain) => domain.name_pl),
+      ...DOMAINS.map((domain) => domain.name),
     ])
   })
 })
@@ -633,6 +646,9 @@ describe('GoalsPage — filtry', () => {
     expect(filters().getByLabelText('Pokaż rodzaj')).toHaveValue('TASK')
     expect(screen.getByText('Zapłacić za prąd')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Marzenia' })).not.toBeInTheDocument()
+    // Lowercase in the link, SCREAMING_CASE on the wire: a URL is read, typed and shared by a
+    // person. Reading is case-insensitive, so only this assertion can catch a write that is not.
+    expect(screen.getByTestId('location')).toHaveTextContent('/goals?layer=task&category=home')
   })
 
   /**
@@ -660,7 +676,7 @@ describe('GoalsPage — filtry', () => {
   it('reads both filters off the URL, so a reload or a shared link lands on the same view', async () => {
     stubApi([RUN, JAPAN, ELECTRICITY])
 
-    renderGoals('/cele?layer=TASK&category=HOME')
+    renderGoals('/goals?layer=task&category=home')
 
     expect(await screen.findByText('Zapłacić za prąd')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Marzenia' })).not.toBeInTheDocument()
@@ -678,7 +694,7 @@ describe('GoalsPage — filtry', () => {
   it('falls back to showing everything when the URL names a layer that does not exist', async () => {
     stubApi([RUN, JAPAN, ELECTRICITY])
 
-    renderGoals('/cele?layer=BOGUS')
+    renderGoals('/goals?layer=bogus')
 
     expect(await screen.findByText('Przebiec półmaraton')).toBeInTheDocument()
     expect(screen.getByText('Pojechać do Japonii')).toBeInTheDocument()
@@ -688,14 +704,14 @@ describe('GoalsPage — filtry', () => {
 
   /**
    * `category` cannot be normalised the same way: its options come from the shell's fetched domains,
-   * so an unresolved or failed `/api/categories` would throw away a perfectly valid `?category=HOME`
+   * so an unresolved or failed `/api/categories` would throw away a perfectly valid `?category=home`
    * on every first paint. The message is what covers it — and it is the one signal that still tells
    * the truth when a stale code leaves the select reading "Wszystkie".
    */
   it('says nothing matched rather than showing an empty list as if there were no entries', async () => {
     stubApi([RUN, JAPAN, ELECTRICITY])
 
-    renderGoals('/cele?layer=DREAM&category=HOME')
+    renderGoals('/goals?layer=dream&category=home')
 
     expect(await screen.findByText(/Żaden wpis nie pasuje do filtrów/)).toBeInTheDocument()
     expect(screen.queryByText('Pojechać do Japonii')).not.toBeInTheDocument()

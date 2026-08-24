@@ -25,11 +25,11 @@ describe('AppLayout', () => {
     await screen.findByRole('link', { name: 'Zdrowie' })
     const links = screen
       .getAllByRole('link')
-      .filter((link) => link.getAttribute('href')?.startsWith('/domena/'))
+      .filter((link) => link.getAttribute('href')?.startsWith('/domain/'))
 
     expect(links).toHaveLength(11)
-    expect(links.map((link) => link.textContent)).toEqual(DOMAINS.map((d) => d.name_pl))
-    expect(links[0]).toHaveAttribute('href', '/domena/HEALTH')
+    expect(links.map((link) => link.textContent)).toEqual(DOMAINS.map((d) => d.name))
+    expect(links[0]).toHaveAttribute('href', '/domain/health')
     expect(fetchMock).toHaveBeenCalledWith('/api/categories', expect.anything())
   })
 
@@ -38,7 +38,7 @@ describe('AppLayout', () => {
 
     expect(await screen.findByRole('link', { name: 'Zadania, cele i marzenia' })).toHaveAttribute(
       'href',
-      '/cele',
+      '/goals',
     )
   })
 
@@ -58,7 +58,7 @@ describe('AppLayout', () => {
   })
 
   it('routes a domain to its placeholder, named from the shell data', async () => {
-    renderShell('/domena/LEISURE')
+    renderShell('/domain/leisure')
 
     expect(await screen.findByRole('heading', { name: 'Czas wolny i hobby' })).toBeInTheDocument()
     expect(screen.getByText(/kolejnym wycinku/i)).toBeInTheDocument()

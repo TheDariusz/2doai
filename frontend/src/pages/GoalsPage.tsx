@@ -112,12 +112,14 @@ export function GoalsPage() {
   // filter", and has to: a controlled `<select>` displays its *first* option when the value matches
   // none, so an unknown value would otherwise leave the control reading "Wszystkie" over an empty
   // screen. That is the one state that claims you have no entries while actively hiding them.
-  const requested = params.get('layer') ?? ''
+  // Both filter values live lowercased in the URL and uppercased on the wire: the query string
+  // is a link a user reads and edits, the SCREAMING_CASE belongs to the enum behind it.
+  const requested = (params.get('layer') ?? '').toUpperCase()
   const layer = SECTIONS.some((section) => section.layer === requested) ? requested : ''
   // `category` deliberately gets no such guard: its options are fetched, so `domains` is still empty
-  // on the first paint and normalising would throw away a perfectly valid `?category=HOME` on every
+  // on the first paint and normalising would throw away a perfectly valid `?category=home` on every
   // load. A stale code is covered by the "nothing matched" message instead.
-  const category = params.get('category') ?? ''
+  const category = (params.get('category') ?? '').toUpperCase()
   const [goals, setGoals] = useState<Goal[]>([])
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
@@ -249,7 +251,7 @@ function Filters({ domains }: { domains: Domain[] }) {
 
   function set(key: 'layer' | 'category', value: string) {
     const next = new URLSearchParams(params)
-    if (value) next.set(key, value)
+    if (value) next.set(key, value.toLowerCase())
     else next.delete(key)
     setParams(next, { replace: true })
   }
@@ -259,7 +261,7 @@ function Filters({ domains }: { domains: Domain[] }) {
       <label>
         Pokaż rodzaj
         <select
-          value={params.get('layer') ?? ''}
+          value={(params.get('layer') ?? '').toUpperCase()}
           onChange={(event) => set('layer', event.target.value)}
         >
           <option value="">Wszystkie</option>
@@ -273,14 +275,14 @@ function Filters({ domains }: { domains: Domain[] }) {
       <label>
         Pokaż kategorię
         <select
-          value={params.get('category') ?? ''}
+          value={(params.get('category') ?? '').toUpperCase()}
           onChange={(event) => set('category', event.target.value)}
         >
           <option value="">Wszystkie</option>
           <option value={NO_CATEGORY}>Bez kategorii</option>
           {domains.map((domain) => (
             <option key={domain.code} value={domain.code}>
-              {domain.name_pl}
+              {domain.name}
             </option>
           ))}
         </select>
@@ -385,7 +387,7 @@ function GoalForm({
           <option value="">Bez kategorii</option>
           {domains.map((domain) => (
             <option key={domain.code} value={domain.code}>
-              {domain.name_pl}
+              {domain.name}
             </option>
           ))}
         </select>
@@ -472,7 +474,7 @@ function Item({
   }
 
   // The wire carries the code; the label lives in the shell data the outlet already handed us.
-  const category = domains.find((domain) => domain.code === goal.category_code)?.name_pl
+  const category = domains.find((domain) => domain.code === goal.category_code)?.name
   const meta = [
     goal.horizon && HORIZON_LABEL[goal.horizon],
     goal.due_date && `do ${goal.due_date}`,

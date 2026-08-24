@@ -16,8 +16,8 @@ export function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route index element={<p>Wybierz domenę z nawigacji.</p>} />
-          <Route path="cele" element={<GoalsPage />} />
-          <Route path="domena/:code" element={<DomainPlaceholder />} />
+          <Route path="goals" element={<GoalsPage />} />
+          <Route path="domain/:code" element={<DomainPlaceholder />} />
         </Route>
       </Route>
 

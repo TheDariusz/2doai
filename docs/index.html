@@ -206,9 +206,9 @@
         <tr><th scope="row">Account and session auth</th><td><span class="badge badge-live">implemented</span></td><td>Spring Security, server-side in-memory sessions, account erasure</td></tr>
         <tr><th scope="row">Categories</th><td><span class="badge badge-live">implemented</span></td><td>Seeded reference table, <code>LifeDomain</code>, startup drift check</td></tr>
         <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens, 11-domain shell; <code>/api</code> proxies in development and production</td></tr>
-        <tr><th scope="row">Goals and dreams</th><td><span class="badge badge-live">implemented</span></td><td>One <code>goal</code> aggregate for both layers, <code>/api/goals</code>, and the <code>/cele</code> screen (S-02)</td></tr>
+        <tr><th scope="row">Goals and dreams</th><td><span class="badge badge-live">implemented</span></td><td>One <code>goal</code> aggregate for both layers, <code>/api/goals</code>, and the <code>/goals</code> screen (S-02)</td></tr>
         <tr><th scope="row">Current tasks</th><td><span class="badge badge-live">implemented</span></td><td>A third <code>GoalLayer</code> value plus an optional <code>due_date</code> on the same aggregate and screen (S-07)</td></tr>
-        <tr><th scope="row">Unified three-layer view</th><td><span class="badge badge-live">implemented</span></td><td>All three layers on one <code>/cele</code> screen, narrowed by layer and by category from the query string — filtered in the browser, no API change (S-08)</td></tr>
+        <tr><th scope="row">Unified three-layer view</th><td><span class="badge badge-live">implemented</span></td><td>All three layers on one <code>/goals</code> screen, narrowed by layer and by category from the query string — filtered in the browser, no API change (S-08)</td></tr>
         <tr><th scope="row">Selection engine</th><td><span class="badge badge-live">implemented</span></td><td>Deterministic neglect heuristic and category balancing behind <code>POST /api/proposals</code> (S-04a); no AI provider in the path</td></tr>
         <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-planned">planned</span></td><td>The AI-phrased proposal, its four responses, and the non-fixed rhythm — roadmap slices S-04b and S-05</td></tr>
         <tr><th scope="row">PWA/offline behavior</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-10</td></tr>
@@ -218,14 +218,17 @@
   <p><strong>Frontend status:</strong> a React 19 single-page application on react-router. Session
   bootstrap, login, registration, logout, account deletion, and the 11-domain navigation shell all
   consume the API through one CSRF-aware client; the <code>/api</code> development proxy and
-  production reverse proxy are implemented. The <code>/cele</code> screen adds the first data UI:
+  production reverse proxy are implemented. The <code>/goals</code> screen adds the first data UI:
   current tasks, goals and dreams are created, edited, converted between layers, completed, reopened,
   and deleted against the live API, and narrowed by layer and by category. Both filters are held in
   the query string (<code>?layer=&amp;category=</code>) and applied in the browser, so a reload or a
   shared link restores the view and <code>GET /api/goals</code> still publishes no query parameters —
   the deliberate choice at single-user scale. Uncategorised entries are their own filter choice
   rather than a gap, matching the selection engine's treatment of a null category as one shared
-  bucket. A URL naming a layer that does not exist falls back to showing everything, and a filter
+  bucket. Routes and filter values are English and lowercase throughout (<code>/goals</code>,
+  <code>/domain/inner_growth</code>, <code>?layer=task</code>) — the interface is localised, the URL
+  is not, and the SCREAMING_CASE stays on the wire where the enums live.
+  A URL naming a layer that does not exist falls back to showing everything, and a filter
   combination matching nothing says so — an empty list under an active filter must not read as
   &ldquo;you have no entries&rdquo;, the same lie the load-failure banner exists to avoid.
   Per-domain pages are still placeholders; PWA behavior is planned.</p>
@@ -234,8 +237,10 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
-  <p class="note">Verified against the S-08 unified three-layer view with filters (DEV-28) on
-  2026-08-24; the previous snapshot actually <em>walked</em> was <code>ec8762d</code>, the S-04a
+  <p class="note">Verified against the S-08 unified three-layer view with filters (DEV-28) and the
+  Zalando contract pass that followed it the same day — English lowercase SPA routes, spec version
+  1.3.0, <code>/ping</code> specified and guarded, category caching, <code>name</code> in place of
+  <code>name_pl</code> on the wire, and <code>Location</code> on goal creation — on 2026-08-24; the previous snapshot actually <em>walked</em> was <code>ec8762d</code>, the S-04a
   selection engine (DEV-46) — <em>not</em> <code>b3c0908</code>, which closed S-04a's roadmap row
   and never opened this page. The pass before that one left the goal chapter and glossary still
   describing two layers after S-07 had shipped the third, and this slice found the page — and the
@@ -557,6 +562,8 @@ classDiagram
   class CategoryController {
     &lt;&lt;inbound adapter / REST&gt;&gt;
     +list() GET /api/categories
+    Cache-Control: private, max-age=3600
+    wire: code, name, display_order
   }
   class CategoryRepository {
     &lt;&lt;persistence adapter / Spring Data&gt;&gt;
@@ -731,8 +738,15 @@ classDiagram
   <code>DELETE /api/sessions/current</code>, <code>GET /api/categories</code>,
   <code>GET /api/goals</code>, <code>POST /api/goals</code>, <code>PUT /api/goals/{id}</code>,
   <code>DELETE /api/goals/{id}</code>, <code>POST /api/proposals</code>,
-  <code>GET /api/ping</code>. The goal delete is a hard one and is not FR-019 erasure: that removes
-  the account and every entry at once.</p>
+  <code>GET /api/ping</code>. That list is not maintained by hand: <code>ApiSurfaceTest</code>
+  compares the paths Spring publishes against the ones
+  <a href="../context/foundation/openapi.yaml"><code>openapi.yaml</code></a> declares, as a set in
+  both directions, so a controller the spec never mentions fails the build — which is how
+  <code>/api/ping</code> stayed unspecified from S-01 until the DEV-28 contract pass.
+  <code>GET /api/categories</code> is the only cacheable response
+  (<code>private, max-age=3600</code>: eleven seed-owned rows the SPA refetches on every load);
+  every other endpoint keeps Spring Security's <code>no-store</code> default. The goal delete is a
+  hard one and is not FR-019 erasure: that removes the account and every entry at once.</p>
 </section>
 
 <section id="ai-communication">

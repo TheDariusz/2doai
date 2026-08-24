@@ -1,7 +1,9 @@
 openapi: 3.1.0
 
 # API-first contract (Zalando #100/#101): the users + sessions + categories resources (S-01),
-# the goals resource (S-02, widened to current tasks by S-07) and the proposals resource (S-04a).
+# the goals resource (S-02, widened to current tasks by S-07), the proposals resource (S-04a) and
+# the operational /ping probe. Every path the server publishes is here — an endpoint the deployment
+# depends on but the spec omits is the drift this file exists to prevent.
 # Authoritative over any older path prose in plan.md.
 #
 # Design decisions worth calling out:
@@ -22,7 +24,11 @@ info:
     and the goals resource (S-02/S-07) — current tasks, long-term goals and someday dreams,
     per-user and full CRUD. Session model is a server-side HttpSession cookie (not JWT); mutations are
     CSRF-protected via a double-submit XSRF-TOKEN cookie echoed as the X-XSRF-TOKEN header.
-  version: 1.0.0
+  # #116 — MAJOR.MINOR.PATCH over the *contract*, not the app. 1.0.0 was S-01 (users, sessions,
+  # categories); +goals (S-02) → 1.1.0, +proposals (S-04a) → 1.2.0, +current tasks (S-07) → 1.3.0.
+  # Each was a compatible addition, so each was a MINOR bump; a breaking change would need
+  # media-type versioning (#114), never a URL segment.
+  version: 1.3.0
   contact:
     name: 2do AI
     email: thedariusz@gmail.com
@@ -47,6 +53,8 @@ tags:
     description: Current tasks, long-term goals and someday dreams — all three layers.
   - name: proposals
     description: The proactive engine's pick of one neglected entry.
+  - name: operations
+    description: Operational endpoints — not part of the domain model.
 
 paths:
   /users:
@@ -231,6 +239,16 @@ paths:
       responses:
         '200':
           description: The full set of categories.
+          headers:
+            Cache-Control:
+              description: >
+                `max-age=3600, private` (#227). The eleven rows are owned by a Flyway seed and cannot
+                change under a running process, so an hour of browser cache costs nothing; `private`
+                because the collection is served behind the session cookie and must not be held by a
+                shared cache. Every other endpoint keeps Spring Security's `no-store` default.
+              schema:
+                type: string
+                example: max-age=3600, private
           content:
             application/json:
               schema:
@@ -249,8 +267,16 @@ paths:
         in one collection, discriminated by `layer`. Deliberately unfiltered and unpaginated, and
         S-08 kept it that way rather than adding the filter contract this line used to promise: the
         SPA holds both filters in the query string and applies them in the browser, which at
-        single-user scale costs one unfiltered round-trip and no wire surface. A server-side
-        contract waits for a list that outgrows that round-trip.
+        single-user scale costs one unfiltered round-trip and no wire surface.
+
+
+        Unpaginated is a deviation from #159, and unlike `/categories` — bounded at eleven seeded
+        rows forever — this collection only grows. So the exception carries a trigger rather than a
+        defence: **add cursor pagination (`cursor` + `limit`, #160) once a caller's list passes ~500
+        entries or the response passes ~250 kB**, whichever comes first. Both are compatible
+        additions (#107) — new optional query parameters and a `cursors` object beside `items` — so
+        holding off costs nothing later, and the wrapper `items` already sits in is what keeps it
+        that way.
       operationId: getGoals
       responses:
         '200':
@@ -273,6 +299,15 @@ paths:
         `due_date` (which is itself optional). Breaking that rule returns 422 (the body parsed, its
         content is invalid), whereas an unrecognized enum literal in any field — `layer`, `horizon`
         or `category_code` — never deserializes and returns 400.
+
+
+        **Not idempotent, deliberately** (#229/#231 considered and deferred): two identical POSTs
+        create two entries. The duplicate a user could actually cause — a double-tapped submit — is
+        already prevented in the SPA, which disables the button while the request is in flight, and
+        nothing in the client retries a request on its own. An `Idempotency-Key` would therefore buy
+        nothing today and cost a table of seen keys plus its eviction. Revisit when a client gains
+        automatic retries, or offline queueing — at that point the key belongs in the header, not in
+        a de-duplication guess over `content`.
       operationId: createGoal
       parameters:
         - $ref: '#/components/parameters/XsrfToken'
@@ -422,6 +457,38 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /ping:
+    get:
+      tags: [operations]
+      summary: Smoke-check the request path
+      description: >
+        Operational, not a business resource: it proves the Pattern B chain (Cloudflare Pages
+        Function → Fly backend) end to end, which `/actuator/health` cannot — that path is not
+        proxied under `/api/*`. Public, and touches no database, so a sleeping Neon never answers
+        it and never wakes for it.
+
+
+        It is also the one public path that answers 200 to a GET, which makes it how the SPA and the
+        test suite prime the `XSRF-TOKEN` cookie before a first mutation. `GET /users/me` primes the
+        same cookie on its 401 and would serve as well; this is the cheaper of the two.
+
+
+        A verb in an otherwise verb-free API (#141), kept deliberately: an operational probe is not a
+        domain concept, and `/pings` would invent a collection that does not exist. Specified rather
+        than left out — an endpoint the deployment and the test harness both depend on is part of
+        the contract (#101).
+      operationId: getPing
+      security: []                                          # public (#104 exception: reachability probe)
+      responses:
+        '200':
+          description: The backend is reachable through the full proxy chain.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ping'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   securitySchemes:
     sessionCookie:
@@ -431,9 +498,17 @@ components:
       in: cookie
       name: JSESSIONID
 
-  # Every operation is authenticated by default; the two public entry points override with
-  # `security: []` (register, login).
+  # Every operation is authenticated by default; the public entry points override with
+  # `security: []` (register, login, ping).
   # (applied at the operation level above via `security: []`; global default below)
+  #
+  # #105/#225 (permissions and their naming) are deliberately not implemented, and this is the note
+  # that says so rather than leaving the omission to look like an oversight. Scopes exist to let one
+  # API grant different subsets of itself to different callers; here there is exactly one caller (the
+  # SPA, `x-audience: component-internal`) and every operation acts on the caller's own data. The
+  # authorization rule is ownership, enforced per query in the service layer — a scope model on top
+  # would be a second vocabulary describing the same single permission. Revisit when a second client
+  # appears, or when any operation reads data the caller does not own (an admin or export path).
 
   parameters:
     XsrfToken:
@@ -528,7 +603,7 @@ components:
 
     Category:
       type: object
-      required: [code, name_pl, display_order]
+      required: [code, name, display_order]
       properties:
         code:
           type: string
@@ -547,9 +622,17 @@ components:
             - TRANSPORT
             - INNER_GROWTH
           example: HEALTH
-        name_pl:
+        name:
           type: string
-          description: Polish display label (MVP is Polish-only).
+          description: >
+            The label to show this caller, in the language the server picked — Polish today, because
+            it is the only one seeded (MVP is Polish-only). Named for its role rather than its
+            language (#244): when English lands, an `Accept-Language` header changes what this field
+            contains and no client changes at all, whereas a `name_pl`/`name_en` pair would make
+            every client choose, and renaming `name_pl` then would be the breaking change (#106)
+            this spelling avoids while there is exactly one client to move. Storage keeps its
+            language in the column name (`category.name_pl`) — it holds one language, this field
+            answers a question.
           example: Zdrowie
         display_order:
           type: integer
@@ -717,6 +800,20 @@ components:
             a task edited today whose `due_date` has already passed is neglected on its term, not on
             its silence.
           example: 47
+
+    Ping:
+      type: object
+      description: >
+        A reachability acknowledgement. Deliberately fixed and detail-free — a probe that is public
+        must not report a version, a host or a build, all of which help an attacker more than they
+        help the operator.
+      required: [status]
+      properties:
+        status:
+          # A constant, not an enumeration: there is no second value and none is coming, so #240's
+          # UPPER_SNAKE_CASE (which governs enum *domains*) does not apply. A failing chain is a
+          # non-200, never a different literal here.
+          const: ok
 
     Problem:
       # RFC 9457 Problem Details (#176). Emitted as application/problem+json for every error.

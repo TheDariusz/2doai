@@ -101,7 +101,7 @@ test('status language distinguishes what is implemented from the target product'
   // pins the two facts that are load-bearing instead — filters exist, and they cost no API change.
   assert.match(html, /narrowed by layer and by category/)
   assert.match(html, /<code>GET \/api\/goals<\/code> still publishes no query parameters/)
-  assert.match(html, /<code>\/cele<\/code> screen adds the first data UI/)
+  assert.match(html, /<code>\/goals<\/code> screen adds the first data UI/)
   // S-07 shipped current tasks as a third `goal` layer, so the one ghosted box is a deferred split,
   // not planned work. Without this the prose can quietly re-promise the table the slice rejected.
   assert.doesNotMatch(html, /current_task/)
