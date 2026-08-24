@@ -2,7 +2,7 @@
 
 ## Overview
 
-Full-stack CRUD-minus-delete for the two non-task layers: long-term goals (content + horizon: this year / few months) and "someday" dreams (content, no timeframe), with an optional category from the 11 life domains. One `goal` aggregate with a `layer` discriminator (GOAL|DREAM) and a nullable `horizon` — decided 2026-08-17, recorded in `change.md`. Linear: DEV-19. PRD: FR-004, FR-005, FR-007.
+Full-stack CRUD-minus-delete for the two non-task layers (delete added later by DEV-44): long-term goals (content + horizon: this year / few months) and "someday" dreams (content, no timeframe), with an optional category from the 11 life domains. One `goal` aggregate with a `layer` discriminator (GOAL|DREAM) and a nullable `horizon` — decided 2026-08-17, recorded in `change.md`. Linear: DEV-19. PRD: FR-004, FR-005, FR-007.
 
 ## Current State Analysis
 
@@ -32,7 +32,7 @@ Verify: `/check` green; manual flow in the browser against the live backend (cre
 
 ## What We're NOT Doing
 
-- **No DELETE endpoint** — FR-004/FR-005 deliberately omit delete (unlike FR-003); S-04's "nigdy" withdrawal and FR-019 cover the removal stories.
+- **No DELETE endpoint** — FR-004/FR-005 deliberately omit delete (unlike FR-003); S-04's "nigdy" withdrawal and FR-019 cover the removal stories. *Superseded by DEV-44, which added `DELETE /api/goals/{id}` for the 10xBuilder CRUD requirement.*
 - **No server-side filters** (`?layer=`, `?category=`) — GET returns everything; S-08 defines the real filter contract.
 - **No AI auto-tag** (S-09), no proposals (S-04), no memory enrichment on completion (S-03) — `completed_at` is the timestamp those slices will read.
 - **No per-domain goal lists** — domain pages stay placeholders; S-08 owns the unified view.

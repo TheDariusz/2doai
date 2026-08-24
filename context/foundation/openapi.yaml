@@ -18,8 +18,8 @@ info:
     Identity and session management for 2do AI (S-01): register an account, log in / out, read
     the current user, and permanently delete the account and all its data (FR-019). Also exposes
     the read-only list of the 11 fixed life domains (categories) the app navigation is built from,
-    and the goals resource (S-02) — long-term goals and someday dreams, per-user and
-    CRUD-minus-delete. Session model is a server-side HttpSession cookie (not JWT); mutations are
+    and the goals resource (S-02) — long-term goals and someday dreams, per-user and full
+    CRUD. Session model is a server-side HttpSession cookie (not JWT); mutations are
     CSRF-protected via a double-submit XSRF-TOKEN cookie echoed as the X-XSRF-TOKEN header.
   version: 1.0.0
   contact:
@@ -301,8 +301,7 @@ paths:
         Full replace (#137 PUT semantics), so one operation covers every S-02 write: editing the
         text, re-categorizing, converting between layers (sending `layer: GOAL` together with a
         `horizon` converts a dream, and `layer: DREAM` with a null `horizon` converts it back — a
-        horizon alone is a 422), and completing or un-completing via `completed`. There is no DELETE —
-        FR-004/FR-005 omit it deliberately; withdrawal is S-04 and erasure is FR-019.
+        horizon alone is a 422), and completing or un-completing via `completed`.
 
 
         A goal owned by another account and a goal that never existed return the **same** 404 with
@@ -340,6 +339,37 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [goals]
+      summary: Delete a goal or dream
+      description: >
+        Removes the entry permanently — a hard delete, not a withdrawal: the row is gone and the id
+        stops resolving, so repeating the call returns 404. This is not the "nigdy" state S-04
+        introduces (which keeps the entry and marks it) nor FR-019 account erasure (which removes
+        every entry at once).
+
+
+        A goal owned by another account and a goal that never existed return the **same** 404, and
+        the foreign row is left untouched — telling them apart would let a caller probe other
+        accounts' identifiers.
+      operationId: deleteGoal
+      parameters:
+        - $ref: '#/components/parameters/GoalId'
+        - $ref: '#/components/parameters/XsrfToken'
+      responses:
+        '204':
+          description: The goal or dream was deleted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 

@@ -109,8 +109,12 @@ class UserOwnedConventionTest {
 						+ "happen — the next caller reaches for the one that compiles")
 				.doesNotContain("findById", "findAll", "getReferenceById", "existsById", "deleteById");
 
-		// And the scoped by-id read that replaces it is present (getMethod throws if it is not).
+		// And the scoped by-id read and by-id delete that replace them are present (getMethod throws
+		// if either is not). The delete belongs here too: it is the destructive half of the same
+		// contract, and widening it back to deleteById would otherwise pass this test.
 		assertThat(GoalRepository.class.getMethod("findByIdAndUserId", UUID.class, UUID.class))
+				.isNotNull();
+		assertThat(GoalRepository.class.getMethod("deleteByIdAndUserId", UUID.class, UUID.class))
 				.isNotNull();
 	}
 }

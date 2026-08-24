@@ -40,12 +40,14 @@ type GoalDraft = Pick<Goal, 'content' | 'layer' | 'horizon' | 'category_code'>
 
 /**
  * What an entry can do to itself, handed down rather than re-derived per row: which row (if any)
- * is being edited, and the one PUT that covers editing, converting, completing and un-completing.
+ * is being edited, the one PUT that covers editing, converting, completing and un-completing, and
+ * the DELETE that ends it.
  */
 type ItemActions = {
   editing: string | null
   setEditing: (id: string | null) => void
   replace: (id: string, draft: GoalDraft, completed: boolean) => Promise<boolean>
+  remove: (id: string) => Promise<boolean>
 }
 
 /** The entry as the form sees it — PUT is a full replace, so untouched fields must be resent. */
@@ -89,6 +91,7 @@ export function GoalsPage() {
         (page) => {
           setGoals(page.items)
           setError(null)
+          return true
         },
         // A 401 already routes to /login via the session-expired event. Anything else would leave
         // an empty screen that looks like "you have no goals yet" — a lie worth avoiding. The
@@ -97,6 +100,7 @@ export function GoalsPage() {
         (failure: unknown) => {
           console.error('goals: load failed', failure)
           setError('Nie udało się wczytać celów — odśwież stronę.')
+          return false
         },
       ),
     [],
@@ -110,6 +114,10 @@ export function GoalsPage() {
    * Every mutation is "send it, then refetch" — at single-user scale one extra GET is cheaper than
    * cache bookkeeping that can disagree with the server. Returns whether it landed, which is what
    * tells a form whether it may clear itself.
+   *
+   * A write that landed but whose refetch failed still returns `true`: the write is what the form
+   * asks about, and answering `false` would keep a submitted create form populated and invite a
+   * duplicate. The stale screen is reported separately, by `load`'s own banner.
    */
   async function save(request: Promise<unknown>): Promise<boolean> {
     try {
@@ -124,9 +132,11 @@ export function GoalsPage() {
         // The entry is gone — deleted from another tab, or the account erased elsewhere. Leaving
         // the stale row on screen with "try again" invites a retry that can only 404 again, so
         // refetch and let the list tell the truth. The message goes after the reload, which clears
-        // it on success.
-        await load()
-        setError('Ten wpis już nie istnieje — lista została odświeżona.')
+        // it on success — and only if the reload succeeded: otherwise the row is still on screen
+        // and `load`'s own "could not load" banner is the true one, so it must stand.
+        if (await load()) {
+          setError('Ten wpis już nie istnieje — lista została odświeżona.')
+        }
         return false
       }
 
@@ -140,6 +150,7 @@ export function GoalsPage() {
     setEditing,
     replace: (id, draft, completed) =>
       save(api(`/goals/${id}`, { method: 'PUT', body: { ...draft, completed } })),
+    remove: (id) => save(api(`/goals/${id}`, { method: 'DELETE' })),
   }
 
   return (
@@ -350,6 +361,21 @@ function Item({
       </button>
       <button type="button" onClick={() => actions.setEditing(goal.id)}>
         Edytuj
+      </button>
+      {/*
+        Native `confirm` rather than a dialog of our own: blocking, focus-trapped and
+        screen-reader-announced for free, for a single yes/no. A 404 needs no special handling —
+        `save` already refetches when the entry turns out to be gone.
+      */}
+      <button
+        type="button"
+        onClick={() => {
+          if (window.confirm(`Usunąć „${goal.content}”? Tej operacji nie da się cofnąć.`)) {
+            actions.remove(goal.id)
+          }
+        }}
+      >
+        Usuń
       </button>
     </li>
   )
