@@ -56,7 +56,7 @@ Osoby planujące długoterminowo wpisują cele i marzenia raz, a potem rzadko do
 | Wymaganie | Stan | Luka |
 | --------- | ---- | ---- |
 | **CRUD** (dodaj / wylistuj / edytuj / usuń) | ✅ — `GET` / `POST` / `PUT` / `DELETE` na `/api/goals` | domknięte przez DEV-44 (PR #21); twardy delete, nie wycofanie (S-04) ani kasowanie konta (FR-019) |
-| **Logika biznesowa** | brak — `LlmClient` nie ma wywołań produkcyjnych | S-04a (deterministyczny wybór zaniedbanej pozycji) |
+| **Logika biznesowa** | ✅ — `ProposalSelector`: heurystyka zaniedbania (7/14/30 dni wg warstwy, plus zaległy termin) + bilansowanie kategorii za `POST /api/proposals` | domknięte przez DEV-46 (PR #25, `ec8762d`); czysta Java, `LlmClient` nadal bez wywołań produkcyjnych — to celowo połowa S-04 |
 | **Testy adresujące ryzyko z dokumentu test-plan** | ✅ — `context/foundation/test-plan.md`: 7 nazwanych ryzyk, każde zmapowane na istniejące suity | domknięte przez DEV-45; żaden test nie pisany „na zapas" |
 | **Autentykacja** | ✅ S-01 | — |
 
@@ -84,8 +84,8 @@ Razem **~11–12 wieczorów / 3 tygodnie ≈ 4 na tydzień**. Tempo z W31–W32 
 | 08-24 | `DELETE` — repozytorium, serwis, kontroler, `openapi.yaml`, javadoc, testy, UI | **CRUD ✅** (PR #21) |
 | 08-24 | `test-plan.md` + mapowanie testów na ryzyka | **Testy ✅** (DEV-45, dwa dni przed oknem) |
 | 08-24 | S-07 — trzecia warstwa `GoalLayer.TASK` + nullable `due_date` | **codzienna używalność ✅** (DEV-27, PR #23, `012609c`) — trzy dni przed oknem |
-| 08-25 – 08-27 | S-04a — silnik wyboru | 🎯 **komplet wymagań — `master` zdatny do zgłoszenia** |
-| 08-28 – 08-30 | S-08 — filtry po warstwie i kategorii | 🎯 jeden widok |
+| 08-24 | S-04a — silnik wyboru | 🎯 **komplet wymagań ✅ — `master` zdatny do zgłoszenia** (DEV-46, PR #25, `ec8762d`) — tydzień przed pierwotnym oknem 08-31 – 09-02 |
+| 08-25 – 08-30 | S-08 — filtry po warstwie i kategorii | 🎯 jeden widok |
 | 09-03 – 09-08 | S-04b — propozycja formułowana przez LLM | 🎯 aplikacja do pokazania |
 | 09-09 – 09-10 | bufor | |
 | 09-11 | zamrożenie kodu; deploy i weryfikacja produkcji end-to-end na realnych danych | |
