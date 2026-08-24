@@ -104,14 +104,19 @@ function messageFor(status: number): string {
 /** The whole S-02 + S-07 screen: all three layers, grouped, completed entries folded away. */
 export function GoalsPage() {
   const domains = useOutletContext<Domain[]>()
-  // The filters live in the query string rather than in React state: a reload, the back button and
-  // a link pasted to yourself all keep the view for free, and the controls read from the URL rather
-  // than mirroring it, so there is one source of truth. `replace` because a dozen history entries
-  // for a dozen dropdown fiddles is not what the back button is for.
-  // ponytail: an unknown value (only reachable by hand-editing the URL) filters everything away
-  // rather than falling back to "all" — normalise here if that ever stops being hypothetical.
+  // The filters live in the query string rather than in React state: a reload, a link pasted to
+  // yourself and coming back to the screen from elsewhere all keep the view for free, and the
+  // controls read from the URL rather than mirroring it, so there is one source of truth.
   const [params] = useSearchParams()
-  const layer = params.get('layer') ?? ''
+  // A layer the app never wrote — a stale bookmark, a link from a later build — falls back to "no
+  // filter", and has to: a controlled `<select>` displays its *first* option when the value matches
+  // none, so an unknown value would otherwise leave the control reading "Wszystkie" over an empty
+  // screen. That is the one state that claims you have no entries while actively hiding them.
+  const requested = params.get('layer') ?? ''
+  const layer = SECTIONS.some((section) => section.layer === requested) ? requested : ''
+  // `category` deliberately gets no such guard: its options are fetched, so `domains` is still empty
+  // on the first paint and normalising would throw away a perfectly valid `?category=HOME` on every
+  // load. A stale code is covered by the "nothing matched" message instead.
   const category = params.get('category') ?? ''
   const [goals, setGoals] = useState<Goal[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -185,12 +190,15 @@ export function GoalsPage() {
     remove: (id) => save(api(`/goals/${id}`, { method: 'DELETE' })),
   }
 
-  // Category filters the list; layer filters the sections. Two axes, two places, applied once each
-  // — `Section` already picks its own layer out of whatever list it is handed, and doing it twice
-  // would be a filter that silently disagreed with itself.
-  const visible = category
-    ? goals.filter((goal) => (goal.category_code || NO_CATEGORY) === category)
-    : goals
+  // One predicate over both axes, so `visible.length` is exactly "does anything match the filters"
+  // — the question the empty-state message below has to answer. `layer` still *also* picks which
+  // sections render; `Section` re-filters by layer out of whatever list it is handed, so the extra
+  // pass is idempotent rather than a second opinion that could disagree.
+  const visible = goals.filter(
+    (goal) =>
+      (!category || (goal.category_code || NO_CATEGORY) === category) &&
+      (!layer || goal.layer === layer),
+  )
 
   const sectionProps = { goals: visible, domains, actions }
 
@@ -208,6 +216,13 @@ export function GoalsPage() {
 
       <Filters domains={domains} />
 
+      {/* An empty list under an active filter is not "you have no entries" — `load`'s failure path
+          refuses that same lie a few lines up. It is also the last honest signal when a stale
+          `?category=` leaves the select reading "Wszystkie". */}
+      {visible.length === 0 && (layer || category) && (
+        <p role="status">Żaden wpis nie pasuje do filtrów.</p>
+      )}
+
       {/* A filtered-out layer loses its heading along with its entries: an empty
           "Cele długoterminowe" would read as "you have no goals". */}
       {SECTIONS.filter((section) => !layer || section.layer === layer).map((section) => (
@@ -220,7 +235,14 @@ export function GoalsPage() {
 /**
  * The two filter axes, reading and writing the query string themselves — `useSearchParams` is
  * context-backed, so this call and the page's see the same URL and there is nothing to pass down
- * or keep in sync. The layer options reuse `LAYER_LABEL`, so a layer is worded once.
+ * or keep in sync.
+ *
+ * The labels are "Pokaż …" rather than the forms' bare "Rodzaj"/"Kategoria": those names are
+ * already taken by the create form's fields and the edit form's, and three controls answering to
+ * one name is what a screen reader reads out of its form-controls list. The options themselves
+ * reuse `LAYER_LABEL` rather than re-spelling it — note that is a *different* wording from the
+ * section headings ("Zadanie" vs "Zadania bieżące"), and nothing but this comment keeps the two in
+ * step.
  */
 function Filters({ domains }: { domains: Domain[] }) {
   const [params, setParams] = useSearchParams()
@@ -235,7 +257,7 @@ function Filters({ domains }: { domains: Domain[] }) {
   return (
     <section aria-label="Filtry">
       <label>
-        Rodzaj
+        Pokaż rodzaj
         <select
           value={params.get('layer') ?? ''}
           onChange={(event) => set('layer', event.target.value)}
@@ -249,7 +271,7 @@ function Filters({ domains }: { domains: Domain[] }) {
         </select>
       </label>
       <label>
-        Kategoria
+        Pokaż kategorię
         <select
           value={params.get('category') ?? ''}
           onChange={(event) => set('category', event.target.value)}

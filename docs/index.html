@@ -225,19 +225,25 @@
   shared link restores the view and <code>GET /api/goals</code> still publishes no query parameters —
   the deliberate choice at single-user scale. Uncategorised entries are their own filter choice
   rather than a gap, matching the selection engine's treatment of a null category as one shared
-  bucket. Per-domain pages are still placeholders; PWA behavior is planned.</p>
+  bucket. A URL naming a layer that does not exist falls back to showing everything, and a filter
+  combination matching nothing says so — an empty list under an active filter must not read as
+  &ldquo;you have no entries&rdquo;, the same lie the load-failure banner exists to avoid.
+  Per-domain pages are still placeholders; PWA behavior is planned.</p>
   <p>These projects build independently; there is no root workspace. Local setup and execution
   belong in the <a href="../README.md">root README</a>. Product and architecture intent remain
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
   <p class="note">Verified against the S-08 unified three-layer view with filters (DEV-28) on
-  2026-08-24; the previous snapshot actually <em>walked</em> was <code>b3c0908</code>, the S-04a
-  selection engine (DEV-46). The pass before that one left the goal chapter and glossary still
+  2026-08-24; the previous snapshot actually <em>walked</em> was <code>ec8762d</code>, the S-04a
+  selection engine (DEV-46) — <em>not</em> <code>b3c0908</code>, which closed S-04a's roadmap row
+  and never opened this page. The pass before that one left the goal chapter and glossary still
   describing two layers after S-07 had shipped the third, and this slice found the page — and the
   docs test — still calling filters planned while they were being written. This note records the
   last commit walked, not the last merged: pointing it at a newer merge would hide exactly that kind
-  of drift. To review, run <code>git log b3c0908.. -- backend frontend .github/workflows
+  of drift — and so would naming a commit that never touched the page, which drops everything
+  between it and the real walk out of the range below. To review, run
+  <code>git log ec8762d.. -- backend frontend .github/workflows
   context/foundation docs/index.html</code>.</p>
 </section>
 <section id="architecture">
