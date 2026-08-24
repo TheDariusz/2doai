@@ -26,7 +26,8 @@ public record GoalResponse(
 		OffsetDateTime createdAt,
 		OffsetDateTime updatedAt) {
 
-	static GoalResponse from(Goal goal) {
+	/** Public so the proposals resource (S-04a) can return a selected entry in this same shape. */
+	public static GoalResponse from(Goal goal) {
 		return new GoalResponse(goal.getId(), goal.getContent(), goal.getLayer(), goal.getHorizon(),
 				goal.getDueDate(), goal.getCategory(), goal.getCompletedAt(), goal.getCreatedAt(),
 				goal.getUpdatedAt());
