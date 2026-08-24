@@ -50,6 +50,35 @@ Project-wide rules every slice inherits (canonical schema diagram: `context/foun
 - **Reference tables may use a stable natural key** instead of a surrogate PK and omit audit columns (e.g. `category.code`, mirrored by the `LifeDomain` enum; a startup `CategorySyncCheck` fails fast on table/enum drift).
 - **Postgres 18** across dev (`compose.yaml`), tests (Testcontainers), and prod (Neon) — keep all three on the same major.
 
+## Living documentation
+
+`docs/index.html` is the single reviewer-facing architecture document. **It is part of a slice, not
+follow-up work** — the slice is not done until the page describes what actually merged. Same for
+`context/foundation/openapi.yaml`: a new endpoint or wire literal moves spec + Java + TS in one commit.
+
+**`node --test docs/index.test.mjs` passing is not evidence the page is current.** It guards
+structure and a handful of pinned phrases; it cannot see prose that quietly became false.
+
+Walk these surfaces every time — this is the list, in order, where drift has actually landed:
+
+1. `#overview` capability table — the status badge for anything the slice moved.
+2. `#code-map` — one row per backend package; a new package needs a new row.
+3. `#backend` — the package's `<h3>` prose **and its class diagram**: enum values, fields, method signatures.
+4. `#backend` terms `<dl>` — any new domain noun.
+5. `#flows` — a new implemented flow, and any *planned* flow the slice just contradicted.
+6. `#data` — the prose about which tables exist; re-export the ER SVGs only if the schema changed.
+7. `#roadmap` cards and `#glossary` rows — both describe capability status in prose.
+8. The endpoint list in the `#backend` note — every path the API publishes.
+9. The `Verified against …` note ending `#overview` — stamp it with the issue just finished. It is the drift ledger.
+
+**The trap, seen for real:** S-07 updated some of these and left the rest, so the page claimed two
+task layers for a day while the third was already shipping — and the docs test stayed green
+throughout. A partial pass reads exactly like a complete one. Walk the whole list.
+
+Mermaid diagrams cannot be rendered headlessly here (no local Mermaid; the page loads it from CDN),
+so a diagram edit is unverified until someone opens the page. Keep new diagram lines to constructs
+that already appear in the file rather than inventing syntax.
+
 ## Deployment (Pattern B — unified origin)
 
 - Frontend → Cloudflare Pages (static build); Backend → Fly.io (JVM).
@@ -59,7 +88,7 @@ Project-wide rules every slice inherits (canonical schema diagram: `context/foun
 ## Gotchas
 
 - No `.env` files exist yet; environment config is not implemented. Never read or print `.env` contents.
-- Backend and frontend are still mostly scaffold (skeleton `Application.java`, demo `App.tsx`) — expect to build domain code from scratch.
+- Neither half is scaffold any more: auth/session, categories, the three-layer `goal` aggregate with full CRUD, the proposal selection engine, and the React SPA (routing, guard, auth screens, `/cele`) are all implemented. Read the neighbouring slice before assuming a seam does not exist yet.
 
 ## Linear workflow (via Linear MCP)
 This repo maps to the **"2doai"** project in my Linear workspace.
@@ -81,6 +110,8 @@ don't ask me to paste issue details.
 ### End of session
 - Add a short comment to the issue: what's done, the next concrete step,
   anything blocked. This is my handoff for tomorrow.
+- Before moving to **In Review**: `/check` green, and `docs/index.html` walked per
+  **Living documentation** above. Both are part of the slice, not a follow-up issue.
 - Move the issue to **In Review** when it's ready for review.
 
 ## Learning notes

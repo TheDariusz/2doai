@@ -1,8 +1,8 @@
 openapi: 3.1.0
 
-# API-first contract (Zalando #100/#101): the users + sessions + categories resources (S-01), and
-# the goals resource (S-02, widened to current tasks by S-07). Authoritative over any older path
-# prose in plan.md.
+# API-first contract (Zalando #100/#101): the users + sessions + categories resources (S-01),
+# the goals resource (S-02, widened to current tasks by S-07) and the proposals resource (S-04a).
+# Authoritative over any older path prose in plan.md.
 #
 # Design decisions worth calling out:
 #   - Verb-free, resource-oriented URLs (#141/#138): register = POST /users, login = POST
@@ -45,6 +45,8 @@ tags:
     description: The 11 fixed life-domain reference records.
   - name: goals
     description: Current tasks, long-term goals and someday dreams — all three layers.
+  - name: proposals
+    description: The proactive engine's pick of one neglected entry.
 
 paths:
   /users:
@@ -375,6 +377,48 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /proposals:
+    post:
+      tags: [proposals]
+      summary: Ask the engine for one neglected entry
+      description: >
+        Runs the deterministic selection engine (S-04a, FR-012/FR-015 — "daj mi coś teraz") over the
+        caller's entries and returns the single one worth coming back to. An entry counts as
+        neglected once it has been idle for its layer's patience — 7 days for a TASK, 14 for a GOAL,
+        30 for a DREAM — or, for a TASK alone, once its `due_date` has passed. A missed term ranks
+        ahead of any amount of silence, so an overdue task is proposed before a merely idle entry.
+        Within a tier the engine prefers the life domain the user has been silent in longest, so
+        proposals rotate between domains instead of flooding whichever one is most neglected — and a
+        domain counts as active if anything in it was touched recently, **completed entries
+        included**. Entries with no `category_code` share a single bucket rather than one each.
+
+
+        POST rather than GET, with no request body: asking is an action, and it becomes an unsafe one
+        as soon as state sits behind it — FR-013's four responses and FR-018's at-most-one-pending
+        rule both do. The answer must never be cached.
+
+
+        Nothing neglected yet is **204**, not 404 — the resource answered, the caller simply has
+        nothing gathering dust.
+      operationId: createProposal
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      responses:
+        '200':
+          description: The entry the engine picked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Proposal'
+        '204':
+          description: Nothing has been neglected long enough to propose.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   securitySchemes:
     sessionCookie:
@@ -650,6 +694,26 @@ components:
           type: boolean
           default: false
           description: True marks the entry done (setting `completed_at`); false reopens it.
+
+    Proposal:
+      type: object
+      description: >
+        The engine's answer: the entry it picked, in the same representation `/goals` publishes, and
+        the reason it won. `neglected_days` is that reason made explicit — S-04b turns it into prose
+        ("dwa miesiące temu wpisałeś…"), so it is part of the contract rather than diagnostics.
+      required: [entry, neglected_days]
+      properties:
+        entry:
+          $ref: '#/components/schemas/Goal'
+        neglected_days:
+          type: integer
+          format: int64                                     # #171 integers declare int32/int64
+          minimum: 0
+          description: >
+            Whole days since the user last interacted with the entry. Zero is a legitimate answer:
+            a task edited today whose `due_date` has already passed is neglected on its term, not on
+            its silence.
+          example: 47
 
     Problem:
       # RFC 9457 Problem Details (#176). Emitted as application/problem+json for every error.

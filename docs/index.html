@@ -208,7 +208,8 @@
         <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens, 11-domain shell; <code>/api</code> proxies in development and production</td></tr>
         <tr><th scope="row">Goals and dreams</th><td><span class="badge badge-live">implemented</span></td><td>One <code>goal</code> aggregate for both layers, <code>/api/goals</code>, and the <code>/cele</code> screen (S-02)</td></tr>
         <tr><th scope="row">Current tasks</th><td><span class="badge badge-live">implemented</span></td><td>A third <code>GoalLayer</code> value plus an optional <code>due_date</code> on the same aggregate and screen (S-07)</td></tr>
-        <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slices S-04 and S-05</td></tr>
+        <tr><th scope="row">Selection engine</th><td><span class="badge badge-live">implemented</span></td><td>Deterministic neglect heuristic and category balancing behind <code>POST /api/proposals</code> (S-04a); no AI provider in the path</td></tr>
+        <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-planned">planned</span></td><td>The AI-phrased proposal, its four responses, and the non-fixed rhythm — roadmap slices S-04b and S-05</td></tr>
         <tr><th scope="row">PWA/offline behavior</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-10</td></tr>
       </tbody>
     </table>
@@ -225,9 +226,13 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
-  <p class="note">Verified against the DEV-44 delete change on 2026-08-24; the previous verified
-  snapshot was <code>ecb3301</code> on 2026-08-23. To review drift, run
-  <code>git log ecb3301.. -- backend frontend .github/workflows context/foundation docs/index.html</code>.</p>
+  <p class="note">Verified against the S-04a selection engine (DEV-46) on 2026-08-24, including the
+  multi-agent review pass that corrected the proposal chapter above; the previous snapshot actually
+  <em>walked</em> was <code>012609c</code>, and that pass left the goal chapter and glossary still
+  describing two layers after S-07 had shipped the third. This note records the last commit walked,
+  not the last merged — pointing it at a newer merge would hide exactly that kind of drift. To
+  review, run <code>git log 012609c.. -- backend frontend .github/workflows context/foundation
+  docs/index.html</code>.</p>
 </section>
 <section id="architecture">
   <h2>System context and containers</h2>
@@ -301,7 +306,8 @@ flowchart LR
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/security"><code>backend/…/security</code></a></th><td>Filter chain, CSRF, session identity, and RFC 9457 security errors</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/account"><code>backend/…/account</code></a></th><td>Modular per-user erasure coordinated before the user row is deleted</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/category"><code>backend/…/category</code></a></th><td>Fixed life-domain reference data and enum/table drift detection</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/goal"><code>backend/…/goal</code></a></th><td>Goal/dream aggregate for both non-task layers, its CRUD API, and its erasure adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/goal"><code>backend/…/goal</code></a></th><td>One aggregate for all three layers — current tasks, goals and dreams — its CRUD API, and its erasure adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/proposal"><code>backend/…/proposal</code></a></th><td>Deterministic selection engine — neglect heuristic, category balancing, and <code>POST /api/proposals</code></td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai"><code>backend/…/ai</code></a></th><td>Provider-neutral LLM port, schema contract, and Spring AI adapter</td><td><span class="badge badge-foundation">foundation</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai/memory"><code>backend/…/ai/memory</code></a></th><td>Personal AI-memory aggregate, rendering, persistence, and erasure adapter</td><td><span class="badge badge-foundation">foundation</span></td></tr>
         <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, auth screens, the 11-domain shell, and the goals/dreams screen</td><td><span class="badge badge-live">implemented</span></td></tr>
@@ -374,6 +380,10 @@ flowchart LR
     <dd>A current, concrete action — the same <code>goal</code> table with
     <code>layer = TASK</code>, no horizon, and an optional <code>due_date</code>. A task is the only
     layer that may carry a due date, and the only time field a task may carry.</dd>
+    <dt>Proposal</dt>
+    <dd>One entry the system brings back to the user because it has been neglected. Today the
+    choice is deterministic and the entry is returned on request; the AI wording, the four
+    responses, and the non-fixed rhythm that decides <em>when</em> to ask are the rest of the loop.</dd>
     <dt>AI memory</dt>
     <dd>The per-user aggregate that provides personal context to AI prompts. It contains durable
     profile facts and an append-only history of relevant events.</dd>
@@ -549,8 +559,9 @@ classDiagram
   </pre>
 
   <h3>goal</h3>
-  <p>One aggregate carries both non-task layers. The layer × horizon rule — a goal requires a
-  horizon, a dream forbids one — is enforced at three depths: the request records return 422, the
+  <p>One aggregate carries all three layers, discriminated by <code>layer</code>. The layer ×
+  time-fields rule — only a goal has a horizon and it always has one, only a task may carry a
+  <code>due_date</code> — is enforced at three depths: the request records return 422, the
   aggregate constructor and <code>update</code> throw for any future caller, and the
   <code>chk_goal_layer_time_fields</code> database constraint cannot be bypassed at all. No operation
   takes an owner from the client: <code>findByIdAndUserId</code> and
@@ -564,16 +575,17 @@ classDiagram
     UUID userId
     String content
     GoalLayer layer
-    GoalHorizon horizon — null for a DREAM
+    GoalHorizon horizon — only for a GOAL
+    LocalDate dueDate — only for a TASK
     LifeDomain category — optional
     OffsetDateTime completedAt — null means active
-    +update(content, layer, horizon, category)
+    +update(content, layer, horizon, dueDate, category)
     +complete(OffsetDateTime)
     +reopen()
   }
   class GoalLayer {
     &lt;&lt;wire enumeration&gt;&gt;
-    GOAL, DREAM
+    GOAL, DREAM, TASK
   }
   class GoalHorizon {
     &lt;&lt;wire enumeration&gt;&gt;
@@ -604,6 +616,59 @@ classDiagram
   Goal --> GoalLayer
   Goal --> GoalHorizon
   Goal ..> LifeDomain : optional category
+  </pre>
+
+  <h3>proposal</h3>
+  <p>The deterministic half of the proactive loop (S-04a). Two rules run in order.
+  <strong>Neglect</strong> decides who is eligible: an active entry qualifies once it has been idle
+  for its layer's patience — 7 days for a task, 14 for a goal, 30 for a dream — or, for a task
+  alone, once its <code>due_date</code> has passed — and a missed term ranks ahead of any amount of
+  silence, so an overdue task is proposed before a merely idle entry. <strong>Balancing</strong>
+  then decides who wins inside a tier (FR-012): ranking by raw idle time would hand every proposal
+  to whichever life domain the user neglects hardest, so a domain is scored instead by how long the
+  user has been <em>silent</em> in it — the idle time of its most recently touched entry, completed
+  ones included — and the most silent domain goes first. Raw idle time is the second key outright,
+  settling two equally silent domains as readily as two entries inside one. Entries with no category
+  are not dropped; they share a single bucket rather than one each.</p>
+  <p>Balancing never suppresses a proposal, only reorders one. For a user active in all eleven
+  domains every silence score ties, the first key goes constant, and the comparator collapses to raw
+  idle time — the ranking balancing exists to avoid. It switches itself off rather than falling
+  silent.</p>
+  <p>The engine is a pure function: it takes the entries and the current moment as arguments and
+  holds no clock, no repository, and no <code>LlmClient</code>. That is what lets
+  <code>ProposalSelectorTest</code> state the whole product rule without a container, and it is why
+  this half ships before the AI half instead of with it. <code>ProposalService</code> reads through
+  the existing user-scoped finder and adds none of its own — balancing needs the domains the user
+  <em>has</em> been active in, which is exactly what a "find the neglected ones" query would filter
+  away. Nothing new was stored: "last interaction" is the entry's <code>updated_at</code>, which
+  works only while the user is the sole writer of that row.</p>
+  <pre class="mermaid">
+classDiagram
+  class ProposalController {
+    &lt;&lt;inbound adapter / REST&gt;&gt;
+    +propose() POST /api/proposals
+    returns 204 when nothing is neglected
+  }
+  class ProposalService {
+    &lt;&lt;application service&gt;&gt;
+    scopes every read to CurrentUser
+  }
+  class ProposalSelector {
+    &lt;&lt;domain service&gt;&gt;
+    +select(candidates, now) Optional
+    idle patience by layer — 7, 14, 30 days
+    empty is the 204 answer
+    missed terms first, then domain silence
+  }
+  class Candidate {
+    &lt;&lt;value object&gt;&gt;
+    lastInteractionAt — the entry updated_at
+  }
+  ProposalController --> ProposalService
+  ProposalService --> GoalRepository : reads every entry the caller owns
+  ProposalService --> ProposalSelector
+  ProposalSelector --> Candidate
+  Candidate ..> Goal : flattened for the engine
   </pre>
 
   <h3>ai + ai/memory</h3>
@@ -653,8 +718,9 @@ classDiagram
   <code>DELETE /api/users/me</code>, <code>POST /api/sessions</code>,
   <code>DELETE /api/sessions/current</code>, <code>GET /api/categories</code>,
   <code>GET /api/goals</code>, <code>POST /api/goals</code>, <code>PUT /api/goals/{id}</code>,
-  <code>DELETE /api/goals/{id}</code>, <code>GET /api/ping</code>. The goal delete is a hard one and
-  is not FR-019 erasure: that removes the account and every entry at once.</p>
+  <code>DELETE /api/goals/{id}</code>, <code>POST /api/proposals</code>,
+  <code>GET /api/ping</code>. The goal delete is a hard one and is not FR-019 erasure: that removes
+  the account and every entry at once.</p>
 </section>
 
 <section id="ai-communication">
@@ -1021,21 +1087,45 @@ sequenceDiagram
   end
   </pre>
   <h3>AI and product</h3>
-  <h4>Task creation with AI classification <span class="badge badge-planned">planned</span></h4>
+  <h4>Category auto-tag on capture <span class="badge badge-planned">planned</span></h4>
+  <p>S-09 replaces the manual category picker, not the storage: capture already lands on the goals
+  resource for all three layers, so the auto-tag extends that path rather than adding one.</p>
   <pre class="mermaid">
 sequenceDiagram
   actor SPA
-  participant TC as TaskController (planned)
-  participant TS as TaskService (planned)
+  participant GC as GoalController
+  participant GS as GoalService
   participant LLM as LlmClient → AI provider
   participant PG as Postgres
-  SPA->>TC: POST /api/tasks {text}
-  TC->>TS: create(userId, text)
-  TS->>LLM: classify text — JSON-schema-constrained&lt;br/&gt;output: {lifeDomain, taskLayer}
-  LLM-->>TS: {domain: HEALTH, layer: CURRENT}
-  TS->>PG: insert task (uuid v7, audit columns)
-  TC-->>SPA: 201 Created
+  SPA->>GC: POST /api/goals {content, layer}
+  GC->>GS: create(userId, request)
+  GS->>LLM: classify content — JSON-schema-constrained&lt;br/&gt;output: {lifeDomain}
+  LLM-->>GS: {category: HEALTH}
+  GS->>PG: insert goal (uuid v7, audit columns)
+  GC-->>SPA: 201 Created
   </pre>
+
+  <h4>Manual proposal trigger <span class="badge badge-live">implemented</span></h4>
+  <pre class="mermaid">
+sequenceDiagram
+  actor API as API client
+  participant PC as ProposalController
+  participant PS as ProposalService
+  participant SEL as ProposalSelector — pure logic
+  participant PG as Postgres
+  API->>PC: POST /api/proposals
+  PC->>PS: propose()
+  PS->>PG: every entry owned by the caller
+  PG-->>PS: tasks, goals and dreams
+  PS->>SEL: select(candidates, now)
+  SEL-->>PS: the chosen entry and its idle days
+  PS-->>PC: the entry, or empty
+  PC-->>API: 200 with the entry — or 204 when nothing is neglected
+  </pre>
+  <p class="note">No AI provider appears in this flow, deliberately. S-04b puts
+  <code>LlmClient</code> between the selection and the wording the user reads; until then no
+  production code path calls <code>LlmClient</code> at all, and the engine stays testable without a
+  network. No screen calls this endpoint yet either — the SPA leg arrives with S-04b.</p>
 
   <h4>Natural-rhythm proposal <span class="badge badge-planned">planned</span></h4>
   <pre class="mermaid">
@@ -1064,8 +1154,8 @@ sequenceDiagram
   <h2>Data architecture</h2>
   <p>Every user-owned aggregate carries an explicit owner boundary. The current model contains the
   user, fixed category reference data, the AI-memory aggregate, and the <code>goal</code> table
-  holding both non-task layers; current tasks, proposal history, and scheduling state belong to the
-  target model and are not yet implemented.</p>
+  holding all three layers; proposal history and scheduling state belong to the target model and are
+  not yet implemented.</p>
   <div class="card-grid">
     <div class="card"><strong>Ownership and isolation</strong><br><code>AiMemory</code> is one
     aggregate per user. Child profile facts and episodes are reached through that root.</div>
@@ -1082,7 +1172,16 @@ sequenceDiagram
   present. Profile facts are durable semantic statements; episodes are a bounded event history
   stored with a JSON payload. <code>goal</code> keeps its completion state as a nullable
   <code>completed_at</code> rather than a boolean, because the memory enrichment that reads it next
-  needs to know when a thing was finished, not merely whether.</p>
+  needs to know when a thing was finished, not merely whether. The selection engine added no column
+  and no index: it measures neglect from <code>updated_at</code>, which is only honest while the
+  user remains the sole writer of a <code>goal</code> row — the day a background job stamps one, the
+  engine needs a <code>last_interaction_at</code> of its own. The other clock decision is
+  <code>due_date</code>: it is a <code>LocalDate</code> the user picked off a calendar, so the engine
+  reads its clock in the user's zone rather than the server's. There is no <code>user.timezone</code>
+  column yet, so that zone is pinned to Europe/Warsaw in one line of <code>ProposalService</code>;
+  a UTC comparison would leave a task that fell due at Polish midnight unflagged until 02:00, and the
+  endpoint would answer 204 &mdash; the one place a real fault looks like a legitimate empty
+  answer.</p>
   <img class="diagram" src="../context/foundation/data-model-current.svg" width="1082" height="1038" loading="lazy" alt="Current entity relationship model: app user, goal with its three layers, category, AI memory, profile facts, and episodes">
   <h3>Target model <span class="badge badge-planned">planned</span></h3>
   <p>The target diagram shows the whole shape, migrated and not: solid tables exist today, ghosted
@@ -1270,16 +1369,19 @@ flowchart TB
 
 <section id="roadmap">
   <h2>Roadmap / target state <span class="badge badge-planned">planned</span></h2>
-  <p>What exists today is the account/auth slice, the goals-and-dreams slice, and the AI memory and
-  category foundations. The MVP roadmap builds vertical slices on top:</p>
-  <div class="card"><strong>Current tasks</strong> — the third layer, plus AI classification into the
-  11 life domains at capture time. Long-term goals and dreams already ship with a manual category
-  picker; the auto-tag replaces the picking, not the storage.</div>
+  <p>What exists today is the account/auth slice, all three task layers on one <code>goal</code>
+  aggregate, the deterministic selection engine, and the AI memory and category foundations. The MVP
+  roadmap builds vertical slices on top:</p>
+  <div class="card"><strong>Category auto-tag</strong> — AI classification into the 11 life domains
+  at capture time. All three layers already ship with a manual picker; the auto-tag replaces the
+  picking, not the storage.</div>
   <div class="card"><strong>AI orchestration</strong> — <code>LlmClient</code> port already exists with a
   Spring AI adapter; JSON-schema-constrained structured output; per-user <code>AiMemory</code>
   (profile facts + episodes) rendered into prompts.</div>
   <div class="card"><strong>Natural-rhythm reminders</strong> — background jobs that surface the right
-  task at the right moment, not fixed-time alarms.</div>
+  task at the right moment, not fixed-time alarms. The engine that decides <em>which</em> entry is
+  already implemented; what remains is the AI wording, the four responses, and the non-fixed rhythm
+  that decides <em>when</em>.</div>
   <p>Planned sequence diagrams live in the <a href="#flows">Flows</a> section (yellow badges).
   The target ER diagram is in <a href="#data">Data architecture</a>.</p>
   <p class="note">Authoritative detail:
@@ -1297,10 +1399,11 @@ flowchart TB
         <tr><th scope="col">Term</th><th scope="col">Meaning</th></tr>
       </thead>
       <tbody>
-        <tr><th scope="row">Task layer</th><td>One of three horizons an item lives in: <em>current</em> (actionable now, <span class="badge badge-planned">planned</span>), <em>long-term</em> (goals) and <em>dreams</em> (aspirations) — the latter two implemented as one <code>goal</code> table with a <code>layer</code> discriminator.</td></tr>
-        <tr><th scope="row">Layer / horizon</th><td><code>GoalLayer</code> (GOAL, DREAM) discriminates the two non-task layers; <code>GoalHorizon</code> (THIS_YEAR, FEW_MONTHS) applies only to a goal. Both constant names are the wire literals, anchored in <code>openapi.yaml</code> and held against backend and frontend copies by <code>GoalApiTest</code>.</td></tr>
+        <tr><th scope="row">Task layer</th><td>One of three horizons an item lives in: <em>current</em> (actionable now), <em>long-term</em> (goals) and <em>dreams</em> (aspirations) — all three implemented as one <code>goal</code> table with a <code>layer</code> discriminator.</td></tr>
+        <tr><th scope="row">Layer / horizon</th><td><code>GoalLayer</code> (GOAL, DREAM, TASK) discriminates all three layers; <code>GoalHorizon</code> (THIS_YEAR, FEW_MONTHS) applies only to a goal, and <code>due_date</code> only to a task. All constant names are the wire literals, anchored in <code>openapi.yaml</code> and held against backend and frontend copies by <code>GoalApiTest</code>.</td></tr>
         <tr><th scope="row">Life domain</th><td>One of 11 fixed categories every task belongs to: HEALTH, FINANCE, CAREER, EDUCATION, RELATIONSHIPS, HOME, LEISURE, ADMIN, SAFETY, TRANSPORT, INNER_GROWTH. Enum <code>LifeDomain</code> mirrors the seeded <code>category</code> table; <code>CategorySyncCheck</code> fails boot on drift.</td></tr>
         <tr><th scope="row">Natural-rhythm reminder</th><td>A proactive nudge surfaced at a contextually right moment rather than a fixed alarm time. <span class="badge badge-planned">planned</span></td></tr>
+        <tr><th scope="row">Selection engine</th><td>The deterministic pick behind <code>POST /api/proposals</code>: <em>neglect</em> (idle 7 / 14 / 30 days by layer, or a task past its <code>due_date</code>) decides which entries are eligible; a missed term ranks ahead of any amount of silence, and below that <em>domain silence</em> (how long since the user touched anything in a life domain — completed entries included) decides which one wins. Pure Java in <code>ProposalSelector</code>; no LLM.</td></tr>
         <tr><th scope="row">AiMemory</th><td>Per-user aggregate the AI consults; created atomically with the <code>User</code> at registration ("every user has exactly one memory").</td></tr>
         <tr><th scope="row">Episode</th><td>One append-only AI-memory event; payload stored as <code>jsonb</code>.</td></tr>
         <tr><th scope="row">Profile fact</th><td>A durable statement about the user inside <code>AiMemory</code>, rendered into prompts by <code>AiMemoryRenderer</code>.</td></tr>

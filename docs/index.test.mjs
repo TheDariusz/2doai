@@ -140,7 +140,7 @@ test('backend terminology is defined before the implementation diagrams', () => 
 
   assert.ok(termsPosition >= 0, 'expected a backend terminology guide')
   assert.ok(termsPosition < firstDiagramPosition, 'backend terms should be defined before diagrams')
-  for (const term of ['Account', 'User', 'Session', 'Category', 'Goal', 'Dream', 'AI memory', 'Profile fact', 'Episode']) {
+  for (const term of ['Account', 'User', 'Session', 'Category', 'Goal', 'Dream', 'Task', 'Proposal', 'AI memory', 'Profile fact', 'Episode']) {
     assert.match(backend, new RegExp(`<dt>${term}</dt>`), `missing backend definition: ${term}`)
   }
 })
