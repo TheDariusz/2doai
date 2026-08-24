@@ -100,6 +100,17 @@ class ProposalSelectorTest {
 	}
 
 	@Test
+	void takesTheLongestIdleEntryOnceTheDomainIsSettled() {
+		Candidate quietestDomainsOldest = entry(GoalLayer.GOAL, LifeDomain.CAREER, 90);
+		Candidate quietestDomainsNewest = entry(GoalLayer.GOAL, LifeDomain.CAREER, 30);
+
+		assertThat(select(List.of(quietestDomainsOldest, quietestDomainsNewest)))
+				.as("silence picks the domain, raw idle time picks within it — a comparator whose "
+						+ "second key runs the wrong way still answers every cross-domain case right")
+				.get().extracting(Selection::id).isEqualTo(quietestDomainsOldest.id());
+	}
+
+	@Test
 	void picksTheSameEntryWhateverOrderTheRowsArriveIn() {
 		Candidate older = entry(GoalLayer.GOAL, LifeDomain.HEALTH, 20);
 		Candidate newer = entry(GoalLayer.GOAL, LifeDomain.FINANCE, 20);
