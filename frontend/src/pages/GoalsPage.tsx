@@ -160,6 +160,8 @@ export function GoalsPage() {
     remove: (id) => save(api(`/goals/${id}`, { method: 'DELETE' })),
   }
 
+  const sectionProps = { goals, domains, actions }
+
   return (
     <div className="goals">
       <h1>Zadania, cele i marzenia</h1>
@@ -173,21 +175,9 @@ export function GoalsPage() {
       />
 
       {/* Tasks first: it is the layer that gives a reason to open the app on an ordinary day. */}
-      <Section
-        title="Zadania bieżące"
-        layer="TASK"
-        goals={goals}
-        domains={domains}
-        actions={actions}
-      />
-      <Section
-        title="Cele długoterminowe"
-        layer="GOAL"
-        goals={goals}
-        domains={domains}
-        actions={actions}
-      />
-      <Section title="Marzenia" layer="DREAM" goals={goals} domains={domains} actions={actions} />
+      <Section title="Zadania bieżące" layer="TASK" {...sectionProps} />
+      <Section title="Cele długoterminowe" layer="GOAL" {...sectionProps} />
+      <Section title="Marzenia" layer="DREAM" {...sectionProps} />
     </div>
   )
 }
@@ -224,12 +214,12 @@ function GoalForm({
     const saved = await onSubmit({
       content: String(data.get('content') ?? ''),
       layer,
-      // Both forced to null rather than merely left unrendered: PUT is a full replace, so a layer
-      // switch would otherwise resend whatever the entry had and trip the cross-field rule — and
-      // the two fields fail independently, which is why each states its own condition.
-      horizon: layer === 'GOAL' ? (data.get('horizon') as Goal['horizon']) : null,
-      // An untouched date input reads as '', which is not a date the server would accept.
-      due_date: layer === 'TASK' ? String(data.get('due_date') ?? '') || null : null,
+      // Neither carries a layer guard: the control the layer does not own is never rendered, so it
+      // is absent from the FormData and reads as null. PUT being a full replace is exactly why that
+      // matters — a converted entry sends null for the field it just gave up, not its old value.
+      horizon: data.get('horizon') as Goal['horizon'],
+      // An untouched or unrendered date input reads as '', which is not a date the server accepts.
+      due_date: String(data.get('due_date') ?? '') || null,
       category_code: String(data.get('category_code') ?? '') || null,
     })
     setPending(false)
@@ -277,11 +267,8 @@ function GoalForm({
       {layer === 'TASK' && (
         <label>
           Termin
-          {/*
-            The native date control rather than a picker library: a calendar, keyboard entry,
-            locale-aware display and an ISO `YYYY-MM-DD` value — exactly what the wire wants — for
-            no bytes. Deliberately not `required`: most tasks have no deadline at all.
-          */}
+          {/* Native control, not a picker library — an ISO `YYYY-MM-DD` value for no bytes.
+              Deliberately not `required`: most tasks have no deadline at all. */}
           <input type="date" name="due_date" defaultValue={goal?.due_date ?? undefined} />
         </label>
       )}

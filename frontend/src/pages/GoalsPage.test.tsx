@@ -90,6 +90,11 @@ async function createForm() {
   return within(await screen.findByRole('form', { name: 'Nowy wpis' }))
 }
 
+/** The edit form, scoped the same way and for the same reason. */
+function editForm() {
+  return within(screen.getByRole('form', { name: 'Edytuj wpis' }))
+}
+
 /**
  * `<input type="date">` is set, not typed. `userEvent.type` enters one character at a time and
  * jsdom sanitizes every partial value ("2", "20", "202"…) back to the empty string, so the field
@@ -349,7 +354,7 @@ describe('GoalsPage — zmiany na wpisie', () => {
     renderGoals()
     await user.click((await item('Pojechać do Japonii')).getByRole('button', { name: 'Edytuj' }))
 
-    const form = within(screen.getByRole('form', { name: 'Edytuj wpis' }))
+    const form = editForm()
     expect(form.getByLabelText('Treść')).toHaveValue('Pojechać do Japonii')
     // A dream has no horizon to prefill — the field only appears once it becomes a goal.
     expect(form.queryByLabelText('Horyzont')).not.toBeInTheDocument()
@@ -384,7 +389,7 @@ describe('GoalsPage — zmiany na wpisie', () => {
     renderGoals()
     await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Edytuj' }))
 
-    const form = within(screen.getByRole('form', { name: 'Edytuj wpis' }))
+    const form = editForm()
     await user.selectOptions(form.getByLabelText('Rodzaj'), 'TASK')
     setDate(form.getByLabelText('Termin'), '2026-09-01')
     await user.click(form.getByRole('button', { name: 'Zapisz' }))
@@ -406,7 +411,7 @@ describe('GoalsPage — zmiany na wpisie', () => {
     renderGoals()
     await user.click((await item('Zapłacić za prąd')).getByRole('button', { name: 'Edytuj' }))
 
-    const form = within(screen.getByRole('form', { name: 'Edytuj wpis' }))
+    const form = editForm()
     expect(form.getByLabelText('Termin')).toHaveValue('2026-09-01')
 
     await user.selectOptions(form.getByLabelText('Rodzaj'), 'GOAL')
@@ -437,7 +442,7 @@ describe('GoalsPage — edycja zachowuje resztę wpisu', () => {
     renderGoals()
     await user.click((await item('Nauczyć się gotować')).getByRole('button', { name: 'Edytuj' }))
 
-    const form = within(screen.getByRole('form', { name: 'Edytuj wpis' }))
+    const form = editForm()
     await user.clear(form.getByLabelText('Treść'))
     await user.type(form.getByLabelText('Treść'), 'Nauczyć się gotować (poprawka)')
     await user.click(form.getByRole('button', { name: 'Zapisz' }))
@@ -455,7 +460,7 @@ describe('GoalsPage — edycja zachowuje resztę wpisu', () => {
     renderGoals()
     await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Edytuj' }))
 
-    const form = within(screen.getByRole('form', { name: 'Edytuj wpis' }))
+    const form = editForm()
     expect(form.getByLabelText('Horyzont')).toHaveValue('THIS_YEAR')
     expect(form.getByLabelText('Kategoria')).toHaveValue('HEALTH')
 

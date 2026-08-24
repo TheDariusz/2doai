@@ -93,7 +93,7 @@ two time fields differs. Which one an entry may carry follows from its layer —
 | `TASK`  | forbidden | optional   |
 
 — and that one rule is enforced at three depths: the request DTOs (→ 422), the aggregate
-constructor, and the DB constraint `chk_goal_layer_horizon`, widened in `V7` and bypassable by
+constructor, and the DB constraint `chk_goal_layer_time_fields`, widened and renamed in `V7` and bypassable by
 no future writer. Splitting a `task` aggregate out waits until tasks get a different lifecycle
 (recurrence, overdue alarms); it would then be a migration, not a rewrite. `completed_at` **is** the
 completion state (null = active); a timestamp rather than a boolean because S-03's memory

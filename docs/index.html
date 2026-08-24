@@ -552,7 +552,7 @@ classDiagram
   <p>One aggregate carries both non-task layers. The layer × horizon rule — a goal requires a
   horizon, a dream forbids one — is enforced at three depths: the request records return 422, the
   aggregate constructor and <code>update</code> throw for any future caller, and the
-  <code>chk_goal_layer_horizon</code> database constraint cannot be bypassed at all. No operation
+  <code>chk_goal_layer_time_fields</code> database constraint cannot be bypassed at all. No operation
   takes an owner from the client: <code>findByIdAndUserId</code> and
   <code>deleteByIdAndUserId</code> make another account's identifier and a nonexistent one answer
   with the same 404, and a foreign <code>DELETE</code> removes nothing.</p>
@@ -1086,9 +1086,10 @@ sequenceDiagram
   <img class="diagram" src="../context/foundation/data-model-current.svg" width="1082" height="1038" loading="lazy" alt="Current entity relationship model: app user, goal with its three layers, category, AI memory, profile facts, and episodes">
   <h3>Target model <span class="badge badge-planned">planned</span></h3>
   <p>The target diagram shows the whole shape, migrated and not: solid tables exist today, ghosted
-  ones still need slice-level design and a migration. After S-02 only <code>current_task</code>
-  (S-07) remains ghosted, so the ghosted half is direction rather than an implemented database
-  contract.</p>
+  ones are direction rather than an implemented database contract. After S-07 the single ghosted box
+  is <code>task</code>, and it marks a deferred split rather than planned work: current tasks shipped
+  as a third <code>goal</code> layer, so that table is the escape hatch for the day tasks earn a
+  lifecycle of their own.</p>
   <img class="diagram" src="../context/foundation/data-model-target.svg" width="2003" height="1268" loading="lazy" alt="Target entity relationship model: migrated app user, goal, category and AI memory alongside the deferred task table">
   <p class="note">Canonical source:
   <a href="../context/foundation/data-model.md"><code>context/foundation/data-model.md</code></a>.

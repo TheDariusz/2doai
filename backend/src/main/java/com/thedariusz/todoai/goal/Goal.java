@@ -39,10 +39,10 @@ import org.hibernate.annotations.UuidGenerator;
  * <tr><td>{@code TASK}</td><td>forbidden</td><td>optional</td></tr>
  * </table>
  *
- * <p>It is enforced at three depths — the request DTOs ({@code @AssertTrue} → 422), this constructor
- * and {@link #update} ({@code IllegalArgumentException}, unreachable through the API but binding on
- * every future caller), and the {@code chk_goal_layer_horizon} CHECK constraint, created in
- * {@code V6} and widened in {@code V7}.
+ * <p>It is enforced at three depths — the request DTOs ({@code @AssertTrue} → 422), {@link #update}
+ * ({@code IllegalArgumentException}, unreachable through the API but binding on every future
+ * caller), and the {@code chk_goal_layer_time_fields} CHECK constraint, created in {@code V6} as
+ * {@code chk_goal_layer_horizon} and widened under the broader name in {@code V7}.
  *
  * <p>Completion is modelled as a nullable timestamp rather than a boolean: {@code completedAt} is
  * both the state (null = active) and the moment S-03's memory enrichment will read.
@@ -121,18 +121,30 @@ public class Goal implements UserOwned {
 	public Goal(UUID userId, String content, GoalLayer layer, GoalHorizon horizon, LocalDate dueDate,
 			LifeDomain category) {
 		this.userId = Objects.requireNonNull(userId, "userId");
-		apply(content, layer, horizon, dueDate, category);
+		update(content, layer, horizon, dueDate, category);
 	}
 
 	/**
-	 * Full-replace edit — the single write path behind {@code PUT /api/goals/{id}}, so it also covers
-	 * every conversion between the three layers and therefore has to re-check the invariant. A dream
-	 * that becomes a task sheds nothing and may gain a term; a goal that becomes one must drop its
-	 * horizon in the same call, which is precisely what re-checking catches.
+	 * Full-replace edit, and the only write path — the constructor delegates here too, so the field
+	 * list and the invariant check are each stated once. Behind {@code PUT /api/goals/{id}} it also
+	 * covers every conversion between the three layers, which is why it re-checks: a dream that
+	 * becomes a task sheds nothing and may gain a term; a goal that becomes one must drop its horizon
+	 * in the same call, which is precisely what re-checking catches.
+	 *
+	 * <p>{@code final} because a constructor calls it — Hibernate needs the class and its accessors
+	 * open, never a business method.
 	 */
-	public void update(String content, GoalLayer layer, GoalHorizon horizon, LocalDate dueDate,
+	public final void update(String content, GoalLayer layer, GoalHorizon horizon, LocalDate dueDate,
 			LifeDomain category) {
-		apply(content, layer, horizon, dueDate, category);
+		this.content = Objects.requireNonNull(content, "content");
+		this.layer = Objects.requireNonNull(layer, "layer");
+		if (!hasConsistentTimeFields(layer, horizon, dueDate)) {
+			throw new IllegalArgumentException(TIME_FIELDS_RULE + ", got " + layer
+					+ " with horizon " + horizon + " and due date " + dueDate);
+		}
+		this.horizon = horizon;
+		this.dueDate = dueDate;
+		this.category = category;
 	}
 
 	/**
@@ -160,26 +172,11 @@ public class Goal implements UserOwned {
 
 	/**
 	 * The layer × time-fields rule, stated once in Java so the aggregate and both request DTOs cannot
-	 * drift apart. A null layer passes here — {@code @NotNull} reports that as its own violation
-	 * rather than letting this rule blame a time field for it.
+	 * drift apart — one conjunct per time field, in the order {@link #TIME_FIELDS_RULE} names them.
 	 */
 	static boolean hasConsistentTimeFields(GoalLayer layer, GoalHorizon horizon, LocalDate dueDate) {
-		return layer == null
-				|| ((layer == GoalLayer.GOAL) == (horizon != null)
-						&& (layer == GoalLayer.TASK || dueDate == null));
-	}
-
-	private void apply(String content, GoalLayer layer, GoalHorizon horizon, LocalDate dueDate,
-			LifeDomain category) {
-		this.content = Objects.requireNonNull(content, "content");
-		this.layer = Objects.requireNonNull(layer, "layer");
-		if (!hasConsistentTimeFields(layer, horizon, dueDate)) {
-			throw new IllegalArgumentException(TIME_FIELDS_RULE + ", got " + layer
-					+ " with horizon " + horizon + " and due date " + dueDate);
-		}
-		this.horizon = horizon;
-		this.dueDate = dueDate;
-		this.category = category;
+		return (horizon != null) == (layer == GoalLayer.GOAL)
+				&& (dueDate == null || layer == GoalLayer.TASK);
 	}
 
 	public UUID getId() {

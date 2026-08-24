@@ -100,6 +100,10 @@ test('status language distinguishes what is implemented from the target product'
   // the three-layer data screen is implemented, filters and PWA behavior are not.
   assert.match(html, /filters across the three\s+layers and PWA behavior are planned/)
   assert.match(html, /<code>\/cele<\/code> screen adds the first data UI/)
+  // S-07 shipped current tasks as a third `goal` layer, so the one ghosted box is a deferred split,
+  // not planned work. Without this the prose can quietly re-promise the table the slice rejected.
+  assert.doesNotMatch(html, /current_task/)
+  assert.match(html, /deferred split rather than planned work/)
   assert.match(html, /Mutable domain tables use/)
   assert.match(html, /append-only event tables may omit/)
   assert.match(html, /repository snapshot/)

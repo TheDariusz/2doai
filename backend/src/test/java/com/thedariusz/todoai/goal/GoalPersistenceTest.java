@@ -118,7 +118,9 @@ class GoalPersistenceTest {
 
 	@Test
 	void rejectsAnInconsistentLayerAndTimeFieldsAtConstructionAndOnUpdate() {
-		UUID userId = persistedUserId();
+		// No row is ever persisted here — every case dies in the constructor or in update(), so a
+		// real user id would be an INSERT bought for nothing.
+		UUID userId = UUID.randomUUID();
 		LocalDate term = LocalDate.of(2026, 9, 1);
 
 		assertThatThrownBy(() -> new Goal(userId, "Cel bez horyzontu", GoalLayer.GOAL, null, null, null))
@@ -158,15 +160,15 @@ class GoalPersistenceTest {
 		LocalDate term = LocalDate.of(2026, 9, 1);
 
 		assertThatThrownBy(() -> insertRawGoal(userId, "GOAL", null, null))
-				.hasMessageContaining("chk_goal_layer_horizon");
+				.hasMessageContaining("chk_goal_layer_time_fields");
 		assertThatThrownBy(() -> insertRawGoal(userId, "DREAM", "THIS_YEAR", null))
-				.hasMessageContaining("chk_goal_layer_horizon");
+				.hasMessageContaining("chk_goal_layer_time_fields");
 		assertThatThrownBy(() -> insertRawGoal(userId, "TASK", "THIS_YEAR", null))
-				.hasMessageContaining("chk_goal_layer_horizon");
+				.hasMessageContaining("chk_goal_layer_time_fields");
 		assertThatThrownBy(() -> insertRawGoal(userId, "GOAL", "THIS_YEAR", null, term))
-				.hasMessageContaining("chk_goal_layer_horizon");
+				.hasMessageContaining("chk_goal_layer_time_fields");
 		assertThatThrownBy(() -> insertRawGoal(userId, "DREAM", null, null, term))
-				.hasMessageContaining("chk_goal_layer_horizon");
+				.hasMessageContaining("chk_goal_layer_time_fields");
 	}
 
 	@Test
