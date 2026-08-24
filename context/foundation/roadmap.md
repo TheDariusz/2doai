@@ -38,12 +38,12 @@ Osoby planujące długoterminowo wpisują cele i marzenia raz, a potem rzadko do
 | S-04 | proactive-proposal-engine  | na żądanie dostać propozycję, odpowiedzieć i otrzymać pierwszy krok   | F-02, S-02, S-03   | FR-012, FR-013, FR-014, FR-015 | proposed |
 | S-05 | natural-rhythm-return      | **(gwiazda)** AI sama wraca w losowym rytmie (e-mail + in-app), bilansując kategorie | S-04, F-02 | FR-011, FR-018, US-01        | proposed |
 | S-06 | priority-categories        | oznaczyć 3-5 kategorii priorytetowych wpływających na bilansowanie   | S-04               | FR-016                       | proposed |
-| S-07 | current-tasks              | tworzyć/edytować/kończyć/usuwać zadanie bieżące                      | S-01, F-01         | FR-003                       | proposed |
+| S-07 | current-tasks              | tworzyć/edytować/kończyć/usuwać zadanie bieżące                      | S-01, F-01         | FR-003                       | done     |
 | S-08 | unified-three-layer-view   | widzieć 3 warstwy w jednym widoku i filtrować po warstwie/kategorii  | S-02, S-07         | FR-006, FR-007               | proposed |
 | S-09 | ai-category-autotag        | dostać sugestię kategorii od AI przy tworzeniu pozycji              | F-02, S-02         | FR-008                       | proposed |
 | S-10 | offline-read-only          | przeglądać (read-only) zapisane pozycje 3 warstw bez internetu       | S-02, S-07         | FR-017                       | proposed |
 
-> **Fast-path (przegląd 2026-07-07, zaktualizowany 2026-08-01):** najkrótsza ścieżka do gwiazdy: F-02 → S-01 (minimalny: email+hasło, bez magic linka) → S-02 → S-03 → S-04 → S-05. S-07 / S-08 / S-10 świadomie odroczone do czasu walidacji gwiazdy (S-05); S-06 i S-09 równolegle po swoich prerekwizytach. F-02 zmergowany i zarchiwizowany (2026-08-01). S-01 zamknięty (2026-08-03, PR #8): backend i frontend na `master`. **S-02 zmergowany 2026-08-23 (PR #20, `ecb3301`).** Od 2026-08-23 kolejność do dnia zgłoszenia reguluje sekcja **Deadline plan (2026-09-14)** niżej — fast-path wraca po zgłoszeniu.
+> **Fast-path (przegląd 2026-07-07, zaktualizowany 2026-08-01):** najkrótsza ścieżka do gwiazdy: F-02 → S-01 (minimalny: email+hasło, bez magic linka) → S-02 → S-03 → S-04 → S-05. S-07 / S-08 / S-10 świadomie odroczone do czasu walidacji gwiazdy (S-05); S-06 i S-09 równolegle po swoich prerekwizytach. F-02 zmergowany i zarchiwizowany (2026-08-01). S-01 zamknięty (2026-08-03, PR #8): backend i frontend na `master`. **S-02 zmergowany 2026-08-23 (PR #20, `ecb3301`); S-07 zmergowany 2026-08-24 (PR #23, `012609c`).** Od 2026-08-23 kolejność do dnia zgłoszenia reguluje sekcja **Deadline plan (2026-09-14)** niżej — fast-path wraca po zgłoszeniu.
 
 ## Deadline plan (2026-09-14)
 
@@ -83,8 +83,9 @@ Razem **~11–12 wieczorów / 3 tygodnie ≈ 4 na tydzień**. Tempo z W31–W32 
 | 08-23 | merge PR #20 (S-02) | ✅ zrobione (`ecb3301`) |
 | 08-24 | `DELETE` — repozytorium, serwis, kontroler, `openapi.yaml`, javadoc, testy, UI | **CRUD ✅** (PR #21) |
 | 08-24 | `test-plan.md` + mapowanie testów na ryzyka | **Testy ✅** (DEV-45, dwa dni przed oknem) |
-| 08-27 – 08-30 | S-07 (trzecia warstwa) + S-08 (filtry) | 🎯 aplikacja używalna codziennie |
-| 08-31 – 09-02 | S-04a — silnik wyboru | 🎯 **komplet wymagań — `master` zdatny do zgłoszenia** |
+| 08-24 | S-07 — trzecia warstwa `GoalLayer.TASK` + nullable `due_date` | **codzienna używalność ✅** (DEV-27, PR #23, `012609c`) — trzy dni przed oknem |
+| 08-25 – 08-27 | S-04a — silnik wyboru | 🎯 **komplet wymagań — `master` zdatny do zgłoszenia** |
+| 08-28 – 08-30 | S-08 — filtry po warstwie i kategorii | 🎯 jeden widok |
 | 09-03 – 09-08 | S-04b — propozycja formułowana przez LLM | 🎯 aplikacja do pokazania |
 | 09-09 – 09-10 | bufor | |
 | 09-11 | zamrożenie kodu; deploy i weryfikacja produkcji end-to-end na realnych danych | |
@@ -96,6 +97,7 @@ Razem **~11–12 wieczorów / 3 tygodnie ≈ 4 na tydzień**. Tempo z W31–W32 
 - **S-05 (gwiazda) wypada z okna.** Scheduler + e-mail to jedyna nowa infrastruktura z nieznanymi (dostawca, weryfikacja domeny, cisza nocna, strefa czasowa). Demo odpala propozycję przyciskiem — wygląda tak samo. S-05 jest pierwszą pozycją po zgłoszeniu.
 - **S-06 i S-10 wypadają** — nie dotykają żadnego wymagania.
 - **S-07 nie dostaje własnego agregatu.** `GoalLayer.TASK` + nullable `due_date` na tabeli `goal`; niezmiennik rozszerza się do: `GOAL` → horyzont wymagany, `DREAM` → horyzont zabroniony, `TASK` → horyzont zabroniony + opcjonalny `due_date`. Cały frontend S-02 (formularz, lista, grupowanie, ukończenie) jest wtedy do ponownego użycia. Rozdzielenie agregatu dopiero, gdy zadania dostaną inny cykl życia (cykliczność, alarmy po terminie).
+- **S-04a wyprzedza S-08 (2026-08-24).** S-07 wszedł trzy dni przed swoim oknem, więc zapas idzie na jedyne niespełnione wymaganie — „logika biznesowa" — a nie na polish. Odkrycie, że heurystyka zaniedbania kosztuje więcej niż 1,5 wieczoru, jest odwracalne 25.08 i nieodwracalne 31.08; bramka z 02.09 zostaje bez zmian. Numeracja w tabeli zakresu (poz. 4 = S-08, poz. 5 = S-04a) zostaje, bo odwołuje się do niej proza wyżej — zmienia się kolejność wykonania, nie wycena.
 - **`category-contract-guards` zaparkowane** (plan z 2026-08-07, niewykonany). Realny defekt — `CategorySyncCheck` psuje rollback obrazu — ale nie dotyka żadnego wymagania. Po zgłoszeniu.
 - **Ceremonia per-slice skrócona** dla pozycji 3–6: `/10x-plan` i TDD zostają, `/10x-impl-review` oraz archiwizacja czekają do po zgłoszeniu.
 
