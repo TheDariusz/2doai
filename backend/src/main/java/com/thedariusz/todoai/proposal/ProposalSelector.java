@@ -60,6 +60,16 @@ import com.thedariusz.todoai.goal.GoalLayer;
  * with bookkeeping the user did not perform (marking an entry as shown, recording a snooze), it must
  * either keep that state off the {@code goal} row or introduce a {@code last_interaction_at} column
  * and move this one line onto it. Both are cheap; getting the column wrong today is not.
+ *
+ * <p><b>How S-04b answered that</b> (DEV-23): by taking the first option. A snooze and a withdrawal
+ * are things the <em>user</em> asked for, so writing them to the {@code goal} row leaves
+ * {@code updated_at} meaning exactly what it says; everything the machine writes on its own — the
+ * phrased message, the frozen neglect count, the generated first step — lives on the {@code proposal}
+ * row instead. The two states arrive here as eligibility inputs ({@code remindAfter},
+ * {@code withdrawn}) rather than as comparator keys, because they decide who is in the running, not
+ * who wins it. The silence map deliberately still counts a withdrawn entry: withdrawing it
+ * <em>was</em> an interaction, and dropping it from the map would hand its domain the next proposal
+ * the moment the user said "nigdy".
  */
 final class ProposalSelector {
 
@@ -82,11 +92,13 @@ final class ProposalSelector {
 	 * written down.
 	 */
 	record Candidate(UUID id, GoalLayer layer, LifeDomain category, LocalDate dueDate,
-			OffsetDateTime lastInteractionAt, boolean completed) {
+			OffsetDateTime lastInteractionAt, boolean completed, LocalDate remindAfter,
+			boolean withdrawn) {
 
 		static Candidate of(Goal goal) {
 			return new Candidate(goal.getId(), goal.getLayer(), goal.getCategory(), goal.getDueDate(),
-					goal.getUpdatedAt(), goal.getCompletedAt() != null);
+					goal.getUpdatedAt(), goal.getCompletedAt() != null, goal.getRemindAfter(),
+					goal.getWithdrawnAt() != null);
 		}
 	}
 
@@ -123,10 +135,19 @@ final class ProposalSelector {
 	}
 
 	private static boolean isNeglected(Candidate entry, OffsetDateTime now, LocalDate today) {
-		if (entry.completed()) {
+		if (entry.completed() || entry.withdrawn() || isSnoozed(entry, today)) {
 			return false;
 		}
 		return idleDays(entry, now) >= idlePatience(entry.layer()) || isOverdue(entry, today);
+	}
+
+	/**
+	 * Inclusive on the day itself, matching how the user reads "przypomnij za 7 dni" — on day seven
+	 * the entry is back in the running, not on day eight. Compared against the caller's local date
+	 * for the reason {@code ProposalService} reads the clock in the user's zone at all.
+	 */
+	private static boolean isSnoozed(Candidate entry, LocalDate today) {
+		return entry.remindAfter() != null && today.isBefore(entry.remindAfter());
 	}
 
 	/**

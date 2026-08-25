@@ -203,6 +203,41 @@ class GoalPersistenceTest {
 		assertThat(goals.findByIdAndUserId(saved.getId(), userId).orElseThrow().getCompletedAt()).isNull();
 	}
 
+	/**
+	 * S-04b's two columns, and the one piece of logic behind them. Both states live on this row rather
+	 * than on the proposal because the <em>user</em> performed them — which is what keeps
+	 * {@code ProposalSelector}'s reading of {@code updated_at} as "last interaction" honest. Withdrawal
+	 * is idempotent for exactly the reason completion is: a full-replace PUT re-asserts it on every
+	 * edit, and a re-stamping {@code withdraw} would move the date each time someone fixed a typo.
+	 */
+	@Test
+	void carriesTheSnoozeAndTheWithdrawalTheUserAskedFor() {
+		UUID userId = persistedUserId();
+		OffsetDateTime withdrawnAt = OffsetDateTime.parse("2026-08-25T09:30:00.123456789Z");
+		Goal saved = goals.saveAndFlush(new Goal(userId, "Wrócić na rower", GoalLayer.GOAL,
+				GoalHorizon.THIS_YEAR, null, LifeDomain.HEALTH));
+
+		saved.snoozeUntil(LocalDate.of(2026, 9, 1));
+		saved.withdraw(withdrawnAt);
+		goals.saveAndFlush(saved);
+
+		Goal reloaded = goals.findByIdAndUserId(saved.getId(), userId).orElseThrow();
+		assertThat(reloaded.getRemindAfter()).isEqualTo(LocalDate.of(2026, 9, 1));
+		assertThat(reloaded.getWithdrawnAt())
+				.isEqualTo(OffsetDateTime.parse("2026-08-25T09:30:00.123456Z"));
+
+		reloaded.withdraw(OffsetDateTime.parse("2026-09-30T12:00:00Z"));
+		assertThat(reloaded.getWithdrawnAt())
+				.as("withdrawing an already-withdrawn entry keeps the moment the user actually said no")
+				.isEqualTo(OffsetDateTime.parse("2026-08-25T09:30:00.123456Z"));
+
+		reloaded.restore();
+		goals.saveAndFlush(reloaded);
+		assertThat(goals.findByIdAndUserId(saved.getId(), userId).orElseThrow().getWithdrawnAt())
+				.as("\"nigdy\" is reversible — that is the whole reason it is a timestamp and not a delete")
+				.isNull();
+	}
+
 	@Test
 	void scopesReadsToTheOwner() {
 		UUID alice = persistedUserId();

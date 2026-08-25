@@ -15,9 +15,16 @@ import com.thedariusz.todoai.category.LifeDomain;
  *
  * <p><b>Full-replace semantics</b>, so one operation covers everything S-02 needs: editing the text,
  * re-categorizing, converting a dream into a goal (and back), and completing or un-completing. That
- * is why {@code completed} is a plain {@code boolean} — an omitted field means "active", not "leave
- * it alone". A PATCH-shaped partial update would need every field boxed and a way to tell "absent"
- * from "explicitly null"; S-02 has no case that needs it.
+ * is why {@code completed} is a plain {@code boolean} rather than a boxed one: a PATCH-shaped partial
+ * update would need every field boxed and a way to tell "absent" from "explicitly null"; S-02 has no
+ * case that needs it.
+ *
+ * <p><b>A primitive here means the client must send it.</b> Jackson 3 (Boot 4) enables
+ * {@code FAIL_ON_NULL_FOR_PRIMITIVES} by default, so an omitted {@code completed} is a 400 rather
+ * than a silent "active" — fail-closed, and the better behaviour, but it makes every new primitive a
+ * <em>breaking</em> wire change that has to land in the same commit as its clients. That is why
+ * S-04b's {@code withdrawn} flag joins this record in the phase that threads it through the SPA, not
+ * in the one that adds {@code goal.withdrawn_at}.
  */
 public record GoalUpdate(
 

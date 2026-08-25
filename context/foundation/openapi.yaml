@@ -735,6 +735,20 @@ components:
           type: [string, 'null']
           format: date-time
           readOnly: true
+        remind_after:
+          # S-04b: the day a quieted entry comes back, inclusive. Written by three of the four
+          # proposal answers (POST /proposals/{id}/answer), never by a goal write — which is why it
+          # appears here and not in GoalUpdate.
+          type: [string, 'null']
+          format: date
+          readOnly: true
+        withdrawn_at:
+          # S-04b "nigdy": the entry is out of the running until it is restored, never deleted. Same
+          # shape as completed_at, and published because the SPA's withdrawn filter is what makes the
+          # answer reversible.
+          type: [string, 'null']
+          format: date-time
+          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -762,8 +776,10 @@ components:
     GoalUpdate:
       type: object
       description: >
-        Full-replace payload. `completed` is not optional-by-omission: an absent value means active,
-        so the same request shape edits, converts, completes and un-completes.
+        Full-replace payload, so the same request shape edits, converts, completes and un-completes.
+        `completed` is not optional-by-omission in either direction: the server answers 400 to a body
+        that leaves it out (Jackson rejects a null for a primitive), so a client that means "still
+        active" sends `false` rather than nothing.
       required: [content, layer]
       properties:
         content:

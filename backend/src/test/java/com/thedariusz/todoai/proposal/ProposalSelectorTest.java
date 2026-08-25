@@ -75,7 +75,7 @@ class ProposalSelectorTest {
 	@Test
 	void putsAMissedTermAheadOfAnyAmountOfSilence() {
 		Candidate overdueTask = new Candidate(id(), GoalLayer.TASK, LifeDomain.FINANCE,
-				NOW.toLocalDate().minusDays(9), NOW, false);
+				NOW.toLocalDate().minusDays(9), NOW, false, null, false);
 		Candidate abandonedDream = entry(GoalLayer.DREAM, LifeDomain.LEISURE, 100);
 
 		assertThat(select(List.of(overdueTask, abandonedDream)))
@@ -88,10 +88,10 @@ class ProposalSelectorTest {
 	void stillBalancesDomainsAmongTheEntriesWhoseTermHasPassed() {
 		// Idle three days: under a task's patience, so both are eligible on their term alone.
 		Candidate lateInABusyDomain = new Candidate(id(), GoalLayer.TASK, LifeDomain.HEALTH,
-				NOW.toLocalDate().minusDays(30), NOW.minusDays(3), false);
+				NOW.toLocalDate().minusDays(30), NOW.minusDays(3), false, null, false);
 		Candidate noiseKeepingHealthAlive = entry(GoalLayer.GOAL, LifeDomain.HEALTH, 0);
 		Candidate lateInAQuietDomain = new Candidate(id(), GoalLayer.TASK, LifeDomain.ADMIN,
-				NOW.toLocalDate().minusDays(1), NOW.minusDays(3), false);
+				NOW.toLocalDate().minusDays(1), NOW.minusDays(3), false, null, false);
 
 		assertThat(select(List.of(lateInABusyDomain, noiseKeepingHealthAlive, lateInAQuietDomain)))
 				.as("promoting missed terms must not switch balancing off inside that tier")
@@ -101,7 +101,7 @@ class ProposalSelectorTest {
 	@Test
 	void neverProposesATaskTheUserFinishedAfterItsTermHadPassed() {
 		Candidate done = new Candidate(id(), GoalLayer.TASK, LifeDomain.HEALTH,
-				NOW.toLocalDate().minusDays(2), NOW, true);
+				NOW.toLocalDate().minusDays(2), NOW, true, null, false);
 
 		assertThat(select(List.of(done)))
 				.as("ticking a late task off must retire it, not pin it to the top of every proposal")
@@ -111,7 +111,8 @@ class ProposalSelectorTest {
 	@Test
 	void countsAnEntryTheUserCompletedTodayAsProofTheDomainIsStillAlive() {
 		Candidate abandonedDream = entry(GoalLayer.DREAM, LifeDomain.HEALTH, 100);
-		Candidate doneToday = new Candidate(id(), GoalLayer.TASK, LifeDomain.HEALTH, null, NOW, true);
+		Candidate doneToday = new Candidate(id(), GoalLayer.TASK, LifeDomain.HEALTH, null, NOW, true,
+				null, false);
 		Candidate quietGoal = entry(GoalLayer.GOAL, LifeDomain.FINANCE, 20);
 
 		assertThat(select(List.of(abandonedDream, doneToday, quietGoal)))
@@ -147,9 +148,39 @@ class ProposalSelectorTest {
 	@Test
 	void ignoresEntriesTheUserHasAlreadyCompleted() {
 		Candidate done = new Candidate(id(), GoalLayer.DREAM, LifeDomain.HEALTH, null,
-				NOW.minusDays(400), true);
+				NOW.minusDays(400), true, null, false);
 
 		assertThat(select(List.of(done))).isEmpty();
+	}
+
+	@Test
+	void neverProposesAnEntryTheUserWithdrew() {
+		assertThat(select(List.of(withdrawn(GoalLayer.DREAM, LifeDomain.HEALTH, 400))))
+				.as("\"nigdy\" is the user speaking — a withdrawn entry is out of the running until "
+						+ "they restore it, however long it then sits")
+				.isEmpty();
+	}
+
+	@Test
+	void stillCountsAWithdrawnEntryAsProofItsDomainWasTouched() {
+		Candidate withdrawnToday = withdrawn(GoalLayer.TASK, LifeDomain.HEALTH, 0);
+		Candidate abandonedDream = entry(GoalLayer.DREAM, LifeDomain.HEALTH, 100);
+		Candidate quietGoal = entry(GoalLayer.GOAL, LifeDomain.FINANCE, 20);
+
+		assertThat(select(List.of(withdrawnToday, abandonedDream, quietGoal)))
+				.as("withdrawing is the user interacting, so the silence map is deliberately left "
+						+ "alone — dropping withdrawn rows from it would hand HEALTH the proposal back "
+						+ "the moment its task went away")
+				.get().extracting(Selection::id).isEqualTo(quietGoal.id());
+	}
+
+	@Test
+	void holdsASnoozedEntryBackUntilTheDayItAskedFor() {
+		assertThat(select(List.of(snoozed(1)))).as("tomorrow is still too early").isEmpty();
+		assertThat(select(List.of(snoozed(0))))
+				.as("remind_after is the day the entry comes back, not the day after it")
+				.isPresent();
+		assertThat(select(List.of(snoozed(-1)))).as("a lapsed snooze holds nothing back").isPresent();
 	}
 
 	@Test
@@ -240,13 +271,24 @@ class ProposalSelectorTest {
 	}
 
 	private Candidate entry(GoalLayer layer, LifeDomain category, long idleDays) {
-		return new Candidate(id(), layer, category, null, NOW.minusDays(idleDays), false);
+		return new Candidate(id(), layer, category, null, NOW.minusDays(idleDays), false, null, false);
+	}
+
+	/** An entry the user answered "nigdy" to, idle the given number of days since. */
+	private Candidate withdrawn(GoalLayer layer, LifeDomain category, long idleDays) {
+		return new Candidate(id(), layer, category, null, NOW.minusDays(idleDays), false, null, true);
+	}
+
+	/** A dream neglected far past its patience, quieted until the given number of days from today. */
+	private Candidate snoozed(long offsetDays) {
+		return new Candidate(id(), GoalLayer.DREAM, LifeDomain.HEALTH, null, NOW.minusDays(100), false,
+				NOW.toLocalDate().plusDays(offsetDays), false);
 	}
 
 	/** A task edited this very moment, carrying a term the given number of days from today. */
 	private Candidate dueToday(long offsetDays) {
 		return new Candidate(id(), GoalLayer.TASK, LifeDomain.HEALTH,
-				NOW.toLocalDate().plusDays(offsetDays), NOW, false);
+				NOW.toLocalDate().plusDays(offsetDays), NOW, false, null, false);
 	}
 
 	private UUID id() {
