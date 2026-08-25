@@ -553,14 +553,14 @@ which is exactly the intended default.
 
 #### Automated
 
-- [x] 1.1 Migration applies cleanly against a fresh container
-- [x] 1.2 Hibernate validates the new mappings
-- [x] 1.3 ProposalSelectorTest — withdrawn, snoozed, boundary day
-- [x] 1.4 ProposalTest — answer-once invariant
-- [x] 1.5 ProposalPersistenceTest — partial unique index
-- [x] 1.6 AccountDeletionIntegrationTest green
-- [x] 1.7 UserOwnedConventionTest green
-- [x] 1.8 /check green
+- [x] 1.1 Migration applies cleanly against a fresh container — 2d8ada1
+- [x] 1.2 Hibernate validates the new mappings — 2d8ada1
+- [x] 1.3 ProposalSelectorTest — withdrawn, snoozed, boundary day — 2d8ada1
+- [x] 1.4 ProposalTest — answer-once invariant — 2d8ada1
+- [x] 1.5 ProposalPersistenceTest — partial unique index — 2d8ada1
+- [x] 1.6 AccountDeletionIntegrationTest green — 2d8ada1
+- [x] 1.7 UserOwnedConventionTest green — 2d8ada1
+- [x] 1.8 /check green — 2d8ada1
 
 #### Manual
 
