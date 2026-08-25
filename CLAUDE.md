@@ -88,7 +88,7 @@ that already appear in the file rather than inventing syntax.
 ## Gotchas
 
 - No `.env` files exist yet; environment config is not implemented. Never read or print `.env` contents.
-- Neither half is scaffold any more: auth/session, categories, the three-layer `goal` aggregate with full CRUD, the proposal selection engine, and the React SPA (routing, guard, auth screens, `/cele`) are all implemented. Read the neighbouring slice before assuming a seam does not exist yet.
+- Neither half is scaffold any more: auth/session, categories, the three-layer `goal` aggregate with full CRUD, the proposal selection engine, and the React SPA (routing, guard, auth screens, `/goals`) are all implemented. Read the neighbouring slice before assuming a seam does not exist yet.
 
 ## Linear workflow (via Linear MCP)
 This repo maps to the **"2doai"** project in my Linear workspace.

@@ -35,8 +35,8 @@ public record GoalResponse(
 
 	/**
 	 * An object at the top level, never a bare array (Zalando #110) — the same wrapper
-	 * {@code CategoryCollection} uses, so a later addition (a count, a cursor once S-08 needs one)
-	 * lands beside {@code items} without breaking clients.
+	 * {@code CategoryCollection} uses, so a later addition (a count, a cursor once the list outgrows
+	 * one round-trip) lands beside {@code items} without breaking clients.
 	 */
 	record GoalCollection(List<GoalResponse> items) {
 	}

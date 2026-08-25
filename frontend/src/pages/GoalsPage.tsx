@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { useOutletContext } from 'react-router'
+import { useOutletContext, useSearchParams } from 'react-router'
 import { ApiError, api } from '../api/client'
 import type { Domain } from '../layout/AppLayout'
 
@@ -40,6 +40,22 @@ const LAYER_LABEL: Record<Goal['layer'], string> = {
   GOAL: 'Cel',
   DREAM: 'Marzenie',
 }
+
+/** The three layers, in the order the screen shows them — the layer filter picks from this list. */
+const SECTIONS = [
+  // Tasks first: it is the layer that gives a reason to open the app on an ordinary day.
+  { layer: 'TASK', title: 'Zadania bieżące' },
+  { layer: 'GOAL', title: 'Cele długoterminowe' },
+  { layer: 'DREAM', title: 'Marzenia' },
+] as const
+
+/**
+ * The category filter's value for `category_code: null`. Not the empty string, because that is
+ * already taken by "no filter at all" — and the distinction is the point: the proposal engine
+ * treats null as one shared bucket, so uncategorised entries are a group a user can ask for, not
+ * an absence to be hidden.
+ */
+const NO_CATEGORY = 'NONE'
 
 /** What both forms send: `GoalCreation` in the spec, and `GoalUpdate` once `completed` is added. */
 type GoalDraft = Pick<Goal, 'content' | 'layer' | 'horizon' | 'due_date' | 'category_code'>
@@ -88,6 +104,22 @@ function messageFor(status: number): string {
 /** The whole S-02 + S-07 screen: all three layers, grouped, completed entries folded away. */
 export function GoalsPage() {
   const domains = useOutletContext<Domain[]>()
+  // The filters live in the query string rather than in React state: a reload, a link pasted to
+  // yourself and coming back to the screen from elsewhere all keep the view for free, and the
+  // controls read from the URL rather than mirroring it, so there is one source of truth.
+  const [params] = useSearchParams()
+  // A layer the app never wrote — a stale bookmark, a link from a later build — falls back to "no
+  // filter", and has to: a controlled `<select>` displays its *first* option when the value matches
+  // none, so an unknown value would otherwise leave the control reading "Wszystkie" over an empty
+  // screen. That is the one state that claims you have no entries while actively hiding them.
+  // Both filter values live lowercased in the URL and uppercased on the wire: the query string
+  // is a link a user reads and edits, the SCREAMING_CASE belongs to the enum behind it.
+  const requested = (params.get('layer') ?? '').toUpperCase()
+  const layer = SECTIONS.some((section) => section.layer === requested) ? requested : ''
+  // `category` deliberately gets no such guard: its options are fetched, so `domains` is still empty
+  // on the first paint and normalising would throw away a perfectly valid `?category=home` on every
+  // load. A stale code is covered by the "nothing matched" message instead.
+  const category = (params.get('category') ?? '').toUpperCase()
   const [goals, setGoals] = useState<Goal[]>([])
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
@@ -160,7 +192,17 @@ export function GoalsPage() {
     remove: (id) => save(api(`/goals/${id}`, { method: 'DELETE' })),
   }
 
-  const sectionProps = { goals, domains, actions }
+  // One predicate over both axes, so `visible.length` is exactly "does anything match the filters"
+  // — the question the empty-state message below has to answer. `layer` still *also* picks which
+  // sections render; `Section` re-filters by layer out of whatever list it is handed, so the extra
+  // pass is idempotent rather than a second opinion that could disagree.
+  const visible = goals.filter(
+    (goal) =>
+      (!category || (goal.category_code || NO_CATEGORY) === category) &&
+      (!layer || goal.layer === layer),
+  )
+
+  const sectionProps = { goals: visible, domains, actions }
 
   return (
     <div className="goals">
@@ -174,11 +216,78 @@ export function GoalsPage() {
         onSubmit={(draft) => save(api('/goals', { method: 'POST', body: draft }))}
       />
 
-      {/* Tasks first: it is the layer that gives a reason to open the app on an ordinary day. */}
-      <Section title="Zadania bieżące" layer="TASK" {...sectionProps} />
-      <Section title="Cele długoterminowe" layer="GOAL" {...sectionProps} />
-      <Section title="Marzenia" layer="DREAM" {...sectionProps} />
+      <Filters domains={domains} />
+
+      {/* An empty list under an active filter is not "you have no entries" — `load`'s failure path
+          refuses that same lie a few lines up. It is also the last honest signal when a stale
+          `?category=` leaves the select reading "Wszystkie". */}
+      {visible.length === 0 && (layer || category) && (
+        <p role="status">Żaden wpis nie pasuje do filtrów.</p>
+      )}
+
+      {/* A filtered-out layer loses its heading along with its entries: an empty
+          "Cele długoterminowe" would read as "you have no goals". */}
+      {SECTIONS.filter((section) => !layer || section.layer === layer).map((section) => (
+        <Section key={section.layer} {...section} {...sectionProps} />
+      ))}
     </div>
+  )
+}
+
+/**
+ * The two filter axes, reading and writing the query string themselves — `useSearchParams` is
+ * context-backed, so this call and the page's see the same URL and there is nothing to pass down
+ * or keep in sync.
+ *
+ * The labels are "Pokaż …" rather than the forms' bare "Rodzaj"/"Kategoria": those names are
+ * already taken by the create form's fields and the edit form's, and three controls answering to
+ * one name is what a screen reader reads out of its form-controls list. The options themselves
+ * reuse `LAYER_LABEL` rather than re-spelling it — note that is a *different* wording from the
+ * section headings ("Zadanie" vs "Zadania bieżące"), and nothing but this comment keeps the two in
+ * step.
+ */
+function Filters({ domains }: { domains: Domain[] }) {
+  const [params, setParams] = useSearchParams()
+
+  function set(key: 'layer' | 'category', value: string) {
+    const next = new URLSearchParams(params)
+    if (value) next.set(key, value.toLowerCase())
+    else next.delete(key)
+    setParams(next, { replace: true })
+  }
+
+  return (
+    <section className="filters" aria-label="Filtry">
+      <label>
+        Pokaż rodzaj
+        <select
+          value={(params.get('layer') ?? '').toUpperCase()}
+          onChange={(event) => set('layer', event.target.value)}
+        >
+          <option value="">Wszystkie</option>
+          {Object.entries(LAYER_LABEL).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Pokaż kategorię
+        <select
+          value={(params.get('category') ?? '').toUpperCase()}
+          onChange={(event) => set('category', event.target.value)}
+        >
+          <option value="">Wszystkie</option>
+          <option value={NO_CATEGORY}>Bez kategorii</option>
+          {domains.map((domain) => (
+            <option key={domain.code} value={domain.code}>
+              {domain.name}
+            </option>
+          ))}
+        </select>
+      </label>
+    </section>
   )
 }
 
@@ -278,7 +387,7 @@ function GoalForm({
           <option value="">Bez kategorii</option>
           {domains.map((domain) => (
             <option key={domain.code} value={domain.code}>
-              {domain.name_pl}
+              {domain.name}
             </option>
           ))}
         </select>
@@ -365,7 +474,7 @@ function Item({
   }
 
   // The wire carries the code; the label lives in the shell data the outlet already handed us.
-  const category = domains.find((domain) => domain.code === goal.category_code)?.name_pl
+  const category = domains.find((domain) => domain.code === goal.category_code)?.name
   const meta = [
     goal.horizon && HORIZON_LABEL[goal.horizon],
     goal.due_date && `do ${goal.due_date}`,

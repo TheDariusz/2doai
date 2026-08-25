@@ -18,6 +18,7 @@ import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.goal.GoalHorizon;
 import com.thedariusz.todoai.goal.GoalLayer;
 import io.restassured.filter.cookie.CookieFilter;
+import io.restassured.response.Response;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -108,6 +109,29 @@ class GoalApiTest extends ApiTestBase {
 				.body("completed_at", nullValue())
 				.body("created_at", notNullValue())
 				.body("updated_at", notNullValue());
+	}
+
+	/**
+	 * Zalando #180 — a 201 says where the created thing lives. {@code POST /users} and
+	 * {@code POST /sessions} have always sent {@code Location}; goals returned the id in the body
+	 * alone, so anything that follows the header rather than parsing the body (a proxy log, a
+	 * generated client, {@code curl -i}) had nothing to follow.
+	 *
+	 * <p>Held against the body's own id rather than a literal path: a header that points at the
+	 * wrong entry is worse than a missing one, and only a comparison catches that.
+	 */
+	@Test
+	void pointsAtTheCreatedEntryWithALocationHeader() {
+		givenLoggedInUser();
+
+		Response created = csrfAware()
+				.body(goalPayload("Przebiec półmaraton", "GOAL", "THIS_YEAR", "HEALTH"))
+				.when()
+				.post("/api/goals");
+
+		created.then().statusCode(201);
+		assertThat(created.header("Location"))
+				.isEqualTo("/api/goals/" + created.jsonPath().getString("id"));
 	}
 
 	@Test

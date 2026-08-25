@@ -19,8 +19,9 @@ import org.springframework.data.repository.Repository;
  * methods below are the entire surface, so the isolation contract holds by construction instead of by
  * convention.
  *
- * <p>Unparameterized list + client-side grouping is deliberate at single-user scale; S-08 owns the
- * real filter contract.
+ * <p>Unparameterized list + client-side grouping is deliberate at single-user scale — S-08 filters
+ * by layer and category in the browser rather than here. A parameterized finder waits for a list
+ * that outgrows one round-trip.
  */
 public interface GoalRepository extends Repository<Goal, UUID> {
 

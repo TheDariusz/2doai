@@ -36,7 +36,7 @@ Three invariants about the 11 life domains are documented in prose and enforced 
 
 A change to any one of `LifeDomain`, the Flyway seed, `openapi.yaml`, or the SPA fixture that is not carried to the others fails a test. Adding a 12th domain via an expand-only migration boots cleanly on both the new and the previous image. `openapi.yaml` lives at a path that survives archiving.
 
-Verify by making each of these edits in a scratch commit and confirming a red test, then reverting: reorder two constants in `LifeDomain`; change one code in the anchor's `x-extensible-enum`; change one `name_pl` in the SPA fixture.
+Verify by making each of these edits in a scratch commit and confirming a red test, then reverting: reorder two constants in `LifeDomain`; change one code in the anchor's `x-extensible-enum`; change one `name` in the SPA fixture.
 
 ## What We're NOT Doing
 
@@ -178,7 +178,9 @@ One test that reads the anchor and the SPA fixture and holds both against `LifeD
 
 1. The anchor's `x-extensible-enum` list equals `LifeDomain.values()` in declaration order. Parse with SnakeYAML at `components.schemas.Category.properties.code.x-extensible-enum` — see Critical Implementation Details on why not to grep.
 2. The SPA fixture's codes, in file order, equal `LifeDomain.values()` in declaration order.
-3. The SPA fixture's `name_pl` values match the seeded rows' labels. This is what stops the frontend suite asserting labels that no longer exist in production.
+3. The SPA fixture's `name` values match the seeded rows' labels. (The wire field was `name_pl`
+   when this plan was written; the DEV-28 contract pass renamed it to `name` — the column is still
+   `name_pl`, so the guard compares the seed's `name_pl` against the fixture's `name`.) This is what stops the frontend suite asserting labels that no longer exist in production.
 
 Paths are relative to the backend module, as the `AuthApiTest:295` precedent establishes: `../context/foundation/openapi.yaml`, `../frontend/src/layout/AppLayout.test.tsx`. Each assertion carries an `.as(...)` description naming *which* file must change to fix it — a bare list-inequality failure is unreadable across three sources.
 
@@ -196,7 +198,7 @@ Paths are relative to the backend module, as the `AuthApiTest:295` precedent est
 
 - The new test passes: `mvn test -Dtest=CategoryContractTest`
 - It fails on anchor drift: temporarily change one code in `context/foundation/openapi.yaml`, confirm red, revert
-- It fails on fixture drift: temporarily change one `name_pl` in `AppLayout.test.tsx`, confirm red, revert
+- It fails on fixture drift: temporarily change one `name` in `src/test/domains.ts`, confirm red, revert
 - Full gate passes: `/check`
 
 #### Manual Verification:
@@ -223,7 +225,7 @@ Paths are relative to the backend module, as the `AuthApiTest:295` precedent est
 
 1. Reorder two `LifeDomain` constants → `mvn test` goes red on the pairing test. Revert.
 2. Change one code in `context/foundation/openapi.yaml` → `CategoryContractTest` red. Revert.
-3. Change one `name_pl` in `AppLayout.test.tsx` → `CategoryContractTest` red, and note that `npm test` alone stays **green** — that contrast is the whole point of the guard.
+3. Change one `name` in `src/test/domains.ts` → `CategoryContractTest` red, and note that `npm test` alone stays **green** — that contrast is the whole point of the guard.
 
 ## Performance Considerations
 

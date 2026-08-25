@@ -12,7 +12,7 @@ const fetchMock = vi.fn()
 beforeEach(() => {
   fetchMock.mockReset()
   fetchMock.mockResolvedValue(
-    response(200, { items: [{ code: 'LEISURE', name_pl: 'Czas wolny i hobby' }] }),
+    response(200, { items: [{ code: 'LEISURE', name: 'Czas wolny i hobby' }] }),
   )
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -52,7 +52,7 @@ function renderApp(path: string, initial: Auth['status'] = 'anonymous') {
 
 describe('AppRoutes', () => {
   it('returns a bounced visitor to the deep link they asked for, query string and all', async () => {
-    renderApp('/domena/LEISURE?widok=tydzien')
+    renderApp('/domain/leisure?view=week')
     const user = userEvent.setup()
 
     expect(await screen.findByRole('heading', { name: 'Zaloguj się' })).toBeInTheDocument()
@@ -62,7 +62,7 @@ describe('AppRoutes', () => {
 
     // Not '/' — the whole location, query included, survives the round trip through /login.
     expect(await screen.findByRole('heading', { name: 'Czas wolny i hobby' })).toBeInTheDocument()
-    expect(await screen.findByTestId('location')).toHaveTextContent('/domena/LEISURE?widok=tydzien')
+    expect(await screen.findByTestId('location')).toHaveTextContent('/domain/leisure?view=week')
   })
 
   it('sends an unknown path home, and an anonymous visitor on to /login', async () => {

@@ -16,7 +16,7 @@ incidents we hit and how we recovered.
 
 The version-controlled plumbing already lives in the repo:
 - `backend/Dockerfile`, `backend/fly.toml`, `backend/.dockerignore`
-- `backend/.../PingController.java` — `GET /api/v1/ping` smoke route (proves the proxy chain)
+- `backend/.../PingController.java` — `GET /api/ping` smoke route (proves the proxy chain)
 - `frontend/functions/api/[[path]].ts` — Pages Function that reverse-proxies `/api/*` to Fly
 - `frontend/wrangler.toml` — `BACKEND_ORIGIN = https://2doai.fly.dev`
 - `frontend/vite.config.ts` — dev proxy `/api → localhost:8080`
@@ -75,7 +75,7 @@ Verify:
 fly status
 fly logs
 curl https://2doai.fly.dev/actuator/health    # → {"status":"UP"}
-curl https://2doai.fly.dev/api/v1/ping         # → {"status":"ok"}
+curl https://2doai.fly.dev/api/ping         # → {"status":"ok"}
 ```
 
 > **Machine count gotcha.** Fly's HA default created **2 machines** on first deploy.
@@ -107,7 +107,7 @@ wrangler pages project create 2doai-web   # only if not auto-created above
 Verify the Pattern B chain through the Pages URL (before the custom domain exists):
 
 ```bash
-curl https://2doai-web.pages.dev/api/v1/ping    # → {"status":"ok"}  (proxied to Fly)
+curl https://2doai-web.pages.dev/api/ping    # → {"status":"ok"}  (proxied to Fly)
 ```
 
 ---
@@ -233,7 +233,7 @@ The domain was registered (in Cloudflare) and connected to the Pages project:
 Verify end-to-end on the real origin:
 
 ```bash
-curl https://2doai.app/api/v1/ping     # → {"status":"ok"}  (Cloudflare → Pages Function → Fly)
+curl https://2doai.app/api/ping     # → {"status":"ok"}  (Cloudflare → Pages Function → Fly)
 curl -I https://2doai.app/             # → 200, serves the SPA from the CDN
 ```
 
@@ -333,7 +333,7 @@ with the new config. No user-visible change; confirm the app boots with the secr
 
 ```bash
 curl https://2doai.fly.dev/actuator/health    # → {"status":"UP"}  (liveness stays UP)
-curl https://2doai.app/api/v1/ping             # → {"status":"ok"}  (full chain still green)
+curl https://2doai.app/api/ping             # → {"status":"ok"}  (full chain still green)
 ```
 
 ---
@@ -343,9 +343,9 @@ curl https://2doai.app/api/v1/ping             # → {"status":"ok"}  (full chai
 | Check | Command | Expected |
 | --- | --- | --- |
 | Backend health (direct) | `curl https://2doai.fly.dev/actuator/health` | `{"status":"UP"}` |
-| Backend smoke (direct) | `curl https://2doai.fly.dev/api/v1/ping` | `{"status":"ok"}` |
-| Proxy via Pages URL | `curl https://2doai-web.pages.dev/api/v1/ping` | `{"status":"ok"}` |
-| Proxy via custom domain | `curl https://2doai.app/api/v1/ping` | `{"status":"ok"}` |
+| Backend smoke (direct) | `curl https://2doai.fly.dev/api/ping` | `{"status":"ok"}` |
+| Proxy via Pages URL | `curl https://2doai-web.pages.dev/api/ping` | `{"status":"ok"}` |
+| Proxy via custom domain | `curl https://2doai.app/api/ping` | `{"status":"ok"}` |
 | SPA served | `curl -I https://2doai.app/` | `200` |
 | One machine, always-on | `fly status` | 1 machine, `started`, not auto-stopping |
 
@@ -353,9 +353,9 @@ curl https://2doai.app/api/v1/ping             # → {"status":"ok"}  (full chai
 
 ## Incidents & recovery (what actually went wrong)
 
-### Incident 1 — `/api/v1/ping` failed; direct Fly URL also down
+### Incident 1 — `/api/ping` failed; direct Fly URL also down
 
-**Symptom:** `curl https://2doai.app/api/v1/ping` failed and `curl https://2doai.fly.dev/api/v1/ping`
+**Symptom:** `curl https://2doai.app/api/ping` failed and `curl https://2doai.fly.dev/api/ping`
 was also failing — consistently, not intermittently.
 
 **Diagnosis:** isolating the curls showed the *backend itself* was down, not the proxy.
@@ -368,7 +368,7 @@ traffic enters via a European edge, and the symptom was steady rather than flapp
 ```bash
 fly status                       # find the machine id, see Suspended/stopped state
 fly machine start <machine-id>
-curl https://2doai.fly.dev/api/v1/ping   # → 200 once it boots
+curl https://2doai.fly.dev/api/ping   # → 200 once it boots
 ```
 
 > The suspension root cause is billing/trust, **not** our config (the `fly.toml` is proven
@@ -387,8 +387,8 @@ curl https://2doai.fly.dev/api/v1/ping   # → 200 once it boots
 ```bash
 fly machine start <surviving-machine-id>
 # poll health until green:
-curl https://2doai.fly.dev/api/v1/ping       # → 200
-curl https://2doai.app/api/v1/ping           # → 200
+curl https://2doai.fly.dev/api/ping       # → 200
+curl https://2doai.app/api/ping           # → 200
 ```
 
 **Lesson:** `fly scale count` doesn't let you choose *which* machine survives. Safer path to

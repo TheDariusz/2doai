@@ -1,5 +1,6 @@
 import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Goal } from './GoalsPage'
 import { AppRoutes } from '../App'
@@ -73,8 +74,20 @@ function mutations() {
   return fetchMock.mock.calls.filter(([, init]) => init?.method && init.method !== 'GET')
 }
 
-function renderGoals() {
-  renderWithAuth(<AppRoutes />, { path: '/cele', auth: stubAuth(LOGGED_IN) })
+/** Renders the current URL, so the filters' *writes* can be asserted and not just their reads. */
+function LocationProbe() {
+  const { pathname, search } = useLocation()
+  return <span data-testid="location">{pathname + search}</span>
+}
+
+function renderGoals(path = '/goals') {
+  renderWithAuth(
+    <>
+      <AppRoutes />
+      <LocationProbe />
+    </>,
+    { path, auth: stubAuth(LOGGED_IN) },
+  )
 }
 
 /** The `<section>` a heading belongs to, so item assertions cannot match the other layer's list. */
@@ -279,7 +292,7 @@ describe('GoalsPage — dodawanie', () => {
 
     expect(options.map((option) => option.textContent)).toEqual([
       'Bez kategorii',
-      ...DOMAINS.map((domain) => domain.name_pl),
+      ...DOMAINS.map((domain) => domain.name),
     ])
   })
 })
@@ -569,5 +582,148 @@ describe('GoalsPage — nieudany zapis', () => {
 
     await screen.findByRole('alert')
     expect(logged).toHaveBeenCalled()
+  })
+})
+
+/**
+ * The filter controls, scoped by the region's accessible name. The labels are deliberately not the
+ * forms' own "Rodzaj"/"Kategoria" — three controls sharing one name is what a screen-reader rotor
+ * would read out — so these queries would resolve unscoped too; the region keeps them pinned to the
+ * filters anyway, so a future form field carrying the same name cannot silently capture them.
+ */
+function filters() {
+  return within(screen.getByRole('region', { name: 'Filtry' }))
+}
+
+describe('GoalsPage — filtry', () => {
+  it('shows one layer at a time, heading and all, when narrowed by rodzaj', async () => {
+    stubApi([RUN, JAPAN, ELECTRICITY])
+    const user = userEvent.setup()
+
+    renderGoals()
+    await screen.findByText('Przebiec półmaraton')
+    await user.selectOptions(filters().getByLabelText('Pokaż rodzaj'), 'TASK')
+
+    expect(screen.getByText('Zapłacić za prąd')).toBeInTheDocument()
+    expect(screen.queryByText('Przebiec półmaraton')).not.toBeInTheDocument()
+    // The heading goes with its entries: an empty "Cele długoterminowe" would read as "no goals".
+    expect(screen.queryByRole('heading', { name: 'Cele długoterminowe' })).not.toBeInTheDocument()
+  })
+
+  it('narrows by category across all three layers at once', async () => {
+    stubApi([RUN, JAPAN, ELECTRICITY])
+    const user = userEvent.setup()
+
+    renderGoals()
+    await screen.findByText('Przebiec półmaraton')
+    await user.selectOptions(filters().getByLabelText('Pokaż kategorię'), 'HEALTH')
+
+    expect(screen.getByText('Przebiec półmaraton')).toBeInTheDocument()
+    expect(screen.queryByText('Zapłacić za prąd')).not.toBeInTheDocument()
+    // An uncategorised entry is not a match for every category: picking one has to hide it, or
+    // "Bez kategorii" would be the only choice that ever changes what a null-category entry does.
+    expect(screen.queryByText('Pojechać do Japonii')).not.toBeInTheDocument()
+    // Category narrows the list without touching the layer split — the sections all still render,
+    // empty ones included. That is the deliberate asymmetry with the `rodzaj` filter above.
+    expect(screen.getByRole('heading', { name: 'Marzenia' })).toBeInTheDocument()
+  })
+
+  /**
+   * Both selects write to one query string, so each has to merge rather than replace — `set()`
+   * copies `params` for exactly that. Nothing else in the suite picks a second filter, so without
+   * this the copy could become a fresh `URLSearchParams` and every test would stay green while the
+   * first filter silently cleared itself on the next pick.
+   */
+  it('keeps the axis already chosen when the second filter is picked', async () => {
+    stubApi([RUN, JAPAN, ELECTRICITY])
+    const user = userEvent.setup()
+
+    renderGoals()
+    await screen.findByText('Przebiec półmaraton')
+    await user.selectOptions(filters().getByLabelText('Pokaż rodzaj'), 'TASK')
+    await user.selectOptions(filters().getByLabelText('Pokaż kategorię'), 'HOME')
+
+    expect(filters().getByLabelText('Pokaż rodzaj')).toHaveValue('TASK')
+    expect(screen.getByText('Zapłacić za prąd')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Marzenia' })).not.toBeInTheDocument()
+    // Lowercase in the link, SCREAMING_CASE on the wire: a URL is read, typed and shared by a
+    // person. Reading is case-insensitive, so only this assertion can catch a write that is not.
+    expect(screen.getByTestId('location')).toHaveTextContent('/goals?layer=task&category=home')
+  })
+
+  /**
+   * `category_code` is nullable and the proposal engine treats null as one shared bucket, not as
+   * eleven absences. Uncategorised entries therefore get a choice of their own: without it they are
+   * reachable only by clearing the filter, which is indistinguishable from "there are none".
+   */
+  it('keeps uncategorised entries reachable, under an explicit choice of their own', async () => {
+    stubApi([RUN, JAPAN, ELECTRICITY])
+    const user = userEvent.setup()
+
+    renderGoals()
+    await screen.findByText('Przebiec półmaraton')
+    await user.selectOptions(filters().getByLabelText('Pokaż kategorię'), 'NONE')
+
+    expect(screen.getByText('Pojechać do Japonii')).toBeInTheDocument()
+    expect(screen.queryByText('Przebiec półmaraton')).not.toBeInTheDocument()
+    expect(screen.queryByText('Zapłacić za prąd')).not.toBeInTheDocument()
+  })
+
+  /**
+   * The filters live in the query string, not in React state: a reload, a back button and a link
+   * pasted to yourself all land on the same view for no code of ours.
+   */
+  it('reads both filters off the URL, so a reload or a shared link lands on the same view', async () => {
+    stubApi([RUN, JAPAN, ELECTRICITY])
+
+    renderGoals('/goals?layer=task&category=home')
+
+    expect(await screen.findByText('Zapłacić za prąd')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Marzenia' })).not.toBeInTheDocument()
+    expect(filters().getByLabelText('Pokaż rodzaj')).toHaveValue('TASK')
+    expect(filters().getByLabelText('Pokaż kategorię')).toHaveValue('HOME')
+  })
+
+  /**
+   * A `layer` the app never wrote — a stale bookmark, a link from a later build — must not empty the
+   * screen. A controlled `<select>` whose value matches no option falls back to its first option, so
+   * an un-normalised bogus value renders a control reading "Wszystkie" over nothing at all: the one
+   * state that says "you have no entries" while actively hiding them. Falling back to no filter is
+   * the only outcome the control can honestly display.
+   */
+  it('falls back to showing everything when the URL names a layer that does not exist', async () => {
+    stubApi([RUN, JAPAN, ELECTRICITY])
+
+    renderGoals('/goals?layer=bogus')
+
+    expect(await screen.findByText('Przebiec półmaraton')).toBeInTheDocument()
+    expect(screen.getByText('Pojechać do Japonii')).toBeInTheDocument()
+    expect(screen.getByText('Zapłacić za prąd')).toBeInTheDocument()
+    expect(filters().getByLabelText('Pokaż rodzaj')).toHaveValue('')
+  })
+
+  /**
+   * `category` cannot be normalised the same way: its options come from the shell's fetched domains,
+   * so an unresolved or failed `/api/categories` would throw away a perfectly valid `?category=home`
+   * on every first paint. The message is what covers it — and it is the one signal that still tells
+   * the truth when a stale code leaves the select reading "Wszystkie".
+   */
+  it('says nothing matched rather than showing an empty list as if there were no entries', async () => {
+    stubApi([RUN, JAPAN, ELECTRICITY])
+
+    renderGoals('/goals?layer=dream&category=home')
+
+    expect(await screen.findByText(/Żaden wpis nie pasuje do filtrów/)).toBeInTheDocument()
+    expect(screen.queryByText('Pojechać do Japonii')).not.toBeInTheDocument()
+  })
+
+  /** An empty list with no filter applied really is "you have no entries" — do not contradict it. */
+  it('stays quiet about filters when the list is simply empty', async () => {
+    stubApi([])
+
+    renderGoals()
+
+    expect(await screen.findByRole('form', { name: 'Nowy wpis' })).toBeInTheDocument()
+    expect(screen.queryByText(/Żaden wpis nie pasuje do filtrów/)).not.toBeInTheDocument()
   })
 })

@@ -3,8 +3,11 @@ import { NavLink, Outlet } from 'react-router'
 import { api } from '../api/client'
 import { AccountMenu } from '../auth/AccountMenu'
 
-/** A row of the `categories` resource — snake_case straight off the wire. */
-export type Domain = { code: string; name_pl: string }
+/**
+  * A row of the `categories` resource — snake_case straight off the wire. `name` carries whichever
+  * language the server chose (Polish today); the SPA renders it and never picks a locale itself.
+  */
+export type Domain = { code: string; name: string }
 
 /**
  * The authenticated shell. The 11 life domains come from the server rather than a hard-coded list,
@@ -35,12 +38,12 @@ export function AppLayout() {
       <nav aria-label="Nawigacja">
         <ul>
           <li>
-            <NavLink to="/cele">Zadania, cele i marzenia</NavLink>
+            <NavLink to="/goals">Zadania, cele i marzenia</NavLink>
           </li>
           {failed && <li>Nie udało się wczytać domen — odśwież stronę.</li>}
           {domains.map((domain) => (
             <li key={domain.code}>
-              <NavLink to={`/domena/${domain.code}`}>{domain.name_pl}</NavLink>
+              <NavLink to={`/domain/${domain.code.toLowerCase()}`}>{domain.name}</NavLink>
             </li>
           ))}
         </ul>
