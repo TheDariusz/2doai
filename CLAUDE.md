@@ -36,6 +36,14 @@ Frontend (run from `frontend/`):
 - Persistence: **PostgreSQL via Spring Data JPA / Hibernate.**
 - TypeScript runs strict (`noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`). ESLint flat config in `eslint.config.js`; no Prettier — `eslint --fix` is the formatter.
 - Git: project targets GitHub. Use feature branches, conventional commit messages, and PRs to merge.
+- **Localization (PL + EN) is planned; Polish is the only locale today.** User-facing copy is
+  therefore hardcoded, but it is *content*, never the name of a concept: comments, javadoc, test
+  names and docs must refer to the enum constant or the behaviour (`NEVER`, "withdrawn"), never to
+  the button label ("nigdy"). A Polish string quoted as if it were the identity of a thing goes
+  stale the day a second locale lands. Keep locale-bound logic in one place per surface —
+  `proposal/ProposalPrompt` and `proposal/ProposalTemplate` on the backend, component copy on the
+  frontend — and describe server-generated text in the spec the way `Category.name` already does
+  ("in the language the server picked — Polish today"), not as "Polish prose".
 
 ### Persistence
 

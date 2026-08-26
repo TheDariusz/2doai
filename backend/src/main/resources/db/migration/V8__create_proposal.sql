@@ -1,7 +1,7 @@
 -- The proactive loop's memory (S-04b, FR-013/FR-018): one row per proposal the user was actually
 -- shown, and what they answered. Persisted rather than computed on the fly for two reasons — a
--- second press of "daj mi coś teraz" must return the same proposal instead of paying for a second
--- model call, and FR-018's at-most-one-pending rule needs somewhere to be true.
+-- second press of the "give me something now" button must return the same proposal instead of
+-- paying for a second model call, and FR-018's at-most-one-pending rule needs somewhere to be true.
 --
 -- Expand-only and safe under an image rollback: the table is inert to the previous image, and both
 -- new `goal` columns are nullable so it still inserts.
@@ -23,8 +23,8 @@ CREATE TABLE proposal (
     -- capped VARCHAR: a model writes it, and truncating a generated sentence mid-word is worse than
     -- storing a long one.
     message        TEXT        NOT NULL,
-    -- The engine's reason, frozen at the moment of phrasing — the message quotes it ("minęło osiem
-    -- miesięcy"), so recomputing it later would leave the prose and the number disagreeing.
+    -- The engine's reason, frozen at the moment of phrasing — the message spells this number out in
+    -- words, so recomputing it later would leave the prose and the number disagreeing.
     neglected_days INTEGER     NOT NULL,
     -- LLM or TEMPLATE: which arm produced the message. A demo has to be able to tell a real Sonnet
     -- proposal from the fallback the LlmException catch arm writes.

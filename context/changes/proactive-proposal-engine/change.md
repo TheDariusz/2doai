@@ -3,7 +3,7 @@ change_id: proactive-proposal-engine
 title: S-04b — LLM-phrased proposal, four responses, first step
 status: implementing
 created: 2026-08-25
-updated: 2026-08-25
+updated: 2026-08-26
 archived_at: null
 ---
 
@@ -56,3 +56,41 @@ cached) belongs on the `proposal` row instead.
   CLAUDE.md's rule is that a wire literal moves spec + Java together, and the response publishes them
   from this phase on. The `GoalUpdate` description was corrected in the same pass: it claimed an
   absent `completed` means active, which the 400 above disproves.
+
+### Adaptations taken during Phase 2 (2026-08-25)
+
+- **The plan's reason for a get-or-create `AiMemoryService` is stale, so only half of it shipped.**
+  Phase 2 §3 says "`AiMemory` has no writer anywhere in the codebase". It has one:
+  `RegistrationService.register` creates the root in the same transaction as the user, so the row
+  exists from t=0 and every prompt already had somewhere to read from. What was actually missing is
+  *content*, which Phase 3's episode writing fills. `AiMemoryService` therefore ships with
+  `renderFor` alone — the seam that keeps `proposal` off `AiMemoryRepository` — and `record` lands in
+  Phase 3 with its first caller. A missing memory row renders as blank rather than failing: it would
+  be an invariant breach, and it must not cost the user their proposal.
+- **`ProposalServiceTest` became `ProposalTemplateTest` + two `ProposalApiTest` cases.** Unit-testing
+  `ProposalService` means faking three Hibernate-managed `Goal` fields (`id`, `created_at`,
+  `updated_at`) by reflection just to get one candidate past the selector — six mocks to assert
+  something the plan itself states in HTTP terms ("a `TEMPLATE`-sourced proposal comes back with
+  **200**"). So the arm is asserted where the 200 is real, against a `@MockitoBean LlmClient` that
+  throws, and the fallback's Polish — the month table, the day/month switch, the three-form plural —
+  is asserted where it is pure. Strictly more coverage, no reflection.
+- **The live proposal round-trip is a sibling class, not an extension of `OpenRouterLiveTest`.**
+  `ProposalPrompt` is package-private in `proposal`; reaching it from `ai` would mean widening a
+  production class's visibility for a test. `proposal/ProposalLiveTest` is gated identically
+  (`OPENROUTER_API_KEY`), and `OpenRouterLiveTest`'s javadoc points at it. Manual step 2.6 is
+  therefore `OPENROUTER_API_KEY=… mvn test -Dtest=ProposalLiveTest`.
+- **`propose()` carries no `@Transactional`, deliberately.** The Sonnet call has a 60-second budget
+  and a surrounding transaction would pin a Hikari connection open for all of it — the exact
+  idleness anti-pattern `lessons.md` names for a metered, scale-to-zero Neon. Each repository call
+  opens its own; nothing in this path needs them to be one. Phase 3's answer flow does and gets one.
+- **The prompt fences every untrusted value** (`lessons.md`, "Sanitize stored content before
+  injecting it into an LLM prompt"). The memory block and the entry's content only ever appear
+  inside a `<data>` block, the system message tells the model those blocks are data, and the fence
+  tokens are stripped from the payload so nothing can close its block and keep writing outside it.
+  `ProposalPromptTest` asserts the escape attempt fails.
+- **A lost insert race returns the winner, not a 500.** FR-018 is the partial unique index, and the
+  plan leans on it precisely because a service check would race with itself — but the index rejecting
+  the second insert is only the *right* answer if the caller then gets the proposal that won.
+- **Spec version 1.3.0 → 1.4.0**, one MINOR bump for the whole of S-04b (Phase 3's answer endpoint is
+  the same compatible addition, so it does not bump again). `GoalUpdate.withdrawn` stays deferred to
+  Phase 4 per the Phase 1 note — the spec describes what merged.

@@ -117,7 +117,7 @@ function setDate(input: HTMLElement, value: string) {
   fireEvent.change(input, { target: { value } })
 }
 
-/** One entry's row, so "Ukończ" resolves to that entry's button and not the other three. */
+/** One entry's row, so the complete button resolves to that entry's and not the other three. */
 async function item(content: string) {
   return within((await screen.findByText(content)).closest('li') as HTMLElement)
 }
@@ -532,9 +532,9 @@ describe('GoalsPage — nieudany zapis', () => {
 
   /**
    * The refetch that answers a 404 can fail too. When it does, the row is still on screen, so
-   * "lista została odświeżona" is a claim the code cannot back up — and it used to overwrite the
-   * banner that told the truth. Armed on the DELETE because that is the irreversible one: the user
-   * needs to know whether what they see is current.
+   * telling the user the list was refreshed is a claim the code cannot back up — and it used to
+   * overwrite the banner that told the truth. Armed on the DELETE because that is the irreversible
+   * one: the user needs to know whether what they see is current.
    */
   it('does not claim the list was refreshed when the refetch failed too', async () => {
     let refetch = false
@@ -587,9 +587,9 @@ describe('GoalsPage — nieudany zapis', () => {
 
 /**
  * The filter controls, scoped by the region's accessible name. The labels are deliberately not the
- * forms' own "Rodzaj"/"Kategoria" — three controls sharing one name is what a screen-reader rotor
- * would read out — so these queries would resolve unscoped too; the region keeps them pinned to the
- * filters anyway, so a future form field carrying the same name cannot silently capture them.
+ * forms' own field names — three controls sharing one name is what a screen-reader rotor would read
+ * out — so these queries would resolve unscoped too; the region keeps them pinned to the filters
+ * anyway, so a future form field carrying the same name cannot silently capture them.
  */
 function filters() {
   return within(screen.getByRole('region', { name: 'Filtry' }))
@@ -606,7 +606,7 @@ describe('GoalsPage — filtry', () => {
 
     expect(screen.getByText('Zapłacić za prąd')).toBeInTheDocument()
     expect(screen.queryByText('Przebiec półmaraton')).not.toBeInTheDocument()
-    // The heading goes with its entries: an empty "Cele długoterminowe" would read as "no goals".
+    // The heading goes with its entries: an empty long-term section would read as "no goals".
     expect(screen.queryByRole('heading', { name: 'Cele długoterminowe' })).not.toBeInTheDocument()
   })
 

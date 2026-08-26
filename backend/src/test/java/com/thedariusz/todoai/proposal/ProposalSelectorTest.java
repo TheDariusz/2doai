@@ -274,7 +274,7 @@ class ProposalSelectorTest {
 		return new Candidate(id(), layer, category, null, NOW.minusDays(idleDays), false, null, false);
 	}
 
-	/** An entry the user answered "nigdy" to, idle the given number of days since. */
+	/** An entry the user answered NEVER to, idle the given number of days since. */
 	private Candidate withdrawn(GoalLayer layer, LifeDomain category, long idleDays) {
 		return new Candidate(id(), layer, category, null, NOW.minusDays(idleDays), false, null, true);
 	}

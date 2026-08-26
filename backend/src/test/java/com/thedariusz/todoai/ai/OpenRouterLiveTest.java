@@ -27,6 +27,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * (Docker must be running — the full-context boot brings up the Testcontainers Postgres, same as
  * the other integration tests.)
  *
+ * <p>S-04b's proposal wording has its own gated sibling, {@code proposal.ProposalLiveTest} — it
+ * lives in that package because the prompt builder is package-private there. Run both when checking
+ * the model by hand.
+ *
  * <p>Both tests target <strong>Sonnet</strong> only — proving {@code json_schema strict} on
  * Sonnet ({@code ai-provider.md} item b-on-Sonnet). Haiku's strict support and the Polish A/B
  * (items b-on-Haiku, c) are deferred to S-09. Prompts are intentionally tiny to keep token use

@@ -11,15 +11,15 @@ package com.thedariusz.todoai.proposal;
  */
 public enum ProposalAnswer {
 
-	/** "Zaczynam" — FR-014's first step follows, and the entry is quieted for a week. */
+	/** Starting now: FR-014's first step follows, and the entry is quieted for a week. */
 	STARTING,
 
-	/** "Nie teraz" — a short snooze, no date asked for. */
+	/** Not now: a short snooze, no date asked for. */
 	NOT_NOW,
 
-	/** "Przypomnij za 7/30/90 dni" — the same snooze, with the user naming the term. */
+	/** Remind me in 7/30/90 days: the same snooze, with the user naming the term. */
 	REMIND_LATER,
 
-	/** "Nigdy" — withdrawn: out of the running until the user restores it. */
+	/** Never: withdrawn, out of the running until the user restores it. */
 	NEVER
 }

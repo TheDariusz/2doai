@@ -239,12 +239,12 @@ export function GoalsPage() {
  * context-backed, so this call and the page's see the same URL and there is nothing to pass down
  * or keep in sync.
  *
- * The labels are "Pokaż …" rather than the forms' bare "Rodzaj"/"Kategoria": those names are
+ * The labels are phrased as "show …" rather than reusing the forms' bare field names: those are
  * already taken by the create form's fields and the edit form's, and three controls answering to
  * one name is what a screen reader reads out of its form-controls list. The options themselves
  * reuse `LAYER_LABEL` rather than re-spelling it — note that is a *different* wording from the
- * section headings ("Zadanie" vs "Zadania bieżące"), and nothing but this comment keeps the two in
- * step.
+ * section headings (a layer names one entry, a heading names the group), and nothing but this
+ * comment keeps the two in step.
  */
 function Filters({ domains }: { domains: Domain[] }) {
   const [params, setParams] = useSearchParams()

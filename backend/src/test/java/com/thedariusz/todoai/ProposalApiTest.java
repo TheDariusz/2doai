@@ -4,11 +4,23 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.thedariusz.todoai.ai.LlmClient;
+import com.thedariusz.todoai.ai.LlmException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * End-to-end HTTP tests of the proposals resource (S-04a, FR-015) — the engine reached through the
@@ -20,10 +32,26 @@ import static org.hamcrest.Matchers.equalTo;
  * genuinely produce over the wire — which is also why the layer that carries one feeds the
  * heuristic. The thresholds themselves belong to {@code ProposalSelectorTest}, where they cost
  * nothing to state.
+ *
+ * <p>The model is a {@link MockitoBean}: a real OpenRouter call would make the suite non-hermetic
+ * and cost credits per run, and what these tests are about is the wiring around the call — how often
+ * it happens, and what the endpoint answers when it fails. The prompt itself is asserted without a
+ * container in {@code ProposalPromptTest}, the fallback's Polish in {@code ProposalTemplateTest},
+ * and the live round-trip is the gated {@code OpenRouterLiveTest}.
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ProposalApiTest extends ApiTestBase {
+
+	private static final String PHRASED = "Zauważyłem, że ta rzecz leży odłogiem. Wracamy do niej?";
+
+	@MockitoBean
+	private LlmClient llm;
+
+	@BeforeEach
+	void phraseEveryProposal() {
+		when(llm.complete(any())).thenReturn(PHRASED);
+	}
 
 	/** A HashMap, not Map.of — a non-TASK layer's absent fields are explicit JSON nulls. */
 	private static Map<String, Object> task(String content, String category, LocalDate dueDate) {
@@ -63,7 +91,43 @@ class ProposalApiTest extends ApiTestBase {
 				.body("entry.id", equalTo(overdue))
 				.body("entry.content", equalTo("Oddać książkę"))
 				.body("entry.layer", equalTo("TASK"))
-				.body("neglected_days", equalTo(0));
+				.body("neglected_days", equalTo(0))
+				.body("id", notNullValue())
+				.body("message", equalTo(PHRASED))
+				.body("source", equalTo("LLM"))
+				.body("answer", equalTo(null))
+				.body("first_step", equalTo(null));
+	}
+
+	@Test
+	void returnsThePendingProposalAgainRatherThanPayingForASecondOne() {
+		givenLoggedInUser();
+		createTask(task("Oddać książkę", "EDUCATION", LocalDate.now().minusDays(2)));
+
+		String first = csrfAware().when().post("/api/proposals").then().statusCode(200)
+				.extract().path("id");
+
+		// FR-018 under a manual trigger: the second press is the same card, not a second Sonnet call.
+		csrfAware().when().post("/api/proposals").then().statusCode(200).body("id", equalTo(first));
+		verify(llm, times(1)).complete(any());
+	}
+
+	@Test
+	void stillAnswersWithATemplateProposalWhenTheModelFails() {
+		doThrow(new LlmException("provider unreachable")).when(llm).complete(any());
+		givenLoggedInUser();
+		createTask(task("Oddać książkę", "EDUCATION", LocalDate.now().minusDays(2)));
+
+		// The 08.09 gate: a proposal the user can act on, with the row saying who wrote it.
+		csrfAware()
+				.when()
+				.post("/api/proposals")
+				.then()
+				.statusCode(200)
+				.body("source", equalTo("TEMPLATE"))
+				// Quoting the entry is the fallback's whole job; ProposalTemplateTest pins the sentence.
+				.body("message", containsString("Oddać książkę"))
+				.body("message", not(equalTo(PHRASED)));
 	}
 
 	@Test

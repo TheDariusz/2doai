@@ -107,7 +107,6 @@ public class Proposal implements UserOwned {
 	private OffsetDateTime updatedAt;
 
 	protected Proposal() {
-		// JPA requires a no-arg constructor.
 	}
 
 	public Proposal(UUID userId, UUID goalId, String message, long neglectedDays, Source source) {

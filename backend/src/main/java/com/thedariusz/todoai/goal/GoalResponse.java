@@ -15,7 +15,7 @@ import com.thedariusz.todoai.category.LifeDomain;
  * <p>{@code completed_at} doubles as the completion flag — a timestamp rather than a boolean,
  * because S-03's memory enrichment needs to know <em>when</em>, not just whether. {@code withdrawn_at}
  * is the same shape for the same reason, and it is published (rather than kept server-side) because
- * the SPA's withdrawn filter is what makes "nigdy" reversible; {@code remind_after} rides along so a
+ * the SPA's withdrawn filter is what makes a withdrawal reversible; {@code remind_after} rides along so a
  * client can say when a quieted entry comes back.
  */
 public record GoalResponse(

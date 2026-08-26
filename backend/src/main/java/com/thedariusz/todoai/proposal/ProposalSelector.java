@@ -69,7 +69,7 @@ import com.thedariusz.todoai.goal.GoalLayer;
  * {@code withdrawn}) rather than as comparator keys, because they decide who is in the running, not
  * who wins it. The silence map deliberately still counts a withdrawn entry: withdrawing it
  * <em>was</em> an interaction, and dropping it from the map would hand its domain the next proposal
- * the moment the user said "nigdy".
+ * the moment the user withdrew it.
  */
 final class ProposalSelector {
 
@@ -142,7 +142,7 @@ final class ProposalSelector {
 	}
 
 	/**
-	 * Inclusive on the day itself, matching how the user reads "przypomnij za 7 dni" — on day seven
+	 * Inclusive on the day itself, matching how a user reads "remind me in 7 days" — on day seven
 	 * the entry is back in the running, not on day eight. Compared against the caller's local date
 	 * for the reason {@code ProposalService} reads the clock in the user's zone at all.
 	 */

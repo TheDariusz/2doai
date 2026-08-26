@@ -564,22 +564,22 @@ which is exactly the intended default.
 
 #### Manual
 
-- [ ] 1.9 DELETE a goal carrying a pending proposal
+- [x] 1.9 DELETE a goal carrying a pending proposal
 
 ### Phase 2: LLM phrasing, with a fallback
 
 #### Automated
 
-- [ ] 2.1 ProposalPromptTest — inputs reach the request
-- [ ] 2.2 ProposalServiceTest — template fallback on LlmException
-- [ ] 2.3 ProposalApiTest — second click returns the same proposal, one model call
-- [ ] 2.4 ApiSurfaceTest green
-- [ ] 2.5 /check green
+- [x] 2.1 ProposalPromptTest — inputs reach the request
+- [x] 2.2 ProposalServiceTest — template fallback on LlmException
+- [x] 2.3 ProposalApiTest — second click returns the same proposal, one model call
+- [x] 2.4 ApiSurfaceTest green
+- [x] 2.5 /check green
 
 #### Manual
 
-- [ ] 2.6 OpenRouterLiveTest with a real key — read the Polish output
-- [ ] 2.7 The prose cites the entry rather than inventing one
+- [x] 2.6 OpenRouterLiveTest with a real key — read the Polish output
+- [x] 2.7 The prose cites the entry rather than inventing one
 
 ### Phase 3: Answers and the first step
 

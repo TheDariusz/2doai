@@ -93,7 +93,7 @@ public class Goal implements UserOwned {
 
 	/**
 	 * A task's optional term, and the mirror of {@code horizon}. A {@code LocalDate} rather than a
-	 * timestamp because "do piątku" is a day the user picks off a calendar, not a moment in a
+	 * timestamp because a term like "by Friday" is a day the user picks off a calendar, not a moment in a
 	 * timezone — and {@code <input type="date">} sends exactly that.
 	 */
 	@Column(name = "due_date")
@@ -114,7 +114,7 @@ public class Goal implements UserOwned {
 	@Column(name = "remind_after")
 	private LocalDate remindAfter;
 
-	/** "Nigdy" (FR-013) — out of the running until {@link #restore}, never deleted. */
+	/** Withdrawn (FR-013's "never") — out of the running until {@link #restore}, never deleted. */
 	@Column(name = "withdrawn_at")
 	private OffsetDateTime withdrawnAt;
 
@@ -193,7 +193,7 @@ public class Goal implements UserOwned {
 	}
 
 	/**
-	 * "Nigdy": out of the running until the user restores it. Idempotent in the same way
+	 * Withdraw: out of the running until the user restores it. Idempotent in the same way
 	 * {@link #complete} is, and for the same trap — {@code PUT /api/goals/{id}} is full-replace, so
 	 * the SPA re-asserts withdrawal on every edit of a withdrawn entry, and re-stamping would move
 	 * the date each time someone fixes a typo.
@@ -205,7 +205,7 @@ public class Goal implements UserOwned {
 		}
 	}
 
-	/** Back into the running, and the reason "nigdy" is reversible rather than a delete. */
+	/** Back into the running, and the reason a withdrawal is reversible rather than a delete. */
 	public void restore() {
 		this.withdrawnAt = null;
 	}

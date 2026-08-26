@@ -6,12 +6,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * The {@code proposals} resource (S-04a, FR-015: "daj mi coś teraz") — ask the engine for one
+ * The {@code proposals} resource (S-04a, FR-015, the "give me something now" trigger) — ask the engine for one
  * neglected entry to act on.
  *
  * <p><b>POST, not GET</b>, and no request body. Asking for a proposal is an action the user takes,
  * and it becomes a genuinely unsafe one as soon as state sits behind it: the four responses of
- * FR-013 ("każda odpowiedź wpływa na przyszłe propozycje") and the at-most-one-pending rule of
+ * FR-013 (every answer shapes what is proposed next) and the at-most-one-pending rule of
  * FR-018 both do. Choosing GET now for a body-less read would make that a breaking change, and would
  * invite caching of an answer that must not be cached.
  *

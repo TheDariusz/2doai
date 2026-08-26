@@ -1,7 +1,7 @@
 package com.thedariusz.todoai.goal;
 
 /**
- * How far out a long-term goal reaches (FR-004: "ten rok / kilka miesięcy"). Required for
+ * How far out a long-term goal reaches (FR-004). Required for
  * {@link GoalLayer#GOAL} and forbidden for every other layer — an invariant enforced in
  * {@link Goal}, in the request DTOs, and by the {@code chk_goal_layer_time_fields} CHECK constraint.
  *

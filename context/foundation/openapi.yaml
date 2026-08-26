@@ -22,13 +22,15 @@ info:
     the current user, and permanently delete the account and all its data (FR-019). Also exposes
     the read-only list of the 11 fixed life domains (categories) the app navigation is built from,
     and the goals resource (S-02/S-07) — current tasks, long-term goals and someday dreams,
-    per-user and full CRUD. Session model is a server-side HttpSession cookie (not JWT); mutations are
+    per-user and full CRUD. The proposals resource (S-04) is the proactive half: it picks the one
+    neglected entry worth coming back to and phrases it. Session model is a server-side HttpSession cookie (not JWT); mutations are
     CSRF-protected via a double-submit XSRF-TOKEN cookie echoed as the X-XSRF-TOKEN header.
   # #116 — MAJOR.MINOR.PATCH over the *contract*, not the app. 1.0.0 was S-01 (users, sessions,
-  # categories); +goals (S-02) → 1.1.0, +proposals (S-04a) → 1.2.0, +current tasks (S-07) → 1.3.0.
-  # Each was a compatible addition, so each was a MINOR bump; a breaking change would need
-  # media-type versioning (#114), never a URL segment.
-  version: 1.3.0
+  # categories); +goals (S-02) → 1.1.0, +proposals (S-04a) → 1.2.0, +current tasks (S-07) → 1.3.0,
+  # +the phrased, stored, answerable proposal (S-04b) → 1.4.0. Each was a compatible addition, so
+  # each was a MINOR bump; a breaking change would need media-type versioning (#114), never a URL
+  # segment.
+  version: 1.4.0
   contact:
     name: 2do AI
     email: thedariusz@gmail.com
@@ -420,7 +422,8 @@ paths:
       tags: [proposals]
       summary: Ask the engine for one neglected entry
       description: >
-        Runs the deterministic selection engine (S-04a, FR-012/FR-015 — "daj mi coś teraz") over the
+        Runs the deterministic selection engine (S-04a, FR-012/FR-015 — the "give me something now"
+        trigger) over the
         caller's entries and returns the single one worth coming back to. An entry counts as
         neglected once it has been idle for its layer's patience — 7 days for a TASK, 14 for a GOAL,
         30 for a DREAM — or, for a TASK alone, once its `due_date` has passed. A missed term ranks
@@ -438,6 +441,14 @@ paths:
 
         Nothing neglected yet is **204**, not 404 — the resource answered, the caller simply has
         nothing gathering dust.
+
+
+        The picked entry is then phrased by an LLM into prose (S-04b) and the result is
+        **stored**, so this call creates a resource rather than computing one. At most one proposal
+        may be unanswered at a time (FR-018), which makes a repeated POST idempotent in practice: it
+        returns the pending proposal unchanged — same `id`, same `message` — with no second model
+        call, until that proposal is answered. If the model is unreachable the endpoint still answers
+        200, with the message written from a template and `source: TEMPLATE`.
       operationId: createProposal
       parameters:
         - $ref: '#/components/parameters/XsrfToken'
@@ -800,11 +811,25 @@ components:
     Proposal:
       type: object
       description: >
-        The engine's answer: the entry it picked, in the same representation `/goals` publishes, and
-        the reason it won. `neglected_days` is that reason made explicit — S-04b turns it into prose
-        ("dwa miesiące temu wpisałeś…"), so it is part of the contract rather than diagnostics.
-      required: [entry, neglected_days]
+        The engine's answer: the entry it picked, the reason it won, and the prose S-04b phrases
+        around both. `neglected_days` is that reason made explicit and `message` quotes it, which is
+        why the number is frozen on the proposal when it is created rather than recomputed per read.
+
+
+        A proposal is a stored resource, not a per-request calculation. At most one may be unanswered
+        at a time (FR-018, enforced by a partial unique index), so **a repeated POST returns the same
+        proposal** — same `id`, same `message`, and no second model call — until it is answered.
+
+
+        `answer`, `answered_at` and `first_step` are null on a fresh proposal and filled by the
+        answer endpoint, which returns this same schema: one shape for the client to render whether
+        it just asked for a proposal or just answered one.
+      required: [id, entry, neglected_days, message, source]
       properties:
+        id:
+          type: string
+          format: uuid                                    # UUID v7 surrogate PK (intentional, #144)
+          readOnly: true
         entry:
           $ref: '#/components/schemas/Goal'
         neglected_days:
@@ -816,6 +841,65 @@ components:
             a task edited today whose `due_date` has already passed is neglected on its term, not on
             its silence.
           example: 47
+        message:
+          type: string
+          description: >
+            The proposal in prose, 2–3 sentences, citing the entry's own words and the time that has
+            passed. Written in the language the server picked — Polish today, because it is the only
+            locale the app has (the same framing as `Category.name`). Written once when the proposal
+            is created and stored, so a re-read never silently says something different from what the
+            user already read.
+          readOnly: true
+          example: W styczniu wpisałeś „zrobić prawo jazdy" — minęło 8 miesięcy. Wracamy do tego?
+        source:
+          $ref: '#/components/schemas/ProposalSource'
+        answer:
+          $ref: '#/components/schemas/ProposalAnswer'
+        answered_at:
+          type: [string, 'null']
+          format: date-time
+          description: When the user answered. Null means the proposal is still the pending one.
+          readOnly: true
+        first_step:
+          # FR-014's bullets, stored on the proposal (jsonb) rather than regenerated: a reload must
+          # show the plan the user already read, not a fresh and quietly different one.
+          type: [array, 'null']
+          items:
+            type: string
+          minItems: 3
+          maxItems: 5
+          description: >
+            3–5 concrete opening steps, present only after a `STARTING` answer. An empty array means
+            the answer landed but the model did not — the proposal is still answered.
+          readOnly: true
+
+    ProposalSource:
+      type: string
+      description: >
+        Which arm phrased `message`. Published rather than kept server-side so a demo (and a bug
+        report) can tell a real model proposal from the template the app falls back to when the
+        provider is unreachable — the endpoint answers 200 either way.
+      # #112 open-ended enum: a third phrasing arm must not break existing clients.
+      x-extensible-enum:
+        - LLM
+        - TEMPLATE
+      example: LLM
+
+    ProposalAnswer:
+      # THE ANCHOR for these literals — $ref'd by Proposal and by the answer request, never repeated.
+      type: [string, 'null']
+      description: >
+        The four responses of FR-013, each of which changes what the engine proposes next. `STARTING`
+        also asks for `first_step`. `NOT_NOW` and `REMIND_LATER` are one mechanism with different
+        defaults — both quiet the entry until a date — and `NEVER` withdraws it until the user
+        restores it. Null on a proposal nobody has answered yet.
+      # #112 open-ended enum: a fifth response must not break existing clients.
+      x-extensible-enum:
+        - STARTING
+        - NOT_NOW
+        - REMIND_LATER
+        - NEVER
+      example: STARTING
 
     Ping:
       type: object
