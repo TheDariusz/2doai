@@ -11,6 +11,16 @@ function matches(pattern) {
   return [...html.matchAll(pattern)]
 }
 
+/**
+ * A pin on a sentence, insensitive to where the hand-wrapped source breaks its lines. Written as a
+ * helper after a plain-string pin went red for a paragraph that had only been reflowed: a phrase
+ * test must fail when the claim disappears, never when the prose around it is re-indented, or the
+ * next person learns to edit the test instead of the page.
+ */
+function phrase(text) {
+  return new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'))
+}
+
 test('navigation targets existing sections', () => {
   const sectionIds = new Set(matches(/<section\b[^>]*\bid="([^"]+)"/g).map((match) => match[1]))
   const nav = html.match(/<nav\b[\s\S]*?<\/nav>/)?.[0] ?? ''
@@ -94,22 +104,27 @@ test('Mermaid is pinned and embedded source is valid HTML', () => {
 test('status language distinguishes what is implemented from the target product', () => {
   // The frontend stopped being a scaffold once routing, the API client, auth and the shell landed.
   assert.doesNotMatch(html, /scaffold/i)
-  assert.match(html, /CSRF-aware client/)
+  assert.match(html, phrase('CSRF-aware client'))
   // S-02 shipped the goals/dreams UI, S-07 folded current tasks into the same screen and S-08 added
   // the two filters — so every line calling those planned is gone. This pin was itself the trap
   // CLAUDE.md names: it stayed green while asserting prose the slice had just falsified, so it now
   // pins the two facts that are load-bearing instead — filters exist, and they cost no API change.
-  assert.match(html, /narrowed by layer and by category/)
-  assert.match(html, /<code>GET \/api\/goals<\/code> still publishes no query parameters/)
-  assert.match(html, /<code>\/goals<\/code> screen adds the first data UI/)
+  assert.match(html, phrase('narrowed by layer and by category'))
+  assert.match(html, phrase('<code>GET /api/goals</code> still publishes no query parameters'))
+  assert.match(html, phrase('<code>/goals</code> screen adds the first data UI'))
   // S-07 shipped current tasks as a third `goal` layer, so the one ghosted box is a deferred split,
   // not planned work. Without this the prose can quietly re-promise the table the slice rejected.
   assert.doesNotMatch(html, /current_task/)
-  assert.match(html, /deferred split rather than planned work/)
-  assert.match(html, /Mutable domain tables use/)
-  assert.match(html, /append-only event tables may omit/)
-  assert.match(html, /repository snapshot/)
+  assert.match(html, phrase('deferred split rather than planned work'))
+  assert.match(html, phrase('Mutable domain tables use'))
+  assert.match(html, phrase('append-only event tables may omit'))
+  assert.match(html, phrase('repository snapshot'))
   assert.match(html, /pull-request quality gate/i)
+  // S-04b shipped the AI half of the proactive loop, so the two lines that called it future work
+  // are gone and the screen it landed on is named. What is still planned is only the timing.
+  assert.doesNotMatch(html, phrase('roadmap slices S-04b and S-05'))
+  assert.match(html, phrase('Daj mi coś teraz'))
+  assert.match(html, phrase('<code>POST /api/proposals/{id}/answer</code>'))
 })
 
 test('target runtime preserves the current deployment backbone and marks planned additions', () => {
@@ -173,12 +188,17 @@ test('backend class diagrams identify ports, adapters, and application roles', (
   assert.match(backend, /&lt;&lt;persistence adapter \/ Spring Data&gt;&gt;/)
 })
 
-test('AI communication chapter explains the implemented Spring pipeline without overstating callers', () => {
+test('AI communication chapter explains the implemented Spring pipeline and names its real caller', () => {
   const ai = html.match(/<section id="ai-communication">([\s\S]*?)<\/section>/)?.[1] ?? ''
 
   assert.ok(ai, 'expected a dedicated AI communication chapter')
-  assert.match(ai, /implemented foundation/i)
-  assert.match(ai, /no production (?:use case|controller)[\s\S]*calls?\s+<code>LlmClient<\/code>/i)
+  // Until S-04b this chapter asserted that nothing called the port — and this test pinned that
+  // sentence, so the gate stayed green the moment `ProposalService` made it false. The pin now
+  // holds the two facts that would go stale the same way: there IS a production caller, and it
+  // owns the failure path, which is the whole reason the port has no fallback of its own.
+  assert.doesNotMatch(ai, /no production (?:use case|controller)[\s\S]{0,200}calls?\s+<code>LlmClient<\/code>/i)
+  assert.match(ai, phrase('<code>ProposalService</code> is the first production caller'))
+  assert.match(ai, /template fallback|falls back to a deterministic template/i)
 
   for (const term of [
     'LlmClient',

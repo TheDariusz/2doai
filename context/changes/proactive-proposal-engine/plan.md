@@ -599,26 +599,26 @@ which is exactly the intended default.
 
 #### Automated
 
-- [x] 4.1 ProposalCard.test.tsx — answers, bullets, failure copy
-- [x] 4.2 GoalsPage.test.tsx — withdrawn filter and restore
-- [x] 4.3 npm run lint + npm run build
-- [x] 4.4 /check green
+- [x] 4.1 ProposalCard.test.tsx — answers, bullets, failure copy — 1d612f7
+- [x] 4.2 GoalsPage.test.tsx — withdrawn filter and restore — 1d612f7
+- [x] 4.3 npm run lint + npm run build — 1d612f7
+- [x] 4.4 /check green — 1d612f7
 
 #### Manual
 
-- [x] 4.5 Full loop against a live backend
-- [x] 4.6 Spinner visible, button cannot double-fire
-- [x] 4.7 Polish copy reads naturally
+- [x] 4.5 Full loop against a live backend — 1d612f7
+- [x] 4.6 Spinner visible, button cannot double-fire — 1d612f7
+- [x] 4.7 Polish copy reads naturally — 1d612f7
 
 ### Phase 5: Documentation walk
 
 #### Automated
 
-- [ ] 5.1 node --test docs/index.test.mjs
-- [ ] 5.2 ER SVGs re-exported with the light-palette fix
-- [ ] 5.3 /check green
+- [x] 5.1 node --test docs/index.test.mjs
+- [x] 5.2 ER SVGs re-exported with the light-palette fix
+- [x] 5.3 /check green
 
 #### Manual
 
-- [ ] 5.4 Open docs/index.html — Mermaid diagrams render
-- [ ] 5.5 #flows and #overview describe the app that now exists
+- [x] 5.4 Open docs/index.html — Mermaid diagrams render
+- [x] 5.5 #flows and #overview describe the app that now exists

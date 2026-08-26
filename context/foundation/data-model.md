@@ -53,6 +53,24 @@ erDiagram
         date due_date "optional term; only for a TASK"
         varchar category_code FK "→ category.code; nullable (uncategorized)"
         timestamptz completed_at "NULL = active; the completion state itself"
+        date remind_after "snoozed until; NULL = never snoozed (S-04b)"
+        timestamptz withdrawn_at "NULL = in play; FR-013 'never', reversible (S-04b)"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    goal ||--o{ proposal : "is about"
+
+    proposal {
+        uuid id PK "UUID v7"
+        uuid user_id FK "→ app_user(id), NO ACTION"
+        uuid goal_id FK "→ goal(id), ON DELETE CASCADE — the one cascade in the schema"
+        text message "the phrased proposal the user read"
+        int neglected_days "the engine's reason, frozen at phrasing time"
+        varchar source "LLM | TEMPLATE — which arm wrote the message"
+        varchar answer "STARTING | NOT_NOW | REMIND_LATER | NEVER; nullable"
+        timestamptz answered_at "NULL = pending; partial UNIQUE(user_id) over this"
+        jsonb first_step "FR-014's 3-5 bullets, a steps array; nullable"
         timestamptz created_at
         timestamptz updated_at
     }
@@ -80,7 +98,7 @@ as the seam for a post-MVP RAG extension.
 > DB backstop that makes an out-of-order delete fail loudly. The `UNIQUE` constraint still
 > enforces one memory per user.
 
-**`goal`** (S-02, Flyway `V6`; widened by S-07, `V7`) holds **all three** layers — long-term
+**`goal`** (S-02, Flyway `V6`; widened by S-07 in `V7` and by S-04b in `V8`) holds **all three** layers — long-term
 goals (FR-004), someday dreams (FR-005) and current tasks (FR-003) — in one table,
 discriminated by `layer`. One aggregate rather than parallel tables was decided on 2026-08-17
 and extended on 2026-08-24: S-04/S-05/S-08/S-09/S-10 all consume the union, and nothing but the
@@ -101,6 +119,32 @@ enrichment needs to know when, not merely whether. `category_code` is nullable: 
 stay uncategorized, and S-09's auto-tag only ever fills it in. Like `ai_memory.user_id`, the
 FK to `app_user` is deliberately **not** `ON DELETE CASCADE` — FR-019 deletion is
 app-orchestrated (`GoalDataDeleter`) and the plain FK is the backstop.
+
+S-04b (`V8`) adds the two columns above and the **`proposal`** table. The split between them is
+the whole reason `proposal` is its own aggregate rather than more columns on `goal`: `ProposalSelector`
+reads `goal.updated_at` as *"when the user last engaged with this"*, so anything the machine writes on
+its own — the phrased message, the frozen `neglected_days`, the generated `first_step` — would silently
+reset the neglect clock if it landed there. It lives on `proposal` instead. `remind_after` and
+`withdrawn_at` are the exceptions that prove the rule: a snooze and a withdrawal are things the *user*
+asked for, so stamping the `goal` row is honest.
+
+Two schema decisions carry product rules that a service check could not:
+
+- **FR-018 (at most one pending proposal) is a partial unique index**, `idx_proposal_one_pending ON
+  proposal (user_id) WHERE answered_at IS NULL`. A service-level "does this user already have one?"
+  races with itself on a double-click and stores both; the index cannot. Answered rows accumulate
+  freely — only the pending slot is exclusive.
+- **`proposal.goal_id` is the one `ON DELETE CASCADE` in this schema**, so `DELETE /api/goals/{id}`
+  keeps working while a proposal points at the entry. The cost is named rather than hidden: because
+  `GoalDataDeleter` runs during FR-019 account deletion and every proposal has a goal, the cascade
+  erases a user's proposals *before* `ProposalDataDeleter` is reached — so the "a missing deleter
+  fails loudly on the FK" property does **not** protect this table. The deleter exists anyway, and
+  becomes load-bearing the moment a proposal can outlive its entry.
+
+`remind_after` is a `DATE` compared against the user's local date, exactly as `due_date` already is:
+a snooze is "come back on Thursday", not a moment in a timezone. `first_step` follows
+`ai_memory_episode.payload` — `jsonb` mapped from a raw JSON `String`, which keeps the entity free of
+any Jackson coupling.
 
 ### Internationalization
 
@@ -153,6 +197,9 @@ reference `category.code` where it needs a life domain.
 > the schema was designed — S-02 settled on a single `goal` table with a `layer`
 > discriminator, drawn above. So was **`current_task`**, until S-07: rather than a fourth
 > table it became a third `layer` value plus a nullable `due_date` on that same `goal`.
+> So was **`proposal`**, until S-04b drew it above — the proactive loop needed somewhere for
+> FR-018's at-most-one-pending rule to be true, and for a second press of the button to return the
+> same proposal rather than pay for a second model call.
 > The target diagram keeps a ghosted `task` box as the escape hatch, not as planned work —
 > the split earns its keep only once tasks get their own lifecycle (recurrence, overdue
 > alarms), and it is then a migration rather than a rewrite.

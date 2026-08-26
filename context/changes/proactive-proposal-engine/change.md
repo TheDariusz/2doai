@@ -164,3 +164,47 @@ cached) belongs on the `proposal` row instead.
   in React state, so the bullets survive as long as the screen does; a reload simply starts over with
   the button. Still the right home for it is S-05, which needs to show a proposal the *scheduler*
   opened — at which point there is a proposal the client did not receive as a POST response.
+
+### Adaptations taken during Phase 5 (2026-08-26)
+
+- **The docs test was pinning a sentence this slice made false.** `docs/index.test.mjs` asserted
+  that the AI chapter says *no production use case calls `LlmClient`* — so the gate stayed green
+  while the claim rotted the moment `ProposalService` merged. This is the exact trap `CLAUDE.md`
+  names ("a passing docs test is not evidence the page is current"), except sharper: the test was
+  not merely blind to the drift, it was holding the drift in place. The pin is now inverted — it
+  refuses that sentence and requires the caller to be named — plus three new pins on the surfaces
+  most likely to rot next (the button's own copy, the answer endpoint, and the absence of the old
+  "roadmap slices S-04b and S-05" phrasing).
+- **Four stale `roadmap.md` rows fixed that were not S-04's.** The "buildable now" table still said
+  S-02, S-07 and S-08 were waiting on prerequisites they had already shipped, and the slice table
+  still called S-08 `proposed` a day after it merged. Left alone they would have sat next to the
+  S-04 row this slice came to update, which is the partial-pass failure mode the docs rule
+  describes. Corrected in the same pass; each row now names its PR and date the way the closed
+  slices above it do.
+- **The ER diagrams needed real surgery, not just a re-export.** Both `.drawio` sources are
+  hand-authored with explicit geometry, so `proposal` is a new table block, two new rows on `goal`
+  and two new edges in each — and on the current diagram the grown `goal` table pushed `category`
+  and the enum mirror down. Re-exported with the `color-scheme: light` fix the CLI never applies;
+  the current diagram is now 1082×1204 (was 1082×1038) and `docs/index.html`'s `<img height>` moved
+  with it. The target diagram's bounds happened not to change.
+- **All 22 Mermaid diagrams were verified rendering**, against the plan's own note that they cannot
+  be checked headlessly. Serving the repo over `http://` and loading the page in Playwright (a
+  `file://` URL is blocked) let the CDN import run: 22 of 22 produced an `<svg>`, the failure
+  banner stayed hidden, and both ER images reported natural dimensions matching their declared
+  `width`/`height`. Manual step 5.4 is therefore evidence, not assertion.
+- **`#overview`'s frontend paragraph was split apart, on the author's reading.** Every slice since
+  S-02 had appended one more clause to it, and this one added three more — 330 words in a single
+  block, which is unreadable regardless of whether every sentence is true. It is now a four-line
+  status paragraph, a screen paragraph, and a `Four decisions that shaped it` definition list
+  (filters in the URL, English lowercase routes, withdrawal as a filter value, an empty list must
+  say why). No claim was dropped; the four that were buried mid-sentence are now scannable, which
+  is also what stops the next slice from appending a fifth to the end of a wall.
+- **The docs test's phrase pins are now wrap-insensitive.** Reflowing that paragraph turned a pin
+  red for prose that had only been re-indented — a false positive, and the kind that teaches people
+  to edit the test rather than the page. A `phrase()` helper escapes the literal and relaxes
+  whitespace to `\s+`, so a pin fails when the claim disappears or changes and not when the line
+  breaks move. Verified both ways before use: wrapped text passes, deleted and altered text fails.
+- **Two new rows in the `#decisions` register.** English prompts naming the answer's language, and
+  at-most-one-pending as an index rather than a check — both are cross-cutting decisions with a
+  revisit trigger, which is what that table is for, and neither was legible from the class diagrams
+  alone.
