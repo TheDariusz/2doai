@@ -614,11 +614,11 @@ which is exactly the intended default.
 
 #### Automated
 
-- [x] 5.1 node --test docs/index.test.mjs
-- [x] 5.2 ER SVGs re-exported with the light-palette fix
-- [x] 5.3 /check green
+- [x] 5.1 node --test docs/index.test.mjs — 3908964
+- [x] 5.2 ER SVGs re-exported with the light-palette fix — 3908964
+- [x] 5.3 /check green — 3908964
 
 #### Manual
 
-- [x] 5.4 Open docs/index.html — Mermaid diagrams render
-- [x] 5.5 #flows and #overview describe the app that now exists
+- [x] 5.4 Open docs/index.html — Mermaid diagrams render — 3908964
+- [x] 5.5 #flows and #overview describe the app that now exists — 3908964

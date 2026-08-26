@@ -1,7 +1,7 @@
 ---
 change_id: proactive-proposal-engine
 title: S-04b — LLM-phrased proposal, four responses, first step
-status: implementing
+status: implemented
 created: 2026-08-25
 updated: 2026-08-26
 archived_at: null
