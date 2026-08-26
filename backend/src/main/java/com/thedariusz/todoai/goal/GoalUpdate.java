@@ -23,8 +23,12 @@ import com.thedariusz.todoai.category.LifeDomain;
  * {@code FAIL_ON_NULL_FOR_PRIMITIVES} by default, so an omitted {@code completed} is a 400 rather
  * than a silent "active" — fail-closed, and the better behaviour, but it makes every new primitive a
  * <em>breaking</em> wire change that has to land in the same commit as its clients. That is why
- * S-04b's {@code withdrawn} flag joins this record in the phase that threads it through the SPA, not
- * in the one that adds {@code goal.withdrawn_at}.
+ * {@code withdrawn} joined this record here in S-04b Phase 4, alongside the SPA's {@code replace()}
+ * that sends it, rather than in Phase 1 with {@code goal.withdrawn_at}.
+ *
+ * <p><b>{@code withdrawn} is what makes FR-013's "never" reversible.</b> Withdrawal is a field of
+ * the entry, so the request that already resends the whole entry is what brings it back — restore
+ * needs no route, no verb and no second code path of its own.
  */
 public record GoalUpdate(
 
@@ -41,7 +45,9 @@ public record GoalUpdate(
 
 		LifeDomain categoryCode,
 
-		boolean completed) {
+		boolean completed,
+
+		boolean withdrawn) {
 
 	/** See {@link GoalCreation#isTimeFieldsConsistentWithLayer()} — conversion re-checks the rule. */
 	@AssertTrue(message = Goal.TIME_FIELDS_RULE)

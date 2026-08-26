@@ -59,6 +59,14 @@ class GoalService {
 		else {
 			goal.reopen();
 		}
+		// The same full-replace rule, and the reason FR-013's "never" is reversible: an entry comes
+		// back because the client resent it as not-withdrawn, not because a route exists to undo it.
+		if (request.withdrawn()) {
+			goal.withdraw(OffsetDateTime.now());
+		}
+		else {
+			goal.restore();
+		}
 		return GoalResponse.from(goals.saveAndFlush(goal));
 	}
 

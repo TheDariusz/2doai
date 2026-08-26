@@ -63,6 +63,10 @@ class GoalApiTest extends ApiTestBase {
 			String category, boolean completed) {
 		Map<String, Object> body = goalPayload(content, layer, horizon, category);
 		body.put("completed", completed);
+		// Both state flags are primitives, so a payload omitting either is a 400 — every PUT here
+		// carries the pair, exactly as the SPA does. `withdrawn` varies in one test; it lives in the
+		// helper so the other eleven do not each have to remember a field they never exercise.
+		body.put("withdrawn", false);
 		return body;
 	}
 
@@ -72,6 +76,11 @@ class GoalApiTest extends ApiTestBase {
 	 */
 	private static Map<String, Object> withDueDate(Map<String, Object> payload, String dueDate) {
 		payload.put("due_date", dueDate);
+		return payload;
+	}
+
+	private static Map<String, Object> withWithdrawn(Map<String, Object> payload, boolean withdrawn) {
+		payload.put("withdrawn", withdrawn);
 		return payload;
 	}
 
@@ -374,6 +383,46 @@ class GoalApiTest extends ApiTestBase {
 				.then()
 				.statusCode(200)
 				.body("completed_at", nullValue());
+	}
+
+	/**
+	 * Restore is a plain PUT, not a route of its own (S-04b): withdrawal is a field of the entry the
+	 * same way completion is, so the form that already resends the whole entry is what brings it back.
+	 *
+	 * <p>The third block pins the reason {@code withdrawn} waited three phases for this one. Jackson 3
+	 * enables {@code FAIL_ON_NULL_FOR_PRIMITIVES}, so adding a primitive to this record is a
+	 * <em>breaking</em> wire change — a client that omits it gets 400, not a silent "active". Nothing
+	 * else guards that, and boxing the field later would turn a loud failure into a silent one.
+	 */
+	@Test
+	void withdrawsAndRestoresAnEntry() {
+		givenLoggedInUser();
+		String id = createGoal(goalPayload("Nauczyć się gotować", "GOAL", "THIS_YEAR", "HOME"));
+
+		csrfAware()
+				.body(withWithdrawn(updatePayload("Nauczyć się gotować", "GOAL", "THIS_YEAR", "HOME", false), true))
+				.when()
+				.put("/api/goals/" + id)
+				.then()
+				.statusCode(200)
+				.body("withdrawn_at", notNullValue());
+
+		csrfAware()
+				.body(withWithdrawn(updatePayload("Nauczyć się gotować", "GOAL", "THIS_YEAR", "HOME", false), false))
+				.when()
+				.put("/api/goals/" + id)
+				.then()
+				.statusCode(200)
+				.body("withdrawn_at", nullValue());
+
+		Map<String, Object> withoutTheFlag = updatePayload("Nauczyć się gotować", "GOAL", "THIS_YEAR", "HOME", false);
+		withoutTheFlag.remove("withdrawn");
+		csrfAware()
+				.body(withoutTheFlag)
+				.when()
+				.put("/api/goals/" + id)
+				.then()
+				.statusCode(400);
 	}
 
 	/**

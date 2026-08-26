@@ -246,3 +246,50 @@ p {
 .goals summary {
   cursor: pointer;
 }
+
+/* The proposal card (S-04b) — the accent border is the one place on the screen that gets it, which
+   is the point: FR-015 is the app asking a question, and it has to look unlike the rows below it. */
+.proposal {
+  margin: 24px 0;
+  padding: 16px 20px;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  background: var(--accent-bg);
+}
+
+/* The prose, not the entry: the message is what the user reads first. */
+.proposal article > p:first-child {
+  color: var(--text-h);
+  margin: 16px 0 4px;
+}
+
+/* Answers and terms share the row `<p>` they sit in; the bullets' save buttons do not wrap. */
+.proposal p > button {
+  margin: 12px 8px 0 0;
+}
+
+.proposal ul {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+/* Same row shape as an entry, so a bullet reads as the task it is about to become. */
+.proposal li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.proposal li > p {
+  flex: 1 1 12rem;
+  color: var(--text-h);
+}

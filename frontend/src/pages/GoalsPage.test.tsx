@@ -15,6 +15,8 @@ const RUN = {
   due_date: null,
   category_code: 'HEALTH',
   completed_at: null,
+  remind_after: null,
+  withdrawn_at: null,
   created_at: '2026-08-17T10:00:00Z',
   updated_at: '2026-08-17T10:00:00Z',
 } satisfies Goal
@@ -27,6 +29,8 @@ const JAPAN = {
   due_date: null,
   category_code: null,
   completed_at: null,
+  remind_after: null,
+  withdrawn_at: null,
   created_at: '2026-08-17T11:00:00Z',
   updated_at: '2026-08-17T11:00:00Z',
 } satisfies Goal
@@ -39,6 +43,18 @@ const COOKING = {
   completed_at: '2026-08-16T09:00:00Z',
 } satisfies Goal
 
+/**
+ * Withdrawn, not completed — FR-013's "never" is a third state, and the difference is the whole
+ * point of the filter below: a completed entry is finished, a withdrawn one was never started and
+ * the user said it never will be.
+ */
+const GUITAR = {
+  ...JAPAN,
+  id: 'g5',
+  content: 'Nauczyć się grać na gitarze',
+  withdrawn_at: '2026-08-20T08:00:00Z',
+} satisfies Goal
+
 const ELECTRICITY = {
   id: 'g4',
   content: 'Zapłacić za prąd',
@@ -47,6 +63,8 @@ const ELECTRICITY = {
   due_date: '2026-09-01',
   category_code: 'HOME',
   completed_at: null,
+  remind_after: null,
+  withdrawn_at: null,
   created_at: '2026-08-17T12:00:00Z',
   updated_at: '2026-08-17T12:00:00Z',
 } satisfies Goal
@@ -316,6 +334,7 @@ describe('GoalsPage — zmiany na wpisie', () => {
       due_date: null,
       category_code: 'HEALTH',
       completed: true,
+      withdrawn: false,
     })
   })
 
@@ -385,6 +404,7 @@ describe('GoalsPage — zmiany na wpisie', () => {
       due_date: null,
       category_code: null,
       completed: false,
+      withdrawn: false,
     })
     expect(screen.queryByRole('form', { name: 'Edytuj wpis' })).not.toBeInTheDocument()
   })
@@ -414,6 +434,7 @@ describe('GoalsPage — zmiany na wpisie', () => {
       due_date: '2026-09-01',
       category_code: 'HEALTH',
       completed: false,
+      withdrawn: false,
     })
   })
 
@@ -438,6 +459,7 @@ describe('GoalsPage — zmiany na wpisie', () => {
       due_date: null,
       category_code: 'HOME',
       completed: false,
+      withdrawn: false,
     })
   })
 })
@@ -463,6 +485,7 @@ describe('GoalsPage — edycja zachowuje resztę wpisu', () => {
     expect(JSON.parse(mutations()[0][1].body)).toMatchObject({
       content: 'Nauczyć się gotować (poprawka)',
       completed: true,
+      withdrawn: false,
     })
   })
 
@@ -488,6 +511,7 @@ describe('GoalsPage — edycja zachowuje resztę wpisu', () => {
       due_date: null,
       category_code: 'HEALTH',
       completed: false,
+      withdrawn: false,
     })
   })
 })
@@ -725,5 +749,95 @@ describe('GoalsPage — filtry', () => {
 
     expect(await screen.findByRole('form', { name: 'Nowy wpis' })).toBeInTheDocument()
     expect(screen.queryByText(/Żaden wpis nie pasuje do filtrów/)).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * FR-013's "never" is reversible, which is the only reason it is a state rather than a delete. The
+ * entries are hidden by default because a withdrawn entry is one the user asked not to be shown —
+ * and reachable through the filter row, because a state you cannot get back out of is a delete with
+ * extra steps.
+ */
+describe('GoalsPage — wycofane', () => {
+  it('hides withdrawn entries until the filter asks for them', async () => {
+    stubApi([JAPAN, GUITAR])
+    const user = userEvent.setup()
+
+    renderGoals()
+    await screen.findByText('Pojechać do Japonii')
+    expect(screen.queryByText('Nauczyć się grać na gitarze')).not.toBeInTheDocument()
+
+    await user.click(filters().getByLabelText('Pokaż wycofane'))
+
+    expect(await screen.findByText('Nauczyć się grać na gitarze')).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('/goals?withdrawn=1')
+  })
+
+  /** Same rule as the other two axes: the view is in the URL, so a reload lands back on it. */
+  it('reads the withdrawn filter off the URL', async () => {
+    stubApi([JAPAN, GUITAR])
+
+    renderGoals('/goals?withdrawn=1')
+
+    expect(await screen.findByText('Nauczyć się grać na gitarze')).toBeInTheDocument()
+    expect(filters().getByLabelText('Pokaż wycofane')).toBeChecked()
+  })
+
+  /**
+   * Restore is the PUT the edit form already sends, with one flag flipped — no route of its own, and
+   * therefore nothing new to keep in step with the full-replace payload.
+   */
+  it('restores a withdrawn entry through the same full-replace PUT', async () => {
+    stubApi([GUITAR])
+    const user = userEvent.setup()
+
+    renderGoals('/goals?withdrawn=1')
+    await user.click((await item('Nauczyć się grać na gitarze')).getByRole('button', { name: 'Przywróć' }))
+
+    const [url, init] = mutations()[0]
+    expect(url).toBe('/api/goals/g5')
+    expect(init.method).toBe('PUT')
+    expect(JSON.parse(init.body)).toEqual({
+      content: 'Nauczyć się grać na gitarze',
+      layer: 'DREAM',
+      horizon: null,
+      due_date: null,
+      category_code: null,
+      completed: false,
+      withdrawn: false,
+    })
+  })
+
+  /**
+   * A withdrawn entry offers restore and delete, nothing else. Completing or editing one is asking
+   * the user to act on an entry they have just said they will never act on — and "Przywróć" is
+   * already the complete toggle's own label, so offering both in one row would put two identically
+   * named buttons side by side meaning different things.
+   */
+  it('offers a withdrawn entry only the actions that make sense for it', async () => {
+    stubApi([GUITAR])
+
+    renderGoals('/goals?withdrawn=1')
+    const row = await item('Nauczyć się grać na gitarze')
+
+    expect(row.getByRole('button', { name: 'Przywróć' })).toBeInTheDocument()
+    expect(row.getByRole('button', { name: 'Usuń' })).toBeInTheDocument()
+    expect(row.queryByRole('button', { name: 'Ukończ' })).not.toBeInTheDocument()
+    expect(row.queryByRole('button', { name: 'Edytuj' })).not.toBeInTheDocument()
+  })
+
+  /**
+   * The withdrawn filter is the one that is on by default, which makes it the one that can produce a
+   * blank screen nobody asked for: a user whose only entry is withdrawn would see the empty state of
+   * an account with no entries at all. It has to say something instead — that is the same lie the
+   * load-failure banner a few lines up refuses to tell.
+   */
+  it('says entries are being hidden rather than showing the empty screen of a new account', async () => {
+    stubApi([GUITAR])
+
+    renderGoals()
+
+    expect(await screen.findByText(/Żaden wpis nie pasuje do filtrów/)).toBeInTheDocument()
+    expect(screen.queryByText('Nauczyć się grać na gitarze')).not.toBeInTheDocument()
   })
 })

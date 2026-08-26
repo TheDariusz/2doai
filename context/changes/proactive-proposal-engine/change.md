@@ -129,3 +129,38 @@ cached) belongs on the `proposal` row instead.
   shows the same plan") needs a `GET /api/proposals/{id}` that the contract does not specify;
   flagged for Phase 4 or S-05 rather than added here.
 
+### Adaptations taken during Phase 4 (2026-08-26)
+
+- **The "nothing matched" message now triggers on `visible.length === 0 && goals.length > 0`**, not
+  on "a filter is set". The withdrawn filter is the first one that is *on by default*, so the old
+  condition would have shown a user whose only entry is withdrawn the empty screen of a brand-new
+  account — the exact lie the message was added to prevent, and the one `load`'s failure banner
+  refuses a few lines above it. The new condition is also shorter and subsumes the old one.
+- **`replace(id, draft, completed, withdrawn)` became `replace(id, draft, {completed, withdrawn})`.**
+  Two adjacent booleans in a positional call are a swap waiting to happen the day a third arrives,
+  and both are primitives server-side — a swapped pair is a silent wrong write, not a 400.
+- **A withdrawn row offers restore and delete, nothing else.** `Przywróć` is already the completion
+  toggle's own label, so a withdrawn *and* completed entry would otherwise show two identically named
+  buttons meaning different things. Completing or editing an entry the user has just said they will
+  never act on is also not an action worth offering; they restore it first.
+- **The card does not render `neglected_days`.** The plan's screen contract says the card names "how
+  long it has been sitting", and it does — in the message, which cites it in prose. Rendering the
+  number beside it would mean a second Polish plural rule in TypeScript, duplicating the one
+  `ProposalTemplate` owns on the backend, for a fact the user has already read.
+- **The spec's versioning comment was corrected rather than the version bumped.**
+  `GoalUpdate.withdrawn` is a required primitive, so it is a genuinely *incompatible* change and
+  1.4.0's old comment ("each was a compatible addition") would have been false. #114's answer is
+  media-type versioning, deliberately not built: `x-audience` is component-internal, the only client
+  is the SPA in this repository, and it gained the field in the same commit. The comment now says so,
+  and says the exemption expires the day a second consumer exists.
+- **`GoalApiTest.withdrawsAndRestoresAnEntry` pins the omitted-primitive 400.** That behaviour is the
+  entire reason `withdrawn` waited three phases for this one, and nothing guarded it — boxing the
+  field later would turn a loud 400 into a silent "not withdrawn".
+- **The saved bullets carry no link back to the entry that produced them**, and that is FR-014 as
+  written — it asks for "zadanie bieżące (FR-003)", a plain task. Noticed by the author during
+  manual testing and parked as a post-submission slice candidate rather than folded in; the analysis
+  and the return trigger live in `roadmap.md` → Parked, which outlives this folder.
+- **Phase 3's flagged `GET /api/proposals/{id}` was not added.** The card holds the answered proposal
+  in React state, so the bullets survive as long as the screen does; a reload simply starts over with
+  the button. Still the right home for it is S-05, which needs to show a proposal the *scheduler*
+  opened — at which point there is a proposal the client did not receive as a POST response.

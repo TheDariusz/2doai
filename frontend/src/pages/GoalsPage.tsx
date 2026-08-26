@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useOutletContext, useSearchParams } from 'react-router'
 import { ApiError, api } from '../api/client'
+import { ProposalCard } from './ProposalCard'
 import type { Domain } from '../layout/AppLayout'
 
 /**
@@ -17,6 +18,11 @@ import type { Domain } from '../layout/AppLayout'
  * `horizon` and `due_date` are the two time fields, and the layer decides which one an entry may
  * carry: a GOAL always has a horizon and never a term, a DREAM has neither, a TASK may have a term
  * and never a horizon. The server answers 422 for any other combination.
+ *
+ * `remind_after` and `withdrawn_at` are what the proposal engine writes back when the user answers a
+ * proposal (S-04b): the date a quieted entry comes back, and the moment they said "never". Both are
+ * timestamps rather than flags for the same reason `completed_at` is — when is data the memory
+ * enrichment reads, not just whether.
  */
 export type Goal = {
   id: string
@@ -26,6 +32,8 @@ export type Goal = {
   due_date: string | null
   category_code: string | null
   completed_at: string | null
+  remind_after: string | null
+  withdrawn_at: string | null
   created_at: string
   updated_at: string
 }
@@ -68,7 +76,11 @@ type GoalDraft = Pick<Goal, 'content' | 'layer' | 'horizon' | 'due_date' | 'cate
 type ItemActions = {
   editing: string | null
   setEditing: (id: string | null) => void
-  replace: (id: string, draft: GoalDraft, completed: boolean) => Promise<boolean>
+  replace: (
+    id: string,
+    draft: GoalDraft,
+    state: { completed: boolean; withdrawn: boolean },
+  ) => Promise<boolean>
   remove: (id: string) => Promise<boolean>
 }
 
@@ -120,6 +132,10 @@ export function GoalsPage() {
   // on the first paint and normalising would throw away a perfectly valid `?category=home` on every
   // load. A stale code is covered by the "nothing matched" message instead.
   const category = (params.get('category') ?? '').toUpperCase()
+  // A third axis, and the only one that is on/off: a withdrawn entry is one the user asked not to be
+  // shown, so it is hidden until this is set. Any value counts as "show them" — a checkbox writes
+  // exactly one, and an unknown one can only ever err towards showing the user their own entries.
+  const withdrawn = params.has('withdrawn')
   const [goals, setGoals] = useState<Goal[]>([])
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
@@ -187,8 +203,11 @@ export function GoalsPage() {
   const actions: ItemActions = {
     editing,
     setEditing,
-    replace: (id, draft, completed) =>
-      save(api(`/goals/${id}`, { method: 'PUT', body: { ...draft, completed } })),
+    // The two state flags travel together and by name: they are primitives on the server, so
+    // dropping either is a 400 — and two adjacent booleans in a positional call are a swap waiting
+    // to happen the day one more is added.
+    replace: (id, draft, state) =>
+      save(api(`/goals/${id}`, { method: 'PUT', body: { ...draft, ...state } })),
     remove: (id) => save(api(`/goals/${id}`, { method: 'DELETE' })),
   }
 
@@ -199,7 +218,11 @@ export function GoalsPage() {
   const visible = goals.filter(
     (goal) =>
       (!category || (goal.category_code || NO_CATEGORY) === category) &&
-      (!layer || goal.layer === layer),
+      (!layer || goal.layer === layer) &&
+      // Not `!withdrawn || …`: the filter *replaces* the default view rather than widening it, so
+      // switching it on shows the withdrawn entries alone. Mixed into the ordinary list they would
+      // be indistinguishable from live ones, which is the state the withdrawal was meant to end.
+      Boolean(goal.withdrawn_at) === withdrawn,
   )
 
   const sectionProps = { goals: visible, domains, actions }
@@ -208,6 +231,11 @@ export function GoalsPage() {
     <div className="goals">
       <h1>Zadania, cele i marzenia</h1>
       {error && <p role="alert">{error}</p>}
+
+      {/* Above the create form on purpose: FR-015 is the app asking the user a question, and it has
+          to be the first thing on a screen whose whole point is that they had stopped looking.
+          `load` is the refetch — every answer changes an entry, and so does saving a first step. */}
+      <ProposalCard onChange={load} />
 
       <GoalForm
         name="Nowy wpis"
@@ -220,8 +248,13 @@ export function GoalsPage() {
 
       {/* An empty list under an active filter is not "you have no entries" — `load`'s failure path
           refuses that same lie a few lines up. It is also the last honest signal when a stale
-          `?category=` leaves the select reading "Wszystkie". */}
-      {visible.length === 0 && (layer || category) && (
+          `?category=` leaves the select reading "Wszystkie".
+
+          The condition is "there are entries, none of them showing" rather than a list of the
+          filters that might be on, because one of them is *always* on: withdrawn entries are hidden
+          by default, so a user whose only entry is withdrawn would otherwise get the blank screen
+          this message exists to prevent. */}
+      {visible.length === 0 && goals.length > 0 && (
         <p role="status">Żaden wpis nie pasuje do filtrów.</p>
       )}
 
@@ -249,7 +282,7 @@ export function GoalsPage() {
 function Filters({ domains }: { domains: Domain[] }) {
   const [params, setParams] = useSearchParams()
 
-  function set(key: 'layer' | 'category', value: string) {
+  function set(key: 'layer' | 'category' | 'withdrawn', value: string) {
     const next = new URLSearchParams(params)
     if (value) next.set(key, value.toLowerCase())
     else next.delete(key)
@@ -286,6 +319,17 @@ function Filters({ domains }: { domains: Domain[] }) {
             </option>
           ))}
         </select>
+      </label>
+      {/* A checkbox rather than a third select: this axis has two states, and the two selects are
+          already the "which of many" controls. `1` is what it writes because the value is never
+          read — the parameter's presence is the whole signal. */}
+      <label>
+        Pokaż wycofane
+        <input
+          type="checkbox"
+          checked={params.has('withdrawn')}
+          onChange={(event) => set('withdrawn', event.target.checked ? '1' : '')}
+        />
       </label>
     </section>
   )
@@ -450,6 +494,7 @@ function Item({
   actions: ItemActions
 }) {
   const done = Boolean(goal.completed_at)
+  const withdrawn = Boolean(goal.withdrawn_at)
 
   if (actions.editing === goal.id) {
     return (
@@ -461,7 +506,7 @@ function Item({
           domains={domains}
           onSubmit={async (draft) => {
             // Editing must not silently un-complete an entry, so its own state rides along.
-            const saved = await actions.replace(goal.id, draft, done)
+            const saved = await actions.replace(goal.id, draft, { completed: done, withdrawn })
             if (saved) actions.setEditing(null)
             return saved
           }}
@@ -479,6 +524,9 @@ function Item({
     goal.horizon && HORIZON_LABEL[goal.horizon],
     goal.due_date && `do ${goal.due_date}`,
     category,
+    // Only ever seen under the withdrawn filter, where every row carries it — but the filter is a
+    // control the user may have forgotten they ticked, and the row should say what it is.
+    withdrawn && 'wycofane',
   ]
     .filter(Boolean)
     .join(' · ')
@@ -487,12 +535,32 @@ function Item({
     <li>
       <p>{goal.content}</p>
       {meta && <small>{meta}</small>}
-      <button type="button" onClick={() => actions.replace(goal.id, draftOf(goal), !done)}>
-        {done ? 'Przywróć' : 'Ukończ'}
-      </button>
-      <button type="button" onClick={() => actions.setEditing(goal.id)}>
-        Edytuj
-      </button>
+      {/*
+        A withdrawn entry offers restore and delete, nothing else. Completing or editing one asks the
+        user to act on an entry they have just said they never will — and "Przywróć" is already the
+        complete toggle's label, so a withdrawn *and* completed entry would otherwise put two
+        identically named buttons in one row meaning different things.
+      */}
+      {withdrawn ? (
+        <button
+          type="button"
+          onClick={() => actions.replace(goal.id, draftOf(goal), { completed: done, withdrawn: false })}
+        >
+          Przywróć
+        </button>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={() => actions.replace(goal.id, draftOf(goal), { completed: !done, withdrawn })}
+          >
+            {done ? 'Przywróć' : 'Ukończ'}
+          </button>
+          <button type="button" onClick={() => actions.setEditing(goal.id)}>
+            Edytuj
+          </button>
+        </>
+      )}
       {/*
         Native `confirm` rather than a dialog of our own: blocking, focus-trapped and
         screen-reader-announced for free, for a single yes/no. A 404 needs no special handling —

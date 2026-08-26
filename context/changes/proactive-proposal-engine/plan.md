@@ -585,30 +585,30 @@ which is exactly the intended default.
 
 #### Automated
 
-- [x] 3.1 Each answer's effect on the entry
-- [x] 3.2 409 / 422 / 404 guard rails
-- [x] 3.3 First step stored and re-read without a second call
-- [x] 3.4 Degraded STARTING still answers 200
-- [x] 3.5 /check green
+- [x] 3.1 Each answer's effect on the entry — fa7ef0d
+- [x] 3.2 409 / 422 / 404 guard rails — fa7ef0d
+- [x] 3.3 First step stored and re-read without a second call — fa7ef0d
+- [x] 3.4 Degraded STARTING still answers 200 — fa7ef0d
+- [x] 3.5 /check green — fa7ef0d
 
 #### Manual
 
-- [x] 3.6 Live STARTING — are the bullets concrete enough to act on?
+- [x] 3.6 Live STARTING — are the bullets concrete enough to act on? — fa7ef0d
 
 ### Phase 4: The screen
 
 #### Automated
 
-- [ ] 4.1 ProposalCard.test.tsx — answers, bullets, failure copy
-- [ ] 4.2 GoalsPage.test.tsx — withdrawn filter and restore
-- [ ] 4.3 npm run lint + npm run build
-- [ ] 4.4 /check green
+- [x] 4.1 ProposalCard.test.tsx — answers, bullets, failure copy
+- [x] 4.2 GoalsPage.test.tsx — withdrawn filter and restore
+- [x] 4.3 npm run lint + npm run build
+- [x] 4.4 /check green
 
 #### Manual
 
-- [ ] 4.5 Full loop against a live backend
-- [ ] 4.6 Spinner visible, button cannot double-fire
-- [ ] 4.7 Polish copy reads naturally
+- [x] 4.5 Full loop against a live backend
+- [x] 4.6 Spinner visible, button cannot double-fire
+- [x] 4.7 Polish copy reads naturally
 
 ### Phase 5: Documentation walk
 
