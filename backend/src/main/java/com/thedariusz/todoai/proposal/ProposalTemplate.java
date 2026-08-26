@@ -13,9 +13,11 @@ import com.thedariusz.todoai.goal.Goal;
  * <p>Deterministic and model-free, which is what lets {@code ProposalTemplateTest} assert this arm
  * exactly rather than merely asserting that <em>something</em> came back.
  *
- * <p><b>Locale-bound, along with {@link ProposalPrompt}</b> — the sentence, the month names and the
- * plural rule below are all one language's. A second locale is a second implementation of
- * {@link #phrase}, chosen by the caller's locale; nothing else in the package changes.
+ * <p><b>The one locale-bound surface on the backend</b> — the sentence, the month names and the
+ * plural rule below are all one language's, and they have to be: unlike {@link ProposalPrompt},
+ * whose instructions merely <em>name</em> the answer's language, what this class returns <em>is</em>
+ * what the user reads. A second locale is a second implementation of {@link #phrase}, chosen by the
+ * caller's locale; nothing else in the package changes.
  */
 final class ProposalTemplate {
 

@@ -1,23 +1,37 @@
 package com.thedariusz.todoai;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 import com.thedariusz.todoai.ai.LlmClient;
 import com.thedariusz.todoai.ai.LlmException;
+import com.thedariusz.todoai.ai.LlmMessage;
+import com.thedariusz.todoai.ai.LlmRequest;
+import com.thedariusz.todoai.proposal.FirstStep;
+import io.restassured.response.ValidatableResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,12 +59,23 @@ class ProposalApiTest extends ApiTestBase {
 
 	private static final String PHRASED = "Zauważyłem, że ta rzecz leży odłogiem. Wracamy do niej?";
 
+	private static final List<String> STEPS =
+			List.of("Zadzwonić do szkoły", "Zebrać dokumenty", "Zapisać się na kurs");
+
+	/**
+	 * The zone the service reads its clock in. Duplicated here rather than exported, because a test
+	 * that asserted a snooze against the <em>server's default</em> zone would pass on a Warsaw laptop
+	 * and go red in a UTC CI runner for two hours every night.
+	 */
+	private static final ZoneId USER_ZONE = ZoneId.of("Europe/Warsaw");
+
 	@MockitoBean
 	private LlmClient llm;
 
 	@BeforeEach
 	void phraseEveryProposal() {
 		when(llm.complete(any())).thenReturn(PHRASED);
+		when(llm.completeStructured(any(), eq(FirstStep.class), any())).thenReturn(new FirstStep(STEPS));
 	}
 
 	/** A HashMap, not Map.of — a non-TASK layer's absent fields are explicit JSON nulls. */
@@ -178,5 +203,155 @@ class ProposalApiTest extends ApiTestBase {
 
 		// The spec publishes 403 on this path; being a POST it is a mutation like any other.
 		client().when().post("/api/proposals").then().statusCode(403);
+	}
+
+	/** An overdue task plus the proposal it earns — the fixture every answer case starts from. */
+	private String pendingProposalFor(String content, String category) {
+		createTask(task(content, category, LocalDate.now(USER_ZONE).minusDays(2)));
+		return csrfAware().when().post("/api/proposals").then().statusCode(200).extract().path("id");
+	}
+
+	private ValidatableResponse answer(String proposalId, Map<String, Object> body) {
+		return csrfAware().body(body).when().post("/api/proposals/" + proposalId + "/answer").then();
+	}
+
+	private static LocalDate inDays(int days) {
+		return LocalDate.now(USER_ZONE).plusDays(days);
+	}
+
+	@Test
+	void quietsTheEntryForAWeekAndHandsBackTheFirstStepWhenTheUserStarts() {
+		givenLoggedInUser();
+		String proposal = pendingProposalFor("Zrobić prawo jazdy", "TRANSPORT");
+
+		answer(proposal, Map.of("answer", "STARTING"))
+				.statusCode(200)
+				.body("id", equalTo(proposal))
+				.body("answer", equalTo("STARTING"))
+				.body("answered_at", notNullValue())
+				// FR-014: the bullets are returned and stored, so the message never has to be re-asked.
+				.body("first_step", contains(STEPS.toArray()))
+				.body("entry.remind_after", equalTo(inDays(7).toString()));
+
+		// The entry is quiet, so the engine has nothing left to offer — proof the snooze reached the row.
+		csrfAware().when().post("/api/proposals").then().statusCode(204);
+	}
+
+	@Test
+	void quietsTheEntryBrieflyWhenTheUserSaysNotNow() {
+		givenLoggedInUser();
+		String proposal = pendingProposalFor("Oddać książkę", "EDUCATION");
+
+		answer(proposal, Map.of("answer", "NOT_NOW"))
+				.statusCode(200)
+				.body("answer", equalTo("NOT_NOW"))
+				.body("entry.remind_after", equalTo(inDays(3).toString()))
+				.body("entry.withdrawn_at", equalTo(null))
+				.body("first_step", equalTo(null));
+
+		// A short reprieve is still a reprieve: NOT_NOW must not cost a first-step call.
+		verify(llm, never()).completeStructured(any(), any(), any());
+		csrfAware().when().post("/api/proposals").then().statusCode(204);
+	}
+
+	@Test
+	void holdsTheEntryBackForExactlyTheTermTheUserPicked() {
+		givenLoggedInUser();
+		String proposal = pendingProposalFor("Wymienić opony", "TRANSPORT");
+
+		answer(proposal, Map.of("answer", "REMIND_LATER", "remind_in_days", 30))
+				.statusCode(200)
+				.body("answer", equalTo("REMIND_LATER"))
+				.body("entry.remind_after", equalTo(inDays(30).toString()));
+
+		csrfAware().when().post("/api/proposals").then().statusCode(204);
+	}
+
+	@Test
+	void withdrawsTheEntryAndStopsProposingItWhenTheUserAnswersNever() {
+		givenLoggedInUser();
+		String proposal = pendingProposalFor("Nauczyć się gry na gitarze", "LEISURE");
+
+		answer(proposal, Map.of("answer", "NEVER"))
+				.statusCode(200)
+				.body("answer", equalTo("NEVER"))
+				.body("entry.withdrawn_at", notNullValue())
+				// Withdrawal is not a snooze: nothing brings this entry back but a restore.
+				.body("entry.remind_after", equalTo(null));
+
+		csrfAware().when().post("/api/proposals").then().statusCode(204);
+	}
+
+	@Test
+	void stillAnswersWhenTheFirstStepCannotBeGenerated() {
+		doThrow(new LlmException("provider unreachable"))
+				.when(llm).completeStructured(any(), any(), any());
+		givenLoggedInUser();
+		String proposal = pendingProposalFor("Zrobić prawo jazdy", "TRANSPORT");
+
+		// The answer is the user's, not the model's: it lands either way, with the bullets empty.
+		answer(proposal, Map.of("answer", "STARTING"))
+				.statusCode(200)
+				.body("answer", equalTo("STARTING"))
+				.body("first_step", empty())
+				.body("entry.remind_after", equalTo(inDays(7).toString()));
+	}
+
+	@Test
+	void refusesASecondAnswerToTheSameProposal() {
+		givenLoggedInUser();
+		String proposal = pendingProposalFor("Oddać książkę", "EDUCATION");
+		answer(proposal, Map.of("answer", "STARTING")).statusCode(200);
+
+		answer(proposal, Map.of("answer", "NEVER")).statusCode(409);
+
+		// 409 rather than a silent overwrite is also what keeps a double-clicked STARTING to one call.
+		verify(llm, times(1)).completeStructured(any(), any(), any());
+	}
+
+	@Test
+	void rejectsARemindLaterThatNamesNoOfferedTerm() {
+		givenLoggedInUser();
+		String proposal = pendingProposalFor("Wymienić opony", "TRANSPORT");
+
+		answer(proposal, Map.of("answer", "REMIND_LATER")).statusCode(422);
+		answer(proposal, Map.of("answer", "REMIND_LATER", "remind_in_days", 5)).statusCode(422);
+		// The mirror rule: a term on an answer that has none would silently override its default.
+		answer(proposal, Map.of("answer", "NOT_NOW", "remind_in_days", 30)).statusCode(422);
+
+		// A rejected answer is not an answer — the proposal is still the pending one.
+		csrfAware().when().post("/api/proposals").then().statusCode(200).body("id", equalTo(proposal));
+	}
+
+	@Test
+	void answersNotFoundRatherThanForbiddenForAProposalTheCallerDoesNotOwn() {
+		givenLoggedInUser();
+		String foreign = pendingProposalFor("Oddać książkę", "EDUCATION");
+
+		newBrowser();
+		givenLoggedInUser();
+
+		// Indistinguishable from an id that never existed, so the API is no oracle for other accounts.
+		answer(foreign, Map.of("answer", "NEVER")).statusCode(404);
+		answer(UUID.randomUUID().toString(), Map.of("answer", "NEVER")).statusCode(404);
+	}
+
+	@Test
+	void carriesTheAnswerIntoThePromptForTheNextProposal() {
+		givenLoggedInUser();
+		String proposal = pendingProposalFor("Oddać książkę", "EDUCATION");
+		createTask(task("Wymienić opony", "TRANSPORT", LocalDate.now(USER_ZONE).minusDays(2)));
+
+		answer(proposal, Map.of("answer", "NOT_NOW")).statusCode(200);
+		csrfAware().when().post("/api/proposals").then().statusCode(200);
+
+		// FR-013's "every answer shapes what is proposed next", made literal: the episode written by
+		// the answer is in the memory block the next proposal is phrased from.
+		ArgumentCaptor<LlmRequest> prompts = ArgumentCaptor.forClass(LlmRequest.class);
+		verify(llm, times(2)).complete(prompts.capture());
+		String second = prompts.getAllValues().get(1).messages().stream()
+				.map(LlmMessage::content)
+				.collect(Collectors.joining("\n"));
+		assertThat(second).contains("proposal_answered").contains("NOT_NOW").contains("Oddać książkę");
 	}
 }

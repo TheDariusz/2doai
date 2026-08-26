@@ -59,7 +59,9 @@ class ProposalPersistenceTest {
 		UUID goalId = persistedGoalId(userId);
 
 		Proposal saved = proposals.saveAndFlush(pending(userId, goalId));
-		saved.recordFirstStep("{\"steps\":[\"Wyjmij rower z piwnicy\",\"Napompuj koła\"]}");
+		// The shape ProposalService actually writes: the bullets alone, since the column is already
+		// named for them and a wrapper object would only exist to hold a field nothing needs.
+		saved.recordFirstStep("[\"Wyjmij rower z piwnicy\",\"Napompuj koła\"]");
 		proposals.saveAndFlush(saved);
 
 		Proposal reloaded = proposals.findByIdAndUserId(saved.getId(), userId).orElseThrow();

@@ -94,3 +94,38 @@ cached) belongs on the `proposal` row instead.
 - **Spec version 1.3.0 → 1.4.0**, one MINOR bump for the whole of S-04b (Phase 3's answer endpoint is
   the same compatible addition, so it does not bump again). `GoalUpdate.withdrawn` stays deferred to
   Phase 4 per the Phase 1 note — the spec describes what merged.
+
+### Adaptations taken during Phase 3 (2026-08-26)
+
+- **The prompts were switched from Polish to English, and the rule written into `CLAUDE.md`.** Phase
+  2 shipped `ProposalPrompt` with its persona written in the language the answer had to come back in,
+  and Phase 3 followed that convention for the first-step persona. Reviewed by the author, the
+  convention was rejected: `CLAUDE.md` plans PL + EN, and under the old rule a second locale meant a
+  second copy of every instruction — the same logic expressed twice, free to drift the first time
+  either was tightened. Everything addressed to the model (both personas, the `<data>` field labels,
+  the layer gloss) is now English, and names the answer's language through a single
+  `OUTPUT_LANGUAGE` constant. The dividing line is *who the text is addressed to*: backend code and
+  backend→AI text are English; anything a user reads stays localized. `ProposalTemplate` is
+  therefore untouched and is now the backend's only locale-bound surface — its output *is* the
+  sentence on the screen.
+- **This reopened Phase 2 code**, so it lands in Phase 3's commit rather than as a follow-up: one
+  class cannot hold two prompts following opposite rules without the split being a trap for whoever
+  reads it next. `ProposalPromptTest` gained `tellsTheModelWhichLanguageToAnswerIn`, because losing
+  that one line is the failure nothing else would catch — the request still assembles, the model
+  still answers, and the user silently starts getting English.
+- **`ProposalService.answer` gets one transaction, but not a `@Transactional` method.** A `STARTING`
+  answer calls Sonnet, so a method-level annotation would pin a Hikari connection for the full
+  60-second budget — the idleness anti-pattern `lessons.md` names for a metered, scale-to-zero Neon.
+  The model is called first, outside any transaction; a `TransactionTemplate` then scopes the three
+  writes (the entry's snooze or withdrawal, the proposal's answer, the memory episode) so they land
+  together or not at all. The plan's Phase 2 note ("Phase 3's answer flow does and gets its own") was
+  written before Phase 3 §3 put a model call inside that flow.
+- **`AiMemoryService.record` creates the root when it is missing**, unlike `renderFor`, which
+  renders blank. Both are invariant breaches (`RegistrationService` writes the row at t=0), but
+  losing what the user just answered is the more expensive of the two failures.
+- **The bullets are stored and returned, but not re-readable after a reload.** Phase 3's contract is
+  the answer POST alone, and an answered proposal is no longer the pending one `POST /api/proposals`
+  returns — so there is no path back to a proposal once answered. The plan's §3 intent ("a reload
+  shows the same plan") needs a `GET /api/proposals/{id}` that the contract does not specify;
+  flagged for Phase 4 or S-05 rather than added here.
+

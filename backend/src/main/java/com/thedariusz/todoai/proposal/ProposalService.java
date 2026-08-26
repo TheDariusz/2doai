@@ -1,8 +1,10 @@
 package com.thedariusz.todoai.proposal;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,6 +21,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The one use case of the proposals resource: hand the engine the caller's entries, phrase its
@@ -42,7 +47,14 @@ import org.springframework.stereotype.Service;
  * 60-second budget, and a surrounding transaction would pin a Hikari connection open for all of it —
  * which on a metered, scale-to-zero Neon is the exact anti-pattern {@code lessons.md} names ("idle
  * time is billed unless you actively give it up"). Each repository call opens and closes its own
- * transaction; nothing here needs them to be one. Phase 3's answer flow does, and gets its own.
+ * transaction; nothing here needs them to be one.
+ *
+ * <p><b>{@link #answer} needs its three writes to be one, and still cannot wrap the model call.</b>
+ * A {@code STARTING} answer asks Sonnet for the first step, so a method-level {@code @Transactional}
+ * would hold a connection for that same 60 seconds. Instead the model is called first, outside any
+ * transaction, and a {@link TransactionTemplate} scopes a transaction around the writes alone — the
+ * entry's snooze or withdrawal, the proposal's answer, and the memory episode either way land
+ * together or not at all.
  *
  * <p>The clock is read here rather than inside the engine, which takes it as an argument — that is
  * the whole reason the engine is testable without a clock. It is read <b>in the user's zone</b>,
@@ -61,6 +73,15 @@ class ProposalService {
 	// upgrade, and this is the only line that reads it.
 	private static final ZoneId USER_ZONE = ZoneId.of("Europe/Warsaw");
 
+	/** The event type the memory block prints; {@code ai_memory_episode.event_type} is 64 chars. */
+	private static final String ANSWERED = "proposal_answered";
+
+	/** Starting is its own kind of interaction: a week to actually do it before anyone asks again. */
+	private static final int STARTING_QUIET_DAYS = 7;
+
+	/** "Not now" names no term, so the app picks the shortest one that is still a reprieve. */
+	private static final int NOT_NOW_QUIET_DAYS = 3;
+
 	private final GoalRepository goals;
 
 	private final ProposalRepository proposals;
@@ -71,15 +92,22 @@ class ProposalService {
 
 	private final CurrentUser currentUser;
 
+	private final JsonMapper json;
+
+	private final TransactionTemplate transactions;
+
 	private final String model;
 
 	ProposalService(GoalRepository goals, ProposalRepository proposals, LlmClient llm,
-			AiMemoryService memory, CurrentUser currentUser, LlmProperties properties) {
+			AiMemoryService memory, CurrentUser currentUser, LlmProperties properties,
+			JsonMapper json, PlatformTransactionManager transactionManager) {
 		this.goals = goals;
 		this.proposals = proposals;
 		this.llm = llm;
 		this.memory = memory;
 		this.currentUser = currentUser;
+		this.json = json;
+		this.transactions = new TransactionTemplate(transactionManager);
 		this.model = properties.model().sonnet();
 	}
 
@@ -89,7 +117,7 @@ class ProposalService {
 
 		Optional<Proposal> pending = proposals.findByUserIdAndAnsweredAtIsNull(userId);
 		if (pending.isPresent()) {
-			return pending.map(proposal -> ProposalResponse.of(proposal, entry(userId, proposal.getGoalId())));
+			return pending.map(proposal -> render(proposal, entry(userId, proposal.getGoalId())));
 		}
 
 		List<Goal> entries = goals.findByUserIdOrderByCreatedAtDesc(userId);
@@ -114,12 +142,12 @@ class ProposalService {
 	 */
 	private ProposalResponse open(UUID userId, Goal entry, long neglectedDays) {
 		try {
-			return ProposalResponse.of(proposals.saveAndFlush(draft(userId, entry, neglectedDays)), entry);
+			return render(proposals.saveAndFlush(draft(userId, entry, neglectedDays)), entry);
 		}
 		catch (DataIntegrityViolationException ex) {
 			log.info("A concurrent press already opened a proposal; returning that one");
 			return proposals.findByUserIdAndAnsweredAtIsNull(userId)
-					.map(winner -> ProposalResponse.of(winner, entry(userId, winner.getGoalId())))
+					.map(winner -> render(winner, entry(userId, winner.getGoalId())))
 					.orElseThrow(() -> ex);
 		}
 	}
@@ -137,6 +165,90 @@ class ProposalService {
 			return new Proposal(userId, entry.getId(), ProposalTemplate.phrase(entry, neglectedDays),
 					neglectedDays, Proposal.Source.TEMPLATE);
 		}
+	}
+
+	/**
+	 * Record one of FR-013's four responses and apply it to the entry, so "every answer shapes what
+	 * is proposed next" is a mechanism rather than a promise. Three of the four write
+	 * {@code goal.remind_after} and differ only in the term they pick; the fourth withdraws the entry
+	 * outright. All four also write an episode, which is how the <em>next</em> proposal's prompt gets
+	 * to know what the user said about the last one.
+	 *
+	 * <p>The pending check is here as well as in {@link Proposal#answer} on purpose: the aggregate's
+	 * refusal is the invariant, but by the time it fired the model call would already have been paid
+	 * for. Checking first turns a double-clicked answer into a 409 that costs nothing.
+	 *
+	 * @throws ProposalNotFoundException if no such proposal is owned by the caller
+	 * @throws ProposalAlreadyAnsweredException if it already carries an answer
+	 */
+	ProposalResponse answer(UUID id, ProposalAnswerRequest request) {
+		UUID userId = currentUser.requireId();
+
+		Proposal proposal = proposals.findByIdAndUserId(id, userId)
+				.orElseThrow(() -> new ProposalNotFoundException(id));
+		if (!proposal.isPending()) {
+			throw new ProposalAlreadyAnsweredException(id);
+		}
+		Goal entry = entry(userId, proposal.getGoalId());
+
+		// Before the transaction opens, never inside it — see the class javadoc.
+		List<String> steps = request.answer() == ProposalAnswer.STARTING ? firstStep(userId, entry) : null;
+
+		OffsetDateTime now = OffsetDateTime.now(USER_ZONE);
+		return transactions.execute(status -> {
+			quiet(entry, request, now);
+			proposal.answer(request.answer(), now);
+			if (steps != null) {
+				proposal.recordFirstStep(json.writeValueAsString(steps));
+			}
+			// The entry first: an interrupted answer then leaves the proposal pending and retryable,
+			// rather than closed over an entry nothing ever happened to.
+			Goal quieted = goals.saveAndFlush(entry);
+			Proposal answered = proposals.saveAndFlush(proposal);
+			memory.record(userId, ANSWERED, json.writeValueAsString(
+					Map.of("answer", request.answer().name(), "entry", entry.getContent())));
+			return render(answered, quieted);
+		});
+	}
+
+	/**
+	 * Apply the answer to the entry — the user-performed half, which is why it lands on the
+	 * {@code goal} row and moves its {@code updated_at}. {@code REMIND_LATER}'s term is already known
+	 * to be one of the offered presets: {@code ProposalAnswerRequest} rejects anything else with 422
+	 * before this is reached.
+	 */
+	private static void quiet(Goal entry, ProposalAnswerRequest request, OffsetDateTime now) {
+		LocalDate today = now.toLocalDate();
+		switch (request.answer()) {
+			case STARTING -> entry.snoozeUntil(today.plusDays(STARTING_QUIET_DAYS));
+			case NOT_NOW -> entry.snoozeUntil(today.plusDays(NOT_NOW_QUIET_DAYS));
+			case REMIND_LATER -> entry.snoozeUntil(today.plusDays(request.remindInDays()));
+			case NEVER -> entry.withdraw(now);
+		}
+	}
+
+	/**
+	 * FR-014's bullets, asked for once and stored. A failure here is not the user's problem — they
+	 * answered, and the answer must land — so it degrades to an empty list, which the contract
+	 * publishes as "the answer landed but the model did not".
+	 */
+	private List<String> firstStep(UUID userId, Goal entry) {
+		try {
+			return llm.completeStructured(
+					ProposalPrompt.forFirstStep(model, memory.renderFor(userId), entry),
+					FirstStep.class, FirstStep.SCHEMA).steps();
+		}
+		catch (LlmException ex) {
+			log.warn("The first step could not be generated; the answer still lands", ex);
+			return List.of();
+		}
+	}
+
+	/** Decode the stored bullets, so the representation is built the same way on every path. */
+	private ProposalResponse render(Proposal proposal, Goal entry) {
+		List<String> steps = proposal.getFirstStep() == null ? null
+				: List.of(json.readValue(proposal.getFirstStep(), String[].class));
+		return ProposalResponse.of(proposal, entry, steps);
 	}
 
 	/** The entry a stored proposal points at. Always present: {@code proposal.goal_id} cascades. */

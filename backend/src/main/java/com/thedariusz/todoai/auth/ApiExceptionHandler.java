@@ -3,6 +3,8 @@ package com.thedariusz.todoai.auth;
 import java.net.URI;
 
 import com.thedariusz.todoai.goal.GoalNotFoundException;
+import com.thedariusz.todoai.proposal.ProposalAlreadyAnsweredException;
+import com.thedariusz.todoai.proposal.ProposalNotFoundException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -17,7 +19,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 /**
  * Maps failures to <b>Problem JSON</b> (RFC 9457, {@code application/problem+json}) — extending
  * {@link ResponseEntityExceptionHandler} means Spring's own MVC exceptions already come out as
- * {@link ProblemDetail}; only the two project-specific mappings are written here.
+ * {@link ProblemDetail}; only the project-specific mappings are written here.
  *
  * <p>Bad credentials are deliberately absent. They are raised <em>inside</em> a controller but escape
  * MVC entirely: {@code ExceptionTranslationFilter} catches the {@code AuthenticationException} on the
@@ -73,6 +75,28 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	ProblemDetail handleGoalNotFound(GoalNotFoundException ex, WebRequest request) {
 		logger.warn("Scoped lookup missed at " + request.getDescription(true) + ": " + ex.getMessage());
 		return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "No such goal");
+	}
+
+	/**
+	 * The same conflation as the goal 404 above, for the same reason and with the same fixed detail:
+	 * a proposal belonging to another account must be indistinguishable from one that never existed.
+	 */
+	@ExceptionHandler(ProposalNotFoundException.class)
+	ProblemDetail handleProposalNotFound(ProposalNotFoundException ex, WebRequest request) {
+		logger.warn("Scoped lookup missed at " + request.getDescription(true) + ": " + ex.getMessage());
+		return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "No such proposal");
+	}
+
+	/**
+	 * Answering twice → <b>409</b>: FR-013's four responses each act on the entry once, so a second
+	 * answer would silently undo the first rather than fail. The detail is fixed like the 404's,
+	 * though there is nothing to leak here — the id came from the caller and the lookup was already
+	 * ownership-scoped, so reaching this handler at all means the proposal is theirs.
+	 */
+	@ExceptionHandler(ProposalAlreadyAnsweredException.class)
+	ProblemDetail handleProposalAlreadyAnswered(ProposalAlreadyAnsweredException ex, WebRequest request) {
+		logger.warn("Request to " + request.getDescription(false) + " rejected with 409: " + ex.getMessage());
+		return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "The proposal has already been answered");
 	}
 
 	/**

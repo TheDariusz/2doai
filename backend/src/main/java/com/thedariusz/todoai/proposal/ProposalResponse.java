@@ -26,11 +26,14 @@ record ProposalResponse(UUID id, GoalResponse entry, long neglectedDays, String 
 		Proposal.Source source, ProposalAnswer answer, OffsetDateTime answeredAt,
 		List<String> firstStep) {
 
-	static ProposalResponse of(Proposal proposal, Goal entry) {
+	/**
+	 * @param firstStep the aggregate's {@code first_step} JSON already decoded — the mapper belongs to
+	 *        {@code ProposalService}, and a static factory reaching for a bean of its own would be a
+	 *        second place the column's shape is known
+	 */
+	static ProposalResponse of(Proposal proposal, Goal entry, List<String> firstStep) {
 		return new ProposalResponse(proposal.getId(), GoalResponse.from(entry),
 				proposal.getNeglectedDays(), proposal.getMessage(), proposal.getSource(),
-				proposal.getAnswer(), proposal.getAnsweredAt(),
-				// Phase 3 decodes the aggregate's raw first_step JSON here; nothing writes it yet.
-				null);
+				proposal.getAnswer(), proposal.getAnsweredAt(), firstStep);
 	}
 }

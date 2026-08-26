@@ -585,15 +585,15 @@ which is exactly the intended default.
 
 #### Automated
 
-- [ ] 3.1 Each answer's effect on the entry
-- [ ] 3.2 409 / 422 / 404 guard rails
-- [ ] 3.3 First step stored and re-read without a second call
-- [ ] 3.4 Degraded STARTING still answers 200
-- [ ] 3.5 /check green
+- [x] 3.1 Each answer's effect on the entry
+- [x] 3.2 409 / 422 / 404 guard rails
+- [x] 3.3 First step stored and re-read without a second call
+- [x] 3.4 Degraded STARTING still answers 200
+- [x] 3.5 /check green
 
 #### Manual
 
-- [ ] 3.6 Live STARTING — are the bullets concrete enough to act on?
+- [x] 3.6 Live STARTING — are the bullets concrete enough to act on?
 
 ### Phase 4: The screen
 

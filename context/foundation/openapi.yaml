@@ -468,6 +468,68 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /proposals/{id}/answer:
+    post:
+      tags: [proposals]
+      summary: Answer a proposal
+      description: >
+        Records one of FR-013's four responses and applies it to the entry the proposal is about, so
+        that "every answer shapes what is proposed next" is a mechanism rather than a promise. Three
+        of the four quiet the entry until a date and differ only in the term they pick — `STARTING`
+        for a week (the user asked to work on it, not to be asked about it again tomorrow),
+        `NOT_NOW` for three days, `REMIND_LATER` for the 7, 30 or 90 the user named. `NEVER`
+        withdraws the entry instead: it keeps its row and its `withdrawn_at`, stays out of every
+        future proposal, and comes back only when the client restores it through
+        `PUT /goals/{id}`.
+
+
+        `STARTING` also asks the model for `first_step` and stores the result on the proposal. That
+        call can fail without costing the user their answer: the response is still 200, with
+        `first_step` an empty array.
+
+
+        Every answer is also written to the caller's AI memory, which is what the next proposal is
+        phrased from.
+
+
+        A sub-resource POST rather than a PATCH on the proposal, because answering is not a field
+        edit — it acts on the entry too, and it can happen exactly once. A second answer is **409**,
+        never a silent overwrite, which is also what makes a double-clicked answer button harmless.
+        A proposal owned by another account and one that never existed return the same **404**.
+      operationId: answerProposal
+      parameters:
+        - $ref: '#/components/parameters/ProposalId'
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProposalAnswerRequest'
+      responses:
+        '200':
+          description: >
+            The answered proposal — the same schema `POST /proposals` returns, now carrying `answer`,
+            `answered_at`, the entry in its new state, and `first_step` after a `STARTING`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Proposal'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /ping:
     get:
       tags: [operations]
@@ -537,6 +599,15 @@ components:
       in: path
       required: true
       description: The goal's identifier (UUID v7 surrogate PK).
+      schema:
+        type: string
+        format: uuid
+
+    ProposalId:
+      name: id
+      in: path
+      required: true
+      description: The proposal's identifier (UUID v7 surrogate PK).
       schema:
         type: string
         format: uuid
@@ -900,6 +971,28 @@ components:
         - REMIND_LATER
         - NEVER
       example: STARTING
+
+    ProposalAnswerRequest:
+      type: object
+      description: >
+        What the user answered. Two fields, and the second is legal beside exactly one value of the
+        first — a cross-field rule, so it is stated here rather than as a bare enum on the property.
+      required: [answer]
+      properties:
+        answer:
+          # The anchor above is nullable because a pending proposal has no answer yet; here the
+          # field is required and null is not one of the four responses.
+          $ref: '#/components/schemas/ProposalAnswer'
+        remind_in_days:
+          type: [integer, 'null']
+          format: int32                                     # #171 integers declare int32/int64
+          description: >
+            The term the user picked, and only for `REMIND_LATER`: one of 7, 30 or 90. Any other
+            number is a 422, because a term the app narrowed on its own would not be the one the
+            user chose. Sending it with any other answer is also a 422 rather than a silent drop —
+            `STARTING` and `NOT_NOW` carry their own terms, and a user who asked for 30 days and
+            quietly got three would have no way to tell.
+          example: 30
 
     Ping:
       type: object
