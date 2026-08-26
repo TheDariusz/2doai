@@ -15,13 +15,11 @@ import com.thedariusz.todoai.ai.memory.AiMemoryService;
 import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.goal.GoalRepository;
 import com.thedariusz.todoai.proposal.ProposalSelector.Candidate;
-import com.thedariusz.todoai.proposal.ProposalSelector.Selection;
 import com.thedariusz.todoai.security.CurrentUser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -100,14 +98,14 @@ class ProposalService {
 
 	ProposalService(GoalRepository goals, ProposalRepository proposals, LlmClient llm,
 			AiMemoryService memory, CurrentUser currentUser, LlmProperties properties,
-			JsonMapper json, PlatformTransactionManager transactionManager) {
+			JsonMapper json, TransactionTemplate transactions) {
 		this.goals = goals;
 		this.proposals = proposals;
 		this.llm = llm;
 		this.memory = memory;
 		this.currentUser = currentUser;
 		this.json = json;
-		this.transactions = new TransactionTemplate(transactionManager);
+		this.transactions = transactions;
 		this.model = properties.model().sonnet();
 	}
 
@@ -115,23 +113,26 @@ class ProposalService {
 	Optional<ProposalResponse> propose() {
 		UUID userId = currentUser.requireId();
 
-		Optional<Proposal> pending = proposals.findByUserIdAndAnsweredAtIsNull(userId);
-		if (pending.isPresent()) {
-			return pending.map(proposal -> render(proposal, entry(userId, proposal.getGoalId())));
+		Optional<ProposalResponse> existing = pending(userId);
+		if (existing.isPresent()) {
+			return existing;
 		}
 
 		List<Goal> entries = goals.findByUserIdOrderByCreatedAtDesc(userId);
-		Optional<Selection> selection = ProposalSelector
-				.select(entries.stream().map(Candidate::of).toList(), OffsetDateTime.now(USER_ZONE));
-		if (selection.isEmpty()) {
-			return Optional.empty();
-		}
+		return ProposalSelector
+				.select(entries.stream().map(Candidate::of).toList(), OffsetDateTime.now(USER_ZONE))
+				.map(selection -> open(userId, pick(entries, selection.id()), selection.neglectedDays()));
+	}
 
-		Goal picked = entries.stream()
-				.filter(goal -> goal.getId().equals(selection.get().id()))
-				.findFirst()
-				.orElseThrow();
-		return Optional.of(open(userId, picked, selection.get().neglectedDays()));
+	/** The user's open proposal, if they have one, rendered with the entry it points at. */
+	private Optional<ProposalResponse> pending(UUID userId) {
+		return proposals.findByUserIdAndAnsweredAtIsNull(userId)
+				.map(proposal -> render(proposal, entry(userId, proposal.getGoalId())));
+	}
+
+	/** The picked entry, back out of the list its candidate was built from. */
+	private static Goal pick(List<Goal> entries, UUID id) {
+		return entries.stream().filter(goal -> goal.getId().equals(id)).findFirst().orElseThrow();
 	}
 
 	/**
@@ -146,9 +147,7 @@ class ProposalService {
 		}
 		catch (DataIntegrityViolationException ex) {
 			log.info("A concurrent press already opened a proposal; returning that one");
-			return proposals.findByUserIdAndAnsweredAtIsNull(userId)
-					.map(winner -> render(winner, entry(userId, winner.getGoalId())))
-					.orElseThrow(() -> ex);
+			return pending(userId).orElseThrow(() -> ex);
 		}
 	}
 

@@ -38,8 +38,8 @@ import org.hibernate.type.SqlTypes;
  * reason this aggregate exists rather than a handful of extra columns on {@code goal}.
  *
  * <p>{@link #answer} is a method rather than two setters so the answer and the moment it arrived can
- * never disagree, and so a second answer is a loud {@link IllegalStateException} the controller can
- * turn into a 409 instead of a silent overwrite.
+ * never disagree, and so a second answer is a loud {@link ProposalAlreadyAnsweredException} — the
+ * same 409 the service's pre-check raises — instead of a silent overwrite.
  */
 @Entity
 @Table(name = "proposal")
@@ -93,7 +93,15 @@ public class Proposal implements UserOwned {
 	@Column(name = "answered_at")
 	private OffsetDateTime answeredAt;
 
-	/** FR-014's bullets as raw JSON, mapped the way {@code ai_memory_episode.payload} is. */
+	/**
+	 * FR-014's bullets as raw JSON, mapped the way {@code ai_memory_episode.payload} is.
+	 *
+	 * <p><b>The bare array</b> {@code ["...", "..."]} — the steps themselves, not the
+	 * {@code {"steps": [...]}} envelope {@link FirstStep}'s schema makes the <em>model</em> answer
+	 * in — {@code ProposalService} unwraps it before the JSON gets here. V8's column comment says
+	 * otherwise and is wrong; correcting an applied migration costs a Flyway checksum, so this is
+	 * the statement to trust.
+	 */
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(name = "first_step")
 	private String firstStep;
@@ -123,11 +131,16 @@ public class Proposal implements UserOwned {
 	 * gives: {@code timestamptz} holds no more, and an untruncated clock would let the response carry
 	 * a moment no later read of the row can return.
 	 *
-	 * @throws IllegalStateException if this proposal has already been answered
+	 * <p>The refusal is the same exception {@code ProposalService}'s pre-check throws, so both arrive
+	 * at the 409 {@code ApiExceptionHandler} publishes. The service check exists only to refuse before
+	 * the model call is paid for; this one is what covers two answers in flight at once, and it must
+	 * not be the arm that turns into a 500.
+	 *
+	 * @throws ProposalAlreadyAnsweredException if this proposal has already been answered
 	 */
 	public void answer(ProposalAnswer answer, OffsetDateTime at) {
 		if (!isPending()) {
-			throw new IllegalStateException("proposal " + id + " was already answered as " + this.answer);
+			throw new ProposalAlreadyAnsweredException(id);
 		}
 		this.answer = Objects.requireNonNull(answer, "answer");
 		this.answeredAt = Objects.requireNonNull(at, "at").truncatedTo(ChronoUnit.MICROS);

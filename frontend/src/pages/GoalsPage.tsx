@@ -66,7 +66,7 @@ const SECTIONS = [
 const NO_CATEGORY = 'NONE'
 
 /** What both forms send: `GoalCreation` in the spec, and `GoalUpdate` once `completed` is added. */
-type GoalDraft = Pick<Goal, 'content' | 'layer' | 'horizon' | 'due_date' | 'category_code'>
+export type GoalDraft = Pick<Goal, 'content' | 'layer' | 'horizon' | 'due_date' | 'category_code'>
 
 /**
  * What an entry can do to itself, handed down rather than re-derived per row: which row (if any)

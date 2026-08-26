@@ -234,7 +234,7 @@ class GoalPersistenceTest {
 		reloaded.restore();
 		goals.saveAndFlush(reloaded);
 		assertThat(goals.findByIdAndUserId(saved.getId(), userId).orElseThrow().getWithdrawnAt())
-				.as("\"nigdy\" is reversible — that is the whole reason it is a timestamp and not a delete")
+				.as("a withdrawal is reversible — that is the whole reason it is a timestamp and not a delete")
 				.isNull();
 	}
 

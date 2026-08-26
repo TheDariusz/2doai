@@ -156,7 +156,7 @@ class ProposalSelectorTest {
 	@Test
 	void neverProposesAnEntryTheUserWithdrew() {
 		assertThat(select(List.of(withdrawn(GoalLayer.DREAM, LifeDomain.HEALTH, 400))))
-				.as("\"nigdy\" is the user speaking — a withdrawn entry is out of the running until "
+				.as("NEVER is the user speaking — a withdrawn entry is out of the running until "
 						+ "they restore it, however long it then sits")
 				.isEmpty();
 	}

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ApiError, api } from '../api/client'
-import type { Goal } from './GoalsPage'
+import type { Goal, GoalDraft } from './GoalsPage'
 
 /**
  * What the engine came back with, exactly as the `Proposal` schema in `openapi.yaml` defines it
@@ -76,19 +76,22 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
   const [askingTerm, setAskingTerm] = useState(false)
   const [saved, setSaved] = useState<string[]>([])
 
-  /** Every call shares this: report what failed, record it, and never leave the card half-built. */
-  async function attempt(request: Promise<unknown>, what: string): Promise<boolean> {
+  /**
+   * Every call shares this: report what failed, record it, and never leave the card half-built.
+   * Returns the response rather than a bare boolean, so a caller narrows on `ok` instead of
+   * smuggling the value out of a `.then` into a variable TypeScript cannot prove was assigned.
+   */
+  async function attempt<T>(request: Promise<T>, what: string): Promise<{ ok: true; value: T } | { ok: false }> {
     setPending(true)
     setError(null)
     try {
-      await request
-      return true
+      return { ok: true, value: await request }
     } catch (failure) {
       // Bound and recorded because the copy is generic: without this a 500 and a parse bug are
       // indistinguishable from the outside and leave no trace.
       console.error(`proposal: ${what} failed`, failure)
       setError(messageFor(failure instanceof ApiError ? failure.status : -1, what))
-      return false
+      return { ok: false }
     } finally {
       setPending(false)
     }
@@ -99,53 +102,44 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
     setAskingTerm(false)
     setSaved([])
     // 204 is a legitimate answer — nothing is gathering dust — and `api` returns undefined for it.
-    let next: Proposal | undefined
-    const asked = await attempt(
-      api<Proposal | undefined>('/proposals', { method: 'POST' }).then((value) => (next = value)),
-      'pobrać propozycji',
-    )
-    if (!asked) return
-    setProposal(next ?? null)
-    setNothingWaiting(!next)
+    const asked = await attempt(api<Proposal | undefined>('/proposals', { method: 'POST' }), 'pobrać propozycji')
+    if (!asked.ok) return
+    setProposal(asked.value ?? null)
+    setNothingWaiting(!asked.value)
   }
 
   async function answer(value: NonNullable<Proposal['answer']>, remindInDays?: number) {
     if (!proposal) return
-    let answered: Proposal | undefined
     // Absent, not null: three of the four answers legitimately carry no term, and a term sent
     // beside any of them is a 422 rather than a value the server quietly drops.
     const body = remindInDays === undefined ? { answer: value } : { answer: value, remind_in_days: remindInDays }
     const landed = await attempt(
-      api<Proposal>(`/proposals/${proposal.id}/answer`, { method: 'POST', body }).then(
-        (value_) => (answered = value_),
-      ),
+      api<Proposal>(`/proposals/${proposal.id}/answer`, { method: 'POST', body }),
       'zapisać odpowiedzi',
     )
-    if (!landed || !answered) return
-    setProposal(answered)
-    setAskingTerm(false)
+    if (!landed.ok) return
+    // No `setAskingTerm(false)`: the answered proposal unmounts `Answers` outright, and `propose()`
+    // is the only route back to a pending one — it already resets the flag.
+    setProposal(landed.value)
     onChange()
   }
 
   async function saveStep(step: string) {
-    const landed = await attempt(
-      api('/goals', {
-        method: 'POST',
-        body: {
-          content: step,
-          // A first step is a thing to do now, which is what the task layer is for — and it has no
-          // date, because the app has no business inventing a deadline the user did not name.
-          layer: 'TASK',
-          horizon: null,
-          due_date: null,
-          // The one field the card can fill honestly: the step belongs to the same part of life the
-          // entry does, and the category is what decides which domain it shows up under.
-          category_code: proposal?.entry.category_code ?? null,
-        },
-      }),
-      'zapisać zadania',
-    )
-    if (!landed) return
+    // Typed as the page's `GoalDraft` rather than an inline literal: this is the goals contract, and
+    // a field added to it should break here at compile time rather than at the server's 400.
+    const draft: GoalDraft = {
+      content: step,
+      // A first step is a thing to do now, which is what the task layer is for — and it has no
+      // date, because the app has no business inventing a deadline the user did not name.
+      layer: 'TASK',
+      horizon: null,
+      due_date: null,
+      // The one field the card can fill honestly: the step belongs to the same part of life the
+      // entry does, and the category is what decides which domain it shows up under.
+      category_code: proposal?.entry.category_code ?? null,
+    }
+    const landed = await attempt(api('/goals', { method: 'POST', body: draft }), 'zapisać zadania')
+    if (!landed.ok) return
     setSaved((all) => [...all, step])
     onChange()
   }
@@ -173,7 +167,9 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
           {proposal.answer ? (
             <>
               <p role="status">{CONFIRMATION[proposal.answer]}</p>
-              {proposal.first_step && <FirstStep steps={proposal.first_step} saved={saved} save={saveStep} />}
+              {proposal.first_step && (
+                <FirstStep steps={proposal.first_step} saved={saved} save={saveStep} pending={pending} />
+              )}
             </>
           ) : (
             <Answers
@@ -244,10 +240,12 @@ function FirstStep({
   steps,
   saved,
   save,
+  pending,
 }: {
   steps: string[]
   saved: string[]
   save: (step: string) => void
+  pending: boolean
 }) {
   if (steps.length === 0) {
     return <p>Nie udało się przygotować pierwszego kroku — spróbuj jeszcze raz za chwilę.</p>
@@ -263,7 +261,7 @@ function FirstStep({
           {saved.includes(step) ? (
             <small>Zapisano</small>
           ) : (
-            <button type="button" onClick={() => save(step)}>
+            <button type="button" disabled={pending} onClick={() => save(step)}>
               Zapisz jako zadanie
             </button>
           )}

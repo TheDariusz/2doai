@@ -58,7 +58,7 @@ class ProposalTest {
 		assertThatThrownBy(() -> proposal.answer(ProposalAnswer.STARTING, NOW.plusMinutes(1)))
 				.as("a second answer would silently overwrite the first — the API owes the caller a "
 						+ "409 instead, and it can only tell because this throws")
-				.isInstanceOf(IllegalStateException.class);
+				.isInstanceOf(ProposalAlreadyAnsweredException.class);
 
 		assertThat(proposal.getAnswer()).isEqualTo(ProposalAnswer.NEVER);
 	}
@@ -68,7 +68,7 @@ class ProposalTest {
 		Proposal proposal = proposal();
 		assertThat(proposal.getFirstStep()).isNull();
 
-		proposal.recordFirstStep("{\"steps\":[\"Wyjmij rower z piwnicy\"]}");
+		proposal.recordFirstStep("[\"Wyjmij rower z piwnicy\"]");
 
 		assertThat(proposal.getFirstStep()).contains("Wyjmij rower z piwnicy");
 	}

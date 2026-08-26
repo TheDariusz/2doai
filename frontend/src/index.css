@@ -209,7 +209,10 @@ p {
   gap: 12px;
 }
 
-.goals ul {
+/* The proposal card's bullet list is the same row shape, so it shares these three rules rather
+   than restating them; the handful of declarations that differ live beside `.proposal` below. */
+.goals ul,
+.proposal ul {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -218,7 +221,8 @@ p {
   padding: 0;
 }
 
-.goals li {
+.goals li,
+.proposal li {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -229,7 +233,8 @@ p {
 }
 
 /* The entry takes the row and pushes its buttons to the end; below ~12rem everything wraps. */
-.goals li > p {
+.goals li > p,
+.proposal li > p {
   flex: 1 1 12rem;
   color: var(--text-h);
 }
@@ -269,27 +274,12 @@ p {
 }
 
 .proposal ul {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  list-style: none;
   margin: 12px 0 0;
-  padding: 0;
 }
 
-/* Same row shape as an entry, so a bullet reads as the task it is about to become. */
+/* Tighter than an entry row, and opaque: a bullet reads as the task it is about to become, but it
+   sits on the card's accent wash rather than the page. */
 .proposal li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
   padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
   background: var(--bg);
-}
-
-.proposal li > p {
-  flex: 1 1 12rem;
-  color: var(--text-h);
 }
