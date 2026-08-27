@@ -57,4 +57,15 @@ final class ProposalRhythm {
 		// resolves both — and the window starts long after either transition, so it never shows.
 		return day.atTime(time).atZone(USER_ZONE).toOffsetDateTime();
 	}
+
+	/**
+	 * Whether a moment falls inside the hours a proposal may land in. Every moment {@link #next} draws
+	 * does by construction — this is asked of the ones that arrive <em>late</em>: a machine that was
+	 * down over the whole window (a deploy, a Fly host migration, an OOM restart) comes back holding a
+	 * fire time already in the past, and 04:00 is not when a friend makes up for a quiet day.
+	 */
+	static boolean isInsideWindow(OffsetDateTime at, RhythmProperties props) {
+		int hour = at.atZoneSameInstant(USER_ZONE).getHour();
+		return hour >= props.windowStartHour() && hour < props.windowEndHour();
+	}
 }

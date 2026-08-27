@@ -529,21 +529,21 @@ V9 is expand-only (one nullable column) — safe under image rollback. Existing 
 
 #### Automated
 
-- [x] 1.1 `mvn test` green — rhythm, binding, supersede, scheduled-path REST test, 422 on SUPERSEDED
-- [x] 1.2 Flyway V9 applies cleanly under Testcontainers
-- [x] 1.3 `ApiSurfaceTest` still green
+- [x] 1.1 `mvn test` green — rhythm, binding, supersede, scheduled-path REST test, 422 on SUPERSEDED — de1fa30
+- [x] 1.2 Flyway V9 applies cleanly under Testcontainers — de1fa30
+- [x] 1.3 `ApiSurfaceTest` still green — de1fa30
 
 ### Phase 2: Scheduler
 
 #### Automated
 
-- [ ] 2.1 `mvn test` green — tick semantics incl. zero-DB-when-idle guard, prune, registration event
-- [ ] 2.2 Integration: null backfill at boot; forced past fire produces proposal + future next_proposal_at
-- [ ] 2.3 Liveness group contains the scheduler indicator, nothing DB-touching
+- [x] 2.1 `mvn test` green — tick semantics incl. zero-DB-when-idle guard, prune, registration event
+- [x] 2.2 Integration: null backfill at boot; forced past fire produces proposal + future next_proposal_at
+- [x] 2.3 Liveness group contains the scheduler indicator, nothing DB-touching
 
 #### Manual
 
-- [ ] 2.4 Local run: startup schedule line; SQL log silent while idle
+- [x] 2.4 Local run: startup schedule line; SQL log silent while idle
 
 ### Phase 3: Email delivery
 

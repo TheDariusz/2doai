@@ -107,6 +107,39 @@ class ProposalRhythmTest {
 	}
 
 	/**
+	 * The window read as a question rather than as a draw. Every drawn moment is inside it by
+	 * construction; the ones that need asking are the late arrivals — a machine that was down over the
+	 * whole window comes back to a fire time already in the past, and 04:00 is not when a friend makes
+	 * up for a quiet day.
+	 */
+	@Test
+	void recognisesAMomentOutsideTheUsersWakingHours() {
+		assertThat(ProposalRhythm.isInsideWindow(warsawAt(9, 0), PROPS)).isTrue();
+		assertThat(ProposalRhythm.isInsideWindow(warsawAt(20, 59), PROPS)).isTrue();
+		assertThat(ProposalRhythm.isInsideWindow(warsawAt(8, 59), PROPS)).isFalse();
+		// Half-open, like the draw: 21:00 sharp is already outside.
+		assertThat(ProposalRhythm.isInsideWindow(warsawAt(21, 0), PROPS)).isFalse();
+	}
+
+	/**
+	 * Same instant, a zone away. A server that answered this question in UTC would open the window at
+	 * 11:00 and shut it at 23:00 Polish time in summer — the thing 9:00-21:00 exists to prevent, only
+	 * now on the arm that fires rather than the one that draws.
+	 */
+	@Test
+	void answersTheWindowQuestionInTheUsersZoneToo() {
+		OffsetDateTime middayInWarsaw = warsawAt(12, 0);
+
+		assertThat(ProposalRhythm.isInsideWindow(
+				middayInWarsaw.withOffsetSameInstant(java.time.ZoneOffset.ofHours(-9)), PROPS)).isTrue();
+	}
+
+	private static OffsetDateTime warsawAt(int hour, int minute) {
+		return LocalDate.of(2026, 8, 25).atTime(hour, minute)
+				.atZone(ProposalRhythm.USER_ZONE).toOffsetDateTime();
+	}
+
+	/**
 	 * A day the user's clock skips: 2027-03-28 has no 02:00-03:00 in Warsaw. The window starts well
 	 * after the gap, so nothing should be clever here — but a draw that produced a nonexistent local
 	 * time would be an exception on a background thread days later, so it is pinned rather than
