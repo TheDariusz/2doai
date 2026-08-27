@@ -396,7 +396,7 @@ paths:
       summary: Delete an entry
       description: >
         Removes the entry permanently — a hard delete, not a withdrawal: the row is gone and the id
-        stops resolving, so repeating the call returns 404. This is not the "nigdy" state S-04
+        stops resolving, so repeating the call returns 404. This is not the withdrawn state S-04
         introduces (which keeps the entry and marks it) nor FR-019 account erasure (which removes
         every entry at once).
 
@@ -830,9 +830,9 @@ components:
           format: date
           readOnly: true
         withdrawn_at:
-          # S-04b "nigdy": the entry is out of the running until it is restored, never deleted. Same
-          # shape as completed_at, and published because the SPA's withdrawn filter is what makes the
-          # answer reversible.
+          # S-04b's NEVER answer: the entry is out of the running until it is restored, never deleted.
+          # Same shape as completed_at, and published because the SPA's withdrawn filter is what
+          # makes the answer reversible.
           type: [string, 'null']
           format: date-time
           readOnly: true
@@ -871,7 +871,10 @@ components:
 
         Restoring a withdrawn entry is this request with `withdrawn: false` — there is no separate
         route, because withdrawal is a field of the entry rather than an operation on it.
-      required: [content, layer]
+      # completed and withdrawn are required, and carry no default: the prose above is the contract,
+      # and a default here would tell a generated client the field is safe to omit — which is the one
+      # thing the server answers 400 to.
+      required: [content, layer, completed, withdrawn]
       properties:
         content:
           $ref: '#/components/schemas/GoalContent'
@@ -885,11 +888,9 @@ components:
           $ref: '#/components/schemas/GoalCategoryCode'
         completed:
           type: boolean
-          default: false
           description: True marks the entry done (setting `completed_at`); false reopens it.
         withdrawn:
           type: boolean
-          default: false
           description: >
             True takes the entry out of the running (setting `withdrawn_at`, FR-013's "never"); false
             brings it back. Re-asserting a withdrawal keeps the moment the user first said no.
@@ -952,11 +953,11 @@ components:
           type: [array, 'null']
           items:
             type: string
-          minItems: 3
-          maxItems: 5
           description: >
-            3–5 concrete opening steps, present only after a `STARTING` answer. An empty array means
-            the answer landed but the model did not — the proposal is still answered.
+            The opening steps, present only after a `STARTING` answer. Three to five of them is what
+            the model is asked for, and deliberately not a bound on this schema: nothing clamps the
+            answer afterwards, and an empty array is a legal response — it means the answer landed
+            but the model did not, and the proposal is still answered.
           readOnly: true
 
     ProposalSource:
@@ -995,9 +996,12 @@ components:
       required: [answer]
       properties:
         answer:
-          # The anchor above is nullable because a pending proposal has no answer yet; here the
-          # field is required and null is not one of the four responses.
+          # The anchor is nullable because a *proposal* has no answer until it is answered; a request
+          # has no such state. `required` alone would not say so — it forbids omitting the field, not
+          # sending it as null, which the server answers 422 — so the sibling narrows the anchor back
+          # to a string (3.1 applies `$ref` and its siblings together).
           $ref: '#/components/schemas/ProposalAnswer'
+          type: string
         remind_in_days:
           type: [integer, 'null']
           format: int32                                     # #171 integers declare int32/int64

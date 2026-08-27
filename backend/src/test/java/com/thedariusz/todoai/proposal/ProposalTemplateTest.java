@@ -41,7 +41,7 @@ class ProposalTemplateTest {
 	@Test
 	void countsInDaysUntilTwoMonthsAndInMonthsAfterThat() {
 		assertThat(ProposalTemplate.phrase(createdIn(2026, 3, "x"), 59)).contains("minęło 59 dni");
-		assertThat(ProposalTemplate.phrase(createdIn(2026, 3, "x"), 60)).contains("minęło 2 miesiące");
+		assertThat(ProposalTemplate.phrase(createdIn(2026, 3, "x"), 60)).contains("minęły 2 miesiące");
 	}
 
 	@Test
@@ -50,6 +50,21 @@ class ProposalTemplateTest {
 		// The 12–14 exception: thirteen takes the many-form even though it ends in three.
 		assertThat(ProposalTemplate.phrase(createdIn(2026, 5, "x"), 13 * 30)).contains("13 miesięcy");
 		assertThat(ProposalTemplate.phrase(createdIn(2026, 5, "x"), 1)).contains("minął dzień");
+	}
+
+	/**
+	 * The verb agrees with the count too, which is the half a noun-only plural table misses: the
+	 * 2–4 group takes a different form of {@code minąć} from everything above it, and the sentence
+	 * this class returns is the one a demo reads out loud when the provider is down.
+	 */
+	@Test
+	void inflectsTheVerbWithTheCountAndNotOnlyTheNoun() {
+		assertThat(ProposalTemplate.phrase(createdIn(2026, 5, "x"), 2)).contains("minęły 2 dni");
+		assertThat(ProposalTemplate.phrase(createdIn(2026, 5, "x"), 5)).contains("minęło 5 dni");
+		// Same rule, same exception: 22 rejoins the 2–4 group, 13 does not.
+		assertThat(ProposalTemplate.phrase(createdIn(2026, 5, "x"), 22)).contains("minęły 22 dni");
+		assertThat(ProposalTemplate.phrase(createdIn(2026, 5, "x"), 13)).contains("minęło 13 dni");
+		assertThat(ProposalTemplate.phrase(createdIn(2026, 5, "x"), 13 * 30)).contains("minęło 13 miesięcy");
 	}
 
 	@Test

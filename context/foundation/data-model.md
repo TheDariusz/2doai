@@ -70,7 +70,7 @@ erDiagram
         varchar source "LLM | TEMPLATE — which arm wrote the message"
         varchar answer "STARTING | NOT_NOW | REMIND_LATER | NEVER; nullable"
         timestamptz answered_at "NULL = pending; partial UNIQUE(user_id) over this"
-        jsonb first_step "FR-014's 3-5 bullets, a steps array; nullable"
+        jsonb first_step "FR-014's 3-5 bullets, a bare array of strings; nullable"
         timestamptz created_at
         timestamptz updated_at
     }
@@ -128,18 +128,27 @@ reset the neglect clock if it landed there. It lives on `proposal` instead. `rem
 `withdrawn_at` are the exceptions that prove the rule: a snooze and a withdrawal are things the *user*
 asked for, so stamping the `goal` row is honest.
 
-Two schema decisions carry product rules that a service check could not:
+Three schema decisions sit on `proposal`; the first two carry product rules a service check could
+not hold, and the third backstops the pair of columns the first one reads:
 
 - **FR-018 (at most one pending proposal) is a partial unique index**, `idx_proposal_one_pending ON
   proposal (user_id) WHERE answered_at IS NULL`. A service-level "does this user already have one?"
   races with itself on a double-click and stores both; the index cannot. Answered rows accumulate
   freely — only the pending slot is exclusive.
 - **`proposal.goal_id` is the one `ON DELETE CASCADE` in this schema**, so `DELETE /api/goals/{id}`
-  keeps working while a proposal points at the entry. The cost is named rather than hidden: because
-  `GoalDataDeleter` runs during FR-019 account deletion and every proposal has a goal, the cascade
-  erases a user's proposals *before* `ProposalDataDeleter` is reached — so the "a missing deleter
-  fails loudly on the FK" property does **not** protect this table. The deleter exists anyway, and
-  becomes load-bearing the moment a proposal can outlive its entry.
+  keeps working while a proposal points at the entry. The cost is named rather than hidden, and it is
+  charged twice. Because `GoalDataDeleter` runs during FR-019 account deletion and every proposal has
+  a goal, the cascade erases a user's proposals whether or not `ProposalDataDeleter` exists — so the
+  "a missing deleter fails loudly on the FK" property does **not** protect this table, and the
+  erasure is asserted directly in `AccountDeletionIntegrationTest` instead. The second cost is
+  ordering: both deleters run in one transaction in an unspecified order, so the cascade can remove
+  rows an entity delete has already loaded, leaving it to fail on a row count of zero. That is why
+  `ProposalRepository.deleteByUserId` is a bulk delete — immediate, and order-independent.
+- **`CHECK ((answer IS NULL) = (answered_at IS NULL))`** keeps the answer's two columns whole. The
+  aggregate already writes them together, but the pending index above reads only `answered_at`, so a
+  row carrying an answer with no moment attached would occupy the FR-018 slot for good while every
+  reader called it answered. The constraint is what holds for a fixture, a backfill or a later
+  migration that never goes through the aggregate.
 
 `remind_after` is a `DATE` compared against the user's local date, exactly as `due_date` already is:
 a snooze is "come back on Thursday", not a moment in a timezone. `first_step` follows

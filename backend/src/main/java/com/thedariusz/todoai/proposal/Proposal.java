@@ -98,9 +98,7 @@ public class Proposal implements UserOwned {
 	 *
 	 * <p><b>The bare array</b> {@code ["...", "..."]} — the steps themselves, not the
 	 * {@code {"steps": [...]}} envelope {@link FirstStep}'s schema makes the <em>model</em> answer
-	 * in — {@code ProposalService} unwraps it before the JSON gets here. V8's column comment says
-	 * otherwise and is wrong; correcting an applied migration costs a Flyway checksum, so this is
-	 * the statement to trust.
+	 * in — {@code ProposalService} unwraps it before the JSON gets here.
 	 */
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(name = "first_step")

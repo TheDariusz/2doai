@@ -135,7 +135,7 @@ describe('ProposalCard — proszenie o propozycję', () => {
 })
 
 describe('ProposalCard — cztery odpowiedzi', () => {
-  it('sends "zaczynam" and nothing else', async () => {
+  it('sends STARTING and nothing else', async () => {
     stubApi(response(200, PROPOSAL), response(200, answered('STARTING', ['Wypożycz gitarę'])))
     const user = renderCard()
 
@@ -150,7 +150,7 @@ describe('ProposalCard — cztery odpowiedzi', () => {
     })
   })
 
-  it('sends "nie teraz" without a term, because the user named none', async () => {
+  it('sends NOT_NOW without a term, because the user named none', async () => {
     stubApi(response(200, PROPOSAL))
     const user = renderCard()
 
@@ -166,7 +166,7 @@ describe('ProposalCard — cztery odpowiedzi', () => {
    * The three presets are a second step rather than three more buttons in the row: four answers plus
    * three terms is seven controls to read before answering a question the app asked.
    */
-  it('asks which term before sending "przypomnij później"', async () => {
+  it('asks which term before sending REMIND_LATER', async () => {
     stubApi(response(200, PROPOSAL), response(200, answered('REMIND_LATER')))
     const user = renderCard()
 
@@ -193,7 +193,7 @@ describe('ProposalCard — cztery odpowiedzi', () => {
     expect(screen.getByRole('button', { name: 'Za 90 dni' })).toBeInTheDocument()
   })
 
-  it('sends "nigdy" and says where the entry went', async () => {
+  it('sends NEVER and says where the entry went', async () => {
     stubApi(response(200, PROPOSAL), response(200, answered('NEVER')))
     const user = renderCard()
 
@@ -292,6 +292,24 @@ describe('ProposalCard — pierwszy krok', () => {
 
     await waitFor(() => expect(row.queryByRole('button', { name: 'Zapisz jako zadanie' })).toBeNull())
     expect(row.getByText(/zapisano/i)).toBeInTheDocument()
+  })
+
+  /** Nothing stops a model repeating itself, and two identical bullets are still two bullets. */
+  it('keeps repeated bullets apart when one of them is saved', async () => {
+    const twice = ['Zagraj jeden akord', 'Zagraj jeden akord']
+    stubApi(response(200, PROPOSAL), response(200, answered('STARTING', twice)))
+    const user = renderCard()
+
+    await propose(user)
+    await user.click(screen.getByRole('button', { name: 'Zaczynam' }))
+
+    const buttons = await screen.findAllByRole('button', { name: 'Zapisz jako zadanie' })
+    expect(buttons).toHaveLength(2)
+    await user.click(buttons[0])
+
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: 'Zapisz jako zadanie' })).toHaveLength(1),
+    )
   })
 
   /**

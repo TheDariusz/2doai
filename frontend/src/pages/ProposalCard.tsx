@@ -37,7 +37,7 @@ const CONFIRMATION: Record<NonNullable<Proposal['answer']>, string> = {
   NOT_NOW: 'Dobrze — wrócimy do tego za kilka dni.',
   REMIND_LATER: 'Przypomnimy w wybranym terminie.',
   // Withdrawal is reversible and the filter is the only way back to it, so the copy has to say
-  // where the entry went — otherwise "nigdy" reads as a delete the user just performed by accident.
+  // where the entry went — otherwise NEVER reads as a delete the user just performed by accident.
   NEVER: 'Wycofane — wpis znajdziesz pod filtrem „Pokaż wycofane”.',
 }
 
@@ -56,8 +56,8 @@ function messageFor(status: number, what: string): string {
 }
 
 /**
- * FR-015's "daj mi coś teraz": the button, the proposal it returns, the four answers of FR-013 and
- * FR-014's first step.
+ * FR-015's "give me something now": the button, the proposal it returns, the four answers of
+ * FR-013 and FR-014's first step.
  *
  * <p>A file of its own rather than a section of `GoalsPage`, which is long enough already and owns a
  * different thing — this is one self-contained flow that happens to sit above an entry list. It
@@ -74,7 +74,9 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [askingTerm, setAskingTerm] = useState(false)
-  const [saved, setSaved] = useState<string[]>([])
+  // Positions, not the bullets themselves: a model can return the same sentence twice, and keying
+  // this by text would mark both saved on one click — and give React two <li> with one key.
+  const [saved, setSaved] = useState<number[]>([])
 
   /**
    * Every call shares this: report what failed, record it, and never leave the card half-built.
@@ -124,7 +126,7 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
     onChange()
   }
 
-  async function saveStep(step: string) {
+  async function saveStep(step: string, at: number) {
     // Typed as the page's `GoalDraft` rather than an inline literal: this is the goals contract, and
     // a field added to it should break here at compile time rather than at the server's 400.
     const draft: GoalDraft = {
@@ -140,7 +142,7 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
     }
     const landed = await attempt(api('/goals', { method: 'POST', body: draft }), 'zapisać zadania')
     if (!landed.ok) return
-    setSaved((all) => [...all, step])
+    setSaved((all) => [...all, at])
     onChange()
   }
 
@@ -234,7 +236,7 @@ function Answers({
 /**
  * FR-014's bullets. An empty list is not the same as no list: the server answers 200 with no bullets
  * when the model call fails, so the answer landed and the plan did not — and silence there would
- * read as "zaczynam means nothing happens".
+ * read as "STARTING means nothing happens".
  */
 function FirstStep({
   steps,
@@ -243,25 +245,27 @@ function FirstStep({
   pending,
 }: {
   steps: string[]
-  saved: string[]
-  save: (step: string) => void
+  saved: number[]
+  save: (step: string, at: number) => void
   pending: boolean
 }) {
   if (steps.length === 0) {
-    return <p>Nie udało się przygotować pierwszego kroku — spróbuj jeszcze raz za chwilę.</p>
+    // No "try again": the answer is recorded, so the button is gone and a second press would 409.
+    // The bullets were the extra, and this is the one honest thing left to say about them.
+    return <p>Odpowiedź zapisana, ale nie udało się przygotować pierwszego kroku.</p>
   }
 
   return (
     <ul>
-      {steps.map((step) => (
-        <li key={step}>
+      {steps.map((step, at) => (
+        <li key={at}>
           <p>{step}</p>
           {/* Saved bullets stop offering to be saved: one enthusiastic click otherwise becomes
               three identical tasks, and the list they land in is a screen away. */}
-          {saved.includes(step) ? (
+          {saved.includes(at) ? (
             <small>Zapisano</small>
           ) : (
-            <button type="button" disabled={pending} onClick={() => save(step)}>
+            <button type="button" disabled={pending} onClick={() => save(step, at)}>
               Zapisz jako zadanie
             </button>
           )}

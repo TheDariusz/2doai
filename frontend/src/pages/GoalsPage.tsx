@@ -19,10 +19,12 @@ import type { Domain } from '../layout/AppLayout'
  * carry: a GOAL always has a horizon and never a term, a DREAM has neither, a TASK may have a term
  * and never a horizon. The server answers 422 for any other combination.
  *
- * `remind_after` and `withdrawn_at` are what the proposal engine writes back when the user answers a
- * proposal (S-04b): the date a quieted entry comes back, and the moment they said "never". Both are
- * timestamps rather than flags for the same reason `completed_at` is — when is data the memory
- * enrichment reads, not just whether.
+ * `remind_after` and `withdrawn_at` are what an answered proposal leaves on the entry (S-04b): the
+ * date a quieted entry comes back, and the moment it was withdrawn. `withdrawn_at` has a second
+ * writer — `GoalUpdate.withdrawn` on PUT, which is the only way back from a withdrawal — so it is
+ * not proposal-only state. Both record *when* rather than a flag for the same reason `completed_at`
+ * does, but they are not the same shape: `remind_after` is a plain date, because a snooze is "come
+ * back on Thursday" rather than a moment in a timezone.
  */
 export type Goal = {
   id: string

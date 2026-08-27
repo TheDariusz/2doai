@@ -36,7 +36,7 @@ import com.thedariusz.todoai.goal.GoalLayer;
  * opposite: whichever domain the user neglects hardest owns every proposal forever. So a domain is
  * scored by how long the user has been <b>silent in it</b> — the idle time of its most recently
  * touched entry, completed ones included — and the most silent domain goes first. Raw idle time is
- * the second key outright, so it settles two equally silent domains as readily as two entries inside
+ * the third key outright, so it settles two equally silent domains as readily as two entries inside
  * one. Touch anything in a domain and it goes quiet for a while, which is what rotates the
  * proposals. An entry with no {@code category_code} is not dropped: null is a map key like any
  * other, so uncategorised entries compete on equal terms — as <em>one shared bucket</em>, though,

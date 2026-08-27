@@ -123,7 +123,7 @@ test('status language distinguishes what is implemented from the target product'
   // S-04b shipped the AI half of the proactive loop, so the two lines that called it future work
   // are gone and the screen it landed on is named. What is still planned is only the timing.
   assert.doesNotMatch(html, phrase('roadmap slices S-04b and S-05'))
-  assert.match(html, phrase('Daj mi coś teraz'))
+  assert.match(html, phrase('<code>POST /api/proposals</code>'))
   assert.match(html, phrase('<code>POST /api/proposals/{id}/answer</code>'))
 })
 

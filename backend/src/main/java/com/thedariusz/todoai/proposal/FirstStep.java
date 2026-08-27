@@ -10,10 +10,10 @@ import com.thedariusz.todoai.ai.JsonSchema;
  * schema that constrains it. The two live together because they are one contract — a rename on
  * either side breaks the other, and {@code ProposalPromptTest} holds them to each other.
  *
- * <p><b>Public deliberately</b>, unlike everything else in this package: this is the type handed
- * across the {@code LlmClient} port, so {@code SpringAiLlmClient}'s mapper builds it by reflection
- * and {@code ProposalApiTest} — which lives with the other API tests, not here — names it when it
- * stubs the model.
+ * <p><b>Public deliberately</b>, unlike the service and the controller beside it: this is the type
+ * handed across the {@code LlmClient} port, so {@code SpringAiLlmClient}'s mapper builds it by
+ * reflection and {@code ProposalApiTest} — which lives with the other API tests, not here — names it
+ * when it stubs the model.
  *
  * <p>The 3–5 bound is stated twice on purpose: {@code minItems}/{@code maxItems} for the provider,
  * and again in the prompt's own words, because a provider is free to treat the count as advisory.

@@ -31,12 +31,19 @@ CREATE TABLE proposal (
     source         VARCHAR(16) NOT NULL,
     answer         VARCHAR(16),
     answered_at    TIMESTAMPTZ,
-    -- FR-014's 3-5 bullets, as {"steps": [...]}. Stored so a reload shows the same plan instead of
-    -- quietly generating a different one; jsonb like ai_memory_episode.payload, which the mapping
-    -- follows too (a raw JSON String, no Jackson coupling in the entity).
+    -- FR-014's 3-5 bullets, as the bare array ["...", ...] — the envelope FirstStep's schema makes
+    -- the model answer in is unwrapped before it gets here. Stored so a reload shows the same plan
+    -- instead of quietly generating a different one; jsonb like ai_memory_episode.payload, which
+    -- the mapping follows too (a raw JSON String, no Jackson coupling in the entity).
     first_step     JSONB,
     created_at     TIMESTAMPTZ NOT NULL,
-    updated_at     TIMESTAMPTZ NOT NULL
+    updated_at     TIMESTAMPTZ NOT NULL,
+    -- The two answer columns are written together by Proposal#answer and read apart: the pending
+    -- index below keys on answered_at alone, so a row carrying an answer with a null answered_at
+    -- would hold the FR-018 slot for good while every reader called it answered. The aggregate
+    -- already refuses to write that pair; this is the same rule where a migration or a fixture
+    -- cannot route around it.
+    CONSTRAINT proposal_answer_is_whole CHECK ((answer IS NULL) = (answered_at IS NULL))
 );
 
 -- Postgres does not auto-index FK columns; user_id backs every scoped read and the FR-019 erasure,

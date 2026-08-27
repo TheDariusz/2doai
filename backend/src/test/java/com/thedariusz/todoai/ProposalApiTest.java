@@ -6,12 +6,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import com.thedariusz.todoai.ai.LlmClient;
 import com.thedariusz.todoai.ai.LlmException;
 import com.thedariusz.todoai.ai.LlmMessage;
 import com.thedariusz.todoai.ai.LlmRequest;
+import com.thedariusz.todoai.ai.memory.AiMemoryService;
 import com.thedariusz.todoai.proposal.FirstStep;
 import io.restassured.response.ValidatableResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +27,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -71,6 +79,13 @@ class ProposalApiTest extends ApiTestBase {
 
 	@MockitoBean
 	private LlmClient llm;
+
+	/**
+	 * A spy rather than a mock: every proposal renders the memory block through this same bean, so a
+	 * mock would have to restate the real behaviour before a single test could make it fail.
+	 */
+	@MockitoSpyBean
+	private AiMemoryService memory;
 
 	@BeforeEach
 	void phraseEveryProposal() {
@@ -307,6 +322,117 @@ class ProposalApiTest extends ApiTestBase {
 
 		// 409 rather than a silent overwrite is also what keeps a double-clicked STARTING to one call.
 		verify(llm, times(1)).completeStructured(any(), any(), any());
+	}
+
+	/**
+	 * Two answers genuinely in flight — a second tab, or a click impatient enough to beat the model.
+	 * {@code STARTING} is the one answer that pays for a call, so it is the one whose window another
+	 * answer can land in: {@code NEVER} commits while it is held open. The withdrawal must survive.
+	 * Merging the state read before the call would silently downgrade it to a seven-day snooze, and
+	 * the entry the user retired would come back — which is why the answering transaction re-reads
+	 * both rows under a lock rather than trusting the copies the pre-check ran against.
+	 */
+	@Test
+	void refusesTheAnswerThatLostTheRaceRatherThanOverwritingTheOneThatWon() throws Exception {
+		givenLoggedInUser();
+		String proposal = pendingProposalFor("Oddać książkę", "EDUCATION");
+
+		CountDownLatch insideTheModelCall = new CountDownLatch(1);
+		CountDownLatch withdrawalCommitted = new CountDownLatch(1);
+		when(llm.completeStructured(any(), eq(FirstStep.class), any())).thenAnswer(invocation -> {
+			insideTheModelCall.countDown();
+			withdrawalCommitted.await(10, TimeUnit.SECONDS);
+			return new FirstStep(STEPS);
+		});
+
+		ExecutorService other = Executors.newSingleThreadExecutor();
+		try {
+			Future<Integer> starting = other.submit(() -> answer(proposal, Map.of("answer", "STARTING"))
+					.extract()
+					.statusCode());
+			// Not a sleep: STARTING is past its pre-check and blocked in the call before NEVER is sent.
+			assertThat(insideTheModelCall.await(10, TimeUnit.SECONDS)).isTrue();
+
+			answer(proposal, Map.of("answer", "NEVER"))
+					.statusCode(200)
+					.body("entry.withdrawn_at", notNullValue());
+			withdrawalCommitted.countDown();
+
+			assertThat(starting.get(10, TimeUnit.SECONDS)).isEqualTo(409);
+		}
+		finally {
+			other.shutdownNow();
+		}
+
+		// The loser rolled back whole: no snooze, and the withdrawal it raced is still the entry's state.
+		client().when().get("/api/goals").then().statusCode(200)
+				.body("items[0].withdrawn_at", notNullValue())
+				.body("items[0].remind_after", equalTo(null));
+	}
+
+	/**
+	 * The answer's three writes are one transaction, and only a failure can prove it: with the
+	 * episode refusing to land, the snooze and the answer must not land either. The alternative is
+	 * the worst of both — an entry quieted for three days, a proposal that can never be answered
+	 * again, and a memory that has no idea any of it happened.
+	 */
+	@Test
+	void keepsTheProposalAnswerableWhenTheMemoryEpisodeCannotBeWritten() {
+		givenLoggedInUser();
+		String proposal = pendingProposalFor("Wymienić opony", "TRANSPORT");
+		doThrow(new IllegalStateException("the episode could not be appended"))
+				.when(memory)
+				.record(any(), eq("proposal_answered"), any());
+
+		answer(proposal, Map.of("answer", "NOT_NOW")).statusCode(500);
+
+		// Rolled back whole: the entry was never quieted, and the proposal is still the pending one.
+		client().when().get("/api/goals").then().statusCode(200)
+				.body("items[0].remind_after", equalTo(null));
+		csrfAware().when().post("/api/proposals").then().statusCode(200).body("id", equalTo(proposal));
+	}
+
+	/**
+	 * Two presses landing together is the race {@code idx_proposal_one_pending} exists for, and
+	 * losing it is not an error the user should ever see: the winner's proposal is the correct answer
+	 * to both presses. Held open at the model call, because that is the window wide enough for a
+	 * second press to arrive in.
+	 */
+	@Test
+	void handsBackTheWinningProposalWhenTwoPressesRaceForThePendingSlot() throws Exception {
+		givenLoggedInUser();
+		createTask(task("Oddać książkę", "EDUCATION", LocalDate.now(USER_ZONE).minusDays(2)));
+
+		CountDownLatch insideTheModelCall = new CountDownLatch(1);
+		CountDownLatch theOtherPressCommitted = new CountDownLatch(1);
+		AtomicBoolean firstThrough = new AtomicBoolean(true);
+		when(llm.complete(any())).thenAnswer(invocation -> {
+			if (firstThrough.compareAndSet(true, false)) {
+				insideTheModelCall.countDown();
+				theOtherPressCommitted.await(10, TimeUnit.SECONDS);
+			}
+			return PHRASED;
+		});
+
+		ExecutorService other = Executors.newSingleThreadExecutor();
+		try {
+			Future<ValidatableResponse> held = other.submit(
+					() -> csrfAware().when().post("/api/proposals").then());
+			assertThat(insideTheModelCall.await(10, TimeUnit.SECONDS)).isTrue();
+
+			// The second press sees no pending row yet, so it selects and inserts one of its own.
+			String winner = csrfAware().when().post("/api/proposals").then()
+					.statusCode(200)
+					.extract()
+					.path("id");
+			theOtherPressCommitted.countDown();
+
+			// The held press now loses the insert, and gets the winner's proposal rather than a 500.
+			held.get(10, TimeUnit.SECONDS).statusCode(200).body("id", equalTo(winner));
+		}
+		finally {
+			other.shutdownNow();
+		}
 	}
 
 	@Test

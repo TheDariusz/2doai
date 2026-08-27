@@ -132,7 +132,9 @@ class ProposalService {
 
 	/** The picked entry, back out of the list its candidate was built from. */
 	private static Goal pick(List<Goal> entries, UUID id) {
-		return entries.stream().filter(goal -> goal.getId().equals(id)).findFirst().orElseThrow();
+		return entries.stream().filter(goal -> goal.getId().equals(id)).findFirst()
+				.orElseThrow(() -> new IllegalStateException(
+						"The selector returned an id that is not in the list it was given: " + id));
 	}
 
 	/**
@@ -146,7 +148,11 @@ class ProposalService {
 			return render(proposals.saveAndFlush(draft(userId, entry, neglectedDays)), entry);
 		}
 		catch (DataIntegrityViolationException ex) {
-			log.info("A concurrent press already opened a proposal; returning that one");
+			// Logged with the violation itself: this arm recovers from the pending-slot index, but it
+			// is written to catch every integrity failure, and without the cause it would be the one
+			// place an unexpected constraint could answer 200 and leave no trace of what broke. No
+			// pending row means it was never the race, and the original exception is what propagates.
+			log.info("The insert lost the pending slot; returning the proposal that won it", ex);
 			return pending(userId).orElseThrow(() -> ex);
 		}
 	}
@@ -177,33 +183,43 @@ class ProposalService {
 	 * refusal is the invariant, but by the time it fired the model call would already have been paid
 	 * for. Checking first turns a double-clicked answer into a 409 that costs nothing.
 	 *
+	 * <p><b>Both rows are then read again inside the transaction</b>, the proposal under a write lock.
+	 * The copies the check above ran against are detached the moment their finders return, and a
+	 * {@code STARTING} answer spends up to a Sonnet timeout in between — so merging those snapshots
+	 * back would overwrite whatever landed during the call: a second answer (a withdrawal quietly
+	 * becoming a snooze) or an ordinary edit of the entry. The lock is what lets the aggregate's
+	 * refusal fire against current state rather than a snapshot, so two answers in flight queue and
+	 * the loser gets the same 409 the pre-check hands a double-click.
+	 *
 	 * @throws ProposalNotFoundException if no such proposal is owned by the caller
 	 * @throws ProposalAlreadyAnsweredException if it already carries an answer
 	 */
 	ProposalResponse answer(UUID id, ProposalAnswerRequest request) {
 		UUID userId = currentUser.requireId();
 
-		Proposal proposal = proposals.findByIdAndUserId(id, userId)
+		Proposal shown = proposals.findByIdAndUserId(id, userId)
 				.orElseThrow(() -> new ProposalNotFoundException(id));
-		if (!proposal.isPending()) {
+		if (!shown.isPending()) {
 			throw new ProposalAlreadyAnsweredException(id);
 		}
-		Goal entry = entry(userId, proposal.getGoalId());
 
 		// Before the transaction opens, never inside it — see the class javadoc.
-		List<String> steps = request.answer() == ProposalAnswer.STARTING ? firstStep(userId, entry) : null;
+		List<String> steps = request.answer() == ProposalAnswer.STARTING
+				? firstStep(userId, entry(userId, shown.getGoalId())) : null;
 
 		OffsetDateTime now = OffsetDateTime.now(USER_ZONE);
 		return transactions.execute(status -> {
+			Proposal current = proposals.findWithLockByIdAndUserId(id, userId)
+					.orElseThrow(() -> new ProposalNotFoundException(id));
+			Goal entry = entry(userId, current.getGoalId());
+
 			quiet(entry, request, now);
-			proposal.answer(request.answer(), now);
+			current.answer(request.answer(), now);
 			if (steps != null) {
-				proposal.recordFirstStep(json.writeValueAsString(steps));
+				current.recordFirstStep(json.writeValueAsString(steps));
 			}
-			// The entry first: an interrupted answer then leaves the proposal pending and retryable,
-			// rather than closed over an entry nothing ever happened to.
 			Goal quieted = goals.saveAndFlush(entry);
-			Proposal answered = proposals.saveAndFlush(proposal);
+			Proposal answered = proposals.saveAndFlush(current);
 			memory.record(userId, ANSWERED, json.writeValueAsString(
 					Map.of("answer", request.answer().name(), "entry", entry.getContent())));
 			return render(answered, quieted);
@@ -250,8 +266,14 @@ class ProposalService {
 		return ProposalResponse.of(proposal, entry, steps);
 	}
 
-	/** The entry a stored proposal points at. Always present: {@code proposal.goal_id} cascades. */
+	/**
+	 * The entry a stored proposal points at. Always present: {@code proposal.goal_id} cascades, so a
+	 * miss here is the schema failing rather than the caller asking for something that never existed
+	 * — which is why it says so instead of throwing the bare {@code NoSuchElementException} that
+	 * would reach the handler as a 500 with nothing in it.
+	 */
 	private Goal entry(UUID userId, UUID goalId) {
-		return goals.findByIdAndUserId(goalId, userId).orElseThrow();
+		return goals.findByIdAndUserId(goalId, userId).orElseThrow(() -> new IllegalStateException(
+				"Proposal points at goal " + goalId + ", which user " + userId + " does not own"));
 	}
 }

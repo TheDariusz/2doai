@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Round-trips the {@code proposal} aggregate against a real Postgres (Testcontainers) with {@code V8}
- * applied, and proves the two schema-level rules the Java cannot state on its own.
+ * applied, and proves the schema-level rules the Java cannot state on its own.
  *
  * <p><b>FR-018 is an index, not a service check.</b> "At most one pending proposal per user" is
  * enforced by a partial unique index on {@code (user_id) WHERE answered_at IS NULL}; a
@@ -36,6 +36,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * pointing at the entry. Nothing else in the suite would notice if that clause went missing —
  * account deletion would still pass, because {@code GoalDataDeleter} runs first and takes the
  * proposals with it.
+ *
+ * <p><b>And the answer pair</b>, which the aggregate already writes as one but the pending index
+ * reads apart — asserted here because a {@code CHECK} that never fires is indistinguishable from a
+ * {@code CHECK} that was never created.
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -134,6 +138,23 @@ class ProposalPersistenceTest {
 				.as("without ON DELETE CASCADE, deleting an entry that carries a proposal would fail "
 						+ "on the foreign key and DELETE /api/goals/{id} would start returning 500")
 				.isZero();
+	}
+
+	/**
+	 * {@code answer} and {@code answered_at} are one fact in two columns, and only one of them is
+	 * indexed: a row with an answer but no {@code answered_at} would sit in the FR-018 pending slot
+	 * for good while every reader called it answered. {@link Proposal#answer} cannot be reached to
+	 * write that pair, which is the point — the constraint is what holds for a fixture, a backfill or
+	 * a later migration that does not go through the aggregate, so it is tested the same way.
+	 */
+	@Test
+	void refusesAnAnswerWithNoMomentAttached() {
+		UUID userId = persistedUserId();
+		UUID goalId = persistedGoalId(userId);
+		UUID id = proposals.saveAndFlush(pending(userId, goalId)).getId();
+
+		assertThatThrownBy(() -> jdbc.update("UPDATE proposal SET answer = 'NEVER' WHERE id = ?", id))
+				.isInstanceOf(DataIntegrityViolationException.class);
 	}
 
 	@Test

@@ -4,6 +4,8 @@ import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,10 +22,15 @@ import org.springframework.transaction.annotation.Transactional;
  * creates it in the same transaction as the user, so the row exists from t=0. Neither method
  * therefore treats absence as normal — but neither punishes the user for it either. Rendering falls
  * back to no memory, and {@link #record} creates the row rather than dropping the episode; losing
- * what the user just answered would be the more expensive of the two failures.
+ * what the user just answered would be the more expensive of the two failures. Both say so at
+ * {@code WARN} on the way past: repairing a breach in silence is how it stays broken, and the
+ * symptom either arm leaves — proposals that stop referring to the user's history — is invisible
+ * from the outside.
  */
 @Service
 public class AiMemoryService {
+
+	private static final Logger log = LoggerFactory.getLogger(AiMemoryService.class);
 
 	private final AiMemoryRepository memories;
 
@@ -37,7 +44,10 @@ public class AiMemoryService {
 	/** @return the user's memory as a prompt-ready block, or blank when they have none */
 	@Transactional(readOnly = true)
 	public String renderFor(UUID userId) {
-		return memories.findByUserId(userId).map(renderer::render).orElse("");
+		return memories.findByUserId(userId).map(renderer::render).orElseGet(() -> {
+			log.warn("User {} has no AI memory row; prompting with no memory at all", userId);
+			return "";
+		});
 	}
 
 	/**
@@ -57,8 +67,11 @@ public class AiMemoryService {
 	 */
 	@Transactional
 	public void record(UUID userId, String eventType, String payload) {
-		AiMemory memory = memories.findByUserId(userId)
-				.orElseGet(() -> memories.save(new AiMemory(userId)));
+		AiMemory memory = memories.findByUserId(userId).orElseGet(() -> {
+			log.warn("User {} has no AI memory row; creating one rather than dropping the episode",
+					userId);
+			return memories.save(new AiMemory(userId));
+		});
 		// Truncated for the reason every timestamp here is: timestamptz holds microseconds, and a
 		// nanosecond-capable clock would make the written value differ from every later read.
 		memory.recordEpisode(eventType, payload, OffsetDateTime.now().truncatedTo(ChronoUnit.MICROS));

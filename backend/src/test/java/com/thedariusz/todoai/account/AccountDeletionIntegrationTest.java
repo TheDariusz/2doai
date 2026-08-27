@@ -7,6 +7,13 @@ import com.thedariusz.todoai.TestcontainersConfiguration;
 import com.thedariusz.todoai.ai.memory.AiMemory;
 import com.thedariusz.todoai.ai.memory.AiMemoryRepository;
 import com.thedariusz.todoai.auth.RegistrationService;
+import com.thedariusz.todoai.category.LifeDomain;
+import com.thedariusz.todoai.goal.Goal;
+import com.thedariusz.todoai.goal.GoalHorizon;
+import com.thedariusz.todoai.goal.GoalLayer;
+import com.thedariusz.todoai.goal.GoalRepository;
+import com.thedariusz.todoai.proposal.Proposal;
+import com.thedariusz.todoai.proposal.ProposalRepository;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -41,6 +48,12 @@ class AccountDeletionIntegrationTest {
 
 	@Autowired
 	private AiMemoryRepository memories;
+
+	@Autowired
+	private GoalRepository goals;
+
+	@Autowired
+	private ProposalRepository proposals;
 
 	@Autowired
 	private JdbcTemplate jdbc;
@@ -80,6 +93,26 @@ class AccountDeletionIntegrationTest {
 		// Bob is untouched — deletion is scoped, not a sweep.
 		assertThat(users.findById(bob.getId())).isPresent();
 		assertThat(childRowsOf(bobMemoryId)).isEqualTo(2);
+	}
+
+	/**
+	 * The one table the FK backstop above does <b>not</b> protect. {@code proposal.goal_id} carries
+	 * {@code ON DELETE CASCADE}, so {@code GoalDataDeleter} takes the proposals with it and a
+	 * forgotten {@code ProposalDataDeleter} would still let the account delete succeed — silently, and
+	 * only for as long as deleter ordering happens to favour it. So FR-019 is asserted directly here:
+	 * with a proposal on file, deleting the account leaves no row behind.
+	 */
+	@Test
+	void deletingAnAccountRemovesItsProposalsToo() {
+		User alice = registrationService.register(uniqueEmail(), "correct-horse");
+		User bob = registrationService.register(uniqueEmail(), "correct-horse");
+		givenPendingProposal(alice.getId());
+		givenPendingProposal(bob.getId());
+
+		accountDeletionService.deleteAccount(alice.getId());
+
+		assertThat(proposalRowsOf(alice.getId())).isZero();
+		assertThat(proposalRowsOf(bob.getId())).isEqualTo(1);
 	}
 
 	/**
@@ -162,6 +195,18 @@ class AccountDeletionIntegrationTest {
 			jdbc.execute("SELECT 1");
 			users.flush();
 		}).isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	private void givenPendingProposal(UUID userId) {
+		UUID goalId = goals.saveAndFlush(new Goal(userId, "Wrócić na rower", GoalLayer.GOAL,
+				GoalHorizon.THIS_YEAR, null, LifeDomain.HEALTH)).getId();
+		proposals.saveAndFlush(
+				new Proposal(userId, goalId, "Wracamy do tego?", 21, Proposal.Source.TEMPLATE));
+	}
+
+	private int proposalRowsOf(UUID userId) {
+		return jdbc.queryForObject(
+				"SELECT count(*) FROM proposal WHERE user_id = ?", Integer.class, userId);
 	}
 
 	private UUID givenMemoryWithChildren(UUID userId) {

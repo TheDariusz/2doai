@@ -178,9 +178,9 @@
     <strong>Representative target flow.</strong> A user records a dream about visiting Japan. The
     system retains the item and relevant personal context. After a non-fixed interval, the backend
     selects the neglected dream, asks the AI to formulate a concrete first-step proposal, sends it
-    by email, and keeps it available in the application until the user responds. Everything after
-    &ldquo;selects&rdquo; is implemented — what is still planned is the non-fixed interval that
-    starts it and the email that carries it.
+    by email, and keeps it available in the application until the user responds. Selecting the
+    entry, phrasing the proposal and keeping it answerable in the application are implemented; the
+    non-fixed interval that starts the flow and the email that carries it are not.
     <span class="badge badge-planned">partly planned</span>
   </div>
   <div class="card-grid">
@@ -212,7 +212,7 @@
         <tr><th scope="row">Current tasks</th><td><span class="badge badge-live">implemented</span></td><td>A third <code>GoalLayer</code> value plus an optional <code>due_date</code> on the same aggregate and screen (S-07)</td></tr>
         <tr><th scope="row">Unified three-layer view</th><td><span class="badge badge-live">implemented</span></td><td>All three layers on one <code>/goals</code> screen, narrowed by layer and by category from the query string — filtered in the browser, no API change (S-08)</td></tr>
         <tr><th scope="row">Selection engine</th><td><span class="badge badge-live">implemented</span></td><td>Deterministic neglect heuristic and category balancing behind <code>POST /api/proposals</code> (S-04a); the engine itself still holds no clock, no repository and no model — the AI enters after it has picked</td></tr>
-        <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-live">implemented</span></td><td>Sonnet phrases the picked entry, the proposal is stored (at most one pending per user), the four FR-013 answers act on the entry, and <code>STARTING</code> returns FR-014's bullets — all behind the &ldquo;Daj mi coś teraz&rdquo; button on <code>/goals</code> (S-04b)</td></tr>
+        <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-live">implemented</span></td><td>Sonnet phrases the picked entry, the proposal is stored (at most one pending per user), the four FR-013 answers act on the entry, and <code>STARTING</code> returns FR-014's bullets — all behind the manual trigger on <code>/goals</code> (S-04b)</td></tr>
         <tr><th scope="row">Natural-rhythm return</th><td><span class="badge badge-planned">planned</span></td><td>The non-fixed cycle that decides <em>when</em> to ask, and email as its second delivery channel — roadmap slice S-05. Today a proposal only ever exists because the user pressed the button</td></tr>
         <tr><th scope="row">PWA/offline behavior</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-10</td></tr>
       </tbody>
@@ -227,7 +227,7 @@
   created, edited, converted between layers, completed, reopened and deleted against the live API,
   and narrowed by layer and by category. Above that list sits the proposal card (S-04b): one button
   asks the backend for something to come back to, the returned card carries the AI's sentence and
-  the four answers, and &ldquo;zaczynam&rdquo; renders the generated bullets, each saveable as a
+  the four answers, and <code>STARTING</code> renders the generated bullets, each saveable as a
   current task with one click.</p>
   <h4>Four decisions that shaped it</h4>
   <dl class="term-grid">
@@ -244,7 +244,7 @@
     <dt>Withdrawal is a filter value, not a route</dt>
     <dd>Withdrawn entries are hidden by default and reached through a third control in the same
     filter row. Restore is the same <code>PUT</code> the edit form already uses, so
-    &ldquo;nigdy&rdquo; is reversible rather than a delete.</dd>
+    withdrawal is reversible rather than a delete.</dd>
     <dt>An empty list must say why</dt>
     <dd>A URL naming a layer that does not exist falls back to showing everything, and a combination
     matching nothing says so — an empty list must never read as &ldquo;you have no entries&rdquo;,
@@ -760,12 +760,14 @@ classDiagram
   dropped).</p>
   <p class="note">One FK in this schema carries <code>ON DELETE CASCADE</code>:
   <code>proposal.goal_id</code>, so <code>DELETE /api/goals/{id}</code> keeps working while a
-  proposal points at the entry. The cost is named rather than hidden — because
-  <code>GoalDataDeleter</code> runs during account erasure and every proposal has a goal, the cascade
-  removes a user's proposals before <code>ProposalDataDeleter</code> is reached, so the
+  proposal points at the entry. The cost is named rather than hidden, and it is charged twice. The
   &ldquo;a missing deleter fails loudly on the FK&rdquo; property does <em>not</em> protect this
-  table. The deleter is written anyway and becomes load-bearing the day a proposal can outlive its
-  entry.</p>
+  table: <code>GoalDataDeleter</code> runs during the same account erasure and every proposal has a
+  goal, so the cascade would remove the rows whether or not <code>ProposalDataDeleter</code> exists —
+  which is why the erasure is asserted directly in a test rather than trusted to the constraint. And
+  because the two deleters share one transaction in an unspecified order, the cascade can take rows
+  out from under a persistence context that has already loaded them; the proposal deleter therefore
+  issues a bulk delete, which is immediate and order-independent, instead of the derived one.</p>
   <pre class="mermaid">
 classDiagram
   class ProposalController {
@@ -1338,7 +1340,7 @@ sequenceDiagram
   participant MEM as AiMemoryService
   participant LLM as LlmClient → Sonnet
   participant PG as Postgres
-  SPA->>PC: POST /api/proposals ("Daj mi coś teraz")
+  SPA->>PC: POST /api/proposals (the manual trigger)
   PC->>PS: propose()
   PS->>PG: pending proposal for this user?
   alt one is already pending
@@ -1398,9 +1400,9 @@ sequenceDiagram
     PS-->>SPA: 200 — the same representation, now answered
   end
   </pre>
-  <p class="note">The entry is written first on purpose: an interrupted answer then leaves the
-  proposal pending and retryable, rather than closed over an entry nothing happened to. The episode
-  is what makes the next proposal aware of this one — it is the first thing ever appended to the
+  <p class="note">The three writes are one transaction, so an interrupted answer leaves the proposal
+  pending and retryable and the entry untouched — whichever of them had already run. The episode is
+  what makes the next proposal aware of this one: it is the first thing ever appended to the
   episodic log, which until S-04b rendered empty for every user.</p>
 
   <h4>Natural-rhythm proposal <span class="badge badge-planned">planned</span></h4>
@@ -1463,12 +1465,17 @@ sequenceDiagram
   engine needs a <code>last_interaction_at</code> of its own. S-04b was the first slice that had to
   answer that warning, and it took the first option rather than the column: <code>remind_after</code>
   and <code>withdrawn_at</code> sit on <code>goal</code> because the user asked for them, while
-  everything the machine writes on its own lives on <code>proposal</code>. That table's own two
-  constraints are product rules a service check could not hold — a partial unique index over
+  everything the machine writes on its own lives on <code>proposal</code>. That table's own
+  constraints are mostly product rules a service check could not hold — a partial unique index over
   <code>(user_id) WHERE answered_at IS NULL</code> is FR-018's at-most-one-pending rule, immune to
   the double-click a service-level read would race with; and <code>goal_id</code> is the schema's
   one <code>ON DELETE CASCADE</code>, so deleting an entry that carries a proposal still works, at
-  the documented cost of that FK no longer guarding a forgotten deleter. The other clock decision is
+  the documented cost of that FK no longer guarding a forgotten deleter (which is also why that
+  deleter issues a bulk delete rather than a derived one — the two run in one transaction in no
+  fixed order). A third constraint is a backstop rather than a product rule:
+  <code>CHECK ((answer IS NULL) = (answered_at IS NULL))</code> keeps the answer pair whole, since
+  the pending index reads only one of the two and a half-written answer would hold the slot for good
+  while every reader called it answered. The other clock decision is
   <code>due_date</code>: it is a <code>LocalDate</code> the user picked off a calendar, so the engine
   reads its clock in the user's zone rather than the server's. There is no <code>user.timezone</code>
   column yet, so that zone is pinned to Europe/Warsaw in one line of <code>ProposalService</code>;

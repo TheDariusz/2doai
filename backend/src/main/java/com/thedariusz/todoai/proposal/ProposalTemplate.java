@@ -46,17 +46,24 @@ final class ProposalTemplate {
 	 * rather than on its silence, so it gets the sentence that is actually true about it. Above two
 	 * months the count switches to months, because a three-digit day count is a number nobody feels.
 	 *
-	 * <p>Days need no plural table in this locale — only the count of one inflects.
+	 * <p>The noun {@code dni} needs no table past the count of one, but <b>the verb still inflects</b>
+	 * — "minęły 2 dni" against "minęło 5 dni" — so it goes through the same three-form rule the
+	 * months already use. A count is the one thing in this sentence that is never the same twice.
 	 */
 	private static String elapsed(long days) {
 		if (days == 0) {
 			return "termin już minął";
 		}
 		if (days < 60) {
-			return days == 1 ? "minął dzień" : "minęło " + days + " dni";
+			return days == 1 ? "minął dzień" : elapsed(days, "dni");
 		}
 		long months = days / 30;
-		return "minęło " + months + " " + plural(months, "miesiąc", "miesiące", "miesięcy");
+		return elapsed(months, plural(months, "miesiąc", "miesiące", "miesięcy"));
+	}
+
+	/** The verb agrees with the count exactly as the noun does, by the same rule. */
+	private static String elapsed(long count, String unit) {
+		return plural(count, "minął", "minęły", "minęło") + " " + count + " " + unit;
 	}
 
 	/** This locale's three-form rule: one, the 2–4 group (12–14 excepted), everything else. */
