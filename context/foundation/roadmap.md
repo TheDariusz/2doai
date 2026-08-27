@@ -43,7 +43,7 @@ Osoby planujące długoterminowo wpisują cele i marzenia raz, a potem rzadko do
 | S-09 | ai-category-autotag        | dostać sugestię kategorii od AI przy tworzeniu pozycji              | F-02, S-02         | FR-008                       | proposed |
 | S-10 | offline-read-only          | przeglądać (read-only) zapisane pozycje 3 warstw bez internetu       | S-02, S-07         | FR-017                       | proposed |
 
-> **Fast-path (przegląd 2026-07-07, zaktualizowany 2026-08-01):** najkrótsza ścieżka do gwiazdy: F-02 → S-01 (minimalny: email+hasło, bez magic linka) → S-02 → S-03 → S-04 → S-05. S-07 / S-08 / S-10 świadomie odroczone do czasu walidacji gwiazdy (S-05); S-06 i S-09 równolegle po swoich prerekwizytach. F-02 zmergowany i zarchiwizowany (2026-08-01). S-01 zamknięty (2026-08-03, PR #8): backend i frontend na `master`. **S-02 zmergowany 2026-08-23 (PR #20, `ecb3301`); S-07 zmergowany 2026-08-24 (PR #23, `012609c`). S-08 zmergowany 2026-08-25 (PR #27, `ed4ef2b`); S-04 zamknięty 2026-08-26 obiema połowami (S-04a `ec8762d`, S-04b DEV-23) — bez S-03, które zostaje wycięte z okna.** Od 2026-08-23 kolejność do dnia zgłoszenia reguluje sekcja **Deadline plan (2026-09-14)** niżej — fast-path wraca po zgłoszeniu.
+> **Fast-path (przegląd 2026-07-07, zaktualizowany 2026-08-01):** najkrótsza ścieżka do gwiazdy: F-02 → S-01 (minimalny: email+hasło, bez magic linka) → S-02 → S-03 → S-04 → S-05. S-07 / S-08 / S-10 świadomie odroczone do czasu walidacji gwiazdy (S-05); S-06 i S-09 równolegle po swoich prerekwizytach. F-02 zmergowany i zarchiwizowany (2026-08-01). S-01 zamknięty (2026-08-03, PR #8): backend i frontend na `master`. **S-02 zmergowany 2026-08-23 (PR #20, `ecb3301`); S-07 zmergowany 2026-08-24 (PR #23, `012609c`). S-08 zmergowany 2026-08-25 (PR #27, `ed4ef2b`); S-04 zamknięty 2026-08-26 obiema połowami (S-04a PR #25, `ec8762d`; S-04b DEV-23) — bez S-03, które zostaje wycięte z okna.** Od 2026-08-23 kolejność do dnia zgłoszenia reguluje sekcja **Deadline plan (2026-09-14)** niżej — fast-path wraca po zgłoszeniu.
 
 ## Deadline plan (2026-09-14)
 
@@ -85,7 +85,7 @@ Razem **~11–12 wieczorów / 3 tygodnie ≈ 4 na tydzień**. Tempo z W31–W32 
 | 08-24 | `test-plan.md` + mapowanie testów na ryzyka | **Testy ✅** (DEV-45, dwa dni przed oknem) |
 | 08-24 | S-07 — trzecia warstwa `GoalLayer.TASK` + nullable `due_date` | **codzienna używalność ✅** (DEV-27, PR #23, `012609c`) — trzy dni przed oknem |
 | 08-24 | S-04a — silnik wyboru | 🎯 **komplet wymagań ✅ — `master` zdatny do zgłoszenia** (DEV-46, PR #25, `ec8762d`) — tydzień przed pierwotnym oknem 08-31 – 09-02 |
-| 08-25 – 08-30 | S-08 — filtry po warstwie i kategorii | 🎯 jeden widok |
+| 08-24 | S-08 — filtry po warstwie i kategorii | **jeden widok ✅** (DEV-28, PR #27, `ed4ef2b`) — dzień przed oknem 08-25 – 08-30; cały zakres pozycji 1–4 zamknięty jednego wieczoru |
 | 09-03 – 09-08 | S-04b — propozycja formułowana przez LLM | 🎯 **aplikacja do pokazania ✅** (DEV-23) — zamknięte 2026-08-26, tydzień przed oknem; S-04 komplet |
 | 09-09 – 09-10 | bufor | |
 | 09-11 | zamrożenie kodu; deploy i weryfikacja produkcji end-to-end na realnych danych | |
@@ -273,7 +273,7 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** PRD sam zaznacza ryzyko zakresu (konkurencja z klasycznym todo na jego terenie). Nieróżnicujące — dlatego po pętli proaktywnej; możliwe równolegle przez osobny przebieg agenta. Świadomie zostawione (docelowo zastępuje klasyczne todo). **Fast-path 2026-07-07: odroczone do po walidacji gwiazdy (S-05).** Uwaga: FR-014 (zapis pierwszego kroku jako zadania bieżącego) tworzy zależność miękką S-04 → encja zadania — jeśli S-04 wyprzedzi S-07, zapis pierwszego kroku dochodzi wraz z S-07.
-- **Status:** proposed
+- **Status:** done (2026-08-24) — PR #23 (`012609c`): `GoalLayer.TASK` + nullable `due_date` na tabeli `goal`, bez osobnego agregatu; frontend S-02 użyty ponownie.
 
 ### S-08: Jednolity widok trzech warstw
 
@@ -285,7 +285,7 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Widok zbiorczy wymaga pozycji wszystkich warstw (S-02 + S-07). Poza ścieżką gwiazdy (propozycja przychodzi do użytkownika, nie przez listę) — możliwy równolegle. Jednolity widok pozwala zobaczyć całość życia; filtry obsługują skupienie. **Fast-path 2026-07-07: odroczone do po walidacji gwiazdy (S-05).**
-- **Status:** proposed
+- **Status:** done (2026-08-24) — PR #27 (`ed4ef2b`): jeden widok trzech warstw, oba filtry (warstwa, kategoria) trzymane w query stringu i stosowane w przeglądarce. `GET /goals` zostaje nieprzefiltrowane i niestronicowane — obiecany wcześniej kontrakt filtrów wycofany z `openapi.yaml`, stronicowanie ma wyzwalacz (~500 pozycji / ~250 kB), nie termin. Przy okazji adresy URL przeszły na angielskie, małe litery (`/cele` → `/goals`).
 
 ### S-09: Auto-tag kategorii przez AI
 
@@ -315,10 +315,10 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 
 | Roadmap ID | Change ID                  | Suggested issue title                                  | Ready for `/10x-plan` | Notes |
 | ---------- | -------------------------- | ------------------------------------------------------ | --------------------- | ----- |
-| F-01       | persistence-baseline       | Podłącz Postgres + JPA + Flyway, zasiej 11 kategorii   | yes                   | Korzeń całej roadmapy; pierwszy ruch (F-02 też gotowy, ale zależy od F-01). Uruchom `/10x-plan persistence-baseline`. |
+| F-01       | persistence-baseline       | Podłącz Postgres + JPA + Flyway, zasiej 11 kategorii   | done                  | **Done** — korzeń całej roadmapy; Postgres 18 + Flyway + 11 zasianych kategorii na `master` (DEV-16). |
 | F-02       | ai-memory-integration      | Podłącz klient LLM (OpenRouter/Anthropic) + zrębowy profil pamięci + polityka prywatności | done              | **Done** — zmergowany do `master`, zarchiwizowany 2026-08-01 → `context/archive/2026-06-15-ai-memory-integration/`. Decyzje: `context/foundation/ai-provider.md`. |
 | S-01       | account-and-auth           | Konto: rejestracja (email+hasło), logowanie, wylogowanie, usunięcie konta, bramkowanie tras, szkielet frontu | done                  | **Done** — wszystkie 4 fazy zmergowane do `master` (PR #5, #6, #8), 2026-08-03. Model sesji: `context/foundation/auth-session-model.md`. Pozostałość: DEV-31 (rozjazd `openapi.yaml`). |
-| S-02       | goals-and-dreams           | CRUD celów długoterminowych i marzeń z kategorią       | done                  | **Done** — DEV-19, PR #20, 2026-08-23. Substrat gwiazdy; `goal` niesie wszystkie trzy warstwy. |
+| S-02       | goals-and-dreams           | CRUD celów długoterminowych i marzeń z kategorią       | done                  | **Done** — DEV-19, PR #20, 2026-08-23; `DELETE` domknięty przez DEV-44 (PR #21). Substrat gwiazdy; `goal` niesie wszystkie trzy warstwy. |
 | S-03       | ai-memory-seed             | Pamięć AI: onboarding seed + wzbogacanie z ukończeń i wyników propozycji | yes     | Odblokowane 2026-08-23 (S-02 done), ale **wycięte z okna zgłoszenia**. S-04b zapełnia log epizodyczny; profil czeka na ten slice. |
 | S-04       | proactive-proposal-engine  | Silnik propozycji + odpowiedzi + pierwszy krok (ręczny trigger) | done          | **Done** — S-04a (DEV-46, PR #25) + S-04b (DEV-23), 2026-08-26. Weszło bez S-03: pamięć zapełnia się z odpowiedzi na propozycje. Tu `LlmClient` dostał pierwsze wywołanie produkcyjne. |
 | S-05       | natural-rhythm-return      | Automatyczny powrót w naturalnym rytmie (gwiazda)      | yes                   | Odblokowane 2026-08-26 (S-04 + F-02 done). Gwiazda przewodnia; pierwsza pozycja po zgłoszeniu. Dziedziczy tabelę `proposal` i regułę FR-018 — dokłada tylko rytm i e-mail. **Nie wolno odpytywać bazy częściej niż autosuspend Neona (~5 min)** — następny czas odpalenia liczony w pamięci (`lessons.md`). |
@@ -327,7 +327,7 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 | S-08       | unified-three-layer-view   | Jednolity widok 3 warstw z filtrami                    | done                  | **Done** — DEV-28, PR #27, 2026-08-25. Filtry warstwy i kategorii w query stringu, filtrowanie w przeglądarce; S-04b dołożył trzeci filtr („wycofane"). |
 | S-09       | ai-category-autotag        | Auto-tag kategorii przez AI przy tworzeniu             | no                    | F-02 done; czeka na S-02. Równoległe do pętli. |
 | S-10       | offline-read-only          | Offline read-only (PWA) dla 3 warstw                   | no                    | Czeka na S-02 + S-07. Fast-path: odroczone do po S-05. |
-| —          | ci-pipeline                | Chore: CI komplementarne do CD — quality gate na PR, skany Trivy, Dependabot, agentic AI code review | in progress | Ops (2026-07-07): testy biegały tylko w workflow deploy na `master`. Zakres wyrósł ponad pierwotne framing „tylko testy na PR" — stąd zmiana change-id na `ci-pipeline`. Mały, niezależny od slice'ów. Linear: DEV-25. |
+| —          | ci-pipeline                | Chore: CI komplementarne do CD — quality gate na PR, skany Trivy, Dependabot, agentic AI code review | done | Ops (2026-07-07): testy biegały tylko w workflow deploy na `master`. Zakres wyrósł ponad pierwotne framing „tylko testy na PR" — stąd zmiana change-id na `ci-pipeline`. Mały, niezależny od slice'ów. Linear: DEV-25. |
 
 ## Open Roadmap Questions
 
