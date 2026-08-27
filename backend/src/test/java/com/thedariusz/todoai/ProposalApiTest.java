@@ -449,6 +449,22 @@ class ProposalApiTest extends ApiTestBase {
 		csrfAware().when().post("/api/proposals").then().statusCode(200).body("id", equalTo(proposal));
 	}
 
+	/**
+	 * {@code SUPERSEDED} is the app's own closure (S-05, FR-018) — written when the natural rhythm
+	 * replaces a proposal nobody answered. A client that could send it would be forging a closure the
+	 * app owns, and quietly buying itself the three-day snooze that goes with it.
+	 */
+	@Test
+	void refusesTheClosureTheAppWritesOnTheUsersBehalf() {
+		givenLoggedInUser();
+		String proposal = pendingProposalFor("Oddać książkę", "EDUCATION");
+
+		answer(proposal, Map.of("answer", "SUPERSEDED")).statusCode(422);
+
+		// A rejected answer is not an answer — the proposal is still the pending one.
+		csrfAware().when().post("/api/proposals").then().statusCode(200).body("id", equalTo(proposal));
+	}
+
 	@Test
 	void answersNotFoundRatherThanForbiddenForAProposalTheCallerDoesNotOwn() {
 		givenLoggedInUser();

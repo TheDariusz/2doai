@@ -54,6 +54,18 @@ public class User {
 	@Column(name = "password_hash", nullable = false)
 	private String passwordHash;
 
+	/**
+	 * When the natural rhythm next returns to this user (S-05, FR-011) — the only piece of the
+	 * schedule that outlives the JVM, so a restart resumes the rhythm instead of bunching proposals
+	 * around deploys. Null until the scheduler has drawn a first moment (at boot, or on registration).
+	 *
+	 * <p>Timing rather than identity, on the identity aggregate, and deliberately: the alternative is
+	 * a one-column table joined to {@code app_user} on every read of it. It stays a plain value with
+	 * no invariant of its own — {@code ProposalRhythm} decides what a legal next moment is.
+	 */
+	@Column(name = "next_proposal_at")
+	private OffsetDateTime nextProposalAt;
+
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private OffsetDateTime createdAt;
@@ -86,6 +98,15 @@ public class User {
 
 	public String getPasswordHash() {
 		return passwordHash;
+	}
+
+	/** Move the rhythm on: the moment drawn for this user's next proposal. */
+	public void scheduleNextProposalAt(OffsetDateTime at) {
+		this.nextProposalAt = Objects.requireNonNull(at, "at");
+	}
+
+	public OffsetDateTime getNextProposalAt() {
+		return nextProposalAt;
 	}
 
 	public OffsetDateTime getCreatedAt() {

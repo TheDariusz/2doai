@@ -976,16 +976,25 @@ components:
       # THE ANCHOR for these literals — $ref'd by Proposal and by the answer request, never repeated.
       type: [string, 'null']
       description: >
-        The four responses of FR-013, each of which changes what the engine proposes next. `STARTING`
-        also asks for `first_step`. `NOT_NOW` and `REMIND_LATER` are one mechanism with different
-        defaults — both quiet the entry until a date — and `NEVER` withdraws it until the user
-        restores it. Null on a proposal nobody has answered yet.
-      # #112 open-ended enum: a fifth response must not break existing clients.
+        How a proposal was closed. The four responses of FR-013 each change what the engine proposes
+        next: `STARTING` also asks for `first_step`; `NOT_NOW` and `REMIND_LATER` are one mechanism
+        with different defaults — both quiet the entry until a date — and `NEVER` withdraws it until
+        the user restores it. Null on a proposal nobody has answered yet.
+
+
+        `SUPERSEDED` is the fifth, and it is **written by the server, never sent by a client**
+        (S-05, FR-018): when the natural rhythm returns with a new proposal and the previous one was
+        never answered, that silence is closed as an implicit "not now" — the entry is quieted for
+        three days exactly as `NOT_NOW` would. Sending it to the answer endpoint is a 422. A client
+        will not see one on a *pending* proposal, since a superseded proposal is by definition no
+        longer pending.
+      # #112 open-ended enum: a sixth response must not break existing clients.
       x-extensible-enum:
         - STARTING
         - NOT_NOW
         - REMIND_LATER
         - NEVER
+        - SUPERSEDED
       example: STARTING
 
     ProposalAnswerRequest:

@@ -144,6 +144,21 @@ public class Proposal implements UserOwned {
 		this.answeredAt = Objects.requireNonNull(at, "at").truncatedTo(ChronoUnit.MICROS);
 	}
 
+	/**
+	 * Close this proposal because a new one is replacing it (S-05, FR-018) — the implicit "not now"
+	 * of a proposal that was never answered.
+	 *
+	 * <p>Deliberately the same single-write guard {@link #answer} enforces rather than a private path
+	 * around it: the user answering at the same moment the scheduler fires must win, and this must be
+	 * the arm that refuses. A machine closure that could overwrite a real answer would silently undo
+	 * a withdrawal.
+	 *
+	 * @throws ProposalAlreadyAnsweredException if the user answered it first
+	 */
+	public void supersede(OffsetDateTime at) {
+		answer(ProposalAnswer.SUPERSEDED, at);
+	}
+
 	/** Store FR-014's generated bullets, so a reload shows the plan the user already read. */
 	public void recordFirstStep(String stepsJson) {
 		this.firstStep = stepsJson;
