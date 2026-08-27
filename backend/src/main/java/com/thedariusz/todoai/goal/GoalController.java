@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
  * The {@code goals} resource (S-02, FR-004/FR-005): both non-task layers behind one collection,
  * discriminated by {@code layer}.
  *
- * <p><b>DELETE is a hard delete</b> (DEV-44) — not withdrawing a goal (S-04's "nigdy" story, which
+ * <p><b>DELETE is a hard delete</b> (DEV-44) — not withdrawing a goal (S-04's withdrawal story, which
  * keeps the row) and not erasing an account (FR-019).
  *
  * <p>Also <b>no query parameters and no pagination</b>: the list is returned whole and grouped

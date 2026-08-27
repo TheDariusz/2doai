@@ -93,7 +93,7 @@ public class Goal implements UserOwned {
 
 	/**
 	 * A task's optional term, and the mirror of {@code horizon}. A {@code LocalDate} rather than a
-	 * timestamp because "do piątku" is a day the user picks off a calendar, not a moment in a
+	 * timestamp because a term like "by Friday" is a day the user picks off a calendar, not a moment in a
 	 * timezone — and {@code <input type="date">} sends exactly that.
 	 */
 	@Column(name = "due_date")
@@ -105,6 +105,18 @@ public class Goal implements UserOwned {
 
 	@Column(name = "completed_at")
 	private OffsetDateTime completedAt;
+
+	/**
+	 * Quiet until this day (S-04b) — written by three of the four FR-013 answers, which differ only
+	 * in the default they pick. A {@code LocalDate} like {@code dueDate}, and compared against the
+	 * user's local date for the same reason: a snooze is "come back on Thursday".
+	 */
+	@Column(name = "remind_after")
+	private LocalDate remindAfter;
+
+	/** Withdrawn (FR-013's "never") — out of the running until {@link #restore}, never deleted. */
+	@Column(name = "withdrawn_at")
+	private OffsetDateTime withdrawnAt;
 
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
@@ -171,6 +183,34 @@ public class Goal implements UserOwned {
 	}
 
 	/**
+	 * Quiet this entry until the given day (S-04b, FR-013). Deliberately on the {@code goal} row and
+	 * not on the proposal: the user asked for it, so it is a real interaction — which is what keeps
+	 * {@code ProposalSelector} honest when it reads {@code updated_at} as "when the user last
+	 * engaged". The date is inclusive: on the day itself the entry is eligible again.
+	 */
+	public void snoozeUntil(LocalDate day) {
+		this.remindAfter = Objects.requireNonNull(day, "day");
+	}
+
+	/**
+	 * Withdraw: out of the running until the user restores it. Idempotent in the same way
+	 * {@link #complete} is, and for the same trap — {@code PUT /api/goals/{id}} is full-replace, so
+	 * the SPA re-asserts withdrawal on every edit of a withdrawn entry, and re-stamping would move
+	 * the date each time someone fixes a typo.
+	 */
+	public void withdraw(OffsetDateTime at) {
+		Objects.requireNonNull(at, "at");
+		if (this.withdrawnAt == null) {
+			this.withdrawnAt = at.truncatedTo(ChronoUnit.MICROS);
+		}
+	}
+
+	/** Back into the running, and the reason a withdrawal is reversible rather than a delete. */
+	public void restore() {
+		this.withdrawnAt = null;
+	}
+
+	/**
 	 * The layer × time-fields rule, stated once in Java so the aggregate and both request DTOs cannot
 	 * drift apart — one conjunct per time field, in the order {@link #TIME_FIELDS_RULE} names them.
 	 */
@@ -210,6 +250,14 @@ public class Goal implements UserOwned {
 
 	public OffsetDateTime getCompletedAt() {
 		return completedAt;
+	}
+
+	public LocalDate getRemindAfter() {
+		return remindAfter;
+	}
+
+	public OffsetDateTime getWithdrawnAt() {
+		return withdrawnAt;
 	}
 
 	public OffsetDateTime getCreatedAt() {

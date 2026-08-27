@@ -36,6 +36,25 @@ Frontend (run from `frontend/`):
 - Persistence: **PostgreSQL via Spring Data JPA / Hibernate.**
 - TypeScript runs strict (`noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`). ESLint flat config in `eslint.config.js`; no Prettier — `eslint --fix` is the formatter.
 - Git: project targets GitHub. Use feature branches, conventional commit messages, and PRs to merge.
+- **Localization (PL + EN) is planned; Polish is the only locale today.** The dividing line is
+  **who the text is addressed to**, not which side of the wire it lives on:
+  - **Backend code → English.** Identifiers, comments, javadoc, test names, log messages.
+  - **Backend → AI → English.** Prompts, system personas, field labels and enum glosses are
+    instructions to a machine — code, in effect. They must *name* the language the answer comes back
+    in rather than demonstrate it by being written in it (`ProposalPrompt.OUTPUT_LANGUAGE`), so a
+    second locale is one line instead of a second copy of every instruction, free to drift from the
+    first. A Polish prompt is the bug, even when the answer must be Polish.
+  - **Anything a user reads → localized.** Frontend component copy, and the server-generated text
+    that reaches them: `category.name_pl`, and `proposal/ProposalTemplate` — the fallback proposal
+    *is* the sentence on the screen, so it stays Polish and a second locale is a second
+    implementation of `phrase`.
+
+  User-facing copy is hardcoded for now, but it is *content*, never the name of a concept: comments,
+  javadoc, test names and docs must refer to the enum constant or the behaviour (`NEVER`,
+  "withdrawn"), never to the button label ("nigdy"). A Polish string quoted as if it were the
+  identity of a thing goes stale the day a second locale lands. Describe server-generated text in
+  the spec the way `Category.name` already does ("in the language the server picked — Polish
+  today"), not as "Polish prose".
 
 ### Persistence
 

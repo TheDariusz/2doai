@@ -209,7 +209,10 @@ p {
   gap: 12px;
 }
 
-.goals ul {
+/* The proposal card's bullet list is the same row shape, so it shares these three rules rather
+   than restating them; the handful of declarations that differ live beside `.proposal` below. */
+.goals ul,
+.proposal ul {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -218,7 +221,8 @@ p {
   padding: 0;
 }
 
-.goals li {
+.goals li,
+.proposal li {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -229,7 +233,8 @@ p {
 }
 
 /* The entry takes the row and pushes its buttons to the end; below ~12rem everything wraps. */
-.goals li > p {
+.goals li > p,
+.proposal li > p {
   flex: 1 1 12rem;
   color: var(--text-h);
 }
@@ -245,4 +250,36 @@ p {
 
 .goals summary {
   cursor: pointer;
+}
+
+/* The proposal card (S-04b) — the accent border is the one place on the screen that gets it, which
+   is the point: FR-015 is the app asking a question, and it has to look unlike the rows below it. */
+.proposal {
+  margin: 24px 0;
+  padding: 16px 20px;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  background: var(--accent-bg);
+}
+
+/* The prose, not the entry: the message is what the user reads first. */
+.proposal article > p:first-child {
+  color: var(--text-h);
+  margin: 16px 0 4px;
+}
+
+/* Answers and terms share the row `<p>` they sit in; the bullets' save buttons do not wrap. */
+.proposal p > button {
+  margin: 12px 8px 0 0;
+}
+
+.proposal ul {
+  margin: 12px 0 0;
+}
+
+/* Tighter than an entry row, and opaque: a bullet reads as the task it is about to become, but it
+   sits on the card's accent wash rather than the page. */
+.proposal li {
+  padding: 8px 12px;
+  background: var(--bg);
 }

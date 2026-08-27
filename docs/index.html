@@ -178,8 +178,10 @@
     <strong>Representative target flow.</strong> A user records a dream about visiting Japan. The
     system retains the item and relevant personal context. After a non-fixed interval, the backend
     selects the neglected dream, asks the AI to formulate a concrete first-step proposal, sends it
-    by email, and keeps it available in the application until the user responds.
-    <span class="badge badge-planned">planned</span>
+    by email, and keeps it available in the application until the user responds. Selecting the
+    entry, phrasing the proposal and keeping it answerable in the application are implemented; the
+    non-fixed interval that starts the flow and the email that carries it are not.
+    <span class="badge badge-planned">partly planned</span>
   </div>
   <div class="card-grid">
     <div class="card"><strong>Product differentiator</strong><br>Proactive returns in a natural
@@ -201,54 +203,73 @@
       </thead>
       <tbody>
         <tr><th scope="row">Persistence baseline</th><td><span class="badge badge-live">implemented</span></td><td>PostgreSQL 18, Flyway migrations, JPA/Hibernate validation</td></tr>
-        <tr><th scope="row">AI provider port</th><td><span class="badge badge-foundation">implemented foundation</span></td><td><code>LlmClient</code>, Spring AI adapter, structured output support</td></tr>
-        <tr><th scope="row">AI memory aggregate</th><td><span class="badge badge-foundation">implemented foundation</span></td><td>Per-user root, profile facts, append-only episodes</td></tr>
+        <tr><th scope="row">AI provider port</th><td><span class="badge badge-live">implemented</span></td><td><code>LlmClient</code>, Spring AI adapter, structured output support — and, since S-04b, a production caller on both operations</td></tr>
+        <tr><th scope="row">AI memory aggregate</th><td><span class="badge badge-foundation">implemented foundation</span></td><td>Per-user root, profile facts, append-only episodes. Proposal answers are its first writer (S-04b); the onboarding profile seed is still S-03</td></tr>
         <tr><th scope="row">Account and session auth</th><td><span class="badge badge-live">implemented</span></td><td>Spring Security, server-side in-memory sessions, account erasure</td></tr>
         <tr><th scope="row">Categories</th><td><span class="badge badge-live">implemented</span></td><td>Seeded reference table, <code>LifeDomain</code>, startup drift check</td></tr>
         <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens, 11-domain shell; <code>/api</code> proxies in development and production</td></tr>
         <tr><th scope="row">Goals and dreams</th><td><span class="badge badge-live">implemented</span></td><td>One <code>goal</code> aggregate for both layers, <code>/api/goals</code>, and the <code>/goals</code> screen (S-02)</td></tr>
         <tr><th scope="row">Current tasks</th><td><span class="badge badge-live">implemented</span></td><td>A third <code>GoalLayer</code> value plus an optional <code>due_date</code> on the same aggregate and screen (S-07)</td></tr>
         <tr><th scope="row">Unified three-layer view</th><td><span class="badge badge-live">implemented</span></td><td>All three layers on one <code>/goals</code> screen, narrowed by layer and by category from the query string — filtered in the browser, no API change (S-08)</td></tr>
-        <tr><th scope="row">Selection engine</th><td><span class="badge badge-live">implemented</span></td><td>Deterministic neglect heuristic and category balancing behind <code>POST /api/proposals</code> (S-04a); no AI provider in the path</td></tr>
-        <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-planned">planned</span></td><td>The AI-phrased proposal, its four responses, and the non-fixed rhythm — roadmap slices S-04b and S-05</td></tr>
+        <tr><th scope="row">Selection engine</th><td><span class="badge badge-live">implemented</span></td><td>Deterministic neglect heuristic and category balancing behind <code>POST /api/proposals</code> (S-04a); the engine itself still holds no clock, no repository and no model — the AI enters after it has picked</td></tr>
+        <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-live">implemented</span></td><td>Sonnet phrases the picked entry, the proposal is stored (at most one pending per user), the four FR-013 answers act on the entry, and <code>STARTING</code> returns FR-014's bullets — all behind the manual trigger on <code>/goals</code> (S-04b)</td></tr>
+        <tr><th scope="row">Natural-rhythm return</th><td><span class="badge badge-planned">planned</span></td><td>The non-fixed cycle that decides <em>when</em> to ask, and email as its second delivery channel — roadmap slice S-05. Today a proposal only ever exists because the user pressed the button</td></tr>
         <tr><th scope="row">PWA/offline behavior</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-10</td></tr>
       </tbody>
     </table>
   </div>
-  <p><strong>Frontend status:</strong> a React 19 single-page application on react-router. Session
-  bootstrap, login, registration, logout, account deletion, and the 11-domain navigation shell all
-  consume the API through one CSRF-aware client; the <code>/api</code> development proxy and
-  production reverse proxy are implemented. The <code>/goals</code> screen adds the first data UI:
-  current tasks, goals and dreams are created, edited, converted between layers, completed, reopened,
-  and deleted against the live API, and narrowed by layer and by category. Both filters are held in
-  the query string (<code>?layer=&amp;category=</code>) and applied in the browser, so a reload or a
-  shared link restores the view and <code>GET /api/goals</code> still publishes no query parameters —
-  the deliberate choice at single-user scale. Uncategorised entries are their own filter choice
-  rather than a gap, matching the selection engine's treatment of a null category as one shared
-  bucket. Routes and filter values are English and lowercase throughout (<code>/goals</code>,
-  <code>/domain/inner_growth</code>, <code>?layer=task</code>) — the interface is localised, the URL
-  is not, and the SCREAMING_CASE stays on the wire where the enums live.
-  A URL naming a layer that does not exist falls back to showing everything, and a filter
-  combination matching nothing says so — an empty list under an active filter must not read as
-  &ldquo;you have no entries&rdquo;, the same lie the load-failure banner exists to avoid.
-  Per-domain pages are still placeholders; PWA behavior is planned.</p>
+  <h3>Frontend status</h3>
+  <p>A React 19 single-page application on react-router. Session bootstrap, login, registration,
+  logout, account deletion and the 11-domain navigation shell all consume the API through one
+  CSRF-aware client; the <code>/api</code> development proxy and production reverse proxy are
+  implemented. Per-domain pages are still placeholders, and PWA behavior is planned.</p>
+  <p>The <code>/goals</code> screen adds the first data UI. Current tasks, goals and dreams are
+  created, edited, converted between layers, completed, reopened and deleted against the live API,
+  and narrowed by layer and by category. Above that list sits the proposal card (S-04b): one button
+  asks the backend for something to come back to, the returned card carries the AI's sentence and
+  the four answers, and <code>STARTING</code> renders the generated bullets, each saveable as a
+  current task with one click.</p>
+  <h4>Four decisions that shaped it</h4>
+  <dl class="term-grid">
+    <dt>Filters live in the URL</dt>
+    <dd>Layer, category and withdrawn are held in the query string and applied in the browser, so a
+    reload or a shared link restores the view and <code>GET /api/goals</code> still publishes no
+    query parameters — the deliberate choice at single-user scale. Uncategorised entries are their
+    own filter choice rather than a gap, matching the selection engine's treatment of a null
+    category as one shared bucket.</dd>
+    <dt>Routes stay English and lowercase</dt>
+    <dd><code>/goals</code>, <code>/domain/inner_growth</code>, <code>?layer=task</code>. The
+    interface is localised; the URL is not, and the SCREAMING_CASE stays on the wire where the enums
+    live.</dd>
+    <dt>Withdrawal is a filter value, not a route</dt>
+    <dd>Withdrawn entries are hidden by default and reached through a third control in the same
+    filter row. Restore is the same <code>PUT</code> the edit form already uses, so
+    withdrawal is reversible rather than a delete.</dd>
+    <dt>An empty list must say why</dt>
+    <dd>A URL naming a layer that does not exist falls back to showing everything, and a combination
+    matching nothing says so — an empty list must never read as &ldquo;you have no entries&rdquo;,
+    the same lie the load-failure banner exists to avoid. The message triggers on an empty
+    <em>visible</em> list rather than on &ldquo;a filter is set&rdquo;, because the withdrawn filter
+    is the first one that is on by default: the old condition would have shown a user whose only
+    entry is withdrawn the blank screen of a brand-new account.</dd>
+  </dl>
   <p>These projects build independently; there is no root workspace. Local setup and execution
   belong in the <a href="../README.md">root README</a>. Product and architecture intent remain
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
-  <p class="note">Verified against the S-08 unified three-layer view with filters (DEV-28) and the
-  Zalando contract pass that followed it the same day — English lowercase SPA routes, spec version
-  1.3.0, <code>/ping</code> specified and guarded, category caching, <code>name</code> in place of
-  <code>name_pl</code> on the wire, and <code>Location</code> on goal creation — on 2026-08-24; the previous snapshot actually <em>walked</em> was <code>ec8762d</code>, the S-04a
-  selection engine (DEV-46) — <em>not</em> <code>b3c0908</code>, which closed S-04a's roadmap row
-  and never opened this page. The pass before that one left the goal chapter and glossary still
-  describing two layers after S-07 had shipped the third, and this slice found the page — and the
-  docs test — still calling filters planned while they were being written. This note records the
-  last commit walked, not the last merged: pointing it at a newer merge would hide exactly that kind
-  of drift — and so would naming a commit that never touched the page, which drops everything
-  between it and the real walk out of the range below. To review, run
-  <code>git log ec8762d.. -- backend frontend .github/workflows
+  <p class="note">Verified against S-04b — the LLM-phrased proposal, its four answers, the generated
+  first step and the <code>/goals</code> card (DEV-23) — on 2026-08-26; the previous snapshot
+  actually <em>walked</em> was <code>ed4ef2b</code>, the S-08 unified three-layer view with filters
+  and the Zalando contract pass that followed it the same day (DEV-28). This slice found the AI
+  chapter still asserting that no production code calls <code>LlmClient</code> — with the docs test
+  <em>pinning</em> that sentence, so the gate stayed green while the claim became false the moment
+  <code>ProposalService</code> merged. The pass before that left the goal chapter and glossary
+  describing two layers after S-07 had shipped the third. This note records the last commit walked,
+  not the last merged: pointing it at a newer merge would hide exactly that kind of drift — and so
+  would naming a commit that never touched the page, which drops everything between it and the real
+  walk out of the range below. To review, run
+  <code>git log ed4ef2b.. -- backend frontend .github/workflows
   context/foundation docs/index.html</code>.</p>
 </section>
 <section id="architecture">
@@ -269,18 +290,19 @@
   <a href="../frontend/vite.config.ts"><code>frontend/vite.config.ts</code></a>.</p>
   <pre class="mermaid">
 flowchart LR
-  U[Browser] --> CFP[Cloudflare Pages&lt;br/&gt;React 19 SPA — auth + shell]
+  U[Browser] --> CFP[Cloudflare Pages&lt;br/&gt;React 19 SPA — auth, shell, three layers, proposals]
   U -- "/api/* (same origin)" --> PRX[Cloudflare reverse proxy] --> BE[Fly.io — Spring Boot 4 API&lt;br/&gt;single machine, in-memory sessions]
   BE -- "JPA / Hibernate (validate)" --> PG[(Neon PostgreSQL 18&lt;br/&gt;pooled + SSL, autosuspend)]
   BE -- "Flyway migrations on boot" --> PG
+  BE -- "LlmClient (Spring AI), on a proposal" --> LLM[OpenRouter → Anthropic Sonnet]
   GHA[GitHub Actions — delivery plane] -. "flyctl deploy" .-> BE
   GHA -. "wrangler pages deploy" .-> CFP
   </pre>
   <h3>Target MVP runtime <span class="badge badge-planned">planned</span></h3>
-  <p>The target keeps the same small deployment shape and adds task/goal storage, AI
-  orchestration, a natural-rhythm background process, and an email delivery provider. The
-  application stores a proposal before delivery so it remains pending in-app until the user
-  responds; email is a return channel, not the source of truth.</p>
+  <p>The target keeps the same small deployment shape. Task/goal storage and AI orchestration have
+  since landed; what remains are the natural-rhythm background process and an email delivery
+  provider. The application already stores a proposal before delivery, so it remains pending in-app
+  until the user responds — email will be a return channel, not the source of truth.</p>
   <p class="note">The gray components and delivery paths are the current runtime shown above.
   Yellow dashed components are additions planned for the MVP.</p>
   <pre class="mermaid">
@@ -293,8 +315,9 @@ flowchart LR
   GHA[GitHub Actions — delivery plane] -. "flyctl deploy" .-> BE
   GHA -. "wrangler pages deploy" .-> CFP
 
-  %% Planned MVP additions
   BE -- "LlmClient (Spring AI)" --> LLM[AI provider API&lt;br/&gt;JSON-schema constrained]
+
+  %% Planned MVP additions
   BE --> SCH[Background selection&lt;br/&gt;natural-rhythm proposals]
   SCH --> PG
   SCH --> LLM
@@ -302,7 +325,7 @@ flowchart LR
   EMAIL -. "proposal + app link" .-> U
   PG -. "pending proposal on next open" .-> BE
   classDef planned fill:#fffbeb,stroke:#d97706,stroke-width:2px,stroke-dasharray:5 4,color:#78350f
-  class LLM,SCH,EMAIL planned
+  class SCH,EMAIL planned
   </pre>
 </section>
 
@@ -324,10 +347,10 @@ flowchart LR
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/account"><code>backend/…/account</code></a></th><td>Modular per-user erasure coordinated before the user row is deleted</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/category"><code>backend/…/category</code></a></th><td>Fixed life-domain reference data and enum/table drift detection</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/goal"><code>backend/…/goal</code></a></th><td>One aggregate for all three layers — current tasks, goals and dreams — its CRUD API, and its erasure adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/proposal"><code>backend/…/proposal</code></a></th><td>Deterministic selection engine — neglect heuristic, category balancing, and <code>POST /api/proposals</code></td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai"><code>backend/…/ai</code></a></th><td>Provider-neutral LLM port, schema contract, and Spring AI adapter</td><td><span class="badge badge-foundation">foundation</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai/memory"><code>backend/…/ai/memory</code></a></th><td>Personal AI-memory aggregate, rendering, persistence, and erasure adapter</td><td><span class="badge badge-foundation">foundation</span></td></tr>
-        <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, auth screens, the 11-domain shell, and the filtered three-layer screen</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/proposal"><code>backend/…/proposal</code></a></th><td>The whole proactive loop: the selection engine, the two Sonnet prompts and their template fallback, the stored <code>proposal</code> aggregate, the four answers, and both endpoints</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai"><code>backend/…/ai</code></a></th><td>Provider-neutral LLM port, schema contract, and Spring AI adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai/memory"><code>backend/…/ai/memory</code></a></th><td>Personal AI-memory aggregate, rendering, persistence, erasure adapter, and the <code>AiMemoryService</code> seam other contexts read and write it through</td><td><span class="badge badge-foundation">foundation</span></td></tr>
+        <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, auth screens, the 11-domain shell, the filtered three-layer screen, and the proposal card</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/src/api"><code>frontend/src/api</code></a></th><td>The one backend boundary: same-origin fetch, CSRF double-submit, RFC 9457 errors, 401 session-expired signal</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/functions/api/[[path]].ts"><code>frontend/functions/api</code></a></th><td>Production same-origin reverse proxy to Fly.io</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../context/foundation"><code>context/foundation</code></a></th><td>Canonical product, data, security, deployment, and roadmap decisions</td><td>design source</td></tr>
@@ -358,6 +381,8 @@ flowchart LR
         <tr><th scope="row"><a href="../context/foundation/data-model.md">Structured profile plus episodic memory</a></th><td>Durable facts and bounded interaction history serve different prompt-context needs</td><td>Retention, rendering, and erasure must be managed explicitly</td><td>Measured proposal quality or data growth shows a different memory model is needed</td></tr>
         <tr><th scope="row"><a href="../context/foundation/infrastructure.md">Neon PostgreSQL with autosuspend</a></th><td>Low idle cost fits fewer than 10 users and less than 1 QPS</td><td>Cold wake-up latency and careful connection-pool behavior</td><td>Sustained traffic makes always-on capacity simpler or cheaper</td></tr>
         <tr><th scope="row"><a href="../context/foundation/data-model.md">Polish-only category labels for MVP</a></th><td>A single label avoids speculative localization tables</td><td>Adding a second locale requires a translation model</td><td>The UI supports a second language</td></tr>
+        <tr><th scope="row">Prompts are written in English and <em>name</em> the answer's language</th><td>Text addressed to a model is code, not copy. Writing the persona in the language the answer must come back in makes a second locale a second copy of every instruction, free to drift the first time either is tightened</td><td>One indirection between the instruction and the language it asks for</td><td>Never for the instructions; the language constant becomes a parameter the day a user locale exists. The template fallback is the deliberate exception — its output <em>is</em> what the user reads</td></tr>
+        <tr><th scope="row">At most one pending proposal is an index, not a check</th><td>A service-level "does this user already have one?" races with itself on a double-click and stores both; a partial unique index cannot</td><td>The lost race surfaces as a constraint violation the service must translate into "return the winner"</td><td>Proposals stop being per-user singletons — for example if a cycle may supersede a pending one</td></tr>
       </tbody>
     </table>
   </div>
@@ -398,9 +423,25 @@ flowchart LR
     <code>layer = TASK</code>, no horizon, and an optional <code>due_date</code>. A task is the only
     layer that may carry a due date, and the only time field a task may carry.</dd>
     <dt>Proposal</dt>
-    <dd>One entry the system brings back to the user because it has been neglected. Today the
-    choice is deterministic and the entry is returned on request; the AI wording, the four
-    responses, and the non-fixed rhythm that decides <em>when</em> to ask are the rest of the loop.</dd>
+    <dd>One entry the system brings back to the user because it has been neglected, together with
+    the sentence it was phrased into and whatever the user answered. It is a stored row, not a
+    computed reply: a user has at most one <em>pending</em> proposal at a time, and pressing the
+    button again returns that one rather than paying for a second model call. What still belongs to
+    a later slice is only the non-fixed rhythm that decides <em>when</em> to ask.</dd>
+    <dt>Snooze</dt>
+    <dd>A date before which an entry is not proposed again, held in <code>goal.remind_after</code>.
+    Three of the four answers write it and differ only in the term they pick — a short default for
+    &ldquo;not now&rdquo;, a week after &ldquo;starting&rdquo;, and 7, 30 or 90 days when the user
+    names one. One mechanism, three defaults.</dd>
+    <dt>Withdrawal</dt>
+    <dd>The fourth answer: the user says they will never act on this entry, and it leaves the
+    running without being deleted (<code>goal.withdrawn_at</code>). Reversible — the entry is
+    reachable through its own filter and restored by an ordinary edit, which is what separates it
+    from <code>DELETE /api/goals/{id}</code>.</dd>
+    <dt>First step</dt>
+    <dd>The 3–5 concrete actions the model returns when the user answers that they are starting.
+    Generated once, stored as JSON on the proposal row, and offered to the user as tasks they may
+    save with one click.</dd>
     <dt>AI memory</dt>
     <dd>The per-user aggregate that provides personal context to AI prompts. It contains durable
     profile facts and an append-only history of relevant events.</dd>
@@ -586,6 +627,13 @@ classDiagram
   takes an owner from the client: <code>findByIdAndUserId</code> and
   <code>deleteByIdAndUserId</code> make another account's identifier and a nonexistent one answer
   with the same 404, and a foreign <code>DELETE</code> removes nothing.</p>
+  <p>S-04b added the two states an <em>answer</em> leaves behind — <code>remind_after</code> and
+  <code>withdrawn_at</code> — here rather than on the proposal, because the user performed them.
+  <code>withdrawn</code> joined <code>GoalUpdate</code> under the same full-replace rule
+  <code>completed</code> already follows, which is what makes restore an ordinary <code>PUT</code>
+  instead of a new endpoint. Both are primitives on that record, and Jackson 3 rejects an omitted
+  primitive with a 400 rather than defaulting it to false — a loud failure the API test pins, since
+  boxing the field later would quietly turn "withdraw this" into "leave it alone".</p>
   <pre class="mermaid">
 classDiagram
   class Goal {
@@ -598,9 +646,14 @@ classDiagram
     LocalDate dueDate — only for a TASK
     LifeDomain category — optional
     OffsetDateTime completedAt — null means active
+    LocalDate remindAfter — snoozed until
+    OffsetDateTime withdrawnAt — null means in play
     +update(content, layer, horizon, dueDate, category)
     +complete(OffsetDateTime)
     +reopen()
+    +snoozeUntil(LocalDate)
+    +withdraw(OffsetDateTime)
+    +restore()
   }
   class GoalLayer {
     &lt;&lt;wire enumeration&gt;&gt;
@@ -638,7 +691,11 @@ classDiagram
   </pre>
 
   <h3>proposal</h3>
-  <p>The deterministic half of the proactive loop (S-04a). Two rules run in order.
+  <p>The proactive loop, end to end. It arrived in two halves and the seam is still visible in the
+  code: S-04a built the deterministic pick, S-04b put a model in front of it, stored what the user
+  was shown, and gave them four ways to answer.</p>
+  <h4>Choosing the entry (S-04a)</h4>
+  <p>Two rules run in order.
   <strong>Neglect</strong> decides who is eligible: an active entry qualifies once it has been idle
   for its layer's patience — 7 days for a task, 14 for a goal, 30 for a dream — or, for a task
   alone, once its <code>due_date</code> has passed — and a missed term ranks ahead of any amount of
@@ -659,18 +716,71 @@ classDiagram
   this half ships before the AI half instead of with it. <code>ProposalService</code> reads through
   the existing user-scoped finder and adds none of its own — balancing needs the domains the user
   <em>has</em> been active in, which is exactly what a "find the neglected ones" query would filter
-  away. Nothing new was stored: "last interaction" is the entry's <code>updated_at</code>, which
-  works only while the user is the sole writer of that row.</p>
+  away.</p>
+  <p>Two more inputs decide eligibility rather than ranking, and they are why the engine is still
+  honest about time. A <strong>withdrawn</strong> entry is never proposed, and a
+  <strong>snoozed</strong> one is not proposed before its date — but the silence map deliberately
+  still counts a withdrawn entry, because withdrawing it <em>was</em> an interaction and dropping it
+  from the map would hand its domain the next proposal the moment the user said "never".</p>
+  <h4>Phrasing it, storing it, answering it (S-04b)</h4>
+  <p>"Last interaction" is the entry's <code>updated_at</code>, which is honest only while the user
+  is the sole writer of that row — so this half is built around not spoiling it. Everything the
+  machine writes on its own (the phrased message, the frozen neglect count, the generated first step)
+  lands on the <code>proposal</code> row; only what the <em>user</em> performed — the snooze, the
+  withdrawal — is stamped onto <code>goal</code>. That split is the reason <code>Proposal</code> is
+  an aggregate rather than four more columns on <code>Goal</code>.</p>
+  <p><strong>At most one pending proposal (FR-018) is a schema invariant</strong>, not a service
+  check: a partial unique index over <code>proposal (user_id) WHERE answered_at IS NULL</code>. The
+  plan leans on the index precisely because a "does this user already have one?" read would race
+  with itself on a double-click and store both — and when the insert loses that race, the service
+  returns the proposal that won rather than a 500. A repeat press therefore returns the same card
+  and costs no model call, which is what at-most-one means under a manual trigger.</p>
+  <p><strong>The model never gets to fail the request.</strong> <code>ProposalPrompt</code> builds
+  both conversations — the 2–3 sentence proposal, and the 3–5 bullet first step through
+  <code>completeStructured</code> — and every <code>LlmException</code> has an answer waiting:
+  phrasing falls back to <code>ProposalTemplate</code>, a deterministic sentence with no model in it,
+  and the <code>source</code> column records which arm wrote the message so a demo can tell them
+  apart. A failed first step still lets the answer land, with empty bullets. Neither path is dead
+  code — the fallback is the roadmap's own contingency, permanently wired in rather than held in
+  reserve.</p>
+  <p><strong>Neither method is <code>@Transactional</code>, and that is deliberate.</strong> A Sonnet
+  call has a 60-second budget, and a method-level transaction would pin a Hikari connection open for
+  all of it — the exact idleness anti-pattern a metered, autosuspending Neon punishes. Phrasing runs
+  with no transaction at all; answering calls the model first and then opens a
+  <code>TransactionTemplate</code> around the three writes alone, so the entry's snooze or
+  withdrawal, the proposal's answer and the memory episode land together or not at all.</p>
+  <p>The four answers are one endpoint, <code>POST /api/proposals/{id}/answer</code>, returning the
+  same representation a proposal already has — one shape for the client to render whether it just
+  asked for a proposal or just answered one. Three of them snooze the entry and differ only in the
+  term; the fourth withdraws it. All four also write an episode into AI memory, which is what makes
+  "every answer shapes what is proposed next" a mechanism rather than a promise: the next proposal's
+  prompt reads that log. An id the caller does not own answers 404 rather than 403 — it must not be
+  distinguishable from one that does not exist — a second answer is 409, and a term outside the
+  offered set is 422 in both directions (missing when required, present when it would be silently
+  dropped).</p>
+  <p class="note">One FK in this schema carries <code>ON DELETE CASCADE</code>:
+  <code>proposal.goal_id</code>, so <code>DELETE /api/goals/{id}</code> keeps working while a
+  proposal points at the entry. The cost is named rather than hidden, and it is charged twice. The
+  &ldquo;a missing deleter fails loudly on the FK&rdquo; property does <em>not</em> protect this
+  table: <code>GoalDataDeleter</code> runs during the same account erasure and every proposal has a
+  goal, so the cascade would remove the rows whether or not <code>ProposalDataDeleter</code> exists —
+  which is why the erasure is asserted directly in a test rather than trusted to the constraint. And
+  because the two deleters share one transaction in an unspecified order, the cascade can take rows
+  out from under a persistence context that has already loaded them; the proposal deleter therefore
+  issues a bulk delete, which is immediate and order-independent, instead of the derived one.</p>
   <pre class="mermaid">
 classDiagram
   class ProposalController {
     &lt;&lt;inbound adapter / REST&gt;&gt;
     +propose() POST /api/proposals
-    returns 204 when nothing is neglected
+    +answer(id, request) POST /api/proposals/:id/answer
+    204 when nothing is neglected
   }
   class ProposalService {
     &lt;&lt;application service&gt;&gt;
     scopes every read to CurrentUser
+    pending proposal short-circuits propose()
+    no @Transactional — the model call is outside one
   }
   class ProposalSelector {
     &lt;&lt;domain service&gt;&gt;
@@ -682,15 +792,80 @@ classDiagram
   class Candidate {
     &lt;&lt;value object&gt;&gt;
     lastInteractionAt — the entry updated_at
+    remindAfter, withdrawn — eligibility, not ranking
+  }
+  class Proposal {
+    &lt;&lt;aggregate root&gt;&gt;
+    UUID userId
+    UUID goalId
+    String message
+    int neglectedDays
+    Source source
+    ProposalAnswer answer
+    OffsetDateTime answeredAt
+    String firstStep — jsonb
+    +answer(ProposalAnswer, OffsetDateTime)
+    +recordFirstStep(String)
+    +isPending() boolean
+  }
+  class ProposalAnswer {
+    &lt;&lt;wire enumeration&gt;&gt;
+    STARTING, NOT_NOW, REMIND_LATER, NEVER
+  }
+  class Source {
+    &lt;&lt;wire enumeration&gt;&gt;
+    LLM, TEMPLATE
+  }
+  class ProposalPrompt {
+    &lt;&lt;domain service&gt;&gt;
+    +forProposal(model, memory, entry, days)
+    +forFirstStep(model, memory, entry)
+    English instructions, OUTPUT_LANGUAGE names the answer
+    every untrusted value fenced in a data block
+  }
+  class ProposalTemplate {
+    &lt;&lt;domain service&gt;&gt;
+    +phrase(entry, days) String
+    the LlmException arm — no model, localized
+  }
+  class FirstStep {
+    &lt;&lt;port contract&gt;&gt;
+    List steps — JSON schema, 3 to 5 items
+  }
+  class ProposalRepository {
+    &lt;&lt;persistence adapter / Spring Data&gt;&gt;
+    findByUserIdAndAnsweredAtIsNull
+  }
+  class ProposalDataDeleter {
+    &lt;&lt;module adapter&gt;&gt;
   }
   ProposalController --> ProposalService
   ProposalService --> GoalRepository : reads every entry the caller owns
   ProposalService --> ProposalSelector
+  ProposalService --> ProposalRepository
+  ProposalService --> LlmClient : phrase, then first step
+  ProposalService --> AiMemoryService : render for the prompt, record the answer
+  ProposalService ..> ProposalPrompt
+  ProposalService ..> ProposalTemplate : on LlmException
   ProposalSelector --> Candidate
   Candidate ..> Goal : flattened for the engine
+  ProposalRepository --> Proposal
+  ProposalDataDeleter --> ProposalRepository
+  Proposal --> ProposalAnswer
+  Proposal --> Source
+  ProposalPrompt ..> FirstStep : constrains the structured call
   </pre>
 
   <h3>ai + ai/memory</h3>
+  <p>The memory aggregate got its first real content in S-04b. The root has always existed —
+  <code>RegistrationService</code> writes it in the same transaction as the user, so every account
+  has one from t=0 — but nothing ever appended to its episodic log, so every render came back empty.
+  Answering a proposal is now that first writer, through <code>AiMemoryService</code>: a seam owned
+  by the aggregate's own package, so <code>proposal</code> never touches
+  <code>AiMemoryRepository</code> and gets a plain string back. A missing root is an invariant
+  breach either way, and the two methods treat it differently on purpose — rendering falls back to
+  no memory rather than costing the user their proposal, while recording creates the row rather than
+  dropping what they just answered.</p>
   <pre class="mermaid">
 classDiagram
   class LlmClient {
@@ -723,6 +898,12 @@ classDiagram
     &lt;&lt;domain service&gt;&gt;
     renders memory into prompt text
   }
+  class AiMemoryService {
+    &lt;&lt;application service&gt;&gt;
+    +renderFor(userId) String
+    +record(userId, eventType, payload)
+    the seam other contexts reach memory through
+  }
   class AiMemoryRepository {
     &lt;&lt;persistence adapter / Spring Data&gt;&gt;
   }
@@ -732,12 +913,16 @@ classDiagram
   AiMemory *-- ProfileFact
   AiMemoryRepository --> AiMemory
   AiMemoryRenderer --> AiMemory
+  AiMemoryService --> AiMemoryRepository
+  AiMemoryService --> AiMemoryRenderer
+  ProposalService ..> AiMemoryService : first caller — S-04b
   </pre>
   <p class="note">Exact endpoints: <code>POST /api/users</code>, <code>GET /api/users/me</code>,
   <code>DELETE /api/users/me</code>, <code>POST /api/sessions</code>,
   <code>DELETE /api/sessions/current</code>, <code>GET /api/categories</code>,
   <code>GET /api/goals</code>, <code>POST /api/goals</code>, <code>PUT /api/goals/{id}</code>,
   <code>DELETE /api/goals/{id}</code>, <code>POST /api/proposals</code>,
+  <code>POST /api/proposals/{id}/answer</code>,
   <code>GET /api/ping</code>. That list is not maintained by hand: <code>ApiSurfaceTest</code>
   compares the paths Spring publishes against the ones
   <a href="../context/foundation/openapi.yaml"><code>openapi.yaml</code></a> declares, as a set in
@@ -751,7 +936,7 @@ classDiagram
 
 <section id="ai-communication">
   <h2>AI communication in Spring Boot
-    <span class="badge badge-foundation">implemented foundation</span>
+    <span class="badge badge-live">implemented</span>
   </h2>
   <p class="lede">The backend communicates with an AI model through a normal Spring dependency:
   application code calls the provider-neutral <code>LlmClient</code> interface, its
@@ -759,9 +944,11 @@ classDiagram
   authenticated HTTP exchange with OpenRouter.</p>
   <div class="callout">
     <strong>Current boundary.</strong> The port, adapter, configuration, unit tests, and an optional
-    live OpenRouter round-trip are implemented. No production use case or controller currently
-    calls <code>LlmClient</code>; auto-tagging, proposal generation, memory-enriched prompts, and the
-    background proposal cycle remain planned.
+    live OpenRouter round-trip are implemented, and <code>ProposalService</code> is the first
+    production caller — it exercises <em>both</em> operations, free text for the proposal's wording
+    and schema-constrained structured output for the first step, on prompts enriched from the user's
+    AI memory (S-04b). Still planned: category auto-tagging at capture (S-09) and the background
+    proposal cycle (S-05).
   </div>
 
   <h3>Vocabulary</h3>
@@ -790,17 +977,18 @@ classDiagram
   <h3>The dependency chain</h3>
   <pre class="mermaid">
 flowchart LR
-  UC[Product use case&lt;br/&gt;planned caller] --> PORT[LlmClient&lt;br/&gt;outbound port]
+  UC[ProposalService&lt;br/&gt;first production caller — S-04b] --> PORT[LlmClient&lt;br/&gt;outbound port]
+  AT[Category auto-tag&lt;br/&gt;planned caller — S-09] --> PORT
   PORT --> ADAPTER[SpringAiLlmClient&lt;br/&gt;Spring @Component]
   ADAPTER --> CHAT[ChatModel&lt;br/&gt;auto-configured by Spring AI]
   CHAT --> OR[OpenRouter&lt;br/&gt;OpenAI-compatible API]
   OR --> MODEL[Selected Anthropic model&lt;br/&gt;Haiku or Sonnet]
   classDef planned fill:#fffbeb,stroke:#d97706,stroke-width:2px,stroke-dasharray:5 4,color:#78350f
-  class UC planned
+  class AT planned
   </pre>
-  <p>The first arrow is intentionally yellow: future product slices will supply the real caller.
-  Everything from <code>LlmClient</code> through the real provider has already been exercised by the
-  gated live test.</p>
+  <p>Only the second caller is still yellow. The proposal loop supplies the real one: it chooses
+  Sonnet, composes the prompt from AI memory and the picked entry, and owns the decision about what
+  to do when the model fails — which is the caller's responsibility, not the port's.</p>
 
   <h3>What Spring Boot creates at startup</h3>
   <div class="table-wrap">
@@ -878,23 +1066,24 @@ sequenceDiagram
           <th scope="row"><code>complete(request)</code></th>
           <td>Extracts non-blank assistant text from <code>ChatResponse</code> and returns a
           <code>String</code>.</td>
-          <td>Natural-language proposals and first-step guidance. <span class="badge badge-planned">planned caller</span></td>
+          <td>The proposal's wording — 2–3 sentences quoting the user's own entry.
+          <span class="badge badge-live">live caller</span></td>
         </tr>
         <tr>
           <th scope="row"><code>completeStructured(request, type, schema)</code></th>
           <td>Adds JSON-schema response formatting, then deserializes the returned JSON into
           <code>type</code>. Invalid JSON becomes <code>LlmException</code>.</td>
-          <td>Category auto-tagging and other decisions that must return a bounded Java value.
-          <span class="badge badge-planned">planned caller</span></td>
+          <td>FR-014's first step — a <code>steps</code> array bounded to 3–5 items.
+          <span class="badge badge-live">live caller</span> Category auto-tagging joins it in S-09.</td>
         </tr>
       </tbody>
     </table>
   </div>
-  <pre class="code-block"><code>// A future use case depends on the port, not Spring AI classes.
+  <pre class="code-block"><code>// The use case depends on the port, not on Spring AI classes.
 LlmRequest request = LlmRequest.of(
     properties.model().sonnet(),
-    LlmMessage.system("Reply briefly in Polish."),
-    LlmMessage.user("Suggest the first step."));
+    LlmMessage.system(persona),            // English instructions; the persona names the answer's language
+    LlmMessage.user(memoryBlock + entry));  // untrusted values fenced inside a data block
 
 String reply = llmClient.complete(request);</code></pre>
   <p>The model slug belongs to the caller because model choice is a product decision. Transport
@@ -909,7 +1098,7 @@ String reply = llmClient.complete(request);</code></pre>
         <tr><th scope="col">Layer</th><th scope="col">Owns</th><th scope="col">Does not own</th></tr>
       </thead>
       <tbody>
-        <tr><th scope="row">Product use case <span class="badge badge-planned">planned</span></th><td>Selecting the model, composing domain context, deciding how to recover from AI failure</td><td>HTTP, authentication headers, provider response parsing</td></tr>
+        <tr><th scope="row">Product use case <span class="badge badge-live">implemented</span></th><td>Selecting the model, composing domain context, fencing untrusted content, deciding how to recover from AI failure</td><td>HTTP, authentication headers, provider response parsing</td></tr>
         <tr><th scope="row"><code class="nowrap">SpringAiLlmClient</code></th><td>Mapping messages/options, adding privacy routing, extracting or deserializing the result, normalizing failures</td><td>Scheduling, business decisions, HTTP retry implementation</td></tr>
         <tr><th scope="row">Spring AI <code>ChatModel</code></th><td>OpenAI-compatible request serialization, HTTPS transport, API-key header, timeout and retry behavior, response mapping</td><td>Which product use case should call which model</td></tr>
         <tr><th scope="row">OpenRouter</th><td>Gateway authentication, credits, provider routing, forwarding the OpenAI-compatible request</td><td>The application's domain memory and use-case policy</td></tr>
@@ -933,8 +1122,13 @@ String reply = llmClient.complete(request);</code></pre>
     API processing and prompt caching while prohibiting training on personal data.</li>
     <li>Haiku and Sonnet slugs are configuration values. One gateway and one adapter support the
     split without creating a client per model.</li>
-    <li>Embeddings are disabled and there is no vector database in the MVP. Future proposal use
-    cases will render bounded profile facts and recent episodes into normal prompt messages.</li>
+    <li>Embeddings are disabled and there is no vector database in the MVP. The proposal prompts
+    render bounded profile facts and recent episodes into ordinary prompt messages instead.</li>
+    <li>Stored, user-influenced content never reaches a prompt raw. The memory block and the entry's
+    own words appear only inside a <code>&lt;data&gt;</code> block, the system message tells the
+    model those blocks are data rather than instructions, and the fence tokens are stripped from the
+    payload so nothing can close its block and keep writing outside it — the render-boundary
+    discipline that also governs the AI code review's diff.</li>
   </ul>
 
   <h3>Timeouts, retries, and failures</h3>
@@ -951,7 +1145,7 @@ String reply = llmClient.complete(request);</code></pre>
         <tr><th scope="row">Transport/provider exception</th><td>Log model slug and message count without prompt content or key, then throw <code>LlmException</code>.</td><td><code>SpringAiLlmClient</code></td></tr>
         <tr><th scope="row">Blank free-text response</th><td>Reject it as <code>LlmException</code>, because truncation or content filtering can produce an empty answer.</td><td><code>SpringAiLlmClient</code></td></tr>
         <tr><th scope="row">Malformed structured response</th><td>Deserialization fails as <code>LlmException</code>.</td><td><code>SpringAiLlmClient</code></td></tr>
-        <tr><th scope="row">Product fallback</th><td>Not implemented yet. Future callers must keep CRUD available and degrade AI features safely.</td><td>Each product use case</td></tr>
+        <tr><th scope="row">Product fallback</th><td>Implemented for the proposal loop: phrasing falls back to a deterministic template and records <code>source = TEMPLATE</code>; a failed first step still lets the answer land, with empty bullets. CRUD never depends on the model.</td><td>Each product use case</td></tr>
       </tbody>
     </table>
   </div>
@@ -968,8 +1162,11 @@ String reply = llmClient.complete(request);</code></pre>
     <div class="card"><strong>Real round-trip</strong><br>
     <a href="../backend/src/test/java/com/thedariusz/todoai/ai/OpenRouterLiveTest.java"><code>OpenRouterLiveTest</code></a>
     boots the real Spring context and calls OpenRouter only when <code>OPENROUTER_API_KEY</code> is
-    explicitly present. It currently proves Sonnet free-text and strict structured calls; Haiku's
-    structured-output support remains an S-09 verification.</div>
+    explicitly present. It proves Sonnet free-text and strict structured calls; Haiku's
+    structured-output support remains an S-09 verification. <code>ProposalLiveTest</code> is its
+    sibling in the <code>proposal</code> package — same gate, but sending the real proposal and
+    first-step prompts, because reaching a package-private prompt builder from <code>ai</code> would
+    mean widening production visibility for a test.</div>
   </div>
 
   <h3>Code reading path</h3>
@@ -992,9 +1189,10 @@ String reply = llmClient.complete(request);</code></pre>
 
 <section id="flows">
   <h2>Behavioral flows</h2>
-  <p>The detailed diagrams are grouped by responsibility. Identity flows dominate the current
-  implementation; the planned AI/product group will become the primary architectural story as
-  S-02 through S-05 land.</p>
+  <p>The detailed diagrams are grouped by responsibility. Identity flows came first and are still
+  the largest group, but the AI/product group is now the architectural story: the whole proposal
+  loop is implemented, and only the cycle that decides <em>when</em> to ask (S-05) and the auto-tag
+  at capture (S-09) are still drawn as plans.</p>
   <h3>Identity and security</h3>
   <h4>Registration <span class="badge badge-live">implemented</span></h4>
   <pre class="mermaid">
@@ -1134,88 +1332,165 @@ sequenceDiagram
   <h4>Manual proposal trigger <span class="badge badge-live">implemented</span></h4>
   <pre class="mermaid">
 sequenceDiagram
-  actor API as API client
+  autonumber
+  actor SPA
   participant PC as ProposalController
   participant PS as ProposalService
   participant SEL as ProposalSelector — pure logic
+  participant MEM as AiMemoryService
+  participant LLM as LlmClient → Sonnet
   participant PG as Postgres
-  API->>PC: POST /api/proposals
+  SPA->>PC: POST /api/proposals (the manual trigger)
   PC->>PS: propose()
-  PS->>PG: every entry owned by the caller
-  PG-->>PS: tasks, goals and dreams
-  PS->>SEL: select(candidates, now)
-  SEL-->>PS: the chosen entry and its idle days
-  PS-->>PC: the entry, or empty
-  PC-->>API: 200 with the entry — or 204 when nothing is neglected
+  PS->>PG: pending proposal for this user?
+  alt one is already pending
+    PG-->>PS: the stored proposal
+    PS-->>SPA: 200 — the same card, no model call
+  else nothing pending
+    PS->>PG: every entry owned by the caller
+    PG-->>PS: tasks, goals and dreams
+    PS->>SEL: select(candidates, now)
+    Note over SEL: withdrawn and still-snoozed entries&lt;br/&gt;are not eligible
+    alt nothing is neglected
+      SEL-->>PS: empty
+      PS-->>SPA: 204 No Content
+    else an entry wins
+      SEL-->>PS: the chosen entry and its idle days
+      PS->>MEM: renderFor(userId)
+      PS->>LLM: complete(persona + memory + entry + idle days)
+      alt the model answers
+        LLM-->>PS: 2–3 Polish sentences quoting the entry
+      else LlmException
+        PS->>PS: ProposalTemplate.phrase(entry, days) — source = TEMPLATE
+      end
+      PS->>PG: insert proposal (partial UNIQUE = at most one pending)
+      Note over PS,PG: a lost insert race returns the winner,&lt;br/&gt;never a 500
+      PS-->>SPA: 200 with the proposal, its entry and its message
+    end
+  end
   </pre>
-  <p class="note">No AI provider appears in this flow, deliberately. S-04b puts
-  <code>LlmClient</code> between the selection and the wording the user reads; until then no
-  production code path calls <code>LlmClient</code> at all, and the engine stays testable without a
-  network. No screen calls this endpoint yet either — the SPA leg arrives with S-04b.</p>
+
+  <h4>Answering a proposal <span class="badge badge-live">implemented</span></h4>
+  <p>All four FR-013 answers are one endpoint returning one shape. The model is called
+  <em>before</em> the transaction opens, never inside it — a 60-second budget must not hold a
+  database connection.</p>
+  <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor SPA
+  participant PC as ProposalController
+  participant PS as ProposalService
+  participant LLM as LlmClient → Sonnet
+  participant PG as Postgres
+  SPA->>PC: POST /api/proposals/:id/answer {answer, remind_in_days?}
+  Note over PC: Bean Validation — REMIND_LATER needs 7/30/90,&lt;br/&gt;any other answer must omit it (422)
+  PC->>PS: answer(id, request)
+  PS->>PG: findByIdAndUserId — a foreign id is 404, not 403
+  alt already answered
+    PS-->>SPA: 409 — a proposal is answered exactly once
+  else pending
+    opt answer is STARTING
+      PS->>LLM: completeStructured(first-step prompt, 3–5 steps schema)
+      LLM-->>PS: the bullets — or empty on LlmException
+    end
+    Note over PS,PG: one TransactionTemplate scopes the three writes&lt;br/&gt;— they land together or not at all
+    PS->>PG: entry — snoozeUntil(date) or withdraw(now)
+    PS->>PG: proposal — answer, answered_at, first_step
+    PS->>PG: AiMemory — episode "proposal_answered"
+    PS-->>SPA: 200 — the same representation, now answered
+  end
+  </pre>
+  <p class="note">The three writes are one transaction, so an interrupted answer leaves the proposal
+  pending and retryable and the entry untouched — whichever of them had already run. The episode is
+  what makes the next proposal aware of this one: it is the first thing ever appended to the
+  episodic log, which until S-04b rendered empty for every user.</p>
 
   <h4>Natural-rhythm proposal <span class="badge badge-planned">planned</span></h4>
+  <p>S-05 adds only the trigger and the second delivery channel. Everything below the dashed
+  boundary — selection, phrasing, storage, the at-most-one-pending rule and the four answers —
+  already exists and is reused as-is; the scheduler replaces the button, not the loop.</p>
   <pre class="mermaid">
 sequenceDiagram
   participant SCH as Natural-rhythm background process
+  participant PS as ProposalService — implemented
   participant PG as Postgres
-  participant LLM as LlmClient
   participant EMAIL as Email provider
   participant APP as Application API
   actor U as User
-  SCH->>PG: load eligible neglected items + AiMemory
-  SCH->>LLM: select item and formulate contextual proposal
-  LLM-->>SCH: proposal text + referenced item
-  SCH->>PG: store pending proposal before delivery
+  Note over SCH: next fire time held in memory,&lt;br/&gt;never polled from the database
+  SCH->>PS: propose() for a due user
+  Note over PS,PG: selects, phrases through LlmClient&lt;br/&gt;and stores the pending proposal — as today
+  PS-->>SCH: the stored proposal
   SCH->>EMAIL: send proposal + application link
   EMAIL-->>U: email
   U->>APP: open application
   APP->>PG: load pending proposal
-  PG-->>APP: same proposal sent by email
-  APP-->>U: show proposal until response
+  PG-->>APP: the same proposal sent by email
+  APP-->>U: show proposal until answered
   </pre>
+  <p class="note">The one thing S-05 must not inherit is a poll. Neon bills idle compute and
+  autosuspends after roughly five minutes, so anything touching the database more often than that
+  pins the machine awake permanently — the scheduler computes its next fire time in memory and
+  queries only when it actually fires, roughly once every two to seven days.</p>
   <!-- planned-flows -->
 </section>
 
 <section id="data">
   <h2>Data architecture</h2>
   <p>Every user-owned aggregate carries an explicit owner boundary. The current model contains the
-  user, fixed category reference data, the AI-memory aggregate, and the <code>goal</code> table
-  holding all three layers; proposal history and scheduling state belong to the target model and are
-  not yet implemented.</p>
+  user, fixed category reference data, the AI-memory aggregate, the <code>goal</code> table holding
+  all three layers, and — since S-04b — the <code>proposal</code> table recording what the user was
+  shown and what they answered. Only scheduling state still belongs to the target model.</p>
   <div class="card-grid">
     <div class="card"><strong>Ownership and isolation</strong><br><code>AiMemory</code> is one
     aggregate per user. Child profile facts and episodes are reached through that root.</div>
-    <div class="card"><strong>Explicit erasure</strong><br>There is no <code>ON DELETE CASCADE</code>
-    from user-owned data. Each module supplies a <code>PerUserDataDeleter</code>; the user row is
-    deleted last so a missing module fails loudly.</div>
+    <div class="card"><strong>Explicit erasure</strong><br>No <code>user_id</code> FK carries
+    <code>ON DELETE CASCADE</code>. Each module supplies a <code>PerUserDataDeleter</code>; the user
+    row is deleted last so a missing module fails loudly. The one exception is
+    <code>proposal.goal_id</code>, and it is named where it is declared.</div>
     <div class="card"><strong>Append-only episodes</strong><br>Episodes record events that happened
     and therefore use <code>created_at</code> without pretending that history is mutable.</div>
     <div class="card"><strong>Schema ownership</strong><br>Flyway migrations change PostgreSQL;
     Hibernate remains on <code>ddl-auto=validate</code> as a mapping drift guard.</div>
   </div>
   <h3>Current model <span class="badge badge-live">implemented</span></h3>
-  <p>User identity, fixed categories, personal AI memory, and the <code>goal</code> table are
-  present. Profile facts are durable semantic statements; episodes are a bounded event history
-  stored with a JSON payload. <code>goal</code> keeps its completion state as a nullable
+  <p>User identity, fixed categories, personal AI memory, the <code>goal</code> table and the
+  <code>proposal</code> table are present. Profile facts are durable semantic statements; episodes
+  are a bounded event history stored with a JSON payload. <code>goal</code> keeps its completion
+  state as a nullable
   <code>completed_at</code> rather than a boolean, because the memory enrichment that reads it next
   needs to know when a thing was finished, not merely whether. The selection engine added no column
   and no index: it measures neglect from <code>updated_at</code>, which is only honest while the
   user remains the sole writer of a <code>goal</code> row — the day a background job stamps one, the
-  engine needs a <code>last_interaction_at</code> of its own. The other clock decision is
+  engine needs a <code>last_interaction_at</code> of its own. S-04b was the first slice that had to
+  answer that warning, and it took the first option rather than the column: <code>remind_after</code>
+  and <code>withdrawn_at</code> sit on <code>goal</code> because the user asked for them, while
+  everything the machine writes on its own lives on <code>proposal</code>. That table's own
+  constraints are mostly product rules a service check could not hold — a partial unique index over
+  <code>(user_id) WHERE answered_at IS NULL</code> is FR-018's at-most-one-pending rule, immune to
+  the double-click a service-level read would race with; and <code>goal_id</code> is the schema's
+  one <code>ON DELETE CASCADE</code>, so deleting an entry that carries a proposal still works, at
+  the documented cost of that FK no longer guarding a forgotten deleter (which is also why that
+  deleter issues a bulk delete rather than a derived one — the two run in one transaction in no
+  fixed order). A third constraint is a backstop rather than a product rule:
+  <code>CHECK ((answer IS NULL) = (answered_at IS NULL))</code> keeps the answer pair whole, since
+  the pending index reads only one of the two and a half-written answer would hold the slot for good
+  while every reader called it answered. The other clock decision is
   <code>due_date</code>: it is a <code>LocalDate</code> the user picked off a calendar, so the engine
   reads its clock in the user's zone rather than the server's. There is no <code>user.timezone</code>
   column yet, so that zone is pinned to Europe/Warsaw in one line of <code>ProposalService</code>;
   a UTC comparison would leave a task that fell due at Polish midnight unflagged until 02:00, and the
   endpoint would answer 204 &mdash; the one place a real fault looks like a legitimate empty
   answer.</p>
-  <img class="diagram" src="../context/foundation/data-model-current.svg" width="1082" height="1038" loading="lazy" alt="Current entity relationship model: app user, goal with its three layers, category, AI memory, profile facts, and episodes">
+  <img class="diagram" src="../context/foundation/data-model-current.svg" width="1082" height="1204" loading="lazy" alt="Current entity relationship model: app user, goal with its three layers, proposal, category, AI memory, profile facts, and episodes">
   <h3>Target model <span class="badge badge-planned">planned</span></h3>
   <p>The target diagram shows the whole shape, migrated and not: solid tables exist today, ghosted
-  ones are direction rather than an implemented database contract. After S-07 the single ghosted box
+  ones are direction rather than an implemented database contract. After S-07 — and still after
+  S-04b, which drew <code>proposal</code> solid — the single ghosted box
   is <code>task</code>, and it marks a deferred split rather than planned work: current tasks shipped
   as a third <code>goal</code> layer, so that table is the escape hatch for the day tasks earn a
   lifecycle of their own.</p>
-  <img class="diagram" src="../context/foundation/data-model-target.svg" width="2003" height="1268" loading="lazy" alt="Target entity relationship model: migrated app user, goal, category and AI memory alongside the deferred task table">
+  <img class="diagram" src="../context/foundation/data-model-target.svg" width="2003" height="1268" loading="lazy" alt="Target entity relationship model: migrated app user, goal, proposal, category and AI memory alongside the deferred task table">
   <p class="note">Canonical source:
   <a href="../context/foundation/data-model.md"><code>context/foundation/data-model.md</code></a>.
   Editable Draw.io sources live beside the exported SVGs.</p>
@@ -1396,18 +1671,23 @@ flowchart TB
 <section id="roadmap">
   <h2>Roadmap / target state <span class="badge badge-planned">planned</span></h2>
   <p>What exists today is the account/auth slice, all three task layers on one <code>goal</code>
-  aggregate, the deterministic selection engine, and the AI memory and category foundations. The MVP
-  roadmap builds vertical slices on top:</p>
-  <div class="card"><strong>Category auto-tag</strong> — AI classification into the 11 life domains
-  at capture time. All three layers already ship with a manual picker; the auto-tag replaces the
-  picking, not the storage.</div>
-  <div class="card"><strong>AI orchestration</strong> — <code>LlmClient</code> port already exists with a
-  Spring AI adapter; JSON-schema-constrained structured output; per-user <code>AiMemory</code>
-  (profile facts + episodes) rendered into prompts.</div>
-  <div class="card"><strong>Natural-rhythm reminders</strong> — background jobs that surface the right
-  task at the right moment, not fixed-time alarms. The engine that decides <em>which</em> entry is
-  already implemented; what remains is the AI wording, the four responses, and the non-fixed rhythm
-  that decides <em>when</em>.</div>
+  aggregate, the complete on-demand proposal loop, and the AI memory and category foundations. The
+  MVP roadmap builds vertical slices on top:</p>
+  <div class="card"><strong>Category auto-tag</strong> <span class="badge badge-planned">planned</span><br>AI
+  classification into the 11 life domains at capture time. All three layers already ship with a
+  manual picker; the auto-tag replaces the picking, not the storage. It is also where Haiku's
+  structured-output support gets verified — only Sonnet's has been proved live.</div>
+  <div class="card"><strong>AI orchestration</strong> <span class="badge badge-live">implemented</span><br>The
+  <code>LlmClient</code> port and its Spring AI adapter, JSON-schema-constrained structured output,
+  and per-user <code>AiMemory</code> (profile facts + episodes) rendered into prompts — all of it
+  now driven by a real caller, with a template fallback for when the model does not answer.</div>
+  <div class="card"><strong>Natural-rhythm reminders</strong> <span class="badge badge-planned">planned</span><br>Background
+  jobs that surface the right task at the right moment, not fixed-time alarms. Which entry, the AI
+  wording and the four responses are all implemented; what remains is the non-fixed rhythm that
+  decides <em>when</em>, and the email that carries it.</div>
+  <div class="card"><strong>Onboarding memory seed</strong> <span class="badge badge-planned">planned</span><br>The
+  durable profile facts that would let a proposal know who it is talking to. Memory currently fills
+  from proposal answers alone, so early prompts carry an episodic log and no profile.</div>
   <p>Planned sequence diagrams live in the <a href="#flows">Flows</a> section (yellow badges).
   The target ER diagram is in <a href="#data">Data architecture</a>.</p>
   <p class="note">Authoritative detail:
@@ -1428,8 +1708,11 @@ flowchart TB
         <tr><th scope="row">Task layer</th><td>One of three horizons an item lives in: <em>current</em> (actionable now), <em>long-term</em> (goals) and <em>dreams</em> (aspirations) — all three implemented as one <code>goal</code> table with a <code>layer</code> discriminator.</td></tr>
         <tr><th scope="row">Layer / horizon</th><td><code>GoalLayer</code> (GOAL, DREAM, TASK) discriminates all three layers; <code>GoalHorizon</code> (THIS_YEAR, FEW_MONTHS) applies only to a goal, and <code>due_date</code> only to a task. All constant names are the wire literals, anchored in <code>openapi.yaml</code> and held against backend and frontend copies by <code>GoalApiTest</code>.</td></tr>
         <tr><th scope="row">Life domain</th><td>One of 11 fixed categories every task belongs to: HEALTH, FINANCE, CAREER, EDUCATION, RELATIONSHIPS, HOME, LEISURE, ADMIN, SAFETY, TRANSPORT, INNER_GROWTH. Enum <code>LifeDomain</code> mirrors the seeded <code>category</code> table; <code>CategorySyncCheck</code> fails boot on drift.</td></tr>
-        <tr><th scope="row">Natural-rhythm reminder</th><td>A proactive nudge surfaced at a contextually right moment rather than a fixed alarm time. <span class="badge badge-planned">planned</span></td></tr>
-        <tr><th scope="row">Selection engine</th><td>The deterministic pick behind <code>POST /api/proposals</code>: <em>neglect</em> (idle 7 / 14 / 30 days by layer, or a task past its <code>due_date</code>) decides which entries are eligible; a missed term ranks ahead of any amount of silence, and below that <em>domain silence</em> (how long since the user touched anything in a life domain — completed entries included) decides which one wins. Pure Java in <code>ProposalSelector</code>; no LLM.</td></tr>
+        <tr><th scope="row">Natural-rhythm reminder</th><td>A proactive nudge surfaced at a contextually right moment rather than a fixed alarm time. <span class="badge badge-planned">planned</span> — the nudge itself exists; only its unprompted timing does not.</td></tr>
+        <tr><th scope="row">Selection engine</th><td>The deterministic pick behind <code>POST /api/proposals</code>: <em>neglect</em> (idle 7 / 14 / 30 days by layer, or a task past its <code>due_date</code>) decides which entries are eligible — withdrawn and still-snoozed ones are not; a missed term ranks ahead of any amount of silence, and below that <em>domain silence</em> (how long since the user touched anything in a life domain — completed entries included) decides which one wins. Pure Java in <code>ProposalSelector</code>; no LLM.</td></tr>
+        <tr><th scope="row">Proposal</th><td>The stored row behind FR-013/FR-018: the picked entry, the sentence the model (or the template) phrased around it, and the user's answer. At most one may be pending per user, enforced by a partial unique index rather than a service check, which is why pressing the button twice returns one card and costs one model call.</td></tr>
+        <tr><th scope="row">Snooze / withdrawal</th><td>The two states an answer leaves on the entry itself: <code>goal.remind_after</code> (not before this date) and <code>goal.withdrawn_at</code> (out of the running until restored). They sit on <code>goal</code> rather than <code>proposal</code> because the <em>user</em> performed them — which keeps <code>updated_at</code> meaning "when the user last engaged".</td></tr>
+        <tr><th scope="row">First step</th><td>FR-014's 3–5 concrete actions, asked of the model once when the user answers that they are starting, stored as <code>jsonb</code> on the proposal, and offered for one-click saving as current tasks. A saved bullet is a plain task with no link back to the entry that produced it — that is FR-014 as written, and the relation is a parked post-submission candidate.</td></tr>
         <tr><th scope="row">AiMemory</th><td>Per-user aggregate the AI consults; created atomically with the <code>User</code> at registration ("every user has exactly one memory").</td></tr>
         <tr><th scope="row">Episode</th><td>One append-only AI-memory event; payload stored as <code>jsonb</code>.</td></tr>
         <tr><th scope="row">Profile fact</th><td>A durable statement about the user inside <code>AiMemory</code>, rendered into prompts by <code>AiMemoryRenderer</code>.</td></tr>

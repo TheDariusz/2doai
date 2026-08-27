@@ -59,12 +59,20 @@ class GoalService {
 		else {
 			goal.reopen();
 		}
+		// The same full-replace rule, and the reason FR-013's "never" is reversible: an entry comes
+		// back because the client resent it as not-withdrawn, not because a route exists to undo it.
+		if (request.withdrawn()) {
+			goal.withdraw(OffsetDateTime.now());
+		}
+		else {
+			goal.restore();
+		}
 		return GoalResponse.from(goals.saveAndFlush(goal));
 	}
 
 	/**
 	 * Hard delete (DEV-44): the row goes, and with it the id. Soft delete would buy an undo at the
-	 * cost of a {@code deleted_at} column every existing query then has to filter — S-04's "wycofane"
+	 * cost of a {@code deleted_at} column every existing query then has to filter — S-04's withdrawn
 	 * can introduce that properly if the product turns out to want it.
 	 */
 	void delete(UUID id) {
