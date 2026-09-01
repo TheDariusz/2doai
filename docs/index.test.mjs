@@ -144,10 +144,16 @@ test('target runtime preserves the current deployment backbone and marks planned
     assert.match(target, new RegExp(currentComponent), `target omits current component: ${currentComponent}`)
   }
   assert.match(target, /Current deployment backbone/)
-  assert.match(target, /Planned MVP additions/)
   assert.match(target, /AI provider API/)
-  assert.match(target, /Email delivery provider/)
-  assert.match(target, /natural-rhythm/)
+  assert.match(target, /natural-rhythm/i)
+  // The rhythm and its mail transport are drawn, whatever they are called. Pinned this way on
+  // purpose: S-05 shipped both, and the two literals that used to stand here — "Planned MVP
+  // additions" and "Email delivery provider" — were assertions that the page still called them
+  // planned. A pinned phrase can only guard a claim that stays true; naming the components guards
+  // the diagram, naming their status guards nothing and eventually contradicts the code.
+  assert.match(target, /Resend|SMTP|Email/)
+  // Something is still unbuilt, and the legend that says which must survive with it.
+  assert.match(target, /classDef planned/)
 })
 
 test('backend terminology is defined before the implementation diagrams', () => {

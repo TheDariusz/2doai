@@ -178,10 +178,12 @@
     <strong>Representative target flow.</strong> A user records a dream about visiting Japan. The
     system retains the item and relevant personal context. After a non-fixed interval, the backend
     selects the neglected dream, asks the AI to formulate a concrete first-step proposal, sends it
-    by email, and keeps it available in the application until the user responds. Selecting the
-    entry, phrasing the proposal and keeping it answerable in the application are implemented; the
-    non-fixed interval that starts the flow and the email that carries it are not.
-    <span class="badge badge-planned">partly planned</span>
+    by email, and keeps it available in the application until the user responds. Every step of that
+    sentence is now implemented, S-05 having supplied the two that were missing: the non-fixed
+    interval that starts the flow, and the email that carries it. Delivery in production additionally
+    needs a verified sender domain at the mail provider — a configuration step, recorded in the
+    deployment runbook rather than in the code.
+    <span class="badge badge-live">implemented</span>
   </div>
   <div class="card-grid">
     <div class="card"><strong>Product differentiator</strong><br>Proactive returns in a natural
@@ -213,7 +215,7 @@
         <tr><th scope="row">Unified three-layer view</th><td><span class="badge badge-live">implemented</span></td><td>All three layers on one <code>/goals</code> screen, narrowed by layer and by category from the query string — filtered in the browser, no API change (S-08)</td></tr>
         <tr><th scope="row">Selection engine</th><td><span class="badge badge-live">implemented</span></td><td>Deterministic neglect heuristic and category balancing behind <code>POST /api/proposals</code> (S-04a); the engine itself still holds no clock, no repository and no model — the AI enters after it has picked</td></tr>
         <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-live">implemented</span></td><td>Sonnet phrases the picked entry, the proposal is stored (at most one pending per user), the four FR-013 answers act on the entry, and <code>STARTING</code> returns FR-014's bullets — all behind the manual trigger on <code>/goals</code> (S-04b)</td></tr>
-        <tr><th scope="row">Natural-rhythm return</th><td><span class="badge badge-planned">planned</span></td><td>The non-fixed cycle that decides <em>when</em> to ask, and email as its second delivery channel — roadmap slice S-05. Today a proposal only ever exists because the user pressed the button</td></tr>
+        <tr><th scope="row">Natural-rhythm return</th><td><span class="badge badge-live">implemented</span></td><td>The non-fixed cycle that decides <em>when</em> to ask (S-05): a per-account moment drawn 2–7 days out inside daytime hours, held in memory and backed by <code>app_user.next_proposal_at</code>, firing <code>ProposalService.proposeScheduled</code> without anyone pressing anything. What comes back is emailed and waits in the app at <code>GET /api/proposals/pending</code></td></tr>
         <tr><th scope="row">PWA/offline behavior</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-10</td></tr>
       </tbody>
     </table>
@@ -229,6 +231,12 @@
   asks the backend for something to come back to, the returned card carries the AI's sentence and
   the four answers, and <code>STARTING</code> renders the generated bullets, each saveable as a
   current task with one click.</p>
+  <p>Since S-05 the card no longer waits for that button. On mount it reads
+  <code>GET /api/proposals/pending</code>, so a proposal the rhythm opened overnight is on screen
+  when the user arrives — which is what makes the emailed nudge a nudge rather than the delivery.
+  That read deliberately stays quiet: nobody asked for it, so a failure is recorded in the console
+  instead of raising a banner about something the user did not cause, and 204 leaves the idle screen
+  exactly as it looks before anyone asks anything.</p>
   <h4>Four decisions that shaped it</h4>
   <dl class="term-grid">
     <dt>Filters live in the URL</dt>
@@ -258,18 +266,21 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
-  <p class="note">Verified against S-04b — the LLM-phrased proposal, its four answers, the generated
-  first step and the <code>/goals</code> card (DEV-23) — on 2026-08-26; the previous snapshot
-  actually <em>walked</em> was <code>ed4ef2b</code>, the S-08 unified three-layer view with filters
-  and the Zalando contract pass that followed it the same day (DEV-28). This slice found the AI
-  chapter still asserting that no production code calls <code>LlmClient</code> — with the docs test
-  <em>pinning</em> that sentence, so the gate stayed green while the claim became false the moment
-  <code>ProposalService</code> merged. The pass before that left the goal chapter and glossary
-  describing two layers after S-07 had shipped the third. This note records the last commit walked,
-  not the last merged: pointing it at a newer merge would hide exactly that kind of drift — and so
-  would naming a commit that never touched the page, which drops everything between it and the real
-  walk out of the range below. To review, run
-  <code>git log ed4ef2b.. -- backend frontend .github/workflows
+  <p class="note">Verified against S-05 — the natural-rhythm scheduler, its email, and the pending
+  proposal the app now shows on arrival (DEV-24) — on 2026-09-01; the previous snapshot actually
+  <em>walked</em> was <code>a3d7e14</code>, the S-04b LLM-phrased proposal with its four answers and
+  the <code>/goals</code> card (DEV-23). This slice found drift of a kind the earlier passes had not
+  produced: not a sentence left stale, but a <em>prediction</em> that came true. The decision
+  register's "at most one pending proposal is an index" row named its own revisit trigger — "if a
+  cycle may supersede a pending one" — and this is the cycle, so the row now records that the index
+  held and why. Two diagrams said "planned" about components that had merged, and the ER exports
+  predated <code>next_proposal_at</code> by two phases: the schema changed in phase 1 and the picture
+  did not move until this walk. The docs test stayed green throughout all of it, which is the point
+  of this note rather than an aside about it. It records the last commit walked, not the last merged:
+  pointing it at a newer merge would hide exactly that kind of drift — and so would naming a commit
+  that never touched the page, which drops everything between it and the real walk out of the range
+  below. To review, run
+  <code>git log a3d7e14.. -- backend frontend .github/workflows
   context/foundation docs/index.html</code>.</p>
 </section>
 <section id="architecture">
@@ -295,16 +306,26 @@ flowchart LR
   BE -- "JPA / Hibernate (validate)" --> PG[(Neon PostgreSQL 18&lt;br/&gt;pooled + SSL, autosuspend)]
   BE -- "Flyway migrations on boot" --> PG
   BE -- "LlmClient (Spring AI), on a proposal" --> LLM[OpenRouter → Anthropic Sonnet]
+  BE -- "EmailSender (SMTP), on a scheduled fire" --> MAIL[Resend — proposal + app link]
+  MAIL -. email .-> U
   GHA[GitHub Actions — delivery plane] -. "flyctl deploy" .-> BE
   GHA -. "wrangler pages deploy" .-> CFP
   </pre>
+  <p class="note">The scheduler is not a container of its own. It is a <code>@Scheduled</code> thread
+  inside the same Fly machine, which is why the diagram has no fourth box: <code>fly.toml</code> pins
+  exactly one machine, so there is nothing to elect and nothing to lock. That thread is also the
+  <code>proposalScheduler</code> liveness indicator, so a tick that stops while the web server keeps
+  answering becomes a restart rather than silence.</p>
   <h3>Target MVP runtime <span class="badge badge-planned">planned</span></h3>
-  <p>The target keeps the same small deployment shape. Task/goal storage and AI orchestration have
-  since landed; what remains are the natural-rhythm background process and an email delivery
-  provider. The application already stores a proposal before delivery, so it remains pending in-app
-  until the user responds — email will be a return channel, not the source of truth.</p>
-  <p class="note">The gray components and delivery paths are the current runtime shown above.
-  Yellow dashed components are additions planned for the MVP.</p>
+  <p>The target keeps the same small deployment shape. Task/goal storage, AI orchestration, the
+  natural-rhythm background process and email delivery have all since landed; what remains of this
+  diagram is the PWA behavior in the browser. The application stores a proposal before delivering it,
+  so it remains pending in-app until the user responds — email is a return channel, not the source of
+  truth, which is why a message that cannot be sent costs the nudge and not the proposal.</p>
+  <p class="note">The gray components and delivery paths are the current runtime shown above. Yellow
+  dashed components are what the MVP still plans — after S-05 that is the browser alone, whose PWA
+  behavior is roadmap slice S-10. The scheduler is drawn as its own node for readability; it runs
+  inside the Fly machine.</p>
   <pre class="mermaid">
 flowchart LR
   %% Current deployment backbone
@@ -317,15 +338,15 @@ flowchart LR
 
   BE -- "LlmClient (Spring AI)" --> LLM[AI provider API&lt;br/&gt;JSON-schema constrained]
 
-  %% Planned MVP additions
-  BE --> SCH[Background selection&lt;br/&gt;natural-rhythm proposals]
+  %% Landed in S-05 — the scheduler is a thread inside BE, not a container
+  BE --> SCH[Natural-rhythm scheduler&lt;br/&gt;in-memory moment per account]
   SCH --> PG
   SCH --> LLM
-  SCH --> EMAIL[Email delivery provider]
+  SCH --> EMAIL[Resend — SMTP]
   EMAIL -. "proposal + app link" .-> U
   PG -. "pending proposal on next open" .-> BE
   classDef planned fill:#fffbeb,stroke:#d97706,stroke-width:2px,stroke-dasharray:5 4,color:#78350f
-  class SCH,EMAIL planned
+  class U planned
   </pre>
 </section>
 
@@ -347,7 +368,8 @@ flowchart LR
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/account"><code>backend/…/account</code></a></th><td>Modular per-user erasure coordinated before the user row is deleted</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/category"><code>backend/…/category</code></a></th><td>Fixed life-domain reference data and enum/table drift detection</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/goal"><code>backend/…/goal</code></a></th><td>One aggregate for all three layers — current tasks, goals and dreams — its CRUD API, and its erasure adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/proposal"><code>backend/…/proposal</code></a></th><td>The whole proactive loop: the selection engine, the two Sonnet prompts and their template fallback, the stored <code>proposal</code> aggregate, the four answers, and both endpoints</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/proposal"><code>backend/…/proposal</code></a></th><td>The whole proactive loop: the selection engine, the two Sonnet prompts and their template fallback, the stored <code>proposal</code> aggregate, the four answers, the three endpoints — and, since S-05, the natural-rhythm scheduler that fires without a caller and the Polish email it sends</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/mail"><code>backend/…/mail</code></a></th><td>The <code>EmailSender</code> outbound port and its SMTP adapter — how the app reaches a user who is not looking at it</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai"><code>backend/…/ai</code></a></th><td>Provider-neutral LLM port, schema contract, and Spring AI adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai/memory"><code>backend/…/ai/memory</code></a></th><td>Personal AI-memory aggregate, rendering, persistence, erasure adapter, and the <code>AiMemoryService</code> seam other contexts read and write it through</td><td><span class="badge badge-foundation">foundation</span></td></tr>
         <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, auth screens, the 11-domain shell, the filtered three-layer screen, and the proposal card</td><td><span class="badge badge-live">implemented</span></td></tr>
@@ -382,7 +404,8 @@ flowchart LR
         <tr><th scope="row"><a href="../context/foundation/infrastructure.md">Neon PostgreSQL with autosuspend</a></th><td>Low idle cost fits fewer than 10 users and less than 1 QPS</td><td>Cold wake-up latency and careful connection-pool behavior</td><td>Sustained traffic makes always-on capacity simpler or cheaper</td></tr>
         <tr><th scope="row"><a href="../context/foundation/data-model.md">Polish-only category labels for MVP</a></th><td>A single label avoids speculative localization tables</td><td>Adding a second locale requires a translation model</td><td>The UI supports a second language</td></tr>
         <tr><th scope="row">Prompts are written in English and <em>name</em> the answer's language</th><td>Text addressed to a model is code, not copy. Writing the persona in the language the answer must come back in makes a second locale a second copy of every instruction, free to drift the first time either is tightened</td><td>One indirection between the instruction and the language it asks for</td><td>Never for the instructions; the language constant becomes a parameter the day a user locale exists. The template fallback is the deliberate exception — its output <em>is</em> what the user reads</td></tr>
-        <tr><th scope="row">At most one pending proposal is an index, not a check</th><td>A service-level "does this user already have one?" races with itself on a double-click and stores both; a partial unique index cannot</td><td>The lost race surfaces as a constraint violation the service must translate into "return the winner"</td><td>Proposals stop being per-user singletons — for example if a cycle may supersede a pending one</td></tr>
+        <tr><th scope="row">At most one pending proposal is an index, not a check</th><td>A service-level "does this user already have one?" races with itself on a double-click and stores both; a partial unique index cannot</td><td>The lost race surfaces as a constraint violation the service must translate into "return the winner"</td><td>Proposals stop being per-user singletons. S-05 was the case this row anticipated — a cycle that must replace an ignored proposal — and the index held: superseding closes the old row <em>before</em> the new insert, so the slot is freed rather than shared</td></tr>
+        <tr><th scope="row">The rhythm's schedule lives in memory, not in a query</th><td>Neon bills metered compute and suspends after ~5 idle minutes, while the Fly machine hosting the tick is always-on. A tick asking the database "is anyone due?" would hold that compute awake 24/7 for roughly one fire per 2–7 days — about 183 CU-h a month to send a handful of emails</td><td>The schedule is authoritative only while the JVM lives; <code>app_user.next_proposal_at</code> is its only backup, reloaded at boot</td><td>The backend runs on more than one machine. Two schedulers over one column would each fire for every account, and the column is a backup rather than a lease</td></tr>
       </tbody>
     </table>
   </div>
@@ -426,8 +449,27 @@ flowchart LR
     <dd>One entry the system brings back to the user because it has been neglected, together with
     the sentence it was phrased into and whatever the user answered. It is a stored row, not a
     computed reply: a user has at most one <em>pending</em> proposal at a time, and pressing the
-    button again returns that one rather than paying for a second model call. What still belongs to
-    a later slice is only the non-fixed rhythm that decides <em>when</em> to ask.</dd>
+    button again returns that one rather than paying for a second model call. Since S-05 a proposal
+    also arrives without anyone pressing anything.</dd>
+    <dt>Natural rhythm</dt>
+    <dd>The non-fixed cycle that decides <em>when</em> the app comes back on its own (FR-011): a
+    moment drawn uniformly 2–7 days ahead, landing inside daytime hours, redrawn after every fire.
+    Random rather than periodic on purpose — a fixed cadence is the alarm clock this product exists
+    not to be, and the unpredictability is a product feel, not a secret, which is why
+    <code>ProposalRhythm</code> takes an ordinary unseeded <code>Random</code>.</dd>
+    <dt>Quiet hours</dt>
+    <dd>The part of the day the rhythm will not fire in. A drawn moment is pulled into the send
+    window rather than skipped, so a night-time draw becomes a morning proposal instead of a lost
+    cycle. Bounds are configuration (<code>app.rhythm.*</code>), read in the user's zone for the same
+    reason <code>due_date</code> is.</dd>
+    <dt>Superseding</dt>
+    <dd>What the machine does to a proposal the user never answered when the next cycle arrives:
+    <code>ProposalAnswer.SUPERSEDED</code> closes it and its entry is quieted for the same few days a
+    spoken &ldquo;not now&rdquo; buys. It is an answer written by the app rather than the user —
+    ignoring a proposal <em>is</em> a response to it — and it is kept a distinct value, and a distinct
+    memory episode, precisely so the next prompt can tell &ldquo;they said not now&rdquo; from
+    &ldquo;they said nothing at all&rdquo;. The scheduled path supersedes; the manual button never
+    does, because a second press must return the same card rather than replace it.</dd>
     <dt>Snooze</dt>
     <dd>A date before which an entry is not proposed again, held in <code>goal.remind_after</code>.
     Three of the four answers write it and differ only in the term they pick — a short default for
@@ -468,10 +510,11 @@ flowchart LR
     owning HTTP or provider-specific behavior.</dd>
     <dt>Outbound port</dt>
     <dd>An application-owned interface describing a capability required from an external system.
-    <code>LlmClient</code> is the current example.</dd>
+    <code>LlmClient</code> and <code>EmailSender</code> are the two.</dd>
     <dt>Outbound adapter</dt>
     <dd>A technology-specific implementation of an outbound port.
-    <code>SpringAiLlmClient</code> translates the LLM contract to Spring AI.</dd>
+    <code>SpringAiLlmClient</code> translates the LLM contract to Spring AI;
+    <code>SmtpEmailSender</code> translates <code>EmailSender</code> to <code>JavaMailSender</code>.</dd>
     <dt>Persistence adapter</dt>
     <dd>A Spring Data repository interface whose generated implementation reads or writes
     PostgreSQL. It is a practical framework seam, but not a pure domain port.</dd>
@@ -488,6 +531,8 @@ classDiagram
     UUID id
     String email
     String passwordHash
+    OffsetDateTime nextProposalAt — the rhythm's only durable state
+    +scheduleNextProposalAt(OffsetDateTime)
   }
   class Email {
     &lt;&lt;value object&gt;&gt;
@@ -691,9 +736,10 @@ classDiagram
   </pre>
 
   <h3>proposal</h3>
-  <p>The proactive loop, end to end. It arrived in two halves and the seam is still visible in the
-  code: S-04a built the deterministic pick, S-04b put a model in front of it, stored what the user
-  was shown, and gave them four ways to answer.</p>
+  <p>The proactive loop, end to end. It arrived in three parts and the seams are still visible in
+  the code: S-04a built the deterministic pick, S-04b put a model in front of it, stored what the
+  user was shown, and gave them four ways to answer — and S-05 removed the button, which is the part
+  that makes this a product rather than a query.</p>
   <h4>Choosing the entry (S-04a)</h4>
   <p>Two rules run in order.
   <strong>Neglect</strong> decides who is eligible: an active entry qualifies once it has been idle
@@ -758,6 +804,44 @@ classDiagram
   distinguishable from one that does not exist — a second answer is 409, and a term outside the
   offered set is 422 in both directions (missing when required, present when it would be silently
   dropped).</p>
+  <h4>Coming back without being asked (S-05)</h4>
+  <p><strong>The schedule lives in memory, and that is the whole design.</strong>
+  <code>ProposalScheduler</code> keeps a <code>Map&lt;UUID, OffsetDateTime&gt;</code> of when each
+  account is next returned to, and a 60-second tick compares it against the clock. The obvious
+  implementation — ask the database who is due — is the one thing this feature could not afford:
+  Neon bills metered compute and suspends after roughly five idle minutes, so a query on every tick
+  would hold the machine awake permanently for the roughly one fire per 2–7 days it exists to
+  perform. The database is touched exactly three times: once at boot, once when an account
+  registers, and once per actual fire. The liveness probe reads a field and nothing else, for the
+  same reason.</p>
+  <p><code>app_user.next_proposal_at</code> is the map's only backup and it is enough. A restart
+  reloads the stored moments rather than redrawing them, so the rhythm survives a deploy instead of
+  bunching every account around one; the map is authoritative while the JVM lives, the column across
+  its death. There is exactly one machine — <code>fly.toml</code> pins it — so there is nothing to
+  elect and nothing to lock.</p>
+  <p><strong><code>proposeScheduled</code> is not <code>propose()</code> with an argument.</strong>
+  The manual trigger short-circuits on a pending proposal, which is right under a button and wrong
+  under a clock: doing it here would stop the rhythm dead the first time a user ignored a proposal —
+  exactly the user this feature exists for. So the scheduled path <em>replaces</em> instead. Two
+  orderings inside it are load-bearing. Selection runs first and superseding happens only if it
+  produced something, because closing the old proposal is FR-018's implicit "not now" and that must
+  not happen merely because the clock struck; and the ignored entry is excluded from the candidates,
+  which is what stops the friend asking about the same thing twice in a row.</p>
+  <p><strong>The email is sent inside the fire's <code>catch</code>, not after it.</strong> The next
+  moment is drawn whatever happened — nothing to propose, a failure mid-cycle, a message that would
+  not send — because leaving the old moment in place would make that account due again on the very
+  next tick, turning the one path that must stay quiet into a query every 60 seconds. And because
+  the proposal is stored before the message is attempted, a delivery failure costs the user the
+  nudge and not the proposal: it stays pending and the card is waiting the next time they open the
+  app. That is also why there is no retry queue — the app already has a second channel, and it is
+  the reliable one.</p>
+  <p>The address rides along on the <code>User</code> row the fire already loaded for its
+  vanished-account check, so reaching a user costs no query of its own.
+  <code>ProposalEmail</code> writes the subject and body; it is Polish for the same reason
+  <code>ProposalTemplate</code> is, and for no other — the message on the screen and the message in
+  the inbox are both the sentence the user reads, while every instruction to the model stays
+  English. The subject names the entry, abbreviated, so a week of proposals does not collapse into
+  one mail thread.</p>
   <p class="note">One FK in this schema carries <code>ON DELETE CASCADE</code>:
   <code>proposal.goal_id</code>, so <code>DELETE /api/goals/{id}</code> keeps working while a
   proposal points at the entry. The cost is named rather than hidden, and it is charged twice. The
@@ -773,14 +857,43 @@ classDiagram
   class ProposalController {
     &lt;&lt;inbound adapter / REST&gt;&gt;
     +propose() POST /api/proposals
+    +pending() GET /api/proposals/pending
     +answer(id, request) POST /api/proposals/:id/answer
-    204 when nothing is neglected
+    204 when nothing is neglected — or nothing waiting
   }
   class ProposalService {
     &lt;&lt;application service&gt;&gt;
     scopes every read to CurrentUser
-    pending proposal short-circuits propose()
+    +proposeScheduled(userId) — no caller, no SecurityContext
+    pending proposal short-circuits propose(), never proposeScheduled
     no @Transactional — the model call is outside one
+  }
+  class ProposalScheduler {
+    &lt;&lt;inbound adapter / clock&gt;&gt;
+    Map~UUID, OffsetDateTime~ schedule — in memory
+    +tick() @Scheduled every 60s
+    +loadSchedule() on ApplicationReadyEvent
+    +scheduleNewAccount(UserRegistered)
+    +health() the proposalScheduler liveness indicator
+    the send sits inside the catch — reschedule always runs
+  }
+  class ProposalRhythm {
+    &lt;&lt;domain service&gt;&gt;
+    +next(from, properties, random) OffsetDateTime
+    +isInsideWindow(moment, properties) boolean
+    uniform 2-7 days, pulled into the send window
+    no clock of its own — the moment is an argument
+  }
+  class RhythmProperties {
+    &lt;&lt;configuration&gt;&gt;
+    app.rhythm.min-days, max-days
+    app.rhythm.send-from, send-until
+  }
+  class ProposalEmail {
+    &lt;&lt;domain service&gt;&gt;
+    +subject(proposal) String
+    +body(proposal, baseUrl) String
+    localized, like ProposalTemplate — it is what the user reads
   }
   class ProposalSelector {
     &lt;&lt;domain service&gt;&gt;
@@ -805,12 +918,14 @@ classDiagram
     OffsetDateTime answeredAt
     String firstStep — jsonb
     +answer(ProposalAnswer, OffsetDateTime)
+    +supersede(OffsetDateTime)
     +recordFirstStep(String)
     +isPending() boolean
   }
   class ProposalAnswer {
     &lt;&lt;wire enumeration&gt;&gt;
     STARTING, NOT_NOW, REMIND_LATER, NEVER
+    SUPERSEDED — written by the app, never by the user
   }
   class Source {
     &lt;&lt;wire enumeration&gt;&gt;
@@ -835,10 +950,21 @@ classDiagram
   class ProposalRepository {
     &lt;&lt;persistence adapter / Spring Data&gt;&gt;
     findByUserIdAndAnsweredAtIsNull
+    findWithLockByIdAndUserId — superseding re-reads under it
   }
   class ProposalDataDeleter {
     &lt;&lt;module adapter&gt;&gt;
   }
+  class EmailSender {
+    &lt;&lt;outbound port&gt;&gt;
+    +send(to, subject, text)
+  }
+  ProposalScheduler --> UserRepository : boot, registration, and the fire
+  ProposalScheduler --> ProposalService : proposeScheduled(userId)
+  ProposalScheduler ..> ProposalRhythm : draws the next moment
+  ProposalScheduler --> RhythmProperties
+  ProposalScheduler --> EmailSender : what came back, to the address already loaded
+  ProposalScheduler ..> ProposalEmail
   ProposalController --> ProposalService
   ProposalService --> GoalRepository : reads every entry the caller owns
   ProposalService --> ProposalSelector
@@ -854,6 +980,45 @@ classDiagram
   Proposal --> ProposalAnswer
   Proposal --> Source
   ProposalPrompt ..> FirstStep : constrains the structured call
+  </pre>
+
+  <h3>mail</h3>
+  <p>One port, one adapter, and deliberately nothing else. <code>EmailSender</code> exists for the
+  same reason <code>LlmClient</code> does — the use case should depend on "reach this person" rather
+  than on a provider — and it is the only type in this slice widened to public, because
+  <code>ProposalScheduler</code> lives in another package and has to inject it.</p>
+  <p><strong>Plain SMTP rather than a provider SDK.</strong> Resend speaks it, so the provider stays
+  a credentials choice instead of a dependency, and the transport is Jakarta Mail through
+  <code>spring-boot-starter-mail</code> — BOM-managed, adding no new supply chain to scan. Swapping
+  provider is <code>spring.mail.*</code>, not a rewrite.</p>
+  <p><code>MailDeliveryException</code> carries what an operator needs and nothing more: the
+  recipient's <em>domain</em> and the subject's <em>length</em>, never the address, the subject or
+  the body. A proposal quotes the user's own entries back at them, so an exception message is the
+  last place that text should end up — logs outlive the incident that produced them.</p>
+  <pre class="mermaid">
+classDiagram
+  class EmailSender {
+    &lt;&lt;outbound port&gt;&gt;
+    +send(to, subject, text)
+  }
+  class SmtpEmailSender {
+    &lt;&lt;outbound adapter&gt;&gt;
+    SimpleMailMessage over JavaMailSender
+    translates MailException
+  }
+  class MailProperties {
+    &lt;&lt;configuration&gt;&gt;
+    app.mail.from — must be a verified sender domain
+    app.mail.base-url — what the email links to
+  }
+  class MailDeliveryException {
+    &lt;&lt;domain exception&gt;&gt;
+    recipient domain and subject length only
+  }
+  EmailSender &lt;|.. SmtpEmailSender
+  SmtpEmailSender --> MailProperties
+  SmtpEmailSender ..> MailDeliveryException
+  ProposalScheduler --> EmailSender : the only caller
   </pre>
 
   <h3>ai + ai/memory</h3>
@@ -922,7 +1087,7 @@ classDiagram
   <code>DELETE /api/sessions/current</code>, <code>GET /api/categories</code>,
   <code>GET /api/goals</code>, <code>POST /api/goals</code>, <code>PUT /api/goals/{id}</code>,
   <code>DELETE /api/goals/{id}</code>, <code>POST /api/proposals</code>,
-  <code>POST /api/proposals/{id}/answer</code>,
+  <code>GET /api/proposals/pending</code>, <code>POST /api/proposals/{id}/answer</code>,
   <code>GET /api/ping</code>. That list is not maintained by hand: <code>ApiSurfaceTest</code>
   compares the paths Spring publishes against the ones
   <a href="../context/foundation/openapi.yaml"><code>openapi.yaml</code></a> declares, as a set in
@@ -1405,33 +1570,57 @@ sequenceDiagram
   what makes the next proposal aware of this one: it is the first thing ever appended to the
   episodic log, which until S-04b rendered empty for every user.</p>
 
-  <h4>Natural-rhythm proposal <span class="badge badge-planned">planned</span></h4>
-  <p>S-05 adds only the trigger and the second delivery channel. Everything below the dashed
-  boundary — selection, phrasing, storage, the at-most-one-pending rule and the four answers —
-  already exists and is reused as-is; the scheduler replaces the button, not the loop.</p>
+  <h4>Natural-rhythm proposal <span class="badge badge-live">implemented</span></h4>
+  <p>S-05 added only the trigger and the second delivery channel. Selection, phrasing, storage, the
+  at-most-one-pending rule and the four answers are reused exactly as they were: the scheduler
+  replaced the button, not the loop. The one behavioural difference is superseding — under a clock,
+  an ignored proposal must be replaced rather than returned.</p>
   <pre class="mermaid">
 sequenceDiagram
-  participant SCH as Natural-rhythm background process
-  participant PS as ProposalService — implemented
+  autonumber
+  participant SCH as ProposalScheduler — 60s tick
+  participant PS as ProposalService
   participant PG as Postgres
-  participant EMAIL as Email provider
-  participant APP as Application API
+  participant LLM as LlmClient → Sonnet
+  participant MAIL as EmailSender → Resend
   actor U as User
-  Note over SCH: next fire time held in memory,&lt;br/&gt;never polled from the database
-  SCH->>PS: propose() for a due user
-  Note over PS,PG: selects, phrases through LlmClient&lt;br/&gt;and stores the pending proposal — as today
-  PS-->>SCH: the stored proposal
-  SCH->>EMAIL: send proposal + application link
-  EMAIL-->>U: email
-  U->>APP: open application
-  APP->>PG: load pending proposal
-  PG-->>APP: the same proposal sent by email
-  APP-->>U: show proposal until answered
+  participant SPA as /goals on next open
+  Note over SCH: the map answers "is anyone due?"&lt;br/&gt;— no query while nothing is
+  SCH->>SCH: tick — compare the in-memory schedule to the clock
+  alt outside the send window, or nobody due
+    Note over SCH,PG: returns having touched nothing
+  else an account is due
+    SCH->>PG: load the account row
+    alt the row is gone
+      SCH->>SCH: drop it from the schedule — deleted since boot
+    else it is still there
+      SCH->>PS: proposeScheduled(userId)
+      PS->>PG: pending proposal? its entry is excluded from the candidates
+      PS->>LLM: phrase the winner — template fallback on LlmException
+      Note over PS,PG: superseding runs only if selection produced something,&lt;br/&gt;and closes the old row before the new insert
+      PS->>PG: SUPERSEDED the ignored one, snooze its entry, insert the new one
+      PS-->>SCH: the stored proposal, or empty
+      opt something came back
+        SCH->>MAIL: subject + body + link, to the address already loaded
+        MAIL-->>U: email
+      end
+    end
+    Note over SCH: the send sits inside the catch —&lt;br/&gt;a failure costs the nudge, never the reschedule
+    SCH->>PG: draw the next moment, store next_proposal_at
+  end
+  U->>SPA: open the app — with or without the email
+  SPA->>PG: GET /api/proposals/pending
+  PG-->>SPA: the same proposal that was sent
+  SPA-->>U: the card, on arrival, until answered
   </pre>
-  <p class="note">The one thing S-05 must not inherit is a poll. Neon bills idle compute and
+  <p class="note">The one thing S-05 could not inherit is a poll. Neon bills idle compute and
   autosuspends after roughly five minutes, so anything touching the database more often than that
   pins the machine awake permanently — the scheduler computes its next fire time in memory and
-  queries only when it actually fires, roughly once every two to seven days.</p>
+  queries only when it actually fires, roughly once every two to seven days. A unit test asserts
+  that literally: a tick with nothing due must reach neither repository. The other half of the same
+  decision is the liveness indicator, which reports the tick's own pulse from a field rather than a
+  query, so the failure this feature is uniquely exposed to — the thread dying while the web server
+  keeps answering — becomes a Fly restart instead of silence.</p>
   <!-- planned-flows -->
 </section>
 
@@ -1440,7 +1629,9 @@ sequenceDiagram
   <p>Every user-owned aggregate carries an explicit owner boundary. The current model contains the
   user, fixed category reference data, the AI-memory aggregate, the <code>goal</code> table holding
   all three layers, and — since S-04b — the <code>proposal</code> table recording what the user was
-  shown and what they answered. Only scheduling state still belongs to the target model.</p>
+  shown and what they answered. S-05 added the last missing piece as a single column rather than a
+  table: <code>app_user.next_proposal_at</code>. Nothing in the data model still belongs only to the
+  target diagram.</p>
   <div class="card-grid">
     <div class="card"><strong>Ownership and isolation</strong><br><code>AiMemory</code> is one
     aggregate per user. Child profile facts and episodes are reached through that root.</div>
@@ -1482,7 +1673,16 @@ sequenceDiagram
   a UTC comparison would leave a task that fell due at Polish midnight unflagged until 02:00, and the
   endpoint would answer 204 &mdash; the one place a real fault looks like a legitimate empty
   answer.</p>
-  <img class="diagram" src="../context/foundation/data-model-current.svg" width="1082" height="1204" loading="lazy" alt="Current entity relationship model: app user, goal with its three layers, proposal, category, AI memory, profile facts, and episodes">
+  <p>S-05's only schema change is <code>app_user.next_proposal_at</code>, and what is interesting
+  about it is how little it is asked to do. It is <em>not</em> the schedule — the scheduler holds
+  that in memory, because a column read on a timer is exactly the metered-idle cost Neon punishes.
+  It is the schedule's backup: written once per fire, read once per boot, so a deploy resumes each
+  account's moment instead of redrawing every one of them into a bunch. Nullable on purpose, and
+  that null is a meaningful state rather than missing data — it says "never scheduled", which is
+  what every account predating this slice is, and what the boot pass converts into a first drawn
+  moment. It is also not a lease: it presumes the single machine <code>fly.toml</code> pins, and two
+  schedulers over one column would each fire for every account.</p>
+  <img class="diagram" src="../context/foundation/data-model-current.svg" width="1082" height="1204" loading="lazy" alt="Current entity relationship model: app user with its next_proposal_at scheduling column, goal with its three layers, proposal, category, AI memory, profile facts, and episodes">
   <h3>Target model <span class="badge badge-planned">planned</span></h3>
   <p>The target diagram shows the whole shape, migrated and not: solid tables exist today, ghosted
   ones are direction rather than an implemented database contract. After S-07 — and still after
@@ -1671,8 +1871,9 @@ flowchart TB
 <section id="roadmap">
   <h2>Roadmap / target state <span class="badge badge-planned">planned</span></h2>
   <p>What exists today is the account/auth slice, all three task layers on one <code>goal</code>
-  aggregate, the complete on-demand proposal loop, and the AI memory and category foundations. The
-  MVP roadmap builds vertical slices on top:</p>
+  aggregate, the complete proposal loop — on demand <em>and</em> on its own natural rhythm, by email
+  and in the app — and the AI memory and category foundations. The MVP roadmap builds vertical
+  slices on top:</p>
   <div class="card"><strong>Category auto-tag</strong> <span class="badge badge-planned">planned</span><br>AI
   classification into the 11 life domains at capture time. All three layers already ship with a
   manual picker; the auto-tag replaces the picking, not the storage. It is also where Haiku's
@@ -1681,10 +1882,10 @@ flowchart TB
   <code>LlmClient</code> port and its Spring AI adapter, JSON-schema-constrained structured output,
   and per-user <code>AiMemory</code> (profile facts + episodes) rendered into prompts — all of it
   now driven by a real caller, with a template fallback for when the model does not answer.</div>
-  <div class="card"><strong>Natural-rhythm reminders</strong> <span class="badge badge-planned">planned</span><br>Background
-  jobs that surface the right task at the right moment, not fixed-time alarms. Which entry, the AI
-  wording and the four responses are all implemented; what remains is the non-fixed rhythm that
-  decides <em>when</em>, and the email that carries it.</div>
+  <div class="card"><strong>Natural-rhythm reminders</strong> <span class="badge badge-live">implemented</span><br>The
+  right entry at a moment nobody set, not a fixed-time alarm: a per-account moment drawn 2–7 days
+  out inside daytime hours, held in memory so an idle tick never wakes the database, delivered by
+  email and waiting in the app either way. This was the slice the product existed to prove.</div>
   <div class="card"><strong>Onboarding memory seed</strong> <span class="badge badge-planned">planned</span><br>The
   durable profile facts that would let a proposal know who it is talking to. Memory currently fills
   from proposal answers alone, so early prompts carry an episodic log and no profile.</div>
@@ -1708,7 +1909,9 @@ flowchart TB
         <tr><th scope="row">Task layer</th><td>One of three horizons an item lives in: <em>current</em> (actionable now), <em>long-term</em> (goals) and <em>dreams</em> (aspirations) — all three implemented as one <code>goal</code> table with a <code>layer</code> discriminator.</td></tr>
         <tr><th scope="row">Layer / horizon</th><td><code>GoalLayer</code> (GOAL, DREAM, TASK) discriminates all three layers; <code>GoalHorizon</code> (THIS_YEAR, FEW_MONTHS) applies only to a goal, and <code>due_date</code> only to a task. All constant names are the wire literals, anchored in <code>openapi.yaml</code> and held against backend and frontend copies by <code>GoalApiTest</code>.</td></tr>
         <tr><th scope="row">Life domain</th><td>One of 11 fixed categories every task belongs to: HEALTH, FINANCE, CAREER, EDUCATION, RELATIONSHIPS, HOME, LEISURE, ADMIN, SAFETY, TRANSPORT, INNER_GROWTH. Enum <code>LifeDomain</code> mirrors the seeded <code>category</code> table; <code>CategorySyncCheck</code> fails boot on drift.</td></tr>
-        <tr><th scope="row">Natural-rhythm reminder</th><td>A proactive nudge surfaced at a contextually right moment rather than a fixed alarm time. <span class="badge badge-planned">planned</span> — the nudge itself exists; only its unprompted timing does not.</td></tr>
+        <tr><th scope="row">Natural-rhythm reminder</th><td>A proactive nudge surfaced at a moment nobody set rather than at a fixed alarm time. Uniformly 2–7 days ahead, pulled inside daytime hours, redrawn after every fire; the schedule lives in <code>ProposalScheduler</code>'s map and only its backup in <code>app_user.next_proposal_at</code>. Random rather than periodic on purpose — the unpredictability is the product, which is why <code>ProposalRhythm</code> takes an unseeded <code>Random</code>.</td></tr>
+        <tr><th scope="row">Superseding</th><td>What the next cycle does to a proposal the user never answered: <code>ProposalAnswer.SUPERSEDED</code> closes it and its entry is quieted for the same few days a spoken "not now" buys. An answer the <em>app</em> writes — ignoring a proposal is a response to it — kept distinct from <code>NOT_NOW</code> so the next prompt can tell silence from refusal. Only the scheduled path supersedes; the button returns the pending card instead.</td></tr>
+        <tr><th scope="row">Quiet hours</th><td>The part of the day the rhythm will not fire in (<code>app.rhythm.send-from</code> / <code>send-until</code>). A moment drawn at night is pulled into the window rather than skipped, so no cycle is lost to the clock.</td></tr>
         <tr><th scope="row">Selection engine</th><td>The deterministic pick behind <code>POST /api/proposals</code>: <em>neglect</em> (idle 7 / 14 / 30 days by layer, or a task past its <code>due_date</code>) decides which entries are eligible — withdrawn and still-snoozed ones are not; a missed term ranks ahead of any amount of silence, and below that <em>domain silence</em> (how long since the user touched anything in a life domain — completed entries included) decides which one wins. Pure Java in <code>ProposalSelector</code>; no LLM.</td></tr>
         <tr><th scope="row">Proposal</th><td>The stored row behind FR-013/FR-018: the picked entry, the sentence the model (or the template) phrased around it, and the user's answer. At most one may be pending per user, enforced by a partial unique index rather than a service check, which is why pressing the button twice returns one card and costs one model call.</td></tr>
         <tr><th scope="row">Snooze / withdrawal</th><td>The two states an answer leaves on the entry itself: <code>goal.remind_after</code> (not before this date) and <code>goal.withdrawn_at</code> (out of the running until restored). They sit on <code>goal</code> rather than <code>proposal</code> because the <em>user</em> performed them — which keeps <code>updated_at</code> meaning "when the user last engaged".</td></tr>

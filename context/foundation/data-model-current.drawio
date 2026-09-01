@@ -10,7 +10,7 @@
         <mxCell id="title" value="2do AI — Current Data Model (through S-04b: the proactive proposal loop)" style="text;html=1;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;fontColor=#333333;" vertex="1" parent="1">
           <mxGeometry x="60" y="30" width="760" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="subtitle" value="Flyway V1–V8:  category (V1–V2) · ai_memory (V3) · app_user (V4–V5) · goal (V6–V8) · proposal (V8).&#xa;ddl-auto=validate." style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#777777;" vertex="1" parent="1">
+        <mxCell id="subtitle" value="Flyway V1–V9:  category (V1–V2) · ai_memory (V3) · app_user (V4–V5, V9) · goal (V6–V8) · proposal (V8–V9).&#xa;ddl-auto=validate." style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#777777;" vertex="1" parent="1">
           <mxGeometry x="60" y="58" width="600" height="34" as="geometry" />
         </mxCell>
 
@@ -58,7 +58,7 @@
 
         <!-- ============ app_user (S-01, V4 — "user" is a reserved word in Postgres) ============ -->
         <mxCell id="usr" value="app_user  «identity»" style="shape=table;startSize=30;container=1;collapsible=1;childLayout=tableLayout;fixedRows=1;rowLines=0;fontStyle=1;align=center;strokeColor=#82b366;strokeWidth=2;fillColor=#d5e8d4;html=1;" vertex="1" parent="1">
-          <mxGeometry x="670" y="70" width="280" height="160" as="geometry" />
+          <mxGeometry x="670" y="70" width="280" height="186" as="geometry" />
         </mxCell>
         <mxCell id="usr_r1" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="usr">
           <mxGeometry y="30" width="280" height="26" as="geometry" />
@@ -87,8 +87,17 @@
         <mxCell id="usr_r3v" value="password_hash : VARCHAR(255)" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;" vertex="1" parent="usr_r3">
           <mxGeometry x="46" width="234" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="usr_r4" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="usr">
+        <mxCell id="usr_r35" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="usr">
           <mxGeometry y="108" width="280" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="usr_r35k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="usr_r35">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="usr_r35v" value="next_proposal_at : timestamptz  «S-05 · NULL = never scheduled»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;" vertex="1" parent="usr_r35">
+          <mxGeometry x="46" width="234" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="usr_r4" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="usr">
+          <mxGeometry y="134" width="280" height="26" as="geometry" />
         </mxCell>
         <mxCell id="usr_r4k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="usr_r4">
           <mxGeometry width="46" height="26" as="geometry" />
@@ -97,7 +106,7 @@
           <mxGeometry x="46" width="234" height="26" as="geometry" />
         </mxCell>
         <mxCell id="usr_r5" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="usr">
-          <mxGeometry y="134" width="280" height="26" as="geometry" />
+          <mxGeometry y="160" width="280" height="26" as="geometry" />
         </mxCell>
         <mxCell id="usr_r5k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="usr_r5">
           <mxGeometry width="46" height="26" as="geometry" />
@@ -487,7 +496,7 @@
         <mxCell id="pr_r7k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="pr_r7">
           <mxGeometry width="46" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="pr_r7v" value="answer : VARCHAR(16)  «one of four»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;" vertex="1" parent="pr_r7">
+        <mxCell id="pr_r7v" value="answer : VARCHAR(16)  «four user answers + SUPERSEDED»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;" vertex="1" parent="pr_r7">
           <mxGeometry x="46" width="274" height="26" as="geometry" />
         </mxCell>
         <mxCell id="pr_r8" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="pr">

@@ -561,19 +561,19 @@ V9 is expand-only (one nullable column) — safe under image rollback. Existing 
 
 #### Automated
 
-- [x] 4.1 `mvn test` green — GET pending suite + ApiSurfaceTest parity
-- [x] 4.2 `npm test`, `npm run lint`, `npm run build` green
+- [x] 4.1 `mvn test` green — GET pending suite + ApiSurfaceTest parity — a6cb155
+- [x] 4.2 `npm test`, `npm run lint`, `npm run build` green — a6cb155
 
 #### Manual
 
-- [ ] 4.3 /goals shows the waiting card on open; answering works; idle state returns
+- [x] 4.3 /goals shows the waiting card on open; answering works; idle state returns — a6cb155
 
 ### Phase 5: Documentation & deployment walk
 
 #### Automated
 
-- [ ] 5.1 `node --test docs/index.test.mjs` green
-- [ ] 5.2 `/check` fully green
+- [x] 5.1 `node --test docs/index.test.mjs` green
+- [x] 5.2 `/check` fully green
 
 #### Manual
 

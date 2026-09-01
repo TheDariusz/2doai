@@ -338,6 +338,98 @@ curl https://2doai.app/api/ping             # → {"status":"ok"}  (full chain s
 
 ---
 
+## Phase 8 — Mail provider (Resend): sender domain, secrets & the first real email
+
+Added for **S-05 (`natural-rhythm-return`)**: the natural-rhythm scheduler emails the proposal it
+opened, which is the only way this app reaches a user who is, by definition, not looking at it.
+Everything below is configuration — the code shipped with DEV-24 and needs no change.
+
+**Two things fail silently if you skip them**, which is why they lead this phase: an unverified
+sender domain means the provider accepts nothing (or accepts and never delivers), and a missing
+`APP_BASE_URL` means every email links to `http://localhost:5173`. Neither raises an error the app
+can see.
+
+### 8.1 — Account and sender domain
+
+1. Create a Resend account and add the domain **`2doai.app`** under **Domains → Add Domain**.
+   It must be this exact domain: `application.properties` commits
+   `app.mail.from=2do AI <propozycje@2doai.app>`, and a mismatch is a message the provider drops.
+2. Resend shows the DNS records to add (DKIM `CNAME`s, an SPF `TXT`, and optionally DMARC). The
+   zone is already in the **same Cloudflare account** as Phase 6, so add them in
+   Cloudflare → `2doai.app` → **DNS → Records**. Set the DKIM records to **DNS only** (grey cloud) —
+   proxying a mail record breaks verification.
+3. Wait for **Verified** in the Resend dashboard. Propagation is usually minutes; the dashboard is
+   the authority, not `dig`.
+4. Create an API key (**API Keys → Create**, send-only permission is enough).
+
+### 8.2 — Fly secrets
+
+```bash
+cd backend
+fly secrets set RESEND_API_KEY=re_...                 # value never committed, never echoed in logs
+fly secrets set APP_BASE_URL=https://2doai.app        # what the email's link points at
+fly secrets list                                      # names + digests, never values
+```
+
+`application.properties` binds them as `spring.mail.password=${RESEND_API_KEY:}` and
+`app.mail.base-url=${APP_BASE_URL:http://localhost:5173}`. The empty default on the key is the same
+trick Phase 7 uses: boot and the hermetic suite stay green without it, so **the test suite never
+needs this secret**. It is not the whole story for hermeticism, though —
+`ProposalSchedulerIntegrationTest` drives a real fire, so it mocks `EmailSender` outright rather than
+relying on a key-less client to fail politely.
+
+> `fly secrets set` restarts the machine. Setting both in one command
+> (`fly secrets set RESEND_API_KEY=… APP_BASE_URL=…`) costs one restart instead of two.
+
+### 8.3 — Live verification (gated test)
+
+`ResendLiveTest` is **disabled unless both `RESEND_API_KEY` and `PROPOSAL_TEST_RECIPIENT` are set**,
+so CI stays hermetic and nobody's inbox is a side effect of `mvn test`:
+
+```bash
+cd backend
+RESEND_API_KEY=re_... PROPOSAL_TEST_RECIPIENT=you@example.com mvn test -Dtest=ResendLiveTest
+```
+
+It asserts almost nothing on purpose. What it proves cannot be asserted from inside the JVM, and the
+real verification happens in the inbox:
+
+- the message **arrives** — the sender domain is verified and the provider accepted it;
+- the Polish reads like a friend rather than a notification;
+- the link opens the app (and points at `2doai.app`, not localhost — that is `APP_BASE_URL` proving
+  itself).
+
+Without the variables the same command reports `Tests run: 1 … Skipped: 1`.
+
+### 8.4 — Deploy and prod smoke
+
+Merge to `master` touching `backend/**` → `backend.yml` redeploys Fly. The scheduler announces itself
+on boot; that line is the cheapest confirmation it is wired:
+
+```bash
+fly logs | grep "Natural rhythm loaded"     # → "Natural rhythm loaded: N account(s) scheduled"
+curl https://2doai.fly.dev/actuator/health  # → UP, and the proposalScheduler indicator with it
+```
+
+To force one cycle rather than waiting days for it, move an account's moment into the past and let
+the next tick (≤60s, inside the send window) find it:
+
+```sql
+-- Neon SQL editor. Pick your own account; the tick fires within a minute.
+update app_user set next_proposal_at = now() - interval '1 minute' where email = 'you@example.com';
+```
+
+That account needs a genuinely neglected entry or the fire will correctly do nothing — the easiest is
+a `TASK` with a `due_date` a few days past. Expect: the email arrives, and `https://2doai.app/goals`
+shows the same proposal on arrival without pressing anything.
+
+> **The proposal survives a mail failure.** It is stored before the message is attempted and the send
+> sits inside the fire's `catch`, so a provider outage costs the nudge, not the proposal — the card is
+> waiting in the app either way and the rhythm still reschedules. If email looks broken, check
+> `/goals` before assuming the cycle did not run.
+
+---
+
 ## Verification checklist (the full chain)
 
 | Check | Command | Expected |
@@ -348,6 +440,10 @@ curl https://2doai.app/api/ping             # → {"status":"ok"}  (full chain s
 | Proxy via custom domain | `curl https://2doai.app/api/ping` | `{"status":"ok"}` |
 | SPA served | `curl -I https://2doai.app/` | `200` |
 | One machine, always-on | `fly status` | 1 machine, `started`, not auto-stopping |
+| Rhythm loaded at boot | `fly logs \| grep "Natural rhythm loaded"` | `Natural rhythm loaded: N account(s) scheduled` |
+| Scheduler alive | `curl https://2doai.fly.dev/actuator/health` | `UP` — the `proposalScheduler` indicator reports the tick's own pulse |
+| Sender domain verified | Resend dashboard → Domains | `2doai.app` **Verified** (an unverified domain drops mail silently) |
+| Mail secrets present | `fly secrets list` | `RESEND_API_KEY` and `APP_BASE_URL` both listed |
 
 ---
 
