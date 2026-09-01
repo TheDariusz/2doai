@@ -572,8 +572,8 @@ V9 is expand-only (one nullable column) — safe under image rollback. Existing 
 
 #### Automated
 
-- [x] 5.1 `node --test docs/index.test.mjs` green
-- [x] 5.2 `/check` fully green
+- [x] 5.1 `node --test docs/index.test.mjs` green — f33c326
+- [x] 5.2 `/check` fully green — f33c326
 
 #### Manual
 
