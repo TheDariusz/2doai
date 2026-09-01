@@ -30,9 +30,9 @@ class SmtpEmailSender implements EmailSender {
 
 	private final JavaMailSender transport;
 
-	private final MailProperties properties;
+	private final MailboxProperties properties;
 
-	SmtpEmailSender(JavaMailSender transport, MailProperties properties) {
+	SmtpEmailSender(JavaMailSender transport, MailboxProperties properties) {
 		this.transport = transport;
 		this.properties = properties;
 	}

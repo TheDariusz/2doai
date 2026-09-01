@@ -7,7 +7,7 @@ import com.thedariusz.todoai.category.LifeDomain;
 import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.goal.GoalLayer;
 import com.thedariusz.todoai.mail.EmailSender;
-import com.thedariusz.todoai.mail.MailProperties;
+import com.thedariusz.todoai.mail.MailboxProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.slf4j.Logger;
@@ -44,7 +44,7 @@ class ResendLiveTest {
 	EmailSender mail;
 
 	@Autowired
-	MailProperties mailbox;
+	MailboxProperties mailbox;
 
 	@Test
 	void deliversAProposalToARealInbox() {

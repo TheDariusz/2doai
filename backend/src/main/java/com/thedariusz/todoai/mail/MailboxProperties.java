@@ -11,6 +11,11 @@ import org.springframework.validation.annotation.Validated;
  * consumed by Boot's own auto-configuration, exactly as {@code LlmProperties} carries only the model
  * slugs while {@code spring.ai.openai.*} carries the connection.
  *
+ * <p><b>Named for the mailbox rather than the mail</b>, because {@code spring-boot-starter-mail}
+ * puts Boot's own {@code MailProperties} — bound from the very {@code spring.mail.*} keys this
+ * javadoc points at — on the classpath. Two same-named records describing adjacent halves of one
+ * config block is a coin-flip import waiting to happen.
+ *
  * <p>Both are validated for the same reason the rhythm's numbers are: they are read on a background
  * thread days after boot, so a missing value would surface as an exception in a log nobody is
  * watching rather than as a startup failure.
@@ -22,5 +27,5 @@ import org.springframework.validation.annotation.Validated;
  */
 @ConfigurationProperties(prefix = "app.mail")
 @Validated
-public record MailProperties(@NotBlank String from, @NotBlank String baseUrl) {
+public record MailboxProperties(@NotBlank String from, @NotBlank String baseUrl) {
 }

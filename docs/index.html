@@ -458,10 +458,12 @@ flowchart LR
     not to be, and the unpredictability is a product feel, not a secret, which is why
     <code>ProposalRhythm</code> takes an ordinary unseeded <code>Random</code>.</dd>
     <dt>Quiet hours</dt>
-    <dd>The part of the day the rhythm will not fire in. A drawn moment is pulled into the send
-    window rather than skipped, so a night-time draw becomes a morning proposal instead of a lost
-    cycle. Bounds are configuration (<code>app.rhythm.*</code>), read in the user's zone for the same
-    reason <code>due_date</code> is.</dd>
+    <dd>The part of the day the rhythm will not fire in. <code>ProposalRhythm.next</code> never draws
+    outside it, so the guard exists for the moments that arrive <em>late</em> — a machine down across
+    a whole window comes back holding a fire time already past, and that one waits for the window to
+    reopen rather than landing at 04:00. Bounds are configuration
+    (<code>proposal.rhythm.window-start-hour</code> / <code>window-end-hour</code>), read in the
+    user's zone for the same reason <code>due_date</code> is.</dd>
     <dt>Superseding</dt>
     <dd>What the machine does to a proposal the user never answered when the next cycle arrives:
     <code>ProposalAnswer.SUPERSEDED</code> closes it and its entry is quieted for the same few days a
@@ -813,7 +815,10 @@ classDiagram
   would hold the machine awake permanently for the roughly one fire per 2–7 days it exists to
   perform. The database is touched exactly three times: once at boot, once when an account
   registers, and once per actual fire. The liveness probe reads a field and nothing else, for the
-  same reason.</p>
+  same reason — and the map is pushed at both ends of an account's life rather than polled:
+  registration adds an entry through <code>UserRegistered</code>, deletion removes one through the
+  <code>PerUserDataDeleter</code> seam FR-019 already fans out over, so no deleted account is ever
+  discovered by spending a query on it.</p>
   <p><code>app_user.next_proposal_at</code> is the map's only backup and it is enough. A restart
   reloads the stored moments rather than redrawing them, so the rhythm survives a deploy instead of
   bunching every account around one; the map is authoritative while the JVM lives, the column across
@@ -874,6 +879,7 @@ classDiagram
     +tick() @Scheduled every 60s
     +loadSchedule() on ApplicationReadyEvent
     +scheduleNewAccount(UserRegistered)
+    +deleteAllForUser(UUID) both ends of an account reach the map the same way
     +health() the proposalScheduler liveness indicator
     the send sits inside the catch — reschedule always runs
   }
@@ -881,13 +887,13 @@ classDiagram
     &lt;&lt;domain service&gt;&gt;
     +next(from, properties, random) OffsetDateTime
     +isInsideWindow(moment, properties) boolean
-    uniform 2-7 days, pulled into the send window
+    uniform 2-7 days, drawn inside the window
     no clock of its own — the moment is an argument
   }
   class RhythmProperties {
     &lt;&lt;configuration&gt;&gt;
-    app.rhythm.min-days, max-days
-    app.rhythm.send-from, send-until
+    proposal.rhythm.min-days, max-days
+    proposal.rhythm.window-start-hour, window-end-hour
   }
   class ProposalEmail {
     &lt;&lt;domain service&gt;&gt;
@@ -1006,7 +1012,7 @@ classDiagram
     SimpleMailMessage over JavaMailSender
     translates MailException
   }
-  class MailProperties {
+  class MailboxProperties {
     &lt;&lt;configuration&gt;&gt;
     app.mail.from — must be a verified sender domain
     app.mail.base-url — what the email links to
@@ -1016,7 +1022,7 @@ classDiagram
     recipient domain and subject length only
   }
   EmailSender &lt;|.. SmtpEmailSender
-  SmtpEmailSender --> MailProperties
+  SmtpEmailSender --> MailboxProperties
   SmtpEmailSender ..> MailDeliveryException
   ProposalScheduler --> EmailSender : the only caller
   </pre>
@@ -1909,9 +1915,9 @@ flowchart TB
         <tr><th scope="row">Task layer</th><td>One of three horizons an item lives in: <em>current</em> (actionable now), <em>long-term</em> (goals) and <em>dreams</em> (aspirations) — all three implemented as one <code>goal</code> table with a <code>layer</code> discriminator.</td></tr>
         <tr><th scope="row">Layer / horizon</th><td><code>GoalLayer</code> (GOAL, DREAM, TASK) discriminates all three layers; <code>GoalHorizon</code> (THIS_YEAR, FEW_MONTHS) applies only to a goal, and <code>due_date</code> only to a task. All constant names are the wire literals, anchored in <code>openapi.yaml</code> and held against backend and frontend copies by <code>GoalApiTest</code>.</td></tr>
         <tr><th scope="row">Life domain</th><td>One of 11 fixed categories every task belongs to: HEALTH, FINANCE, CAREER, EDUCATION, RELATIONSHIPS, HOME, LEISURE, ADMIN, SAFETY, TRANSPORT, INNER_GROWTH. Enum <code>LifeDomain</code> mirrors the seeded <code>category</code> table; <code>CategorySyncCheck</code> fails boot on drift.</td></tr>
-        <tr><th scope="row">Natural-rhythm reminder</th><td>A proactive nudge surfaced at a moment nobody set rather than at a fixed alarm time. Uniformly 2–7 days ahead, pulled inside daytime hours, redrawn after every fire; the schedule lives in <code>ProposalScheduler</code>'s map and only its backup in <code>app_user.next_proposal_at</code>. Random rather than periodic on purpose — the unpredictability is the product, which is why <code>ProposalRhythm</code> takes an unseeded <code>Random</code>.</td></tr>
+        <tr><th scope="row">Natural-rhythm reminder</th><td>A proactive nudge surfaced at a moment nobody set rather than at a fixed alarm time. Uniformly 2–7 days ahead, drawn inside daytime hours, redrawn after every fire; the schedule lives in <code>ProposalScheduler</code>'s map and only its backup in <code>app_user.next_proposal_at</code>. Random rather than periodic on purpose — the unpredictability is the product, which is why <code>ProposalRhythm</code> takes an unseeded <code>Random</code>.</td></tr>
         <tr><th scope="row">Superseding</th><td>What the next cycle does to a proposal the user never answered: <code>ProposalAnswer.SUPERSEDED</code> closes it and its entry is quieted for the same few days a spoken "not now" buys. An answer the <em>app</em> writes — ignoring a proposal is a response to it — kept distinct from <code>NOT_NOW</code> so the next prompt can tell silence from refusal. Only the scheduled path supersedes; the button returns the pending card instead.</td></tr>
-        <tr><th scope="row">Quiet hours</th><td>The part of the day the rhythm will not fire in (<code>app.rhythm.send-from</code> / <code>send-until</code>). A moment drawn at night is pulled into the window rather than skipped, so no cycle is lost to the clock.</td></tr>
+        <tr><th scope="row">Quiet hours</th><td>The part of the day the rhythm will not fire in (<code>proposal.rhythm.window-start-hour</code> / <code>window-end-hour</code>). No moment is ever drawn outside it; the guard is for a fire that arrives late after downtime, which waits for the window to reopen rather than landing at 04:00.</td></tr>
         <tr><th scope="row">Selection engine</th><td>The deterministic pick behind <code>POST /api/proposals</code>: <em>neglect</em> (idle 7 / 14 / 30 days by layer, or a task past its <code>due_date</code>) decides which entries are eligible — withdrawn and still-snoozed ones are not; a missed term ranks ahead of any amount of silence, and below that <em>domain silence</em> (how long since the user touched anything in a life domain — completed entries included) decides which one wins. Pure Java in <code>ProposalSelector</code>; no LLM.</td></tr>
         <tr><th scope="row">Proposal</th><td>The stored row behind FR-013/FR-018: the picked entry, the sentence the model (or the template) phrased around it, and the user's answer. At most one may be pending per user, enforced by a partial unique index rather than a service check, which is why pressing the button twice returns one card and costs one model call.</td></tr>
         <tr><th scope="row">Snooze / withdrawal</th><td>The two states an answer leaves on the entry itself: <code>goal.remind_after</code> (not before this date) and <code>goal.withdrawn_at</code> (out of the running until restored). They sit on <code>goal</code> rather than <code>proposal</code> because the <em>user</em> performed them — which keeps <code>updated_at</code> meaning "when the user last engaged".</td></tr>

@@ -12,17 +12,17 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Proves {@link MailProperties} binds from the committed {@code application.properties} (relaxed
+ * Proves {@link MailboxProperties} binds from the committed {@code application.properties} (relaxed
  * binding of {@code app.mail.base-url} → {@code baseUrl()}) — so a typo in a key fails the build
  * rather than shipping emails from nobody, pointing nowhere. Mirrors {@code RhythmPropertiesTest};
  * no auto-configuration runs, so no datasource and no SMTP transport are needed.
  */
-@SpringJUnitConfig(MailPropertiesTest.Config.class)
+@SpringJUnitConfig(MailboxPropertiesTest.Config.class)
 @TestPropertySource(locations = "classpath:application.properties")
-class MailPropertiesTest {
+class MailboxPropertiesTest {
 
 	@Autowired
-	MailProperties properties;
+	MailboxProperties properties;
 
 	@Test
 	void bindsTheSenderFromApplicationProperties() {
@@ -54,7 +54,7 @@ class MailPropertiesTest {
 	}
 
 	@Configuration
-	@EnableConfigurationProperties(MailProperties.class)
+	@EnableConfigurationProperties(MailboxProperties.class)
 	static class Config {
 	}
 }

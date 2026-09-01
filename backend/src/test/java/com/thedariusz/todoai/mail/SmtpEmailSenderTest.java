@@ -21,8 +21,8 @@ import static org.mockito.Mockito.verify;
  */
 class SmtpEmailSenderTest {
 
-	private static final MailProperties MAILBOX =
-			new MailProperties("2do AI <propozycje@2doai.app>", "https://2doai.app");
+	private static final MailboxProperties MAILBOX =
+			new MailboxProperties("2do AI <propozycje@2doai.app>", "https://2doai.app");
 
 	private final JavaMailSender transport = mock(JavaMailSender.class);
 

@@ -14,7 +14,7 @@ import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.goal.GoalLayer;
 import com.thedariusz.todoai.mail.EmailSender;
 import com.thedariusz.todoai.mail.MailDeliveryException;
-import com.thedariusz.todoai.mail.MailProperties;
+import com.thedariusz.todoai.mail.MailboxProperties;
 import com.thedariusz.todoai.user.Email;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRegistered;
@@ -59,8 +59,8 @@ class ProposalSchedulerTest {
 	/** Long before it: what a machine that was down over the whole window comes back to. */
 	private static final OffsetDateTime DAWN = warsaw(4);
 
-	private static final MailProperties MAILBOX =
-			new MailProperties("2do AI <propozycje@2doai.app>", "https://2doai.app");
+	private static final MailboxProperties MAILBOX =
+			new MailboxProperties("2do AI <propozycje@2doai.app>", "https://2doai.app");
 
 	private final UserRepository users = mock(UserRepository.class);
 
@@ -184,9 +184,9 @@ class ProposalSchedulerTest {
 	}
 
 	/**
-	 * FR-019 deletion happens over HTTP and knows nothing about this map, so the fire is where a
-	 * vanished account is noticed. Noticing it must also be the last time: an entry left behind would
-	 * be due forever, and "due forever" is one query per tick.
+	 * FR-019 deletion prunes the map at its own seam, so this covers the row that went away some other
+	 * way — a rolled-back registration. Noticing it must also be the last time: an entry left behind
+	 * would be due forever, and "due forever" is one query per tick.
 	 */
 	@Test
 	void forgetsAnAccountThatNoLongerExists() {
@@ -195,6 +195,21 @@ class ProposalSchedulerTest {
 
 		scheduler.fireDue(MIDDAY);
 		clearInvocations(users);
+		scheduler.fireDue(MIDDAY);
+
+		verifyNoInteractions(users, proposals, mail);
+	}
+
+	/**
+	 * The other end of the account lifecycle, and the reason the fire's ghost branch is only a safety
+	 * net: a deleted account leaves the map at deletion time, so it never costs the tick the
+	 * Neon-waking {@code findById} that noticing it there would.
+	 */
+	@Test
+	void forgetsADeletedAccountAtTheDeletionSeam() {
+		User account = loaded(MIDDAY.minusHours(1));
+
+		scheduler.deleteAllForUser(account.getId());
 		scheduler.fireDue(MIDDAY);
 
 		verifyNoInteractions(users, proposals, mail);

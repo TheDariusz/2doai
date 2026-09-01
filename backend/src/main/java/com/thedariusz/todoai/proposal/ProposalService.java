@@ -207,12 +207,11 @@ class ProposalService {
 			}
 			Goal entry = entry(userId, current.getGoalId());
 
-			entry.snoozeUntil(now.toLocalDate().plusDays(NOT_NOW_QUIET_DAYS));
+			quiet(entry, ProposalAnswer.SUPERSEDED, null, now);
 			current.supersede(now);
 			goals.saveAndFlush(entry);
 			proposals.saveAndFlush(current);
-			memory.record(userId, SUPERSEDED, json.writeValueAsString(
-					Map.of("answer", ProposalAnswer.SUPERSEDED.name(), "entry", entry.getContent())));
+			recordEpisode(userId, SUPERSEDED, ProposalAnswer.SUPERSEDED, entry);
 		});
 	}
 
@@ -305,17 +304,27 @@ class ProposalService {
 					.orElseThrow(() -> new ProposalNotFoundException(id));
 			Goal entry = entry(userId, current.getGoalId());
 
-			quiet(entry, request, now);
+			quiet(entry, request.answer(), request.remindInDays(), now);
 			current.answer(request.answer(), now);
 			if (steps != null) {
 				current.recordFirstStep(json.writeValueAsString(steps));
 			}
 			Goal quieted = goals.saveAndFlush(entry);
 			Proposal answered = proposals.saveAndFlush(current);
-			memory.record(userId, ANSWERED, json.writeValueAsString(
-					Map.of("answer", request.answer().name(), "entry", entry.getContent())));
+			recordEpisode(userId, ANSWERED, request.answer(), entry);
 			return render(answered, quieted);
 		});
+	}
+
+	/**
+	 * The one writer of a proposal episode. Both closures print the same two keys — a contract with
+	 * {@code AiMemoryRenderer} and, through it, with the next proposal's prompt — and they differ only
+	 * in the event type: "the user said not now" and "the user said nothing at all" are different
+	 * things for that prompt to know.
+	 */
+	private void recordEpisode(UUID userId, String eventType, ProposalAnswer answer, Goal entry) {
+		memory.record(userId, eventType, json.writeValueAsString(
+				Map.of("answer", answer.name(), "entry", entry.getContent())));
 	}
 
 	/**
@@ -324,12 +333,15 @@ class ProposalService {
 	 * to be one of the offered presets: {@code ProposalAnswerRequest} rejects anything else with 422
 	 * before this is reached.
 	 */
-	private static void quiet(Goal entry, ProposalAnswerRequest request, OffsetDateTime now) {
+	private static void quiet(Goal entry, ProposalAnswer answer, Integer remindInDays,
+			OffsetDateTime now) {
 		LocalDate today = now.toLocalDate();
-		switch (request.answer()) {
+		switch (answer) {
 			case STARTING -> entry.snoozeUntil(today.plusDays(STARTING_QUIET_DAYS));
-			case NOT_NOW -> entry.snoozeUntil(today.plusDays(NOT_NOW_QUIET_DAYS));
-			case REMIND_LATER -> entry.snoozeUntil(today.plusDays(request.remindInDays()));
+			// The machine's closure quiets the entry exactly as a spoken NOT_NOW does, and says so by
+			// sharing the arm rather than the constant: ignoring a proposal is the same "not now".
+			case NOT_NOW, SUPERSEDED -> entry.snoozeUntil(today.plusDays(NOT_NOW_QUIET_DAYS));
+			case REMIND_LATER -> entry.snoozeUntil(today.plusDays(remindInDays));
 			case NEVER -> entry.withdraw(now);
 		}
 	}

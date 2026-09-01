@@ -23,15 +23,13 @@ export type Proposal = {
   message: string
   source: 'LLM' | 'TEMPLATE'
   /**
-   * The four the user can give, plus `SUPERSEDED`, which the *server* writes when the natural
-   * rhythm returns and the previous proposal was never answered. It is in the type because the enum
-   * is the wire contract — the same five values live in `ProposalAnswer.java` and in
-   * `openapi.yaml`, with nothing checking that the three agree — but it can never reach this card:
-   * a superseded proposal is by definition no longer pending, and the card only ever holds a
-   * pending one or the one just answered here. Which is why it is `UserAnswer` that the buttons and
-   * the confirmation copy are typed on, not this.
+   * Only ever one of the four the user can give, or null. The enum has a fifth, `SUPERSEDED`, which
+   * the *server* writes when the natural rhythm replaces a proposal nobody answered — but it cannot
+   * reach this card: a superseded proposal is by definition no longer pending, and the card only
+   * ever holds a pending one or the one just answered here. Narrowing to `UserAnswer` here is what
+   * lets the confirmation copy be a total mapping instead of a guarded one.
    */
-  answer: UserAnswer | 'SUPERSEDED' | null
+  answer: UserAnswer | null
   answered_at: string | null
   first_step: string[] | null
 }
@@ -200,9 +198,7 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
 
           {proposal.answer ? (
             <>
-              {/* Never SUPERSEDED — see the type. There is deliberately no copy for it, so the card
-                  renders nothing rather than inventing a sentence for a state it cannot be in. */}
-              {proposal.answer !== 'SUPERSEDED' && <p role="status">{CONFIRMATION[proposal.answer]}</p>}
+              <p role="status">{CONFIRMATION[proposal.answer]}</p>
               {proposal.first_step && (
                 <FirstStep steps={proposal.first_step} saved={saved} save={saveStep} pending={pending} />
               )}

@@ -8,8 +8,9 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.thedariusz.todoai.account.PerUserDataDeleter;
 import com.thedariusz.todoai.mail.EmailSender;
-import com.thedariusz.todoai.mail.MailProperties;
+import com.thedariusz.todoai.mail.MailboxProperties;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRegistered;
 import com.thedariusz.todoai.user.UserRepository;
@@ -50,7 +51,7 @@ import org.springframework.stereotype.Component;
  * everything above, fifteen seconds at a time.
  */
 @Component
-class ProposalScheduler implements HealthIndicator {
+class ProposalScheduler implements HealthIndicator, PerUserDataDeleter {
 
 	private static final Logger log = LoggerFactory.getLogger(ProposalScheduler.class);
 
@@ -78,7 +79,7 @@ class ProposalScheduler implements HealthIndicator {
 
 	private final EmailSender mail;
 
-	private final MailProperties mailbox;
+	private final MailboxProperties mailbox;
 
 	/**
 	 * Deliberately stale until the first tick lands, so a scheduler whose {@code @Scheduled} method
@@ -89,7 +90,7 @@ class ProposalScheduler implements HealthIndicator {
 	private volatile Instant lastTick = Instant.EPOCH;
 
 	ProposalScheduler(UserRepository users, ProposalService proposals, RhythmProperties rhythm,
-			EmailSender mail, MailProperties mailbox) {
+			EmailSender mail, MailboxProperties mailbox) {
 		this.users = users;
 		this.proposals = proposals;
 		this.rhythm = rhythm;
@@ -159,6 +160,21 @@ class ProposalScheduler implements HealthIndicator {
 				.ifPresent(account -> reschedule(account, OffsetDateTime.now(ProposalRhythm.USER_ZONE)));
 	}
 
+	/**
+	 * Forget a deleted account, at the seam every deletion already routes through (FR-019) — the
+	 * mirror of {@link #scheduleNewAccount}, so both ends of an account's life reach this map the same
+	 * way. Without it the entry survives until its own moment arrives and is pruned by the fire, which
+	 * means a Neon-waking query for a row that is gone: the one thing the tick exists not to do.
+	 *
+	 * <p>Runs inside the deletion transaction, so a rollback leaves the map short an entry the row
+	 * still has. Harmless, and self-healing at the next boot — {@link #loadSchedule} reloads from the
+	 * column, which is the authority across a restart.
+	 */
+	@Override
+	public void deleteAllForUser(UUID userId) {
+		schedule.remove(userId);
+	}
+
 	@Override
 	public Health health() {
 		Duration sinceLastTick = Duration.between(lastTick, Instant.now());
@@ -183,8 +199,9 @@ class ProposalScheduler implements HealthIndicator {
 	private void fire(UUID accountId, OffsetDateTime now) {
 		User account = users.findById(accountId).orElse(null);
 		if (account == null) {
-			// Deleted since boot (FR-019 runs over HTTP and knows nothing about this map). Forgetting
-			// it here is also the only way it stops being due forever.
+			// The safety net, not the routine path: deleteAllForUser above prunes the map when the
+			// account is actually deleted. This catches a row that went away some other way — a
+			// rolled-back registration, whose map entry outlives the account it was drawn for.
 			schedule.remove(accountId);
 			log.info("Dropped account {} from the rhythm: the row is gone", accountId);
 			return;
