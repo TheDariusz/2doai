@@ -11,6 +11,7 @@ import com.thedariusz.todoai.category.LifeDomain;
 import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.goal.GoalLayer;
 import com.thedariusz.todoai.goal.GoalRepository;
+import com.thedariusz.todoai.mail.EmailSender;
 import com.thedariusz.todoai.user.Email;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRepository;
@@ -24,6 +25,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -44,6 +47,15 @@ class ProposalSchedulerIntegrationTest {
 
 	@MockitoBean
 	private LlmClient llm;
+
+	/**
+	 * Mocked for the same reason {@link LlmClient} is, and one more: this is the only test in the
+	 * suite that drives a real fire, so the live adapter would open an SMTP connection to the
+	 * provider on every CI run. The suite's hermeticism is not a property of the empty
+	 * {@code RESEND_API_KEY} default alone — it is this line as well.
+	 */
+	@MockitoBean
+	private EmailSender mail;
 
 	@Autowired
 	private ProposalScheduler scheduler;
@@ -87,6 +99,8 @@ class ProposalSchedulerIntegrationTest {
 				.as("nobody pressed anything — the app came back on its own")
 				.isPresent();
 		assertThat(users.findById(account).orElseThrow().getNextProposalAt()).isAfter(midday);
+		// And the whole point of coming back on its own: the user is told, without opening the app.
+		verify(mail).send(contains("@example.com"), contains("Oddać książkę"), contains(PHRASED));
 	}
 
 	/** A user with one overdue task — the only neglect signal a freshly written row can carry. */

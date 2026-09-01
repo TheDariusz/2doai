@@ -537,20 +537,20 @@ V9 is expand-only (one nullable column) — safe under image rollback. Existing 
 
 #### Automated
 
-- [x] 2.1 `mvn test` green — tick semantics incl. zero-DB-when-idle guard, prune, registration event
-- [x] 2.2 Integration: null backfill at boot; forced past fire produces proposal + future next_proposal_at
-- [x] 2.3 Liveness group contains the scheduler indicator, nothing DB-touching
+- [x] 2.1 `mvn test` green — tick semantics incl. zero-DB-when-idle guard, prune, registration event — 61671fa
+- [x] 2.2 Integration: null backfill at boot; forced past fire produces proposal + future next_proposal_at — 61671fa
+- [x] 2.3 Liveness group contains the scheduler indicator, nothing DB-touching — 61671fa
 
 #### Manual
 
-- [x] 2.4 Local run: startup schedule line; SQL log silent while idle
+- [x] 2.4 Local run: startup schedule line; SQL log silent while idle — 61671fa
 
 ### Phase 3: Email delivery
 
 #### Automated
 
-- [ ] 3.1 `mvn test` green — email builder, send-on-fire, failure leaves proposal pending, binding test
-- [ ] 3.2 CI hermetic without RESEND_API_KEY
+- [x] 3.1 `mvn test` green — email builder, send-on-fire, failure leaves proposal pending, binding test
+- [x] 3.2 CI hermetic without RESEND_API_KEY
 
 #### Manual
 

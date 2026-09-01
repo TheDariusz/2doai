@@ -90,6 +90,14 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
+		<!-- SMTP transport behind the EmailSender port (S-05, FR-018) — how the app comes back to a
+		     user who is not looking at it. Deliberately plain SMTP rather than a provider SDK: Resend
+		     speaks it, so the provider stays a credentials choice and this line adds no new supply
+		     chain (Jakarta Mail is BOM-managed, like everything else here). -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
 
 		<!-- Data layer: JPA/Hibernate, Postgres driver, Flyway migrations.
 		     Versions managed by the Spring Boot 4 parent. -->

@@ -9,6 +9,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.thedariusz.todoai.category.LifeDomain;
+import com.thedariusz.todoai.goal.Goal;
+import com.thedariusz.todoai.goal.GoalLayer;
+import com.thedariusz.todoai.mail.EmailSender;
+import com.thedariusz.todoai.mail.MailDeliveryException;
+import com.thedariusz.todoai.mail.MailProperties;
 import com.thedariusz.todoai.user.Email;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRegistered;
@@ -20,7 +26,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -49,11 +59,17 @@ class ProposalSchedulerTest {
 	/** Long before it: what a machine that was down over the whole window comes back to. */
 	private static final OffsetDateTime DAWN = warsaw(4);
 
+	private static final MailProperties MAILBOX =
+			new MailProperties("2do AI <propozycje@2doai.app>", "https://2doai.app");
+
 	private final UserRepository users = mock(UserRepository.class);
 
 	private final ProposalService proposals = mock(ProposalService.class);
 
-	private final ProposalScheduler scheduler = new ProposalScheduler(users, proposals, RHYTHM);
+	private final EmailSender mail = mock(EmailSender.class);
+
+	private final ProposalScheduler scheduler =
+			new ProposalScheduler(users, proposals, RHYTHM, mail, MAILBOX);
 
 	@Test
 	void comesBackToAnAccountWhoseMomentHasArrived() {
@@ -84,7 +100,51 @@ class ProposalSchedulerTest {
 
 		scheduler.fireDue(MIDDAY);
 
-		verifyNoInteractions(users, proposals);
+		verifyNoInteractions(users, proposals, mail);
+	}
+
+	/**
+	 * FR-018's first channel, and the reason this loop is worth having: a user who is not looking at
+	 * the app cannot be told anything by it. The address comes off the row the fire already loaded.
+	 */
+	@Test
+	void emailsThePhrasedProposalToTheAccountItWasDrawnFor() {
+		User account = loaded(MIDDAY.minusHours(1));
+		when(proposals.proposeScheduled(account.getId())).thenReturn(Optional.of(proposal()));
+
+		scheduler.fireDue(MIDDAY);
+
+		verify(mail).send(eq(account.getEmail()), contains("Oddać książkę"),
+				contains("https://2doai.app/goals"));
+	}
+
+	/** Nothing neglected is not an occasion to write to somebody. */
+	@Test
+	void staysQuietWhenThereWasNothingToPropose() {
+		User account = loaded(MIDDAY.minusHours(1));
+		when(proposals.proposeScheduled(account.getId())).thenReturn(Optional.empty());
+
+		scheduler.fireDue(MIDDAY);
+
+		verifyNoInteractions(mail);
+	}
+
+	/**
+	 * The failure plan, and the reason the proposal is written before the email is attempted: a
+	 * message that will not send costs the user the nudge, never the proposal. It is already pending
+	 * and the card is waiting the next time they open the app — which is also why there is no retry
+	 * queue. What must not happen is the rhythm stopping, so the cycle still moves on.
+	 */
+	@Test
+	void leavesTheProposalWaitingInTheAppWhenTheEmailCannotBeDelivered() {
+		User account = loaded(MIDDAY.minusHours(1));
+		when(proposals.proposeScheduled(account.getId())).thenReturn(Optional.of(proposal()));
+		doThrow(new MailDeliveryException("530 authentication required", new IllegalStateException()))
+				.when(mail).send(anyString(), anyString(), anyString());
+
+		scheduler.fireDue(MIDDAY);
+
+		assertThat(account.getNextProposalAt()).isAfter(MIDDAY);
 	}
 
 	@Test
@@ -137,7 +197,7 @@ class ProposalSchedulerTest {
 		clearInvocations(users);
 		scheduler.fireDue(MIDDAY);
 
-		verifyNoInteractions(users, proposals);
+		verifyNoInteractions(users, proposals, mail);
 	}
 
 	@Test
@@ -208,6 +268,14 @@ class ProposalSchedulerTest {
 	@Test
 	void reportsDownUntilTheFirstTickHasEvenHappened() {
 		assertThat(scheduler.health().getStatus()).isEqualTo(Status.DOWN);
+	}
+
+	/** What a fire that found something neglected hands back — the thing the email is made of. */
+	private static ProposalResponse proposal() {
+		UUID owner = UUID.randomUUID();
+		Goal entry = new Goal(owner, "Oddać książkę", GoalLayer.TASK, null, null, LifeDomain.EDUCATION);
+		return ProposalResponse.of(new Proposal(owner, UUID.randomUUID(),
+				"Wracamy do tego?", 40, Proposal.Source.LLM), entry, null);
 	}
 
 	/** An account already in the map, with the repository stubbed for the fire that follows. */

@@ -8,6 +8,8 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.thedariusz.todoai.mail.EmailSender;
+import com.thedariusz.todoai.mail.MailProperties;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRegistered;
 import com.thedariusz.todoai.user.UserRepository;
@@ -23,8 +25,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * The loop that makes the app come back on its own (S-05, FR-011) — the one thing in the product that
- * happens without anybody pressing anything. It owns when each account is next returned to, and runs
- * {@link ProposalService#proposeScheduled} when that moment arrives.
+ * happens without anybody pressing anything. It owns when each account is next returned to, runs
+ * {@link ProposalService#proposeScheduled} when that moment arrives, and emails what came back — the
+ * only way to reach a user who is, by definition, not looking at the app.
  *
  * <p><b>The schedule lives in memory, and that is the whole design.</b> Neon bills metered compute
  * and only suspends after ~5 minutes without a query, while the Fly machine that hosts this thread is
@@ -73,6 +76,10 @@ class ProposalScheduler implements HealthIndicator {
 
 	private final RhythmProperties rhythm;
 
+	private final EmailSender mail;
+
+	private final MailProperties mailbox;
+
 	/**
 	 * Deliberately stale until the first tick lands, so a scheduler whose {@code @Scheduled} method
 	 * never got wired reports DOWN instead of reporting the health of a loop that is not running.
@@ -81,10 +88,13 @@ class ProposalScheduler implements HealthIndicator {
 	 */
 	private volatile Instant lastTick = Instant.EPOCH;
 
-	ProposalScheduler(UserRepository users, ProposalService proposals, RhythmProperties rhythm) {
+	ProposalScheduler(UserRepository users, ProposalService proposals, RhythmProperties rhythm,
+			EmailSender mail, MailProperties mailbox) {
 		this.users = users;
 		this.proposals = proposals;
 		this.rhythm = rhythm;
+		this.mail = mail;
+		this.mailbox = mailbox;
 	}
 
 	/**
@@ -158,9 +168,17 @@ class ProposalScheduler implements HealthIndicator {
 	}
 
 	/**
-	 * One account's turn. The next moment is drawn <b>whatever happened</b> — nothing to propose, or a
-	 * failure mid-cycle — because leaving the old moment in place would make this account due again on
-	 * the very next tick, turning the one path that must stay quiet into a query every 60 seconds.
+	 * One account's turn. The next moment is drawn <b>whatever happened</b> — nothing to propose, a
+	 * failure mid-cycle, an email that would not send — because leaving the old moment in place would
+	 * make this account due again on the very next tick, turning the one path that must stay quiet
+	 * into a query every 60 seconds. That is why the send sits <em>inside</em> the catch rather than
+	 * after it.
+	 *
+	 * <p><b>The proposal is already saved by the time the email is attempted, and that ordering is the
+	 * whole failure plan.</b> A message that cannot be delivered costs the user the nudge, not the
+	 * proposal: it stays pending and the card is waiting the next time they open the app. Which is
+	 * also why there is no retry queue — the app already has a second channel, and it is the reliable
+	 * one.
 	 */
 	private void fire(UUID accountId, OffsetDateTime now) {
 		User account = users.findById(accountId).orElse(null);
@@ -172,7 +190,11 @@ class ProposalScheduler implements HealthIndicator {
 			return;
 		}
 		try {
-			proposals.proposeScheduled(accountId);
+			// The address rides along on the row this method already loaded for the check above — a
+			// second query for it would be one more thing keeping Neon awake.
+			proposals.proposeScheduled(accountId)
+					.ifPresent(proposal -> mail.send(account.getEmail(), ProposalEmail.subject(proposal),
+							ProposalEmail.body(proposal, mailbox.baseUrl())));
 		}
 		catch (RuntimeException ex) {
 			log.error("The rhythm could not return to account {}; the cycle moves on", accountId, ex);
