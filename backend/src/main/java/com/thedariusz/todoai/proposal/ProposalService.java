@@ -117,6 +117,19 @@ class ProposalService {
 		this.model = properties.model().sonnet();
 	}
 
+	/**
+	 * The FR-018 slot, read rather than filled (S-05) — what the natural rhythm left waiting while
+	 * the user was not looking. The only genuinely safe operation on this resource: it decides
+	 * nothing, phrases nothing and writes nothing, which is what lets the app show a proposal at
+	 * open without the user having asked for one.
+	 *
+	 * @return the caller's unanswered proposal, or empty when nothing is waiting — never a new one,
+	 *         however neglected the caller's entries are
+	 */
+	Optional<ProposalResponse> pending() {
+		return pending(currentUser.requireId());
+	}
+
 	/** @return the proposal to put in front of the user, or empty when nothing has been neglected */
 	Optional<ProposalResponse> propose() {
 		UUID userId = currentUser.requireId();

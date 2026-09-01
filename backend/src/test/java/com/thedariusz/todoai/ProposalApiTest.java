@@ -182,6 +182,66 @@ class ProposalApiTest extends ApiTestBase {
 				.statusCode(204);
 	}
 
+	/**
+	 * FR-018's second channel: the proposal the natural rhythm opened while nobody was looking is
+	 * waiting in the app at next open. A plain read — no selection, no model call, no writes — which
+	 * is the whole reason it is the one GET on this resource.
+	 *
+	 * <p>The POST stands in for the scheduler's fire: both reach the pending slot through the same
+	 * service, and driving the real thread is {@code ProposalSchedulerIntegrationTest}'s job.
+	 */
+	@Test
+	void showsTheProposalAlreadyWaitingWithoutOpeningASecondOne() {
+		givenLoggedInUser();
+		createTask(task("Oddać książkę", "EDUCATION", LocalDate.now().minusDays(2)));
+		String waiting = csrfAware().when().post("/api/proposals").then().statusCode(200)
+				.extract().path("id");
+
+		csrfAware()
+				.when()
+				.get("/api/proposals/pending")
+				.then()
+				.statusCode(200)
+				.body("id", equalTo(waiting))
+				.body("entry.content", equalTo("Oddać książkę"))
+				.body("message", equalTo(PHRASED))
+				.body("answer", equalTo(null));
+
+		// Safe, and this is what says so: the phrasing was paid for once, when the proposal opened.
+		verify(llm, times(1)).complete(any());
+	}
+
+	@Test
+	void answersNoContentWhenNothingIsWaitingInTheApp() {
+		givenLoggedInUser();
+		// Neglected enough to be proposable, so the 204 means "nothing is waiting" rather than
+		// "nothing would be selected" — a GET that quietly opened a proposal would answer 200 here.
+		createTask(task("Oddać książkę", "EDUCATION", LocalDate.now().minusDays(2)));
+
+		csrfAware().when().get("/api/proposals/pending").then().statusCode(204);
+		verify(llm, never()).complete(any());
+	}
+
+	@Test
+	void neverShowsAnotherAccountsWaitingProposal() {
+		givenLoggedInUser();
+		createTask(task("Oddać książkę", "EDUCATION", LocalDate.now().minusDays(2)));
+		csrfAware().when().post("/api/proposals").then().statusCode(200);
+
+		newBrowser();
+		givenLoggedInUser();
+
+		// The second account has no proposal of its own, and must not be handed the first account's.
+		csrfAware().when().get("/api/proposals/pending").then().statusCode(204);
+	}
+
+	@Test
+	void refusesAnonymousAccessToTheWaitingProposal() {
+		newBrowser();
+
+		csrfAware().when().get("/api/proposals/pending").then().statusCode(401);
+	}
+
 	@Test
 	void neverProposesAnotherAccountsNeglectedEntry() {
 		givenLoggedInUser();

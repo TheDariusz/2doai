@@ -549,8 +549,8 @@ V9 is expand-only (one nullable column) — safe under image rollback. Existing 
 
 #### Automated
 
-- [x] 3.1 `mvn test` green — email builder, send-on-fire, failure leaves proposal pending, binding test
-- [x] 3.2 CI hermetic without RESEND_API_KEY
+- [x] 3.1 `mvn test` green — email builder, send-on-fire, failure leaves proposal pending, binding test — 62075cc
+- [x] 3.2 CI hermetic without RESEND_API_KEY — 62075cc
 
 #### Manual
 
@@ -561,8 +561,8 @@ V9 is expand-only (one nullable column) — safe under image rollback. Existing 
 
 #### Automated
 
-- [ ] 4.1 `mvn test` green — GET pending suite + ApiSurfaceTest parity
-- [ ] 4.2 `npm test`, `npm run lint`, `npm run build` green
+- [x] 4.1 `mvn test` green — GET pending suite + ApiSurfaceTest parity
+- [x] 4.2 `npm test`, `npm run lint`, `npm run build` green
 
 #### Manual
 

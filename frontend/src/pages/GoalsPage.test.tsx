@@ -72,14 +72,27 @@ const ELECTRICITY = {
 const fetchMock = vi.fn()
 
 /**
- * Answers the two GETs the screen makes — the shell's categories and the page's goals — and lets
- * every mutation succeed, so a test only has to say what the list contains. `goals` is read on each
- * call rather than captured, so pushing to it mid-test is what a refetch sees — copied per call,
- * because a real server sends a fresh list and React skips the re-render on an identical array.
+ * The two reads that happen before any test here is about anything: the shell's categories and the
+ * proposal card's pending slot. Neither is ever what a GoalsPage test asserts and both answer the
+ * same in all of them, so every stub below hands them back first — and a card that got the goals
+ * list by accident would crash rendering an entry that is not a proposal.
+ */
+function backdrop(url: string) {
+  if (url === '/api/categories') return response(200, { items: DOMAINS })
+  if (url === '/api/proposals/pending') return response(204)
+  return null
+}
+
+/**
+ * Answers the GETs the screen makes — the backdrop above, and the page's goals — and lets every
+ * mutation succeed, so a test only has to say what the list contains. `goals` is read on each call
+ * rather than captured, so pushing to it mid-test is what a refetch sees — copied per call, because
+ * a real server sends a fresh list and React skips the re-render on an identical array.
  */
 function stubApi(goals: Goal[]) {
   fetchMock.mockImplementation((url: string, init: { method?: string } = {}) => {
-    if (url === '/api/categories') return Promise.resolve(response(200, { items: DOMAINS }))
+    const fixed = backdrop(url)
+    if (fixed) return Promise.resolve(fixed)
     if (url === '/api/goals' && (init.method ?? 'GET') === 'GET') {
       return Promise.resolve(response(200, { items: [...goals] }))
     }
@@ -178,11 +191,7 @@ describe('GoalsPage', () => {
 
   it('says so when the list cannot be loaded, rather than rendering as if it were empty', async () => {
     fetchMock.mockImplementation((url: string) =>
-      Promise.resolve(
-        url === '/api/categories'
-          ? response(200, { items: DOMAINS })
-          : response(500, { detail: 'boom' }),
-      ),
+      Promise.resolve(backdrop(url) ?? response(500, { detail: 'boom' })),
     )
 
     renderGoals()
@@ -519,7 +528,8 @@ describe('GoalsPage — edycja zachowuje resztę wpisu', () => {
 /** Answers the goals GET normally and fails every mutation with the given status. */
 function stubFailingMutations(goals: Goal[], status: number, detail = 'boom') {
   fetchMock.mockImplementation((url: string, init: { method?: string } = {}) => {
-    if (url === '/api/categories') return Promise.resolve(response(200, { items: DOMAINS }))
+    const fixed = backdrop(url)
+    if (fixed) return Promise.resolve(fixed)
     if ((init.method ?? 'GET') === 'GET') return Promise.resolve(response(200, { items: [...goals] }))
     return Promise.resolve(response(status, { detail }))
   })
@@ -563,7 +573,8 @@ describe('GoalsPage — nieudany zapis', () => {
   it('does not claim the list was refreshed when the refetch failed too', async () => {
     let refetch = false
     fetchMock.mockImplementation((url: string, init: { method?: string } = {}) => {
-      if (url === '/api/categories') return Promise.resolve(response(200, { items: DOMAINS }))
+      const fixed = backdrop(url)
+      if (fixed) return Promise.resolve(fixed)
       if ((init.method ?? 'GET') === 'GET') {
         return Promise.resolve(refetch ? response(500, { detail: 'boom' }) : response(200, { items: [RUN] }))
       }

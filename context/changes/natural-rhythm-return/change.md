@@ -3,7 +3,7 @@ change_id: natural-rhythm-return
 title: Natural rhythm return
 status: implementing
 created: 2026-08-27
-updated: 2026-08-27
+updated: 2026-09-01
 archived_at: null
 ---
 

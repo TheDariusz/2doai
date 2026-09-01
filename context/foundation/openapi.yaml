@@ -27,7 +27,8 @@ info:
     CSRF-protected via a double-submit XSRF-TOKEN cookie echoed as the X-XSRF-TOKEN header.
   # #116 — MAJOR.MINOR.PATCH over the *contract*, not the app. 1.0.0 was S-01 (users, sessions,
   # categories); +goals (S-02) → 1.1.0, +proposals (S-04a) → 1.2.0, +current tasks (S-07) → 1.3.0,
-  # +the phrased, stored, answerable proposal (S-04b) → 1.4.0.
+  # +the phrased, stored, answerable proposal (S-04b) → 1.4.0, +the pending read the natural rhythm
+  # made necessary (S-05) → 1.5.0.
   #
   # 1.4.0 carries one genuinely *incompatible* change and is not pretending otherwise:
   # `GoalUpdate.withdrawn` is a required boolean (Jackson rejects a null for a primitive), so a
@@ -35,7 +36,7 @@ info:
   # versioning — deliberately not done, because x-audience is component-internal: the only client is
   # the SPA in this repository, and it gained the field in the same commit the server did. The day a
   # second consumer exists, that exemption expires and this is the paragraph that says so.
-  version: 1.4.0
+  version: 1.5.0
   contact:
     name: 2do AI
     email: thedariusz@gmail.com
@@ -470,6 +471,47 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /proposals/pending:
+    get:
+      tags: [proposals]
+      summary: The proposal waiting to be answered, if any
+      description: >
+        The in-app half of FR-018 (S-05). The natural rhythm opens a proposal on its own — expected
+        roughly once every 2-7 days — and emails it; this is where the app reads that same proposal,
+        so it can be shown the moment the user opens the app, without pressing anything and without
+        the email having been opened at all.
+
+
+        The one **safe** operation on this resource: no selection runs, no model is called and
+        nothing is written. `POST /proposals` is deliberately not this — it decides and stores — so a
+        proposal read here stays waiting until it is answered, however many times it is read.
+
+
+        Nothing waiting is **204**, and that is the ordinary state: at most one proposal may be
+        unanswered at a time (FR-018) and most of the time none is. This endpoint never opens one,
+        however neglected the caller's entries are; `POST /proposals` is how a caller asks for one
+        now.
+
+
+        A sub-path rather than a filter on the collection, because the pending proposal is a slot
+        and not a query result — there is at most one, enforced by a partial unique index. Not
+        cached: it keeps Spring Security's `no-store` default, since what is waiting changes without
+        the client doing anything.
+      operationId: getPendingProposal
+      responses:
+        '200':
+          description: The proposal waiting to be answered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Proposal'
+        '204':
+          description: Nothing is waiting to be answered.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
 

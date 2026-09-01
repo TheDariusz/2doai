@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ApiError, api } from '../api/client'
 import type { Goal, GoalDraft } from './GoalsPage'
 
@@ -88,6 +88,27 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
   // Positions, not the bullets themselves: a model can return the same sentence twice, and keying
   // this by text would mark both saved on one click — and give React two <li> with one key.
   const [saved, setSaved] = useState<number[]>([])
+
+  /**
+   * FR-018's other channel. The natural rhythm opens a proposal on its own and emails it, so the one
+   * already waiting has to be on screen the moment the app opens — the user pressed nothing to get
+   * here, and the email is a nudge, not the delivery.
+   *
+   * Deliberately not routed through `attempt`: nobody asked for this read, so it must not disable
+   * their button, must not claim to be searching, and must not raise a banner about a failure they
+   * did not cause and cannot act on — the button is still there and still works. Recorded in the
+   * console, which is where a background failure belongs.
+   *
+   * Safe against a press that lands first: 204 sets nothing, and a 200 can only be the very
+   * proposal `propose()` hands back anyway — a pending one short-circuits it.
+   */
+  useEffect(() => {
+    api<Proposal | undefined>('/proposals/pending')
+      .then((waiting) => {
+        if (waiting) setProposal(waiting)
+      })
+      .catch((failure) => console.error('proposal: pobrać czekającej propozycji failed', failure))
+  }, [])
 
   /**
    * Every call shares this: report what failed, record it, and never leave the card half-built.

@@ -38,22 +38,30 @@ function answered(answer: Proposal['answer'], firstStep: string[] | null = null)
 const fetchMock = vi.fn()
 const onChange = vi.fn()
 
-/** Answers the proposal POST with `first`, and every later call with `then`. */
+const PENDING_READ = '/api/proposals/pending'
+
+/**
+ * Answers the mount's pending read with 204 — nothing waiting, which is what every test below that
+ * is not about the mount read assumes — then the proposal POST with `first`, and everything later
+ * with `then`.
+ */
 function stubApi(first: ReturnType<typeof response>, then = response(200, answered('NOT_NOW'))) {
-  let asked = false
-  fetchMock.mockImplementation(() => {
-    const next = asked ? then : first
-    asked = true
-    return Promise.resolve(next)
-  })
+  const queued = [response(204), first]
+  fetchMock.mockImplementation(() => Promise.resolve(queued.shift() ?? then))
 }
 
+/**
+ * The calls the *user* caused. The card reads the pending slot on mount in every test, and counting
+ * it here would shift every index by one to say nothing — it has its own tests below.
+ */
 function calls() {
-  return fetchMock.mock.calls.map(([url, init]) => ({
-    url,
-    method: init?.method,
-    body: init?.body ? JSON.parse(init.body) : undefined,
-  }))
+  return fetchMock.mock.calls
+    .map(([url, init]) => ({
+      url,
+      method: init?.method,
+      body: init?.body ? JSON.parse(init.body) : undefined,
+    }))
+    .filter((call) => call.url !== PENDING_READ)
 }
 
 function renderCard() {
@@ -118,7 +126,13 @@ describe('ProposalCard — proszenie o propozycję', () => {
    */
   it('cannot be fired twice while the model is still thinking', async () => {
     let land: (value: unknown) => void = () => {}
-    fetchMock.mockImplementation(() => new Promise((resolve) => (land = resolve)))
+    // The mount read is answered outright: only the *press* is held open, which is what the
+    // disabled button is being asserted against.
+    fetchMock.mockImplementation((url: string) =>
+      url === PENDING_READ
+        ? Promise.resolve(response(204))
+        : new Promise((resolve) => (land = resolve)),
+    )
     const user = renderCard()
 
     await user.click(screen.getByRole('button', { name: 'Daj mi coś teraz' }))
@@ -130,7 +144,55 @@ describe('ProposalCard — proszenie o propozycję', () => {
     land(response(200, PROPOSAL))
     await screen.findByText(PROPOSAL.message)
     expect(button).toBeEnabled()
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(calls()).toHaveLength(1)
+  })
+})
+
+/**
+ * FR-018's second channel (S-05). The natural rhythm opens a proposal on its own and emails it —
+ * this is the same proposal reaching the user who came back to the app instead, which is the whole
+ * point of the slot being persistent rather than a notification.
+ */
+describe('ProposalCard — propozycja, która już czeka', () => {
+  it('shows what the rhythm left waiting, without anyone pressing anything', async () => {
+    fetchMock.mockResolvedValue(response(200, PROPOSAL))
+    renderCard()
+
+    expect(await screen.findByText(PROPOSAL.message)).toBeInTheDocument()
+    // Not just the prose: the card is answerable straight away, which is what makes the email's
+    // link land on something the user can act on.
+    expect(screen.getByRole('button', { name: 'Zaczynam' })).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith(PENDING_READ, expect.objectContaining({ method: 'GET' }))
+  })
+
+  /**
+   * 204 is the ordinary state — most of the time nothing is waiting — so it must leave the card
+   * exactly as it looks before anyone asks anything. Not "nothing is gathering dust": that answers
+   * a question the user never put.
+   */
+  it('stays idle when nothing is waiting', async () => {
+    stubApi(response(204))
+    renderCard()
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(PENDING_READ, expect.anything()))
+    expect(screen.getByRole('button', { name: 'Daj mi coś teraz' })).toBeEnabled()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  /**
+   * A read nobody asked for must not shout. The button is still there and still works, so a banner
+   * would report a failure the user cannot act on and did not cause — recorded in the console
+   * instead, which is where a background failure belongs.
+   */
+  it('says nothing when the waiting proposal cannot be read', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    fetchMock.mockResolvedValue(response(500, { detail: 'boom' }))
+    renderCard()
+
+    await waitFor(() => expect(logged).toHaveBeenCalled())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Daj mi coś teraz' })).toBeEnabled()
   })
 })
 
