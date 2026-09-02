@@ -7,6 +7,7 @@ import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRepository;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -24,7 +25,10 @@ class RegistrationServiceTest {
 
 	private final PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
 
-	private final RegistrationService service = new RegistrationService(users, memories, passwordEncoder);
+	private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
+
+	private final RegistrationService service =
+			new RegistrationService(users, memories, passwordEncoder, events);
 
 	@Test
 	void translatesTheDatabaseUniqueConstraintRaceToDuplicateEmail() {
@@ -34,7 +38,7 @@ class RegistrationServiceTest {
 		assertThatThrownBy(() -> service.register("alice@example.com", "correct-horse"))
 				.isInstanceOf(EmailAlreadyRegisteredException.class)
 				.hasCauseInstanceOf(DataIntegrityViolationException.class);
-		verifyNoInteractions(memories);
+		verifyNoInteractions(memories, events);
 	}
 
 	/**
@@ -50,7 +54,7 @@ class RegistrationServiceTest {
 		assertThatThrownBy(() -> service.register("alice@example.com", "correct-horse"))
 				.isInstanceOf(DataIntegrityViolationException.class)
 				.isNotInstanceOf(EmailAlreadyRegisteredException.class);
-		verifyNoInteractions(memories);
+		verifyNoInteractions(memories, events);
 	}
 
 	/** The shape Spring hands back for a Postgres constraint breach: Hibernate's own as the cause. */

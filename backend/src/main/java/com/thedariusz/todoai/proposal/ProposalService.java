@@ -24,14 +24,16 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * The one use case of the proposals resource: hand the engine the caller's entries, phrase its
- * answer, and remember what the user was shown. Scoped by {@link CurrentUser#requireId()} like every
- * other per-user read, so the engine can only ever rank rows the caller owns.
+ * The proposals use case: hand the engine a user's entries, phrase its answer, and remember what
+ * they were shown. Every request-borne path is scoped by {@link CurrentUser#requireId()} like every
+ * other per-user read, so the engine can only ever rank rows the caller owns. The one exception is
+ * {@link #proposeScheduled}, which takes the user as an argument because the natural rhythm runs on
+ * a thread that has no caller — it is package-private, and reached only from inside this package.
  *
- * <p><b>A pending proposal short-circuits everything.</b> That is what at-most-one (FR-018) means
- * under a manual trigger: pressing the button again returns the same card rather than re-selecting
- * and paying for a second Sonnet call. It is also the cheapest path — one indexed read, and the
- * whole entry list is never loaded.
+ * <p><b>A pending proposal short-circuits the manual trigger.</b> That is what at-most-one (FR-018)
+ * means under a button: pressing it again returns the same card rather than re-selecting and paying
+ * for a second Sonnet call. It is also the cheapest path — one indexed read, and the whole entry
+ * list is never loaded. The scheduled path deliberately does the opposite; see its own javadoc.
  *
  * <p><b>It reads the whole list, and deliberately adds no finder.</b> The obvious optimisation — a
  * {@code findNeglectedByUserId} carrying the thresholds into SQL — would be wrong twice over: the
@@ -67,12 +69,18 @@ class ProposalService {
 
 	private static final Logger log = LoggerFactory.getLogger(ProposalService.class);
 
-	// ponytail: one hardcoded zone while every account is Polish; a user.timezone column is the
-	// upgrade, and this is the only line that reads it.
-	private static final ZoneId USER_ZONE = ZoneId.of("Europe/Warsaw");
+	/** Whose day the clock is read in — {@link ProposalRhythm} owns the constant and the seam. */
+	private static final ZoneId USER_ZONE = ProposalRhythm.USER_ZONE;
 
 	/** The event type the memory block prints; {@code ai_memory_episode.event_type} is 64 chars. */
 	private static final String ANSWERED = "proposal_answered";
+
+	/**
+	 * The machine's own closure, kept a separate event type from {@link #ANSWERED} on purpose: the
+	 * memory block feeds the next proposal's prompt, and "the user said not now" and "the user said
+	 * nothing at all" are different things for it to know.
+	 */
+	private static final String SUPERSEDED = "proposal_superseded";
 
 	/** Starting is its own kind of interaction: a week to actually do it before anyone asks again. */
 	private static final int STARTING_QUIET_DAYS = 7;
@@ -109,6 +117,19 @@ class ProposalService {
 		this.model = properties.model().sonnet();
 	}
 
+	/**
+	 * The FR-018 slot, read rather than filled (S-05) — what the natural rhythm left waiting while
+	 * the user was not looking. The only genuinely safe operation on this resource: it decides
+	 * nothing, phrases nothing and writes nothing, which is what lets the app show a proposal at
+	 * open without the user having asked for one.
+	 *
+	 * @return the caller's unanswered proposal, or empty when nothing is waiting — never a new one,
+	 *         however neglected the caller's entries are
+	 */
+	Optional<ProposalResponse> pending() {
+		return pending(currentUser.requireId());
+	}
+
 	/** @return the proposal to put in front of the user, or empty when nothing has been neglected */
 	Optional<ProposalResponse> propose() {
 		UUID userId = currentUser.requireId();
@@ -122,6 +143,76 @@ class ProposalService {
 		return ProposalSelector
 				.select(entries.stream().map(Candidate::of).toList(), OffsetDateTime.now(USER_ZONE))
 				.map(selection -> open(userId, pick(entries, selection.id()), selection.neglectedDays()));
+	}
+
+	/**
+	 * The same engine, run for a user nobody asked on behalf of (S-05, FR-011/FR-018) — the natural
+	 * rhythm's fire. {@link CurrentUser} is never consulted: a scheduler thread has no
+	 * {@code SecurityContext}, and inventing one would make the scoping decorative.
+	 *
+	 * <p><b>It is not {@link #propose()} with an argument, and the difference is the whole method.</b>
+	 * The manual trigger short-circuits on a pending proposal — a second press must return the same
+	 * card rather than pay for a second model call. Doing that here would mean the rhythm stops dead
+	 * the first time the user ignores a proposal, which is exactly the user this feature exists for.
+	 * So the scheduled path <em>replaces</em> instead: the unanswered proposal is closed as
+	 * {@code SUPERSEDED} and the new one takes the pending slot.
+	 *
+	 * <p><b>Selection runs first, with the ignored entry excluded, and superseding happens only if it
+	 * produced something.</b> Both halves of that are load-bearing. Superseding first would snooze the
+	 * old entry and could then leave the user with nothing at all when selection came back empty —
+	 * FR-018's implicit "not now" happens the moment a proposal <em>replaces</em> it, not merely
+	 * because the clock struck. And excluding the entry is what stops the friend from asking about
+	 * the same thing twice in a row, which is how being ignored the first time would read.
+	 *
+	 * @return the proposal that was opened, or empty when nothing has been neglected — in which case
+	 *         the pending proposal, if any, is left exactly as it was
+	 */
+	Optional<ProposalResponse> proposeScheduled(UUID userId) {
+		Optional<Proposal> ignored = proposals.findByUserIdAndAnsweredAtIsNull(userId);
+		UUID ignoredEntry = ignored.map(Proposal::getGoalId).orElse(null);
+
+		List<Goal> entries = goals.findByUserIdOrderByCreatedAtDesc(userId);
+		List<Candidate> candidates = entries.stream()
+				.filter(entry -> !entry.getId().equals(ignoredEntry))
+				.map(Candidate::of)
+				.toList();
+
+		OffsetDateTime now = OffsetDateTime.now(USER_ZONE);
+		return ProposalSelector.select(candidates, now).map(selection -> {
+			// Before the insert, never after: the pending slot is a partial unique index, and the
+			// replacement cannot be written while the proposal it replaces still holds it.
+			ignored.ifPresent(proposal -> supersede(userId, proposal.getId(), now));
+			return open(userId, pick(entries, selection.id()), selection.neglectedDays());
+		});
+	}
+
+	/**
+	 * Close the ignored proposal and quiet its entry for the same three days a spoken "not now" buys
+	 * — one transaction, like {@link #answer}'s, so a machine closure can no more half-land than a
+	 * user's can. The snooze goes on the {@code goal} row for the reason every other answer's does:
+	 * ignoring a proposal <em>is</em> the user's response to it, and {@code ProposalSelector} reads
+	 * that column as "when they last engaged".
+	 *
+	 * <p>Re-read under the write lock rather than trusting the copy the caller selected against: the
+	 * user can answer between the two, over HTTP, while this thread is mid-cycle. Their answer is the
+	 * real one — so a proposal that is no longer pending is left alone and the new proposal simply
+	 * takes the freed slot, instead of {@link Proposal#supersede} throwing and losing the fire.
+	 */
+	private void supersede(UUID userId, UUID proposalId, OffsetDateTime now) {
+		transactions.executeWithoutResult(status -> {
+			Proposal current = proposals.findWithLockByIdAndUserId(proposalId, userId).orElse(null);
+			if (current == null || !current.isPending()) {
+				log.info("Proposal {} was answered before the rhythm could supersede it", proposalId);
+				return;
+			}
+			Goal entry = entry(userId, current.getGoalId());
+
+			quiet(entry, ProposalAnswer.SUPERSEDED, null, now);
+			current.supersede(now);
+			goals.saveAndFlush(entry);
+			proposals.saveAndFlush(current);
+			recordEpisode(userId, SUPERSEDED, ProposalAnswer.SUPERSEDED, entry);
+		});
 	}
 
 	/** The user's open proposal, if they have one, rendered with the entry it points at. */
@@ -213,17 +304,27 @@ class ProposalService {
 					.orElseThrow(() -> new ProposalNotFoundException(id));
 			Goal entry = entry(userId, current.getGoalId());
 
-			quiet(entry, request, now);
+			quiet(entry, request.answer(), request.remindInDays(), now);
 			current.answer(request.answer(), now);
 			if (steps != null) {
 				current.recordFirstStep(json.writeValueAsString(steps));
 			}
 			Goal quieted = goals.saveAndFlush(entry);
 			Proposal answered = proposals.saveAndFlush(current);
-			memory.record(userId, ANSWERED, json.writeValueAsString(
-					Map.of("answer", request.answer().name(), "entry", entry.getContent())));
+			recordEpisode(userId, ANSWERED, request.answer(), entry);
 			return render(answered, quieted);
 		});
+	}
+
+	/**
+	 * The one writer of a proposal episode. Both closures print the same two keys — a contract with
+	 * {@code AiMemoryRenderer} and, through it, with the next proposal's prompt — and they differ only
+	 * in the event type: "the user said not now" and "the user said nothing at all" are different
+	 * things for that prompt to know.
+	 */
+	private void recordEpisode(UUID userId, String eventType, ProposalAnswer answer, Goal entry) {
+		memory.record(userId, eventType, json.writeValueAsString(
+				Map.of("answer", answer.name(), "entry", entry.getContent())));
 	}
 
 	/**
@@ -232,12 +333,15 @@ class ProposalService {
 	 * to be one of the offered presets: {@code ProposalAnswerRequest} rejects anything else with 422
 	 * before this is reached.
 	 */
-	private static void quiet(Goal entry, ProposalAnswerRequest request, OffsetDateTime now) {
+	private static void quiet(Goal entry, ProposalAnswer answer, Integer remindInDays,
+			OffsetDateTime now) {
 		LocalDate today = now.toLocalDate();
-		switch (request.answer()) {
+		switch (answer) {
 			case STARTING -> entry.snoozeUntil(today.plusDays(STARTING_QUIET_DAYS));
-			case NOT_NOW -> entry.snoozeUntil(today.plusDays(NOT_NOW_QUIET_DAYS));
-			case REMIND_LATER -> entry.snoozeUntil(today.plusDays(request.remindInDays()));
+			// The machine's closure quiets the entry exactly as a spoken NOT_NOW does, and says so by
+			// sharing the arm rather than the constant: ignoring a proposal is the same "not now".
+			case NOT_NOW, SUPERSEDED -> entry.snoozeUntil(today.plusDays(NOT_NOW_QUIET_DAYS));
+			case REMIND_LATER -> entry.snoozeUntil(today.plusDays(remindInDays));
 			case NEVER -> entry.withdraw(now);
 		}
 	}

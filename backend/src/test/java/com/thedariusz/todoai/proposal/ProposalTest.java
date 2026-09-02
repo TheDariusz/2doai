@@ -63,6 +63,38 @@ class ProposalTest {
 		assertThat(proposal.getAnswer()).isEqualTo(ProposalAnswer.NEVER);
 	}
 
+	/**
+	 * Superseding is a closure like any other, and has to be: the FR-018 pending slot is a partial
+	 * unique index on {@code answered_at}, so a machine closure that left the column null would hold
+	 * the slot for good and the rhythm would never open another proposal.
+	 */
+	@Test
+	void closesTheSlotWhenTheNextProposalSupersedesIt() {
+		Proposal proposal = proposal();
+
+		proposal.supersede(NOW);
+
+		assertThat(proposal.isPending()).isFalse();
+		assertThat(proposal.getAnswer()).isEqualTo(ProposalAnswer.SUPERSEDED);
+		assertThat(proposal.getAnsweredAt()).isEqualTo(NOW);
+	}
+
+	/**
+	 * The race the scheduler actually runs into: the user answers over HTTP while the rhythm is
+	 * mid-cycle. Their answer is the real one, and a machine closure that overwrote it would silently
+	 * undo a withdrawal the user had just performed.
+	 */
+	@Test
+	void refusesToSupersedeAnAnswerTheUserAlreadyGave() {
+		Proposal proposal = proposal();
+		proposal.answer(ProposalAnswer.NEVER, NOW);
+
+		assertThatThrownBy(() -> proposal.supersede(NOW.plusMinutes(1)))
+				.isInstanceOf(ProposalAlreadyAnsweredException.class);
+
+		assertThat(proposal.getAnswer()).isEqualTo(ProposalAnswer.NEVER);
+	}
+
 	@Test
 	void carriesTheGeneratedFirstStepWhenThereIsOne() {
 		Proposal proposal = proposal();

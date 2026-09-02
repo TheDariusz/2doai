@@ -36,14 +36,14 @@ Osoby planujące długoterminowo wpisują cele i marzenia raz, a potem rzadko do
 | S-02 | goals-and-dreams           | tworzyć/edytować/kończyć cel długoterminowy i marzenie + kategoria   | S-01, F-01         | FR-004, FR-005, FR-007       | done     |
 | S-03 | ai-memory-seed             | zasiać pamięć AI onboardingiem; ukończone pozycje ją wzbogacają      | F-02, S-02         | FR-009, FR-010               | proposed |
 | S-04 | proactive-proposal-engine  | na żądanie dostać propozycję, odpowiedzieć i otrzymać pierwszy krok   | F-02, S-02 (S-03 wycięte) | FR-012, FR-013, FR-014, FR-015 | done     |
-| S-05 | natural-rhythm-return      | **(gwiazda)** AI sama wraca w losowym rytmie (e-mail + in-app), bilansując kategorie | S-04, F-02 | FR-011, FR-018, US-01        | proposed |
+| S-05 | natural-rhythm-return      | **(gwiazda)** AI sama wraca w losowym rytmie (e-mail + in-app), bilansując kategorie | S-04, F-02 | FR-011, FR-018, US-01        | done     |
 | S-06 | priority-categories        | oznaczyć 3-5 kategorii priorytetowych wpływających na bilansowanie   | S-04               | FR-016                       | proposed |
 | S-07 | current-tasks              | tworzyć/edytować/kończyć/usuwać zadanie bieżące                      | S-01, F-01         | FR-003                       | done     |
 | S-08 | unified-three-layer-view   | widzieć 3 warstwy w jednym widoku i filtrować po warstwie/kategorii  | S-02, S-07         | FR-006, FR-007               | done     |
 | S-09 | ai-category-autotag        | dostać sugestię kategorii od AI przy tworzeniu pozycji              | F-02, S-02         | FR-008                       | proposed |
 | S-10 | offline-read-only          | przeglądać (read-only) zapisane pozycje 3 warstw bez internetu       | S-02, S-07         | FR-017                       | proposed |
 
-> **Fast-path (przegląd 2026-07-07, zaktualizowany 2026-08-01):** najkrótsza ścieżka do gwiazdy: F-02 → S-01 (minimalny: email+hasło, bez magic linka) → S-02 → S-03 → S-04 → S-05. S-07 / S-08 / S-10 świadomie odroczone do czasu walidacji gwiazdy (S-05); S-06 i S-09 równolegle po swoich prerekwizytach. F-02 zmergowany i zarchiwizowany (2026-08-01). S-01 zamknięty (2026-08-03, PR #8): backend i frontend na `master`. **S-02 zmergowany 2026-08-23 (PR #20, `ecb3301`); S-07 zmergowany 2026-08-24 (PR #23, `012609c`). S-08 zmergowany 2026-08-25 (PR #27, `ed4ef2b`); S-04 zamknięty 2026-08-26 obiema połowami (S-04a PR #25, `ec8762d`; S-04b DEV-23) — bez S-03, które zostaje wycięte z okna.** Od 2026-08-23 kolejność do dnia zgłoszenia reguluje sekcja **Deadline plan (2026-09-14)** niżej — fast-path wraca po zgłoszeniu.
+> **Fast-path (przegląd 2026-07-07, zaktualizowany 2026-08-01):** najkrótsza ścieżka do gwiazdy: F-02 → S-01 (minimalny: email+hasło, bez magic linka) → S-02 → S-03 → S-04 → S-05. S-07 / S-08 / S-10 świadomie odroczone do czasu walidacji gwiazdy (S-05); S-06 i S-09 równolegle po swoich prerekwizytach. F-02 zmergowany i zarchiwizowany (2026-08-01). S-01 zamknięty (2026-08-03, PR #8): backend i frontend na `master`. **S-02 zmergowany 2026-08-23 (PR #20, `ecb3301`); S-07 zmergowany 2026-08-24 (PR #23, `012609c`). S-08 zmergowany 2026-08-25 (PR #27, `ed4ef2b`); S-04 zamknięty 2026-08-26 obiema połowami (S-04a PR #25, `ec8762d`; S-04b DEV-23) — bez S-03, które zostaje wycięte z okna. S-05 (gwiazda) zamknięty 2026-09-01 (DEV-24): scheduler w pamięci, e-mail przez Resend i `GET /api/proposals/pending` — czyli koniec fast-path, cel sekwencjonowania osiągnięty. Poza kodem zostaje jedna czynność konfiguracyjna: konto u dostawcy poczty i zweryfikowana domena `2doai.app` (runbook wdrożeniowy).** Od 2026-08-23 kolejność do dnia zgłoszenia reguluje sekcja **Deadline plan (2026-09-14)** niżej — fast-path wraca po zgłoszeniu.
 
 ## Deadline plan (2026-09-14)
 
@@ -85,7 +85,7 @@ Razem **~11–12 wieczorów / 3 tygodnie ≈ 4 na tydzień**. Tempo z W31–W32 
 | 08-24 | `test-plan.md` + mapowanie testów na ryzyka | **Testy ✅** (DEV-45, dwa dni przed oknem) |
 | 08-24 | S-07 — trzecia warstwa `GoalLayer.TASK` + nullable `due_date` | **codzienna używalność ✅** (DEV-27, PR #23, `012609c`) — trzy dni przed oknem |
 | 08-24 | S-04a — silnik wyboru | 🎯 **komplet wymagań ✅ — `master` zdatny do zgłoszenia** (DEV-46, PR #25, `ec8762d`) — tydzień przed pierwotnym oknem 08-31 – 09-02 |
-| 08-24 | S-08 — filtry po warstwie i kategorii | **jeden widok ✅** (DEV-28, PR #27, `ed4ef2b`) — dzień przed oknem 08-25 – 08-30; cały zakres pozycji 1–4 zamknięty jednego wieczoru |
+| 08-25 | S-08 — filtry po warstwie i kategorii | **jeden widok ✅** (DEV-28, PR #27, `ed4ef2b`) — pierwszego dnia okna 08-25 – 08-30; cały zakres pozycji 1–4 zamknięty w dwa wieczory (08-24 – 08-25) |
 | 09-03 – 09-08 | S-04b — propozycja formułowana przez LLM | 🎯 **aplikacja do pokazania ✅** (DEV-23) — zamknięte 2026-08-26, tydzień przed oknem; S-04 komplet |
 | 09-09 – 09-10 | bufor | |
 | 09-11 | zamrożenie kodu; deploy i weryfikacja produkcji end-to-end na realnych danych | |
@@ -94,7 +94,7 @@ Razem **~11–12 wieczorów / 3 tygodnie ≈ 4 na tydzień**. Tempo z W31–W32 
 ### Decyzje i cięcia
 
 - **S-09 wypada z okna.** S-04a pokrywa wymaganie „logika biznesowa" mniejszym kosztem (1,5 vs 2–3 wieczory), a buduje funkcję różnicującą produkt zamiast funkcji obok niego. Auto-tag wraca po zgłoszeniu.
-- **S-05 (gwiazda) wypada z okna.** Scheduler + e-mail to jedyna nowa infrastruktura z nieznanymi (dostawca, weryfikacja domeny, cisza nocna, strefa czasowa). Demo odpala propozycję przyciskiem — wygląda tak samo. S-05 jest pierwszą pozycją po zgłoszeniu.
+- **S-05 (gwiazda) wypada z okna.** Scheduler + e-mail to jedyna nowa infrastruktura z nieznanymi (dostawca, weryfikacja domeny, cisza nocna, strefa czasowa). Demo odpala propozycję przyciskiem — wygląda tak samo. S-05 jest pierwszą pozycją po zgłoszeniu. **Zrealizowane 2026-09-01 (DEV-24), przed terminem** — decyzja o wycięciu okazała się zapasem, nie stratą: żadna z czterech niewiadomych nie kosztowała tyle, ile wyceniono, a demo pokazuje teraz pętlę, która działa bez przycisku.
 - **S-06 i S-10 wypadają** — nie dotykają żadnego wymagania.
 - **S-07 nie dostaje własnego agregatu.** `GoalLayer.TASK` + nullable `due_date` na tabeli `goal`; niezmiennik rozszerza się do: `GOAL` → horyzont wymagany, `DREAM` → horyzont zabroniony, `TASK` → horyzont zabroniony + opcjonalny `due_date`. Cały frontend S-02 (formularz, lista, grupowanie, ukończenie) jest wtedy do ponownego użycia. Rozdzielenie agregatu dopiero, gdy zadania dostaną inny cykl życia (cykliczność, alarmy po terminie).
 - **S-04a wyprzedza S-08 (2026-08-24).** S-07 wszedł trzy dni przed swoim oknem, więc zapas idzie na jedyne niespełnione wymaganie — „logika biznesowa" — a nie na polish. Odkrycie, że heurystyka zaniedbania kosztuje więcej niż 1,5 wieczoru, jest odwracalne 25.08 i nieodwracalne 31.08; bramka z 02.09 zostaje bez zmian. Numeracja w tabeli zakresu (poz. 4 = S-08, poz. 5 = S-04a) zostaje, bo odwołuje się do niej proza wyżej — zmienia się kolejność wykonania, nie wycena.
@@ -243,12 +243,13 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 - **Prerequisites:** S-04 (done 2026-08-26), F-02
 - **Parallel with:** S-06, S-09
 - **Blockers:** —
-- **Unknowns:**
-  - Naturalny rytm — algorytm losowy z biasem, reguły heurystyczne czy ML? Dwie propozycje nie idą jedna po drugiej ani w sztywnym oknie. — Owner: autor (faza implementacji). Block: no (detal implementacyjny; nie blokuje planowania slice'a).
-  - Dostawca e-maili transakcyjnych (Resend / Postmark / SES / inny) — pierwsza infrastruktura e-mail w projekcie (FR-018). — Owner: autor. Block: no.
-  - Cisza nocna + strefa czasowa użytkownika — kiedy wolno wysłać e-mail z propozycją i skąd znamy strefę. — Owner: autor. Block: no.
+- **Unknowns (wszystkie rozstrzygnięte w implementacji, 2026-09-01):**
+  - ~~Naturalny rytm — algorytm losowy z biasem, reguły heurystyczne czy ML?~~ → **losowanie jednostajne 2-7 dni**, przeciągane do okna dziennego, przelosowywane po każdym odpaleniu (`ProposalRhythm`). Bez ML i bez biasu: najprostsza rzecz, która daje obiecane ~1 propozycję na 2-7 dni, a nieprzewidywalność jest cechą, nie sekretem — stąd zwykły, nieziarnowany `Random`.
+  - ~~Dostawca e-maili transakcyjnych~~ → **Resend, przez zwykły SMTP** (`spring-boot-starter-mail`), za portem `EmailSender`. Wybór dostawcy jest wyborem poświadczeń, nie zależności — zmiana to `spring.mail.*`, nie przepisanie.
+  - ~~Cisza nocna + strefa czasowa~~ → godziny wysyłki w konfiguracji (`app.rhythm.send-from` / `send-until`), zegar czytany w strefie użytkownika tak samo jak przy `due_date`. Kolumny `user.timezone` nadal nie ma: strefa jest przypięta do Europe/Warsaw w jednym miejscu i to jest miejsce, które ją odpina, gdy pojawi się drugi użytkownik.
 - **Risk:** Gwiazda przewodnia: dokłada autonomiczny losowy rytm (background job) na silnik z S-04. Ryzyko: rytm ma czuć się organicznie, jak znajomy po miesiącu — nie jak scheduler. Losowość JEST cechą produktu (Guardrails), nie błędem.
-- **Status:** proposed
+- **Ograniczenie, które ukształtowało implementację:** harmonogram żyje w pamięci, nie w zapytaniu. Neon liczy za czas kompute i usypia po ~5 min bezczynności, więc tick pytający bazę „czy ktoś jest gotowy?" trzymałby maszynę wybudzoną 24/7 dla ~jednego odpalenia na 2-7 dni (`lessons.md`). Baza jest dotykana trzy razy: przy starcie, przy rejestracji i przy faktycznym odpaleniu. `app_user.next_proposal_at` to kopia zapasowa mapy, nie harmonogram — i nie dzierżawa: zakłada jedną maszynę, którą przypina `fly.toml`.
+- **Status:** done (2026-09-01, DEV-24) — poza kodem zostaje konto u dostawcy poczty i zweryfikowana domena `2doai.app`; kroki w runbooku wdrożeniowym.
 
 ### S-06: Kategorie priorytetowe
 

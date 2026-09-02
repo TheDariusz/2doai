@@ -18,6 +18,11 @@ import jakarta.validation.constraints.NotNull;
  * defensible default (the user picked a number precisely so the app would not pick one), and a term
  * sent alongside any other answer would be silently dropped — a user who asked for 30 days and
  * quietly got three would have no way to tell. Both are 422 rather than a guess.
+ *
+ * <p><b>The enum is wider than this request is.</b> {@link ProposalAnswer#SUPERSEDED} is written by
+ * the app when a new proposal replaces an unanswered one, so a client sending it would be forging a
+ * closure the app owns — and one that quietly snoozes the entry three days without the user ever
+ * having said so. 422, by the same mechanism as the rule above.
  */
 record ProposalAnswerRequest(
 
@@ -35,5 +40,11 @@ record ProposalAnswerRequest(
 		return answer == ProposalAnswer.REMIND_LATER
 				? remindInDays != null && REMIND_PRESETS.contains(remindInDays)
 				: remindInDays == null;
+	}
+
+	@AssertTrue(message = "answer must be one of the four the user can give; SUPERSEDED is written by the app")
+	boolean isAnAnswerTheUserCanGive() {
+		// A missing answer is @NotNull's 422 to report, not this one's.
+		return answer != ProposalAnswer.SUPERSEDED;
 	}
 }

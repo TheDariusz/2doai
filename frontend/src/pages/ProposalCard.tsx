@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ApiError, api } from '../api/client'
 import type { Goal, GoalDraft } from './GoalsPage'
 
@@ -14,13 +14,22 @@ import type { Goal, GoalDraft } from './GoalsPage'
  * STARTING answer", empty is "the answer landed but the model did not". `source` is not rendered —
  * it exists so a demo can tell a real Sonnet proposal from the template fallback in the response.
  */
+export type UserAnswer = 'STARTING' | 'NOT_NOW' | 'REMIND_LATER' | 'NEVER'
+
 export type Proposal = {
   id: string
   entry: Goal
   neglected_days: number
   message: string
   source: 'LLM' | 'TEMPLATE'
-  answer: 'STARTING' | 'NOT_NOW' | 'REMIND_LATER' | 'NEVER' | null
+  /**
+   * Only ever one of the four the user can give, or null. The enum has a fifth, `SUPERSEDED`, which
+   * the *server* writes when the natural rhythm replaces a proposal nobody answered — but it cannot
+   * reach this card: a superseded proposal is by definition no longer pending, and the card only
+   * ever holds a pending one or the one just answered here. Narrowing to `UserAnswer` here is what
+   * lets the confirmation copy be a total mapping instead of a guarded one.
+   */
+  answer: UserAnswer | null
   answered_at: string | null
   first_step: string[] | null
 }
@@ -32,7 +41,7 @@ export type Proposal = {
 const TERMS = [7, 30, 90]
 
 /** What the user is told happened, per answer. STARTING's is the bullets, rendered below instead. */
-const CONFIRMATION: Record<NonNullable<Proposal['answer']>, string> = {
+const CONFIRMATION: Record<UserAnswer, string> = {
   STARTING: 'Pierwszy krok:',
   NOT_NOW: 'Dobrze — wrócimy do tego za kilka dni.',
   REMIND_LATER: 'Przypomnimy w wybranym terminie.',
@@ -79,6 +88,27 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
   const [saved, setSaved] = useState<number[]>([])
 
   /**
+   * FR-018's other channel. The natural rhythm opens a proposal on its own and emails it, so the one
+   * already waiting has to be on screen the moment the app opens — the user pressed nothing to get
+   * here, and the email is a nudge, not the delivery.
+   *
+   * Deliberately not routed through `attempt`: nobody asked for this read, so it must not disable
+   * their button, must not claim to be searching, and must not raise a banner about a failure they
+   * did not cause and cannot act on — the button is still there and still works. Recorded in the
+   * console, which is where a background failure belongs.
+   *
+   * Safe against a press that lands first: 204 sets nothing, and a 200 can only be the very
+   * proposal `propose()` hands back anyway — a pending one short-circuits it.
+   */
+  useEffect(() => {
+    api<Proposal | undefined>('/proposals/pending')
+      .then((waiting) => {
+        if (waiting) setProposal(waiting)
+      })
+      .catch((failure) => console.error('proposal: pobrać czekającej propozycji failed', failure))
+  }, [])
+
+  /**
    * Every call shares this: report what failed, record it, and never leave the card half-built.
    * Returns the response rather than a bare boolean, so a caller narrows on `ok` instead of
    * smuggling the value out of a `.then` into a variable TypeScript cannot prove was assigned.
@@ -110,7 +140,7 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
     setNothingWaiting(!asked.value)
   }
 
-  async function answer(value: NonNullable<Proposal['answer']>, remindInDays?: number) {
+  async function answer(value: UserAnswer, remindInDays?: number) {
     if (!proposal) return
     // Absent, not null: three of the four answers legitimately carry no term, and a term sent
     // beside any of them is a 422 rather than a value the server quietly drops.
@@ -201,7 +231,7 @@ function Answers({
   pending: boolean
   askingTerm: boolean
   askTerm: () => void
-  answer: (value: NonNullable<Proposal['answer']>, remindInDays?: number) => void
+  answer: (value: UserAnswer, remindInDays?: number) => void
 }) {
   if (askingTerm) {
     return (

@@ -5,6 +5,7 @@ import java.util.UUID;
 import jakarta.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,6 +21,12 @@ import org.springframework.web.bind.annotation.RestController;
  * FR-013 (every answer shapes what is proposed next) and the at-most-one-pending rule of
  * FR-018 both do. Choosing GET now for a body-less read would make that a breaking change, and would
  * invite caching of an answer that must not be cached.
+ *
+ * <p><b>{@code /pending} is the exception that proves the rule</b> (S-05, FR-018). Once the natural
+ * rhythm opens proposals on its own, "what is waiting for me" stops being the same question as
+ * "give me something now": it selects nothing, calls no model and writes nothing, which is exactly
+ * the safety GET promises. A sub-path rather than a filter on the collection, because at most one
+ * proposal can ever be waiting — it is a slot, not a query.
  *
  * <p><b>204 when nothing is neglected</b>, never 404: the resource exists and answered, the user
  * simply has nothing gathering dust. A 404 here would say the endpoint is gone. Authenticated by
@@ -45,6 +52,18 @@ class ProposalController {
 	@PostMapping
 	ResponseEntity<ProposalResponse> propose() {
 		return proposals.propose()
+				.map(ResponseEntity::ok)
+				.orElseGet(() -> ResponseEntity.noContent().build());
+	}
+
+	/**
+	 * What is waiting for the user, so the app can show it the moment they open it — the in-app half
+	 * of FR-018, beside the email the scheduler sends. 204 when the slot is empty, for the same
+	 * reason {@link #propose()} answers 204: the resource answered, nothing is gathering dust.
+	 */
+	@GetMapping("/pending")
+	ResponseEntity<ProposalResponse> pending() {
+		return proposals.pending()
 				.map(ResponseEntity::ok)
 				.orElseGet(() -> ResponseEntity.noContent().build());
 	}

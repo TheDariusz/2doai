@@ -68,7 +68,7 @@ erDiagram
         text message "the phrased proposal the user read"
         int neglected_days "the engine's reason, frozen at phrasing time"
         varchar source "LLM | TEMPLATE — which arm wrote the message"
-        varchar answer "STARTING | NOT_NOW | REMIND_LATER | NEVER; nullable"
+        varchar answer "STARTING | NOT_NOW | REMIND_LATER | NEVER | SUPERSEDED (S-05, app-written); nullable"
         timestamptz answered_at "NULL = pending; partial UNIQUE(user_id) over this"
         jsonb first_step "FR-014's 3-5 bullets, a bare array of strings; nullable"
         timestamptz created_at
@@ -154,6 +154,40 @@ not hold, and the third backstops the pair of columns the first one reads:
 a snooze is "come back on Thursday", not a moment in a timezone. `first_step` follows
 `ai_memory_episode.payload` — `jsonb` mapped from a raw JSON `String`, which keeps the entity free of
 any Jackson coupling.
+
+S-05 (`V9`) adds **one nullable column and one enum value**, and the restraint is the design.
+`app_user.next_proposal_at` (`timestamptz`) records when each account is next returned to, and
+`proposal.answer` gains `SUPERSEDED`.
+
+`next_proposal_at` is deliberately **not** the schedule. `ProposalScheduler` holds that in memory and
+compares it against the clock every 60 seconds; a column read on a timer is precisely the metered-idle
+cost Neon punishes — the compute would stay awake permanently for roughly one fire per 2-7 days (see
+`lessons.md`). The column is the map's *backup*: written once per fire and once at registration, read once per
+boot, so a deploy resumes each account's own moment instead of redrawing every one of them into a
+single bunch. It is written by a targeted `update ... where id = ?` rather than by saving a loaded
+`User`, because a fire holds its account detached across the model call — merging one back would
+re-insert an account deleted while the fire was in flight, undoing an FR-019 erasure. The update
+matching no row is also how the scheduler learns to drop the entry from its map.
+The database is therefore touched three times in the whole cycle — boot, registration, and an actual
+fire — and never by the tick itself.
+
+Two consequences follow from that and are worth stating, because both are the kind of thing a later
+reader would otherwise assume the other way:
+
+- **`NULL` is a meaningful state, not missing data.** It means "never scheduled", which is what every
+  account predating this slice is; the boot pass converts each one into a first drawn moment. That is
+  also why the column is nullable rather than defaulted — a default would have to invent a moment at
+  migration time for every existing row, bunching them.
+- **It is a backup, not a lease.** It presumes the single machine `fly.toml` pins. Two schedulers
+  over one column would each fire for every account, since nothing here claims a row. Horizontal
+  scaling is the revisit trigger, and it would need a lease column or an external scheduler, not a
+  bigger version of this one.
+
+`SUPERSEDED` is the app's own closure of a proposal the user never answered, written when the next
+cycle replaces it. It is a distinct value rather than a reuse of `NOT_NOW` — and a distinct memory
+episode — because the next prompt has to tell "they said not now" from "they said nothing at all".
+The `CHECK ((answer IS NULL) = (answered_at IS NULL))` above covers it unchanged: superseding fills
+both columns, which is also what frees the FR-018 pending slot before the replacement is inserted.
 
 ### Internationalization
 

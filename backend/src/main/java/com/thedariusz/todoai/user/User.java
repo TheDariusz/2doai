@@ -54,6 +54,24 @@ public class User {
 	@Column(name = "password_hash", nullable = false)
 	private String passwordHash;
 
+	/**
+	 * When the natural rhythm next returns to this user (S-05, FR-011) — the only piece of the
+	 * schedule that outlives the JVM, so a restart resumes the rhythm instead of bunching proposals
+	 * around deploys. Null until the scheduler has drawn a first moment (at boot, or on registration).
+	 *
+	 * <p>Timing rather than identity, on the identity aggregate: the cheapest thing that works while
+	 * the rhythm is the only foreign timing state here — a proposal-owned table is the upgrade the
+	 * moment something else wants a column. It stays a plain value with no invariant of its own —
+	 * {@code ProposalRhythm} decides what a legal next moment is.
+	 *
+	 * <p><b>Read here, never written here.</b> There is deliberately no setter: the rhythm moves this
+	 * column by {@code UserRepository.scheduleNextProposalAt}, a targeted update, because a fire holds
+	 * its account detached across a model call and saving one back would re-insert an account deleted
+	 * in the meantime. Leaving a mutator would leave that bug one {@code save} away.
+	 */
+	@Column(name = "next_proposal_at")
+	private OffsetDateTime nextProposalAt;
+
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private OffsetDateTime createdAt;
@@ -86,6 +104,10 @@ public class User {
 
 	public String getPasswordHash() {
 		return passwordHash;
+	}
+
+	public OffsetDateTime getNextProposalAt() {
+		return nextProposalAt;
 	}
 
 	public OffsetDateTime getCreatedAt() {
