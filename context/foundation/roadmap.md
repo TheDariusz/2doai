@@ -43,7 +43,7 @@ Osoby planujące długoterminowo wpisują cele i marzenia raz, a potem rzadko do
 | S-09 | ai-category-autotag        | dostać sugestię kategorii od AI przy tworzeniu pozycji              | F-02, S-02         | FR-008                       | proposed |
 | S-10 | offline-read-only          | przeglądać (read-only) zapisane pozycje 3 warstw bez internetu       | S-02, S-07         | FR-017                       | proposed |
 
-> **Fast-path (przegląd 2026-07-07, zaktualizowany 2026-08-01):** najkrótsza ścieżka do gwiazdy: F-02 → S-01 (minimalny: email+hasło, bez magic linka) → S-02 → S-03 → S-04 → S-05. S-07 / S-08 / S-10 świadomie odroczone do czasu walidacji gwiazdy (S-05); S-06 i S-09 równolegle po swoich prerekwizytach. F-02 zmergowany i zarchiwizowany (2026-08-01). S-01 zamknięty (2026-08-03, PR #8): backend i frontend na `master`. **S-02 zmergowany 2026-08-23 (PR #20, `ecb3301`); S-07 zmergowany 2026-08-24 (PR #23, `012609c`). S-08 zmergowany 2026-08-25 (PR #27, `ed4ef2b`); S-04 zamknięty 2026-08-26 obiema połowami (S-04a PR #25, `ec8762d`; S-04b DEV-23) — bez S-03, które zostaje wycięte z okna. S-05 (gwiazda) zamknięty 2026-09-01 (DEV-24): scheduler w pamięci, e-mail przez Resend i `GET /api/proposals/pending` — czyli koniec fast-path, cel sekwencjonowania osiągnięty. Poza kodem zostaje jedna czynność konfiguracyjna: konto u dostawcy poczty i zweryfikowana domena `2doai.app` (runbook wdrożeniowy).** Od 2026-08-23 kolejność do dnia zgłoszenia reguluje sekcja **Deadline plan (2026-09-14)** niżej — fast-path wraca po zgłoszeniu.
+> **Fast-path (przegląd 2026-07-07, zaktualizowany 2026-08-01):** najkrótsza ścieżka do gwiazdy: F-02 → S-01 (minimalny: email+hasło, bez magic linka) → S-02 → S-03 → S-04 → S-05. S-07 / S-08 / S-10 świadomie odroczone do czasu walidacji gwiazdy (S-05); S-06 i S-09 równolegle po swoich prerekwizytach. F-02 zmergowany i zarchiwizowany (2026-08-01). S-01 zamknięty (2026-08-03, PR #8): backend i frontend na `master`. **S-02 zmergowany 2026-08-23 (PR #20, `ecb3301`); S-07 zmergowany 2026-08-24 (PR #23, `012609c`). S-08 zmergowany 2026-08-25 (PR #27, `ed4ef2b`); S-04 zamknięty 2026-08-26 obiema połowami (S-04a PR #25, `ec8762d`; S-04b DEV-23) — bez S-03, które zostaje wycięte z okna. S-05 (gwiazda) zamknięty 2026-09-01 (DEV-24): scheduler w pamięci, e-mail przez Resend i `GET /api/proposals/pending` — czyli koniec fast-path, cel sekwencjonowania osiągnięty. Konfiguracja poczty domknięta 2026-09-02: domena `2doai.app` zweryfikowana w Resend, sekrety `RESEND_API_KEY` i `APP_BASE_URL` na Fly, a wymuszony cykl dostarczył realny e-mail (runbook 8.4).** Od 2026-08-23 kolejność do dnia zgłoszenia reguluje sekcja **Deadline plan (2026-09-14)** niżej — fast-path wraca po zgłoszeniu.
 
 ## Deadline plan (2026-09-14)
 
@@ -72,7 +72,7 @@ Ponad minimum wymagań: trzy warstwy w jednym widoku i jedna widoczna funkcja AI
 | 4 | S-08 — filtry po warstwie i kategorii | 1 | jeden widok |
 | 5 | **S-04a** — heurystyka zaniedbania + bilansowanie kategorii + `POST /api/proposals` | 1,5 | wymaganie logiki biznesowej |
 | 6 | **S-04b** — LLM formułuje propozycję, 4 odpowiedzi, pierwszy krok | 3 | to, co się pokazuje |
-| 7 | README, demo, weryfikacja produkcji | 2 | zgłoszenie |
+| 7 | README + opis funkcji, weryfikacja produkcji | 1 | zgłoszenie |
 
 Razem **~11–12 wieczorów / 3 tygodnie ≈ 4 na tydzień**. Tempo z W31–W32 (28 i 34 commity) to daje; średnia z 12 tygodni (2,2 dnia aktywnego / tydzień) nie. Tydzień W33 (10–16.08) był zerowy — jedna taka przerwa w tym oknie kosztuje pozycję 6.
 
@@ -89,7 +89,7 @@ Razem **~11–12 wieczorów / 3 tygodnie ≈ 4 na tydzień**. Tempo z W31–W32 
 | 09-03 – 09-08 | S-04b — propozycja formułowana przez LLM | 🎯 **aplikacja do pokazania ✅** (DEV-23) — zamknięte 2026-08-26, tydzień przed oknem; S-04 komplet |
 | 09-09 – 09-10 | bufor | |
 | 09-11 | zamrożenie kodu; deploy i weryfikacja produkcji end-to-end na realnych danych | |
-| 09-12 – 09-13 | README, demo, **zgłoszenie w niedzielę** (nie w dniu terminu) | |
+| 09-12 – 09-13 | README + opis funkcji, **zgłoszenie w niedzielę** (nie w dniu terminu) | |
 
 ### Decyzje i cięcia
 
@@ -98,6 +98,7 @@ Razem **~11–12 wieczorów / 3 tygodnie ≈ 4 na tydzień**. Tempo z W31–W32 
 - **S-06 i S-10 wypadają** — nie dotykają żadnego wymagania.
 - **S-07 nie dostaje własnego agregatu.** `GoalLayer.TASK` + nullable `due_date` na tabeli `goal`; niezmiennik rozszerza się do: `GOAL` → horyzont wymagany, `DREAM` → horyzont zabroniony, `TASK` → horyzont zabroniony + opcjonalny `due_date`. Cały frontend S-02 (formularz, lista, grupowanie, ukończenie) jest wtedy do ponownego użycia. Rozdzielenie agregatu dopiero, gdy zadania dostaną inny cykl życia (cykliczność, alarmy po terminie).
 - **S-04a wyprzedza S-08 (2026-08-24).** S-07 wszedł trzy dni przed swoim oknem, więc zapas idzie na jedyne niespełnione wymaganie — „logika biznesowa" — a nie na polish. Odkrycie, że heurystyka zaniedbania kosztuje więcej niż 1,5 wieczoru, jest odwracalne 25.08 i nieodwracalne 31.08; bramka z 02.09 zostaje bez zmian. Numeracja w tabeli zakresu (poz. 4 = S-08, poz. 5 = S-04a) zostaje, bo odwołuje się do niej proza wyżej — zmienia się kolejność wykonania, nie wycena.
+- **Demo wypada (2026-09-02).** Zgłoszenie to repozytorium plus opis głównych funkcji — nagranie nie jest wymagane, więc pozycja 7 traci swoją droższą połowę. Opis funkcji ma dwa nośniki i oba już istnieją: sekcja „What it does" w `README.md` (`aa3e492`) i tabela zdolności w `docs/index.html#overview` (funkcja → status → główna implementacja). Zostaje README i weryfikacja produkcji.
 - **`category-contract-guards` zaparkowane** (plan z 2026-08-07, niewykonany). Realny defekt — `CategorySyncCheck` psuje rollback obrazu — ale nie dotyka żadnego wymagania. Po zgłoszeniu.
 - **Ceremonia per-slice skrócona** dla pozycji 3–6: `/10x-plan` i TDD zostają, `/10x-impl-review` oraz archiwizacja czekają do po zgłoszeniu.
 
@@ -109,7 +110,7 @@ Razem **~11–12 wieczorów / 3 tygodnie ≈ 4 na tydzień**. Tempo z W31–W32 
 
 ### Ryzyka
 
-- **Produkcja nigdy nie była zweryfikowana end-to-end** — probe'owany jest tylko `/actuator/health`. Neon autosuspend + realne dane to zadanie na 11.09, nie na 13.09.
+- **Produkcja zweryfikowana maszynowo, nie po ludzku (2026-09-02).** Wymuszony cykl S-05 przeszedł na prodzie całą pętlę: `Natural rhythm loaded`, dostarczony e-mail, karta czekająca w `/goals`. Czego nikt nie przeszedł: rejestracja świeżego konta na `2doai.app`, dodanie pozycji w trzech warstwach i odpowiedź na propozycję. Neon autosuspend + realne dane — zadanie na 11.09, nie na 13.09.
 - **Brak testów e2e** (Playwright niepodpięty). Wymagania 10xBuilder ich nie żądają — świadomie nie dokładamy.
 - **README ma 71 linii.** Jeśli cokolwiek w zgłoszeniu jest czytane przez człowieka, to on — jeden wieczór, najtańsze punkty.
 - **Tempo.** Jedyne realne ryzyko harmonogramu; wszystkie bramki wyżej istnieją po to, żeby przekroczenie kosztowało zakres, nie termin.
@@ -246,10 +247,10 @@ Co już jest w kodzie na 2026-06-13 (auto-zbadane + potwierdzone przez autora). 
 - **Unknowns (wszystkie rozstrzygnięte w implementacji, 2026-09-01):**
   - ~~Naturalny rytm — algorytm losowy z biasem, reguły heurystyczne czy ML?~~ → **losowanie jednostajne 2-7 dni**, przeciągane do okna dziennego, przelosowywane po każdym odpaleniu (`ProposalRhythm`). Bez ML i bez biasu: najprostsza rzecz, która daje obiecane ~1 propozycję na 2-7 dni, a nieprzewidywalność jest cechą, nie sekretem — stąd zwykły, nieziarnowany `Random`.
   - ~~Dostawca e-maili transakcyjnych~~ → **Resend, przez zwykły SMTP** (`spring-boot-starter-mail`), za portem `EmailSender`. Wybór dostawcy jest wyborem poświadczeń, nie zależności — zmiana to `spring.mail.*`, nie przepisanie.
-  - ~~Cisza nocna + strefa czasowa~~ → godziny wysyłki w konfiguracji (`app.rhythm.send-from` / `send-until`), zegar czytany w strefie użytkownika tak samo jak przy `due_date`. Kolumny `user.timezone` nadal nie ma: strefa jest przypięta do Europe/Warsaw w jednym miejscu i to jest miejsce, które ją odpina, gdy pojawi się drugi użytkownik.
+  - ~~Cisza nocna + strefa czasowa~~ → godziny wysyłki w konfiguracji (`proposal.rhythm.window-start-hour` / `window-end-hour`, domyślnie 9-21), zegar czytany w strefie użytkownika tak samo jak przy `due_date`. Kolumny `user.timezone` nadal nie ma: strefa jest przypięta do Europe/Warsaw w jednym miejscu i to jest miejsce, które ją odpina, gdy pojawi się drugi użytkownik.
 - **Risk:** Gwiazda przewodnia: dokłada autonomiczny losowy rytm (background job) na silnik z S-04. Ryzyko: rytm ma czuć się organicznie, jak znajomy po miesiącu — nie jak scheduler. Losowość JEST cechą produktu (Guardrails), nie błędem.
 - **Ograniczenie, które ukształtowało implementację:** harmonogram żyje w pamięci, nie w zapytaniu. Neon liczy za czas kompute i usypia po ~5 min bezczynności, więc tick pytający bazę „czy ktoś jest gotowy?" trzymałby maszynę wybudzoną 24/7 dla ~jednego odpalenia na 2-7 dni (`lessons.md`). Baza jest dotykana trzy razy: przy starcie, przy rejestracji i przy faktycznym odpaleniu. `app_user.next_proposal_at` to kopia zapasowa mapy, nie harmonogram — i nie dzierżawa: zakłada jedną maszynę, którą przypina `fly.toml`.
-- **Status:** done (2026-09-01, DEV-24) — poza kodem zostaje konto u dostawcy poczty i zweryfikowana domena `2doai.app`; kroki w runbooku wdrożeniowym.
+- **Status:** done (2026-09-01, DEV-24); konfiguracja poczty domknięta 2026-09-02 — domena `2doai.app` zweryfikowana, a wymuszony cykl dostarczył realny e-mail (runbook 8.4).
 
 ### S-06: Kategorie priorytetowe
 

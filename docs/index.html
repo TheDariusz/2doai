@@ -181,8 +181,9 @@
     by email, and keeps it available in the application until the user responds. Every step of that
     sentence is now implemented, S-05 having supplied the two that were missing: the non-fixed
     interval that starts the flow, and the email that carries it. Delivery in production additionally
-    needs a verified sender domain at the mail provider — a configuration step, recorded in the
-    deployment runbook rather than in the code.
+    needed a verified sender domain at the mail provider — configuration rather than code, and it was
+    completed on 2026-09-02: a forced cycle against production delivered a real message and left the
+    same proposal waiting in the application (deployment runbook, phase 8.4).
     <span class="badge badge-live">implemented</span>
   </div>
   <div class="card-grid">
