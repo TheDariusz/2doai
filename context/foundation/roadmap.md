@@ -85,7 +85,7 @@ Razem **~11–12 wieczorów / 3 tygodnie ≈ 4 na tydzień**. Tempo z W31–W32 
 | 08-24 | `test-plan.md` + mapowanie testów na ryzyka | **Testy ✅** (DEV-45, dwa dni przed oknem) |
 | 08-24 | S-07 — trzecia warstwa `GoalLayer.TASK` + nullable `due_date` | **codzienna używalność ✅** (DEV-27, PR #23, `012609c`) — trzy dni przed oknem |
 | 08-24 | S-04a — silnik wyboru | 🎯 **komplet wymagań ✅ — `master` zdatny do zgłoszenia** (DEV-46, PR #25, `ec8762d`) — tydzień przed pierwotnym oknem 08-31 – 09-02 |
-| 08-24 | S-08 — filtry po warstwie i kategorii | **jeden widok ✅** (DEV-28, PR #27, `ed4ef2b`) — dzień przed oknem 08-25 – 08-30; cały zakres pozycji 1–4 zamknięty jednego wieczoru |
+| 08-25 | S-08 — filtry po warstwie i kategorii | **jeden widok ✅** (DEV-28, PR #27, `ed4ef2b`) — pierwszego dnia okna 08-25 – 08-30; cały zakres pozycji 1–4 zamknięty w dwa wieczory (08-24 – 08-25) |
 | 09-03 – 09-08 | S-04b — propozycja formułowana przez LLM | 🎯 **aplikacja do pokazania ✅** (DEV-23) — zamknięte 2026-08-26, tydzień przed oknem; S-04 komplet |
 | 09-09 – 09-10 | bufor | |
 | 09-11 | zamrożenie kodu; deploy i weryfikacja produkcji end-to-end na realnych danych | |
