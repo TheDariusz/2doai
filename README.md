@@ -1,7 +1,9 @@
 # 2do AI
 
 2do AI is a personal planning application for current tasks, long-term goals, and dreams, with an
-AI partner designed to return proactively in a natural rhythm.
+AI partner that returns proactively in a natural rhythm.
+
+**Live:** <https://2doai.app>
 
 - [Architecture and developer documentation](docs/index.html)
 - [Product requirements](context/foundation/prd.md)
@@ -10,6 +12,23 @@ AI partner designed to return proactively in a natural rhythm.
 - [Deployment runbook](context/foundation/deployment-runbook.md)
 
 The repository contains two independent projects. There is no root workspace or shared build.
+
+## What it does
+
+- **Three layers in one view.** A current task, a long-term goal and a dream are one aggregate under
+  three sets of rules (`TASK` / `GOAL` / `DREAM`), listed on a single screen and filterable by layer
+  and by category. Each entry can be filed under one of 11 life domains.
+- **The AI comes back on its own.** Each account's next moment is drawn 2–7 days out, at an hour
+  between 9:00 and 21:00. When it arrives, a deterministic engine picks the most neglected entry —
+  weighted so one category cannot dominate the nudges — a model phrases it, and it is delivered both
+  as an email and as a card already waiting in the app. Nothing to press, and no daily digest.
+- **Four ways to answer.** `STARTING`, which is followed by a concrete first step; `NOT_NOW`;
+  `REMIND_LATER` with a term the user names; or `NEVER`. At most one proposal is ever pending — an
+  unanswered one is superseded by the next rather than piling up.
+- **Accounts** with email and password, server-side sessions, and every row scoped to its owner.
+
+Not built yet: seeding the AI memory profile, AI category auto-tagging, priority categories, and
+offline read-only. Status per slice lives in the [roadmap](context/foundation/roadmap.md).
 
 ## Prerequisites
 
@@ -37,11 +56,18 @@ npm ci
 npm run dev
 ```
 
-Vite serves the current React scaffold and proxies `/api` to the backend. Product UI and API
-consumption are still planned.
+Vite serves the application on `http://localhost:5173` and proxies `/api` to the backend, mirroring
+the same-origin setup production gets from Cloudflare.
 
-`OPENROUTER_API_KEY` is optional for normal startup and hermetic tests. Inject it into the backend
-process only when exercising a live LLM call; do not put it in a committed file.
+Two integrations are optional locally, each behind one environment variable the backend reads at
+startup. Boot and the whole hermetic test suite stay green without either:
+
+- `OPENROUTER_API_KEY` — the model that phrases a proposal. Without it the call fails and a built-in
+  template phrases it instead, so the loop still runs end to end.
+- `RESEND_API_KEY` — SMTP delivery of the rhythm email. Without it the proposal still appears in the
+  app; no message is sent.
+
+Inject them into the backend process; never put a real key in a committed file.
 
 ## Verify changes
 
