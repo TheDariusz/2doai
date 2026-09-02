@@ -554,8 +554,8 @@ V9 is expand-only (one nullable column) — safe under image rollback. Existing 
 
 #### Manual
 
-- [ ] 3.3 Resend account + 2doai.app domain verified (user)
-- [ ] 3.4 Gated live test delivers a real Polish email with a working link
+- [x] 3.3 Resend account + 2doai.app domain verified (user) — 2026-09-02, runbook 8.1
+- [x] 3.4 Gated live test delivers a real Polish email with a working link — 2026-09-02, runbook 8.3
 
 ### Phase 4: In-app surfacing
 

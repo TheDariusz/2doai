@@ -351,16 +351,48 @@ can see.
 
 ### 8.1 — Account and sender domain
 
-1. Create a Resend account and add the domain **`2doai.app`** under **Domains → Add Domain**.
-   It must be this exact domain: `application.properties` commits
-   `app.mail.from=2do AI <propozycje@2doai.app>`, and a mismatch is a message the provider drops.
-2. Resend shows the DNS records to add (DKIM `CNAME`s, an SPF `TXT`, and optionally DMARC). The
-   zone is already in the **same Cloudflare account** as Phase 6, so add them in
-   Cloudflare → `2doai.app` → **DNS → Records**. Set the DKIM records to **DNS only** (grey cloud) —
-   proxying a mail record breaks verification.
-3. Wait for **Verified** in the Resend dashboard. Propagation is usually minutes; the dashboard is
-   the authority, not `dig`.
-4. Create an API key (**API Keys → Create**, send-only permission is enough).
+**What Resend is.** A transactional-email provider: an SMTP relay with a dashboard, a delivery log
+and the reputation work (bounce handling, DKIM signing) done for you. We reach it over plain SMTP
+via `spring-boot-starter-mail`, so the provider is a *credentials* choice and not a dependency —
+moving to Postmark or SES is four `spring.mail.*` lines, not a rewrite.
+
+Budget ~10 minutes of clicking plus DNS propagation. Prerequisite: the `2doai.app` zone in the same
+Cloudflare account as Phase 6.
+
+1. **Create the account** — [resend.com/signup](https://resend.com/signup), email + password or
+   GitHub/Google, no card. The free plan (3 000 messages/month, 100/day, 3 domains — checked
+   2026-09-02) is orders of magnitude above this app's shape: one proposal per user every 2–7 days.
+2. **Add the domain** — **Domains → Add Domain**, exactly `2doai.app`, EU region so the send leaves
+   near the reader. It must be this domain: `application.properties` commits
+   `app.mail.from=2do AI <propozycje@2doai.app>`, and a `From:` outside a verified domain is a
+   message the provider drops without a bounce.
+3. **Copy the DNS records into Cloudflare** — Resend shows three; add them under Cloudflare →
+   `2doai.app` → **DNS → Records**. Copy the values from your dashboard verbatim; the ones below are
+   shapes, not values:
+
+   | Type  | Name                | Value (example)                                | What it is for |
+   | ----- | ------------------- | ---------------------------------------------- | -------------- |
+   | `MX`  | `send`              | `feedback-smtp.<region>.amazonses.com`, prio 10 | where bounces and complaints come back |
+   | `TXT` | `send`              | `v=spf1 include:amazonses.com ~all`             | SPF — declares this relay may send as you |
+   | `TXT` | `resend._domainkey` | `p=<long public key>`                           | DKIM — the key receivers check the signature against |
+
+   They sit on a `send` subdomain rather than the apex, so none of it collides with mail you might
+   later want to *receive* at `2doai.app`. `TXT` and `MX` have no orange cloud to get wrong; if the
+   dashboard ever hands you a `CNAME`, set it to **DNS only** — Cloudflare rejects a proxied one with
+   `Code: 1004`. DMARC is optional and not needed for verification.
+4. **Verify** — press Verify and wait for **Verified**. Usually minutes, up to 72 h. The dashboard is
+   the authority, not `dig`: what matters is what the provider's resolver sees.
+5. **Create the API key** — **API Keys → Create API Key**, sending access, restricted to `2doai.app`.
+   It starts `re_` and is shown **once**, so paste it straight into the `fly secrets set` of 8.2.
+   There is no separate SMTP password: the username is the literal `resend` (already committed) and
+   the API key *is* the password.
+
+> **If verification stalls and you want to see an email tonight anyway:** Resend's shared
+> `onboarding@resend.dev` sender needs no domain, but only delivers to the address you signed up
+> with. Our `From:` is committed, so it takes an override on 8.3's command:
+> `APP_MAIL_FROM=onboarding@resend.dev RESEND_API_KEY=… PROPOSAL_TEST_RECIPIENT=<your signup address> mvn test -Dtest=ResendLiveTest`.
+> That proves the transport and the Polish copy — it does not prove the one thing 8.1 exists for, so
+> it is a detour, not step 4.
 
 ### 8.2 — Fly secrets
 
@@ -390,6 +422,10 @@ so CI stays hermetic and nobody's inbox is a side effect of `mvn test`:
 cd backend
 RESEND_API_KEY=re_... PROPOSAL_TEST_RECIPIENT=you@example.com mvn test -Dtest=ResendLiveTest
 ```
+
+It boots the whole app, so Docker must be running (Testcontainers) — the message it sends is built
+by the same `ProposalEmail` the scheduler uses, from a template-arm proposal, so it costs no model
+call.
 
 It asserts almost nothing on purpose. What it proves cannot be asserted from inside the JVM, and the
 real verification happens in the inbox:
