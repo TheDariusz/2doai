@@ -533,8 +533,7 @@ classDiagram
     UUID id
     String email
     String passwordHash
-    OffsetDateTime nextProposalAt — the rhythm's only durable state
-    +scheduleNextProposalAt(OffsetDateTime)
+    OffsetDateTime nextProposalAt — the rhythm's only durable state, read here and never written here
   }
   class Email {
     &lt;&lt;value object&gt;&gt;
@@ -819,6 +818,16 @@ classDiagram
   registration adds an entry through <code>UserRegistered</code>, deletion removes one through the
   <code>PerUserDataDeleter</code> seam FR-019 already fans out over, so no deleted account is ever
   discovered by spending a query on it.</p>
+  <p>The health endpoint is the other door into that bill, and it is the one that opens by accident.
+  The liveness group is careful — it holds the scheduler's own pulse and nothing that touches the
+  database — but plain <code>/actuator/health</code> is exposed, unauthenticated (Fly's probe reaches
+  the liveness path through the same filter chain), and runs <em>every</em> registered contributor
+  regardless of which group names it. So each contributor is not a diagnostic so much as work any
+  anonymous request can make the app do: <code>db</code> costs a <code>SELECT 1</code>, and the mail
+  starter would have added an SMTP handshake against the provider beside it. One uptime pinger on
+  that URL would hold Neon awake around the clock — the same 24/7 wake-up the in-memory schedule
+  exists to avoid, arriving through the health check instead of the tick. Hence
+  <code>management.health.mail.enabled=false</code>, asserted by <code>HealthProbeApiTest</code>.</p>
   <p><code>app_user.next_proposal_at</code> is the map's only backup and it is enough. A restart
   reloads the stored moments rather than redrawing them, so the rhythm survives a deploy instead of
   bunching every account around one; the map is authoritative while the JVM lives, the column across
@@ -881,7 +890,7 @@ classDiagram
     +scheduleNewAccount(UserRegistered)
     +deleteAllForUser(UUID) both ends of an account reach the map the same way
     +health() the proposalScheduler liveness indicator
-    the send sits inside the catch — reschedule always runs
+    reschedule() runs in a finally — the redraw may not be skipped for any failure
   }
   class ProposalRhythm {
     &lt;&lt;domain service&gt;&gt;
@@ -1611,7 +1620,7 @@ sequenceDiagram
         MAIL-->>U: email
       end
     end
-    Note over SCH: the send sits inside the catch —&lt;br/&gt;a failure costs the nudge, never the reschedule
+    Note over SCH: the redraw runs in a finally —&lt;br/&gt;a failure costs the nudge, never the rhythm
     SCH->>PG: draw the next moment, store next_proposal_at
   end
   U->>SPA: open the app — with or without the email

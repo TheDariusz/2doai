@@ -112,10 +112,9 @@ class ProposalSchedulerIntegrationTest {
 		return account;
 	}
 
+	/** Through the write the rhythm itself uses, so the fixture cannot drift from production. */
 	private void schedule(UUID account, OffsetDateTime at) {
-		User row = users.findById(account).orElseThrow();
-		row.scheduleNextProposalAt(at);
-		users.saveAndFlush(row);
+		users.scheduleNextProposalAt(account, at, OffsetDateTime.now(ProposalRhythm.USER_ZONE));
 	}
 
 	/** An hour of today in the user's zone, so the fire lands inside the send window whenever CI runs. */

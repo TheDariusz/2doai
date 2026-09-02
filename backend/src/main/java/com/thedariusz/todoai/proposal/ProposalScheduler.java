@@ -114,7 +114,7 @@ class ProposalScheduler implements HealthIndicator, PerUserDataDeleter {
 		// of rows once per boot; a batch update is the upgrade if the account list ever grows.
 		for (User account : users.findAll()) {
 			if (account.getNextProposalAt() == null) {
-				reschedule(account, now);
+				reschedule(account.getId(), now);
 			}
 			else {
 				schedule.put(account.getId(), account.getNextProposalAt());
@@ -153,11 +153,13 @@ class ProposalScheduler implements HealthIndicator, PerUserDataDeleter {
 	 * <p>Deliberately a plain {@link EventListener}, so the first drawn moment is written inside the
 	 * registration transaction and can no more survive a rolled-back signup than the account itself
 	 * can. The map entry can outlive such a rollback; the first fire finds no row and prunes it.
+	 *
+	 * <p>The account is not read back first: {@link #reschedule} writes by id and reports whether the
+	 * row was there, so a lookup would only be asking a question the write already answers.
 	 */
 	@EventListener
 	void scheduleNewAccount(UserRegistered event) {
-		users.findById(event.userId())
-				.ifPresent(account -> reschedule(account, OffsetDateTime.now(ProposalRhythm.USER_ZONE)));
+		reschedule(event.userId(), OffsetDateTime.now(ProposalRhythm.USER_ZONE));
 	}
 
 	/**
@@ -185,45 +187,62 @@ class ProposalScheduler implements HealthIndicator, PerUserDataDeleter {
 
 	/**
 	 * One account's turn. The next moment is drawn <b>whatever happened</b> — nothing to propose, a
-	 * failure mid-cycle, an email that would not send — because leaving the old moment in place would
-	 * make this account due again on the very next tick, turning the one path that must stay quiet
-	 * into a query every 60 seconds. That is why the send sits <em>inside</em> the catch rather than
-	 * after it.
+	 * failure mid-cycle, an email that would not send, a row that went away — because leaving the old
+	 * moment in place would make this account due again on the very next tick, turning the one path
+	 * that must stay quiet into a query every 60 seconds. That is why {@link #reschedule} sits in a
+	 * {@code finally}: the redraw is the one step with no failure it is allowed to skip for.
 	 *
 	 * <p><b>The proposal is already saved by the time the email is attempted, and that ordering is the
 	 * whole failure plan.</b> A message that cannot be delivered costs the user the nudge, not the
 	 * proposal: it stays pending and the card is waiting the next time they open the app. Which is
 	 * also why there is no retry queue — the app already has a second channel, and it is the reliable
 	 * one.
+	 *
+	 * <p>An account whose row is gone needs no branch here: nothing is proposed for it, and the
+	 * redraw's own update is what notices and prunes it.
 	 */
 	private void fire(UUID accountId, OffsetDateTime now) {
-		User account = users.findById(accountId).orElse(null);
-		if (account == null) {
-			// The safety net, not the routine path: deleteAllForUser above prunes the map when the
-			// account is actually deleted. This catches a row that went away some other way — a
-			// rolled-back registration, whose map entry outlives the account it was drawn for.
-			schedule.remove(accountId);
-			log.info("Dropped account {} from the rhythm: the row is gone", accountId);
-			return;
-		}
 		try {
-			// The address rides along on the row this method already loaded for the check above — a
-			// second query for it would be one more thing keeping Neon awake.
-			proposals.proposeScheduled(accountId)
-					.ifPresent(proposal -> mail.send(account.getEmail(), ProposalEmail.subject(proposal),
-							ProposalEmail.body(proposal, mailbox.baseUrl())));
+			// The address rides along on the row this method already loaded — a second query for it
+			// would be one more thing keeping Neon awake.
+			users.findById(accountId)
+					.ifPresent(account -> proposals.proposeScheduled(accountId)
+							.ifPresent(proposal -> mail.send(account.getEmail(),
+									ProposalEmail.subject(proposal),
+									ProposalEmail.body(proposal, mailbox.baseUrl()))));
 		}
 		catch (RuntimeException ex) {
 			log.error("The rhythm could not return to account {}; the cycle moves on", accountId, ex);
 		}
-		reschedule(account, now);
+		finally {
+			reschedule(accountId, now);
+		}
 	}
 
-	/** Draw the next moment, store it on the row, and hold it in memory until it arrives. */
-	private void reschedule(User account, OffsetDateTime from) {
+	/**
+	 * Draw the next moment, hold it in memory, and store it on the row.
+	 *
+	 * <p><b>The map first, the column second, and neither may throw past here.</b> The map is the only
+	 * thing the tick reads, so a failed write costs a redraw at the next boot — where a map left
+	 * holding a moment already in the past costs a fire, and an email, every 60 seconds until the
+	 * database recovers. An escaping exception would also abandon every account after this one in the
+	 * same tick, since {@code forEach} stops at the first throw.
+	 */
+	private void reschedule(UUID accountId, OffsetDateTime from) {
 		OffsetDateTime next = ProposalRhythm.next(from, rhythm, random);
-		account.scheduleNextProposalAt(next);
-		users.saveAndFlush(account);
-		schedule.put(account.getId(), next);
+		schedule.put(accountId, next);
+		try {
+			if (users.scheduleNextProposalAt(accountId, next, from) == 0) {
+				// No row to move on: either a registration that rolled back under a map entry drawn
+				// inside it, or an account deleted while this very fire was in flight. The update can
+				// re-create neither, which is precisely why it is not a save.
+				schedule.remove(accountId);
+				log.info("Dropped account {} from the rhythm: the row is gone", accountId);
+			}
+		}
+		catch (RuntimeException ex) {
+			log.error("Could not store the next moment for account {}; the map carries it until the "
+					+ "next boot", accountId, ex);
+		}
 	}
 }

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.health.actuate.endpoint.HealthEndpointGroups;
+import org.springframework.boot.health.registry.HealthContributorRegistry;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 
@@ -26,6 +27,9 @@ class HealthProbeApiTest extends ApiTestBase {
 
 	@Autowired
 	private HealthEndpointGroups groups;
+
+	@Autowired
+	private HealthContributorRegistry contributors;
 
 	/**
 	 * UP here means the tick has actually run: the indicator starts DOWN and only the scheduled method
@@ -51,5 +55,25 @@ class HealthProbeApiTest extends ApiTestBase {
 				.isTrue();
 		assertThat(groups.get("liveness").isMember("db")).isFalse();
 		assertThat(groups.get("readiness").isMember("db")).isTrue();
+	}
+
+	/**
+	 * The groups above decide what Fly's probe sees; they decide nothing about the aggregate. Plain
+	 * {@code /actuator/health} is exposed and permitAll — it has to be, so the liveness path reaches
+	 * the probe through the filter chain — and it runs <em>every</em> registered contributor no matter
+	 * which group names it. So a contributor here is not a diagnostic: it is work any anonymous
+	 * request can make the app do, once per hit, for as long as anyone cares to ask.
+	 *
+	 * <p>The mail starter registers one that opens a connection and AUTHs against smtp.resend.com.
+	 * Beside {@code db}'s {@code SELECT 1} that is a single unauthenticated URL holding Neon awake
+	 * around the clock — the exact 24/7 wake-up the in-memory schedule exists to avoid, arriving
+	 * through the door left open for the health check rather than through the tick.
+	 */
+	@Test
+	void keepsTheMailCheckOffTheEndpointAnyoneCanPoll() {
+		assertThat(contributors.getContributor("mail"))
+				.as("an SMTP handshake per anonymous request, and a Neon wake-up beside it")
+				.isNull();
+		assertThat(contributors.getContributor("proposalScheduler")).isNotNull();
 	}
 }

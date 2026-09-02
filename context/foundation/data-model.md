@@ -162,8 +162,12 @@ S-05 (`V9`) adds **one nullable column and one enum value**, and the restraint i
 `next_proposal_at` is deliberately **not** the schedule. `ProposalScheduler` holds that in memory and
 compares it against the clock every 60 seconds; a column read on a timer is precisely the metered-idle
 cost Neon punishes — the compute would stay awake permanently for roughly one fire per 2-7 days (see
-`lessons.md`). The column is the map's *backup*: written once per fire, read once per boot, so a
-deploy resumes each account's own moment instead of redrawing every one of them into a single bunch.
+`lessons.md`). The column is the map's *backup*: written once per fire and once at registration, read once per
+boot, so a deploy resumes each account's own moment instead of redrawing every one of them into a
+single bunch. It is written by a targeted `update ... where id = ?` rather than by saving a loaded
+`User`, because a fire holds its account detached across the model call — merging one back would
+re-insert an account deleted while the fire was in flight, undoing an FR-019 erasure. The update
+matching no row is also how the scheduler learns to drop the entry from its map.
 The database is therefore touched three times in the whole cycle — boot, registration, and an actual
 fire — and never by the tick itself.
 

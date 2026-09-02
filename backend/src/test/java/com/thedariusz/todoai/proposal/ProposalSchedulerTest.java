@@ -20,8 +20,10 @@ import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRegistered;
 import com.thedariusz.todoai.user.UserRepository;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import org.springframework.boot.health.contributor.Status;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -144,7 +146,7 @@ class ProposalSchedulerTest {
 
 		scheduler.fireDue(MIDDAY);
 
-		assertThat(account.getNextProposalAt()).isAfter(MIDDAY);
+		assertThat(drawnFor(account)).isAfter(MIDDAY);
 	}
 
 	@Test
@@ -153,8 +155,7 @@ class ProposalSchedulerTest {
 
 		scheduler.fireDue(MIDDAY);
 
-		assertThat(daysFromMiddayTo(account.getNextProposalAt())).isBetween(2L, 7L);
-		verify(users).saveAndFlush(account);
+		assertThat(daysFromMiddayTo(drawnFor(account))).isBetween(2L, 7L);
 	}
 
 	/**
@@ -169,7 +170,7 @@ class ProposalSchedulerTest {
 
 		scheduler.fireDue(MIDDAY);
 
-		assertThat(account.getNextProposalAt()).isAfter(MIDDAY);
+		assertThat(drawnFor(account)).isAfter(MIDDAY);
 	}
 
 	/** Same reasoning: one account's failure must not become a 60-second retry loop against Neon. */
@@ -180,7 +181,51 @@ class ProposalSchedulerTest {
 
 		scheduler.fireDue(MIDDAY);
 
-		assertThat(account.getNextProposalAt()).isAfter(MIDDAY);
+		assertThat(drawnFor(account)).isAfter(MIDDAY);
+	}
+
+	/**
+	 * The redraw is the one step of a fire that has no failure it may skip for, so it is the one step
+	 * whose own failure has to be survivable too. A Neon blip is exactly the transient this design is
+	 * built around, and a map left holding a moment already in the past is not one lost proposal — it
+	 * is a fire, a Sonnet call and an email <em>every 60 seconds</em> until the database comes back,
+	 * against an account that has already been written to and emailed once.
+	 */
+	@Test
+	void keepsTheRhythmMovingWhenTheNextMomentCannotBeStored() {
+		User account = loaded(MIDDAY.minusHours(1));
+		when(users.scheduleNextProposalAt(eq(account.getId()), any(), any()))
+				.thenThrow(new DataAccessResourceFailureException("neon is asleep"));
+
+		scheduler.fireDue(MIDDAY);
+		clearInvocations(proposals, mail);
+		scheduler.fireDue(MIDDAY);
+
+		verifyNoInteractions(proposals, mail);
+	}
+
+	/**
+	 * {@code ConcurrentHashMap.forEach} stops at the first throw, so a fire that lets one escape does
+	 * not cost one account its turn — it costs every account the iteration had not reached yet, on
+	 * this tick and on every tick after it.
+	 */
+	@Test
+	void doesNotLetOneAccountsFailureStarveTheRest() {
+		User unlucky = account(MIDDAY.minusHours(1));
+		User other = account(MIDDAY.minusHours(1));
+		when(users.findAll()).thenReturn(List.of(unlucky, other));
+		when(users.findById(unlucky.getId())).thenReturn(Optional.of(unlucky));
+		when(users.findById(other.getId())).thenReturn(Optional.of(other));
+		when(users.scheduleNextProposalAt(eq(unlucky.getId()), any(), any()))
+				.thenThrow(new DataAccessResourceFailureException("neon is asleep"));
+		scheduler.loadSchedule();
+
+		scheduler.fireDue(MIDDAY);
+
+		// Asserted for both rather than "the one after", because the map's iteration order is its own
+		// business — the claim is that neither account depends on the other's luck.
+		verify(proposals).proposeScheduled(unlucky.getId());
+		verify(proposals).proposeScheduled(other.getId());
 	}
 
 	/**
@@ -192,12 +237,33 @@ class ProposalSchedulerTest {
 	void forgetsAnAccountThatNoLongerExists() {
 		User account = loaded(MIDDAY.minusHours(1));
 		when(users.findById(account.getId())).thenReturn(Optional.empty());
+		// What the update reports for a row that is not there, and how the map learns to drop it.
+		when(users.scheduleNextProposalAt(eq(account.getId()), any(), any())).thenReturn(0);
 
 		scheduler.fireDue(MIDDAY);
 		clearInvocations(users);
 		scheduler.fireDue(MIDDAY);
 
 		verifyNoInteractions(users, proposals, mail);
+	}
+
+	/**
+	 * FR-019 erasure, racing its own fire. The account is loaded before a model call that can take a
+	 * minute and an SMTP send that can take thirty seconds, so a deletion can and will land while a
+	 * fire is in flight — and the row the fire is holding is <b>detached</b>. Writing it back with a
+	 * {@code save} would merge a row that is gone, which Hibernate resolves as an INSERT: the email
+	 * and password hash of an account the user asked to erase, restored by the reminder scheduler.
+	 * A targeted update cannot re-create anything, so the race has no bad outcome to reach.
+	 */
+	@Test
+	void movesTheRhythmOnByUpdateSoADeletedAccountCanNeverBeMergedBack() {
+		User account = loaded(MIDDAY.minusHours(1));
+
+		scheduler.fireDue(MIDDAY);
+
+		verify(users).scheduleNextProposalAt(eq(account.getId()), any(), any());
+		verify(users, never()).save(any());
+		verify(users, never()).saveAndFlush(any());
 	}
 
 	/**
@@ -218,12 +284,10 @@ class ProposalSchedulerTest {
 	@Test
 	void schedulesAFreshAccountWithoutWaitingForARestart() {
 		User account = account(null);
-		when(users.findById(account.getId())).thenReturn(Optional.of(account));
 
 		scheduler.scheduleNewAccount(new UserRegistered(account.getId()));
 
-		assertThat(account.getNextProposalAt()).isNotNull();
-		verify(users).saveAndFlush(account);
+		assertThat(drawnFor(account)).isNotNull();
 	}
 
 	@Test
@@ -233,8 +297,7 @@ class ProposalSchedulerTest {
 
 		scheduler.loadSchedule();
 
-		assertThat(account.getNextProposalAt()).isNotNull();
-		verify(users).saveAndFlush(account);
+		assertThat(drawnFor(account)).isNotNull();
 	}
 
 	/**
@@ -250,7 +313,7 @@ class ProposalSchedulerTest {
 
 		scheduler.loadSchedule();
 
-		verify(users, never()).saveAndFlush(any());
+		verify(users, never()).scheduleNextProposalAt(any(), any(), any());
 		assertThat(account.getNextProposalAt()).isEqualTo(stored);
 	}
 
@@ -304,14 +367,31 @@ class ProposalSchedulerTest {
 	}
 
 	/** The id is normally Hibernate's; the schedule is keyed by it, so the test has to supply one. */
-	private static User account(OffsetDateTime next) {
+	private User account(OffsetDateTime next) {
 		User account = new User(Email.of("owner-" + UUID.randomUUID() + "@example.com"),
 				"{bcrypt}$2a$10$hash");
 		ReflectionTestUtils.setField(account, "id", UUID.randomUUID());
 		if (next != null) {
-			account.scheduleNextProposalAt(next);
+			// Set the way the id is, and for the same reason: both are Hibernate's to write, and the
+			// rhythm reaches this column by a targeted update rather than through the aggregate.
+			ReflectionTestUtils.setField(account, "nextProposalAt", next);
 		}
+		// One row updated: the account exists. The tests about a row that is gone say so by overriding
+		// this with 0, which is what the update itself reports.
+		when(users.scheduleNextProposalAt(eq(account.getId()), any(), any())).thenReturn(1);
 		return account;
+	}
+
+	/**
+	 * The moment the rhythm drew, read off the write it made rather than off the entity. The scheduler
+	 * deliberately never mutates a loaded {@link User} — see
+	 * {@link #movesTheRhythmOnByUpdateSoADeletedAccountCanNeverBeMergedBack()} — so the argument to the
+	 * update is the only place the drawn moment appears.
+	 */
+	private OffsetDateTime drawnFor(User account) {
+		ArgumentCaptor<OffsetDateTime> next = ArgumentCaptor.forClass(OffsetDateTime.class);
+		verify(users).scheduleNextProposalAt(eq(account.getId()), next.capture(), any());
+		return next.getValue();
 	}
 
 	private static long daysFromMiddayTo(OffsetDateTime moment) {
