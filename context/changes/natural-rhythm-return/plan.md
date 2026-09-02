@@ -577,5 +577,5 @@ V9 is expand-only (one nullable column) — safe under image rollback. Existing 
 
 #### Manual
 
-- [x] 5.3 docs page read in browser — all nine walk items current, ER SVGs re-exported — 7f7daf7
+- [x] 5.3 docs page read in browser — all nine walk items current, ER SVGs re-exported — 0fa2505
 - [ ] 5.4 Prod smoke: schedule loads, forced fire delivers email + card on 2doai.app
