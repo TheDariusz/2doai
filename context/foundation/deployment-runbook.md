@@ -447,17 +447,40 @@ fly logs | grep "Natural rhythm loaded"     # → "Natural rhythm loaded: N acco
 curl https://2doai.fly.dev/actuator/health  # → UP, and the proposalScheduler indicator with it
 ```
 
-To force one cycle rather than waiting days for it, move an account's moment into the past and let
-the next tick (≤60s, inside the send window) find it:
+`0 account(s)` means the table is empty — the rhythm has nobody to return to, so register on
+https://2doai.app before anything below.
+
+To force one cycle rather than waiting days for it, move the account's moment into the past **and
+restart the machine**:
 
 ```sql
--- Neon SQL editor. Pick your own account; the tick fires within a minute.
+-- 1. Neon SQL editor. Expect "UPDATE 1"; UPDATE 0 means you typed a different address.
 update app_user set next_proposal_at = now() - interval '1 minute' where email = 'you@example.com';
 ```
 
-That account needs a genuinely neglected entry or the fire will correctly do nothing — the easiest is
-a `TASK` with a `due_date` a few days past. Expect: the email arrives, and `https://2doai.app/goals`
-shows the same proposal on arrival without pressing anything.
+```bash
+# 2. Restart, so the boot re-reads the column into the map the tick actually consults.
+fly machine restart <id>          # or: fly apps restart 2doai
+fly logs | grep -E "Natural rhythm loaded|Delivered"
+```
+
+**The restart is not optional, and the reason is the design.** `ProposalScheduler.fireDue` reads an
+in-memory map "and only the map" — that is what lets a tick run every 60 s without waking Neon.
+`loadSchedule()` fills that map exactly once, on `ApplicationReadyEvent`. So between boots the
+`next_proposal_at` column is the *durability record*, not the live authority: an UPDATE against it
+changes nothing any tick will read. The boot is what promotes the column back to being the schedule.
+
+Two more things that make a forced fire look like a silent failure, both correct behaviour:
+
+- **Nothing neglected, nothing said.** `fire()` sends only if `proposeScheduled` returns a proposal,
+  and logs nothing when it doesn't. The account needs a genuinely overdue entry — easiest is a `TASK`
+  with a `due_date` a few days past.
+- **Outside 9:00–21:00 Warsaw the tick returns immediately**, before it looks at a single account. A
+  restart at 21:05 produces no fire and no log line until 9:00 the next morning.
+
+Expect, within a minute of the restart: `Natural rhythm loaded: 1 account(s) scheduled`, then
+`Delivered: a NN-char subject to a @… address`, the email itself, and the same proposal already on
+`https://2doai.app/goals` without pressing anything.
 
 > **The proposal survives a mail failure.** It is stored before the message is attempted and the send
 > sits inside the fire's `catch`, so a provider outage costs the nudge, not the proposal — the card is
