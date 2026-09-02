@@ -41,6 +41,28 @@ class SmtpEmailSenderTest {
 	}
 
 	/**
+	 * A header is one line by definition, and this one quotes text the user typed — a goal, straight
+	 * from {@code ProposalEmail.subject}. Jakarta Mail does defuse an embedded CRLF today, two
+	 * different ways: it RFC 2047-encodes a subject carrying Polish characters (the CRLF becomes
+	 * {@code =0D=0A}), and it folds a pure-ASCII one into a continuation line that unfolds back into
+	 * the subject. But the second of those is {@code MimeUtility.fold}, which the
+	 * {@code mail.mime.foldtext} system property switches off — set it and the same input puts a real
+	 * {@code Bcc:} on the wire. Flattening here owns the invariant instead of borrowing it from a
+	 * library default this app neither sets nor tests.
+	 */
+	@Test
+	void flattensTheSubjectSoTypedNewlinesCannotBecomeHeaders() {
+		sender.send("owner@example.com", "Wróćmy do tego: Kup mleko\r\nBcc: attacker@evil.com",
+				"Wracamy do tego?");
+
+		ArgumentCaptor<SimpleMailMessage> sent = ArgumentCaptor.forClass(SimpleMailMessage.class);
+		verify(transport).send(sent.capture());
+		assertThat(sent.getValue().getSubject())
+				.isEqualTo("Wróćmy do tego: Kup mleko Bcc: attacker@evil.com")
+				.doesNotContain("\r", "\n");
+	}
+
+	/**
 	 * The port's whole contract on the failure path: one provider-neutral type, so the caller — a
 	 * scheduler thread that must survive it and move on — never sees a Jakarta Mail or Spring type.
 	 */

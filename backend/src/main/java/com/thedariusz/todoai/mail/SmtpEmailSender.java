@@ -39,20 +39,25 @@ class SmtpEmailSender implements EmailSender {
 
 	@Override
 	public void send(String to, String subject, String text) {
+		// A header is one line, and this one quotes text the user typed. Jakarta Mail defuses an
+		// embedded CRLF today — it RFC 2047-encodes a subject with Polish in it, and folds a
+		// pure-ASCII one into a continuation line — but the second of those is MimeUtility.fold,
+		// one mail.mime.foldtext system property from off. Owning the invariant costs a line.
+		String header = StringUtils.normalizeSpace(subject);
 		SimpleMailMessage message = new SimpleMailMessage();
 		message.setFrom(properties.from());
 		message.setTo(to);
-		message.setSubject(subject);
+		message.setSubject(header);
 		message.setText(text);
 		try {
 			transport.send(message);
 		}
 		catch (MailException ex) {
-			throw new MailDeliveryException(describe(to, subject), ex);
+			throw new MailDeliveryException(describe(to, header), ex);
 		}
 		// The app's only unprompted act, and the only evidence it happened: worth an INFO line, in
 		// prod as much as in the local smoke run.
-		log.info("Delivered: {}", describe(to, subject));
+		log.info("Delivered: {}", describe(to, header));
 	}
 
 	/** Who and how big, never what — see the class javadoc. */
