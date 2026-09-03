@@ -28,6 +28,10 @@
 	</scm>
 	<properties>
 		<java.version>25</java.version>
+		<!-- Ahead of the Boot 4.1.1 BOM (11.0.24), which the Trivy gate rejects: three CRITICAL CVEs
+		     published 2026-09-03, two of them authentication bypasses (CVE-2026-65182, CVE-2026-65905,
+		     CVE-2026-68525). Drop this override once the parent's own pin reaches 11.0.25 or later. -->
+		<tomcat.version>11.0.25</tomcat.version>
 		<spring-ai.version>2.0.1</spring-ai.version>
 		<!-- REST Assured is not managed by the Spring Boot 4 BOM. 6.x targets Hamcrest 3 / Groovy 4 /
 		     Java 17+ — aligned with Boot 4's stack (5.x is built for Hamcrest 2). -->
