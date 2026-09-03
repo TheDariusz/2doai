@@ -267,10 +267,17 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
-  <p class="note">Verified against S-05 — the natural-rhythm scheduler, its email, and the pending
-  proposal the app now shows on arrival (DEV-24) — on 2026-09-01; the previous snapshot actually
-  <em>walked</em> was <code>a3d7e14</code>, the S-04b LLM-phrased proposal with its four answers and
-  the <code>/goals</code> card (DEV-23). This slice found drift of a kind the earlier passes had not
+  <p class="note">Verified against DEV-48 on 2026-09-03, at snapshot <code>d6dc4dc</code> — and the
+  first pass walked <em>by hand against production</em> rather than by probe: an account registered
+  on <a href="https://2doai.app">2doai.app</a> from the sign-up screen, entries added in all three
+  layers, a proposal requested, answered <code>STARTING</code>, and one of its first steps saved as
+  its own task. The walk is what found the defect this slice fixes — a task a week past its term
+  reached the model as <code>Idle for: 0 days</code> and came back described as fresh — which no
+  probe and no test would have produced, because every assertion involved was passing. The fix
+  itself is pinned by <code>ProposalPromptTest</code> and is walked again on the next deploy; that
+  is the one claim on this page a human has not yet read on a screen. The previous snapshot walked
+  was S-05, the natural-rhythm scheduler with its email and the pending proposal the app shows on
+  arrival (DEV-24), on 2026-09-01. That slice found drift of a kind the earlier passes had not
   produced: not a sentence left stale, but a <em>prediction</em> that came true. The decision
   register's "at most one pending proposal is an index" row named its own revisit trigger — "if a
   cycle may supersede a pending one" — and this is the cycle, so the row now records that the index
@@ -281,7 +288,7 @@
   pointing it at a newer merge would hide exactly that kind of drift — and so would naming a commit
   that never touched the page, which drops everything between it and the real walk out of the range
   below. To review, run
-  <code>git log a3d7e14.. -- backend frontend .github/workflows
+  <code>git log d6dc4dc.. -- backend frontend .github/workflows
   context/foundation docs/index.html</code>.</p>
 </section>
 <section id="architecture">
@@ -788,7 +795,10 @@ classDiagram
   <code>completeStructured</code> — and every <code>LlmException</code> has an answer waiting:
   phrasing falls back to <code>ProposalTemplate</code>, a deterministic sentence with no model in it,
   and the <code>source</code> column records which arm wrote the message so a demo can tell them
-  apart. A failed first step still lets the answer land, with empty bullets. Neither path is dead
+  apart. Both arms read the neglect count the same way: zero can only mean the entry came in on a
+  passed term rather than on silence, so the prompt says the deadline went by instead of handing the
+  model <code>Idle for: 0 days</code> — a fact it would otherwise, and honestly, narrate as
+  freshness. A failed first step still lets the answer land, with empty bullets. Neither path is dead
   code — the fallback is the roadmap's own contingency, permanently wired in rather than held in
   reserve.</p>
   <p><strong>Neither method is <code>@Transactional</code>, and that is deliberate.</strong> A Sonnet
@@ -951,6 +961,7 @@ classDiagram
     &lt;&lt;domain service&gt;&gt;
     +forProposal(model, memory, entry, days)
     +forFirstStep(model, memory, entry)
+    days = 0 means the term passed, not silence
     English instructions, OUTPUT_LANGUAGE names the answer
     every untrusted value fenced in a data block
   }
@@ -1538,7 +1549,7 @@ sequenceDiagram
     else an entry wins
       SEL-->>PS: the chosen entry and its idle days
       PS->>MEM: renderFor(userId)
-      PS->>LLM: complete(persona + memory + entry + idle days)
+      PS->>LLM: complete(persona + memory + entry + idle days or a passed term)
       alt the model answers
         LLM-->>PS: 2–3 Polish sentences quoting the entry
       else LlmException
