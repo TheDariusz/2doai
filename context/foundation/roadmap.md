@@ -72,7 +72,7 @@ Ponad minimum wymagań: trzy warstwy w jednym widoku i jedna widoczna funkcja AI
 | 4 | S-08 — filtry po warstwie i kategorii | 1 | jeden widok |
 | 5 | **S-04a** — heurystyka zaniedbania + bilansowanie kategorii + `POST /api/proposals` | 1,5 | wymaganie logiki biznesowej |
 | 6 | **S-04b** — LLM formułuje propozycję, 4 odpowiedzi, pierwszy krok | 3 | to, co się pokazuje |
-| 7 | README + opis funkcji, weryfikacja produkcji | 1 | zgłoszenie |
+| 7 | README + opis funkcji, weryfikacja produkcji *(przejście po ludzku odhaczone 09-03)* | 1 | zgłoszenie |
 
 Razem **~11–12 wieczorów / 3 tygodnie ≈ 4 na tydzień**. Tempo z W31–W32 (28 i 34 commity) to daje; średnia z 12 tygodni (2,2 dnia aktywnego / tydzień) nie. Tydzień W33 (10–16.08) był zerowy — jedna taka przerwa w tym oknie kosztuje pozycję 6.
 
@@ -110,7 +110,7 @@ Razem **~11–12 wieczorów / 3 tygodnie ≈ 4 na tydzień**. Tempo z W31–W32 
 
 ### Ryzyka
 
-- **Produkcja zweryfikowana maszynowo, nie po ludzku (2026-09-02).** Wymuszony cykl S-05 przeszedł na prodzie całą pętlę: `Natural rhythm loaded`, dostarczony e-mail, karta czekająca w `/goals`. Czego nikt nie przeszedł: rejestracja świeżego konta na `2doai.app`, dodanie pozycji w trzech warstwach i odpowiedź na propozycję. Neon autosuspend + realne dane — zadanie na 11.09, nie na 13.09.
+- **Produkcja przeszła ścieżkę człowieka (2026-09-03).** Świeże konto założone przez ekran rejestracji na `2doai.app`, wpisy w trzech warstwach, propozycja poproszona i odpowiedziana `Zaczynam`, pierwszy krok zapisany jako osobne zadanie — na produkcyjnym Neonie, na realnych danych. Dzień wcześniej wymuszony cykl S-05 zamknął drugą połowę: `Natural rhythm loaded`, dostarczony e-mail, karta czekająca w `/goals`. **Przejście zwróciło się od razu:** znalazło DEV-48 (zadanie tydzień po terminie szło do modelu jako `Idle for: 0 days` i wracało opisane jako świeże) — defekt, którego nie widział żaden test ani probe, bo wszystkie asercje były zielone. Zostało jedno: przejść tę samą ścieżkę raz jeszcze po deployu fixa.
 - **Brak testów e2e** (Playwright niepodpięty). Wymagania 10xBuilder ich nie żądają — świadomie nie dokładamy.
 - **README ma 71 linii.** Jeśli cokolwiek w zgłoszeniu jest czytane przez człowieka, to on — jeden wieczór, najtańsze punkty.
 - **Tempo.** Jedyne realne ryzyko harmonogramu; wszystkie bramki wyżej istnieją po to, żeby przekroczenie kosztowało zakres, nie termin.
