@@ -196,9 +196,17 @@ implementer's call; one class either way)
 when the header is absent or matches neither locale.
 
 **Contract**: Configure Spring's `AcceptHeaderLocaleResolver` with supported locales `en`, `pl` and
-default `en`, then read `LocaleContextHolder.getLocale()` at the seams that need it. Use the
-framework's resolver rather than parsing the header — it already handles quality values and
-malformed input. Expose one method returning `AppLanguage`.
+default `en`. Use the framework's resolver rather than parsing the header — it already handles
+quality values and malformed input.
+
+> **Amended after the Phase 1 review (2026-09-04).** Built as `i18n/LocaleConfig`, holding only the
+> resolver bean. Handlers declare a plain `Locale` parameter — Spring MVC resolves it through that
+> bean — and convert with `AppLanguage.of(locale)`, so the single conversion point is item 2's
+> factory and there is no request-scoped static to read. `LocaleContextHolder` appears nowhere in the
+> backend. Chosen because passing the language down as an argument keeps the services that render
+> text testable without a servlet, and because `LocaleContextHolder.getLocale()` falls back to the
+> JVM's default locale outside a request — non-deterministic across machines. Phases 2–3 follow this
+> shape.
 
 #### 4. The principal carries the language
 
@@ -224,8 +232,15 @@ current session immediately, not after re-login.
 `UserResponse`. The write is a targeted repository update, mirroring how `next_proposal_at` moves —
 `User` gains no setter. **The handler must then replace the `Authentication` in the
 `SecurityContext` with one carrying a rebuilt `UserPrincipal`**, or the session serves stale data
-(see Critical Implementation Details). Validation rejects anything outside the enum with 422 via the
-existing `ApiExceptionHandler`.
+(see Critical Implementation Details). Validation follows the split the house already pins: a value outside
+the enum never deserializes, so it is a **400**, while an omitted `language` fails `@NotNull` and is
+a **422** via the existing `ApiExceptionHandler`.
+
+> **Amended after the Phase 1 review (2026-09-04).** This plan originally said 422 for anything
+> outside the enum. That is not reachable without a custom deserializer, and forcing it would make
+> `/users/me` the one endpoint answering a bad enum differently from every goal endpoint —
+> `GoalApiTest.rejectsUnknownWireLiteralsWith400` and `openapi.yaml` both document the 400/422 split.
+> The implementation follows the house rule and pins both halves.
 
 #### 6. Registration inherits the sign-up screen's language
 
@@ -244,7 +259,13 @@ switch). No change to `RegisterRequest`.
 **File**: `context/foundation/openapi.yaml`
 
 **Intent**: Publish the new endpoint and field, and the header that now changes responses. The spec
-moves in the same commit as the Java — `ApiSurfaceTest` fails until it does.
+moves in the same commit as the Java.
+
+> **Amended after the Phase 1 review (2026-09-04).** The claim "`ApiSurfaceTest` fails until it does"
+> was false as written: that test compared **path sets**, and `/users/me` already existed for `GET`
+> and `DELETE`, so the whole `PATCH` could have shipped undocumented with the suite green. The test
+> was widened to compare **method + path** operations in both directions, which makes the
+> enforcement real — and matters for Phases 2–3, which likewise add to paths that already exist.
 
 **Contract**: A `PATCH /users/me` path with `operationId: updateCurrentUser` and the `XsrfToken`
 parameter every mutating operation declares; a `language` property on the `User` schema
@@ -741,16 +762,16 @@ rewrites user data. `CategorySyncCheck` is unaffected — it reads only `code`.
 
 #### Automated
 
-- [x] 1.1 Backend suite passes: `cd backend && mvn test`
-- [x] 1.2 `ApiSurfaceTest` green — the spec has `PATCH /users/me`
-- [x] 1.3 Hibernate `ddl-auto=validate` boots green against V10
-- [x] 1.4 `AuthApiTest`: registration inherits `Accept-Language`; null column reads `PL`; `PATCH` is visible on the same session
-- [x] 1.5 `UserRepositoryTest` covers the targeted language update
+- [x] 1.1 Backend suite passes: `cd backend && mvn test` — 130f84d
+- [x] 1.2 `ApiSurfaceTest` green — the spec has `PATCH /users/me` — 130f84d
+- [x] 1.3 Hibernate `ddl-auto=validate` boots green against V10 — 130f84d
+- [x] 1.4 `AuthApiTest`: registration inherits `Accept-Language`; null column reads `PL`; `PATCH` is visible on the same session — 130f84d
+- [x] 1.5 `UserRepositoryTest` covers the targeted language update — 130f84d
 
 #### Manual
 
-- [x] 1.6 Register from an English browser and confirm `/me` reports `EN`
-- [x] 1.7 Switch via `PATCH`, reload, confirm it survives
+- [x] 1.6 Register from an English browser and confirm `/me` reports `EN` — 130f84d
+- [x] 1.7 Switch via `PATCH`, reload, confirm it survives — 130f84d
 
 ### Phase 2: Category names in two languages
 

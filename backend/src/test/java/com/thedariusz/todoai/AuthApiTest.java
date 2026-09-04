@@ -3,10 +3,13 @@ package com.thedariusz.todoai;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 
+import com.thedariusz.todoai.user.AppLanguage;
 import io.restassured.filter.cookie.CookieFilter;
 import io.restassured.http.Cookie;
 import org.junit.jupiter.api.Test;
@@ -17,6 +20,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.yaml.snakeyaml.Yaml;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.allOf;
@@ -296,6 +300,34 @@ class AuthApiTest extends ApiTestBase {
 		assertThat(read("../frontend/src/auth/AccountMenu.tsx"))
 				.as("the SPA discriminates the two 403s on this exact string")
 				.contains(onTheWire);
+	}
+
+	/**
+	 * The second cross-boundary guard on this resource, and the one {@code openapi.yaml}'s own comment
+	 * promises. {@code AppLanguage} there calls itself "THE ANCHOR for these two literals, the way
+	 * GoalLayer is for its three" — and {@code GoalLayer} <em>earns</em> that by being held against the
+	 * spec in {@code GoalApiTest.publishesTheWireEnumsTheContractAnchors}. Without the same check the
+	 * claim is decoration: each side asserts against its own copy and both stay green while the two
+	 * disagree, which is exactly how six of eleven category codes rotted unnoticed (lessons.md, "A
+	 * contract value duplicated across the stack needs one guard that spans the boundary").
+	 *
+	 * <p>Compared as a <b>set</b>, never searched for: a substring check passes happily after a value
+	 * has been <em>deleted</em> from the spec. The SPA's copy is the third and joins this assertion in
+	 * Phase 4, when the catalog gives it one.
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	void publishesTheLanguageLiteralsTheContractAnchors() throws IOException {
+		Map<String, Object> spec = new Yaml().load(read("../context/foundation/openapi.yaml"));
+		Map<String, Object> schemas =
+				(Map<String, Object>) ((Map<String, Object>) spec.get("components")).get("schemas");
+		List<String> specified =
+				(List<String>) ((Map<String, Object>) schemas.get("AppLanguage")).get("x-extensible-enum");
+
+		assertThat(specified)
+				.as("openapi.yaml is the anchor for every language literal the stack hardcodes")
+				.containsExactlyInAnyOrderElementsOf(
+						Stream.of(AppLanguage.values()).map(Enum::name).toList());
 	}
 
 	private static String read(String path) throws IOException {
@@ -719,6 +751,31 @@ class AuthApiTest extends ApiTestBase {
 				.patch("/api/users/me")
 				.then()
 				.statusCode(403);
+	}
+
+	/**
+	 * The account erased between this session being established and this request arriving. It is a
+	 * narrow race, but the branch it takes is worth pinning because <em>how</em> it becomes a 401 is
+	 * not obvious: {@code UserSettingsService} raises an {@code AuthenticationException}, which
+	 * survives only because {@code ApiExceptionHandler}'s inherited type list does not cover it and
+	 * because {@code ExceptionTranslationFilter} unwraps the {@code ServletException} to find it. Both
+	 * are one {@code @ExceptionHandler(Exception.class)} away from silently becoming a 500 — and
+	 * {@code CurrentUser.requireId()} reaches its own 401 through the same two mechanisms, so this
+	 * case guards both.
+	 */
+	@Test
+	void answers401WhenTheAccountWasErasedUnderTheSession() {
+		String email = givenLoggedInUser();
+		jdbc.update("delete from ai_memory where user_id = (select id from app_user where email = ?)", email);
+		jdbc.update("delete from app_user where email = ?", email);
+
+		csrfAware()
+				.body(Map.of("language", "PL"))
+				.when()
+				.patch("/api/users/me")
+				.then()
+				.statusCode(401)
+				.contentType("application/problem+json");
 	}
 
 	/**

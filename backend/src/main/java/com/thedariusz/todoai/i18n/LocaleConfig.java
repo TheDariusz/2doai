@@ -41,9 +41,12 @@ public class LocaleConfig {
 	LocaleResolver localeResolver() {
 		AcceptHeaderLocaleResolver resolver = new AcceptHeaderLocaleResolver();
 		resolver.setSupportedLocales(List.of(AppLanguage.EN.locale(), AppLanguage.PL.locale()));
-		// Also what an absent header resolves to. Without it the resolver falls through to the
-		// server's own default locale, which would make the answer depend on the machine the JVM
-		// happens to run on — Polish on this laptop, English on Fly.
+		// Also what an absent or blank header resolves to. Without it the resolver falls through to
+		// the server's own default locale, which would make the answer depend on the machine the JVM
+		// happens to run on — Polish on this laptop, English on Fly. A header that is *present* but
+		// names no parseable tag still takes that fall-through, because the short-circuit tests the
+		// header for text rather than for meaning; no browser sends one, and closing it would cost
+		// more than the case is worth.
 		resolver.setDefaultLocale(AppLanguage.DEFAULT.locale());
 		return resolver;
 	}

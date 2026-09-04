@@ -1,7 +1,7 @@
 ---
 change_id: pl-en-localization
 title: Polish + English localization
-status: implementing
+status: impl_reviewed
 created: 2026-09-04
 updated: 2026-09-04
 archived_at: null
