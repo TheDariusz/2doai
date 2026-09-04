@@ -777,10 +777,10 @@ rewrites user data. `CategorySyncCheck` is unaffected — it reads only `code`.
 
 #### Automated
 
-- [ ] 2.1 Backend suite passes: `cd backend && mvn test`
-- [ ] 2.2 `CategoryApiTest` returns English, Polish and the English default per header
-- [ ] 2.3 `CategoryApiTest` asserts `Vary: Accept-Language`
-- [ ] 2.4 `CategorySeedTest` asserts 11 non-blank `name_en`
+- [x] 2.1 Backend suite passes: `cd backend && mvn test`
+- [x] 2.2 `CategoryApiTest` returns English, Polish and the English default per header
+- [x] 2.3 `CategoryApiTest` asserts `Vary: Accept-Language`
+- [x] 2.4 `CategorySeedTest` asserts 11 non-blank `name_en`
 
 #### Manual
 

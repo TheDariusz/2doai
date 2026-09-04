@@ -58,4 +58,15 @@ class CategorySeedTest {
 				.isNotEmpty()
 				.allSatisfy(category -> assertThat(category.getNamePl()).isNotBlank());
 	}
+
+	/**
+	 * The column is nullable so the previous image still boots against the new schema, which means
+	 * nothing in the schema itself guarantees the 11 rows were actually seeded. This does.
+	 */
+	@Test
+	void everyEnglishNameIsNonBlank() {
+		assertThat(categories.findAll())
+				.isNotEmpty()
+				.allSatisfy(category -> assertThat(category.getNameEn()).isNotBlank());
+	}
 }

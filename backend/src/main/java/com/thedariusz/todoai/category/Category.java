@@ -21,6 +21,10 @@ public class Category {
 	@Column(name = "name_pl", nullable = false)
 	private String namePl;
 
+	/** Nullable in the schema (V11 is expand-only), seeded for all 11 rows by that same migration. */
+	@Column(name = "name_en")
+	private String nameEn;
+
 	@Column(name = "display_order", nullable = false)
 	private int displayOrder;
 
@@ -34,6 +38,10 @@ public class Category {
 
 	public String getNamePl() {
 		return namePl;
+	}
+
+	public String getNameEn() {
+		return nameEn;
 	}
 
 	public int getDisplayOrder() {
