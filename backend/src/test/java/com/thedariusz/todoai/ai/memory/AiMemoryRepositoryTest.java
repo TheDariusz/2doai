@@ -7,6 +7,7 @@ import jakarta.validation.ConstraintViolationException;
 
 import com.thedariusz.todoai.TestcontainersConfiguration;
 import com.thedariusz.todoai.user.Email;
+import com.thedariusz.todoai.user.AppLanguage;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRepository;
 import org.hibernate.Hibernate;
@@ -38,7 +39,7 @@ class AiMemoryRepositoryTest {
 	
 	private UUID persistedUserId() {
 		User owner = users.saveAndFlush(new User(Email.of("owner-" + UUID.randomUUID() + "@example.com"),
-				"{bcrypt}$2a$10$hash"));
+				"{bcrypt}$2a$10$hash", AppLanguage.PL));
 		return owner.getId();
 	}
 

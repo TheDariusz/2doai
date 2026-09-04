@@ -16,6 +16,7 @@ import com.thedariusz.todoai.mail.EmailSender;
 import com.thedariusz.todoai.mail.MailDeliveryException;
 import com.thedariusz.todoai.mail.MailboxProperties;
 import com.thedariusz.todoai.user.Email;
+import com.thedariusz.todoai.user.AppLanguage;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRegistered;
 import com.thedariusz.todoai.user.UserRepository;
@@ -369,7 +370,7 @@ class ProposalSchedulerTest {
 	/** The id is normally Hibernate's; the schedule is keyed by it, so the test has to supply one. */
 	private User account(OffsetDateTime next) {
 		User account = new User(Email.of("owner-" + UUID.randomUUID() + "@example.com"),
-				"{bcrypt}$2a$10$hash");
+				"{bcrypt}$2a$10$hash", AppLanguage.PL);
 		ReflectionTestUtils.setField(account, "id", UUID.randomUUID());
 		if (next != null) {
 			// Set the way the id is, and for the same reason: both are Hibernate's to write, and the

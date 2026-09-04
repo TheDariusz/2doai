@@ -13,6 +13,7 @@ import com.thedariusz.todoai.goal.GoalLayer;
 import com.thedariusz.todoai.goal.GoalRepository;
 import com.thedariusz.todoai.mail.EmailSender;
 import com.thedariusz.todoai.user.Email;
+import com.thedariusz.todoai.user.AppLanguage;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -106,7 +107,7 @@ class ProposalSchedulerIntegrationTest {
 	/** A user with one overdue task — the only neglect signal a freshly written row can carry. */
 	private UUID accountWithAnOverdueEntry(String content) {
 		UUID account = users.saveAndFlush(new User(Email.of("owner-" + UUID.randomUUID() + "@example.com"),
-				"{bcrypt}$2a$10$hash")).getId();
+				"{bcrypt}$2a$10$hash", AppLanguage.PL)).getId();
 		goals.saveAndFlush(new Goal(account, content, GoalLayer.TASK, null,
 				LocalDate.now(ProposalRhythm.USER_ZONE).minusDays(2), LifeDomain.EDUCATION));
 		return account;

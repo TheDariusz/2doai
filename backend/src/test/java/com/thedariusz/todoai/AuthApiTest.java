@@ -10,9 +10,11 @@ import java.util.UUID;
 import io.restassured.filter.cookie.CookieFilter;
 import io.restassured.http.Cookie;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -32,6 +34,10 @@ import static org.hamcrest.Matchers.nullValue;
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AuthApiTest extends ApiTestBase {
+
+	/** Only for reproducing a pre-V10 row; nothing in the application writes a null language. */
+	@Autowired
+	JdbcTemplate jdbc;
 
 	@Test
 	void registersANewUser() {
@@ -527,6 +533,229 @@ class AuthApiTest extends ApiTestBase {
 
 		assertThat(session.isHttpOnly()).isTrue();
 		assertThat(session.getSameSite()).isEqualTo("Strict");
+	}
+
+	/**
+	 * FR-003 — a new account starts in the language its sign-up screen was shown in. There is no field
+	 * on the registration payload and there does not need to be: the sign-up screen's language <em>is</em>
+	 * the {@code Accept-Language} the sign-up request carried, because the SPA sets that header from
+	 * whatever it is currently rendering (including after the switch on the auth screens themselves).
+	 */
+	@Test
+	void registrationInheritsTheLanguageOfTheSignUpRequest() {
+		String email = uniqueEmail();
+
+		csrfAware()
+				.header("Accept-Language", "en-GB,en;q=0.9")
+				.body(Map.of("email", email, "password", "correct-horse"))
+				.when()
+				.post("/api/users")
+				.then()
+				.statusCode(201)
+				.body("language", equalTo("EN"));
+
+		login(email, "correct-horse").statusCode(201).body("language", equalTo("EN"));
+	}
+
+	@Test
+	void registrationInPolishStoresPolish() {
+		String email = uniqueEmail();
+
+		csrfAware()
+				.header("Accept-Language", "pl-PL,pl;q=0.9,en;q=0.8")
+				.body(Map.of("email", email, "password", "correct-horse"))
+				.when()
+				.post("/api/users")
+				.then()
+				.statusCode(201)
+				.body("language", equalTo("PL"));
+	}
+
+	/**
+	 * Negotiation is left to Spring's {@code AcceptHeaderLocaleResolver} rather than hand-parsed, which
+	 * is what makes this case work: the browser's first choice is one the app does not speak, so the
+	 * quality-ordered second choice decides — a header a naive "read the first tag" parser gets wrong.
+	 */
+	@Test
+	void registrationHonoursQualityOrderingWhenTheFirstChoiceIsUnsupported() {
+		String email = uniqueEmail();
+
+		csrfAware()
+				.header("Accept-Language", "fr-FR;q=0.9,pl;q=0.8")
+				.body(Map.of("email", email, "password", "correct-horse"))
+				.when()
+				.post("/api/users")
+				.then()
+				.statusCode(201)
+				.body("language", equalTo("PL"));
+	}
+
+	/** The app is English-first: a header naming neither locale, and no header at all, both mean English. */
+	@Test
+	void registrationFallsBackToEnglishForAnUnsupportedOrAbsentHeader() {
+		csrfAware()
+				.header("Accept-Language", "de-DE,de;q=0.9")
+				.body(Map.of("email", uniqueEmail(), "password", "correct-horse"))
+				.when()
+				.post("/api/users")
+				.then()
+				.statusCode(201)
+				.body("language", equalTo("EN"));
+
+		csrfAware()
+				.body(Map.of("email", uniqueEmail(), "password", "correct-horse"))
+				.when()
+				.post("/api/users")
+				.then()
+				.statusCode(201)
+				.body("language", equalTo("EN"));
+	}
+
+	/**
+	 * FR-004 — an account that existed before this change was never asked anything, so its column is
+	 * simply absent (V10 adds it with no {@code DEFAULT} and rewrites no rows). Null means "never
+	 * chosen", which reads as Polish, all the way out to the wire. The row is nulled with raw SQL
+	 * because nothing in the application can produce that state any more.
+	 */
+	@Test
+	void anAccountThatNeverChoseALanguageReadsAsPolish() {
+		String email = uniqueEmail();
+		register(email, "correct-horse");
+		jdbc.update("update app_user set preferred_language = null where email = ?", email);
+
+		newBrowser();
+		login(email, "correct-horse").statusCode(201).body("language", equalTo("PL"));
+
+		client()
+				.when()
+				.get("/api/users/me")
+				.then()
+				.statusCode(200)
+				.body("language", equalTo("PL"));
+	}
+
+	/**
+	 * FR-002, and the one lifecycle trap in this slice. The PATCH writes the column, but the session
+	 * still holds the {@code UserPrincipal} built at login — and {@code GET /api/users/me} is answered
+	 * from that principal with no query. Unless the handler replaces the {@code Authentication} in the
+	 * {@code SecurityContext} <em>and</em> persists the context, the user switches language and
+	 * {@code /me} keeps reporting the old one until they log out.
+	 */
+	@Test
+	void switchingTheLanguageIsVisibleOnTheSameSessionWithoutRelogin() {
+		givenLoggedInUser();
+
+		csrfAware()
+				.body(Map.of("language", "PL"))
+				.when()
+				.patch("/api/users/me")
+				.then()
+				.statusCode(200)
+				.body("language", equalTo("PL"));
+
+		client()
+				.when()
+				.get("/api/users/me")
+				.then()
+				.statusCode(200)
+				.body("language", equalTo("PL"));
+	}
+
+	/** And the other half: the choice is on the account, so it outlives the session that made it. */
+	@Test
+	void theSwitchedLanguageSurvivesALaterLogin() {
+		String email = givenLoggedInUser();
+
+		csrfAware()
+				.body(Map.of("language", "PL"))
+				.when()
+				.patch("/api/users/me")
+				.then()
+				.statusCode(200);
+
+		newBrowser();
+		login(email, "correct-horse").statusCode(201).body("language", equalTo("PL"));
+	}
+
+	/**
+	 * An unknown wire literal never deserializes, so the request never becomes content: <b>400</b>, the
+	 * same split {@code GoalApiTest} pins for the goal enums. A missing field does parse and fails the
+	 * contract's constraints instead, which is 422.
+	 */
+	@Test
+	void rejectsAnUnknownLanguageLiteralWith400() {
+		givenLoggedInUser();
+
+		csrfAware()
+				.body(Map.of("language", "FR"))
+				.when()
+				.patch("/api/users/me")
+				.then()
+				.statusCode(400)
+				.contentType("application/problem+json");
+	}
+
+	@Test
+	void rejectsALanguageSwitchWithNoLanguageWith422() {
+		givenLoggedInUser();
+
+		csrfAware()
+				.body(Map.of())
+				.when()
+				.patch("/api/users/me")
+				.then()
+				.statusCode(422)
+				.contentType("application/problem+json");
+	}
+
+	@Test
+	void rejectsALanguageSwitchCarryingNoCsrfToken() {
+		givenLoggedInUser();
+
+		client()
+				.contentType("application/json")
+				.body(Map.of("language", "PL"))
+				.when()
+				.patch("/api/users/me")
+				.then()
+				.statusCode(403);
+	}
+
+	/**
+	 * The regression the language switch makes possible. {@code SessionRegistry} is keyed on the
+	 * principal, registered once at login, and the switch replaces the principal mid-session. With the
+	 * record's generated component-wise equality the sweep would look up a key that no longer matches,
+	 * find nothing, and leave a phone authenticating as a deleted account until its idle timeout —
+	 * silently, since deletion itself would still return 204.
+	 */
+	@Test
+	void endsEverySessionAfterALanguageSwitchHasReplacedThePrincipal() {
+		String email = uniqueEmail();
+		register(email, "correct-horse");
+		login(email, "correct-horse").statusCode(201);
+		CookieFilter phone = currentBrowser();
+
+		newBrowser();
+		login(email, "correct-horse").statusCode(201);
+		csrfAware()
+				.body(Map.of("language", "PL"))
+				.when()
+				.patch("/api/users/me")
+				.then()
+				.statusCode(200);
+		csrfAware()
+				.body(Map.of("password", "correct-horse"))
+				.when()
+				.delete("/api/users/me")
+				.then()
+				.statusCode(204);
+
+		switchToBrowser(phone);
+		client()
+				.when()
+				.get("/api/users/me")
+				.then()
+				.statusCode(401);
 	}
 
 	@Test

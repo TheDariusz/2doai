@@ -28,7 +28,8 @@ info:
   # #116 — MAJOR.MINOR.PATCH over the *contract*, not the app. 1.0.0 was S-01 (users, sessions,
   # categories); +goals (S-02) → 1.1.0, +proposals (S-04a) → 1.2.0, +current tasks (S-07) → 1.3.0,
   # +the phrased, stored, answerable proposal (S-04b) → 1.4.0, +the pending read the natural rhythm
-  # made necessary (S-05) → 1.5.0.
+  # made necessary (S-05) → 1.5.0, +the account language and the Accept-Language negotiation it is
+  # the persistence for (DEV-49) → 1.6.0.
   #
   # 1.4.0 carries one genuinely *incompatible* change and is not pretending otherwise:
   # `GoalUpdate.withdrawn` is a required boolean (Jackson rejects a null for a primitive), so a
@@ -36,7 +37,7 @@ info:
   # versioning — deliberately not done, because x-audience is component-internal: the only client is
   # the SPA in this repository, and it gained the field in the same commit the server did. The day a
   # second consumer exists, that exemption expires and this is the paragraph that says so.
-  version: 1.5.0
+  version: 1.6.0
   contact:
     name: 2do AI
     email: thedariusz@gmail.com
@@ -72,11 +73,14 @@ paths:
       description: >
         Creates a user from an email + password. Does not log the user in (session creation is the
         sole responsibility of POST /sessions). The email is normalized (trimmed + lowercased) and
-        must be unique; a taken email returns 409.
+        must be unique; a taken email returns 409. The new account's `language` is the one this
+        request negotiated (FR-003) — the sign-up screen's language IS the Accept-Language the
+        sign-up request carried, so there is deliberately no field for it on the payload.
       operationId: createUser
       security: []                                          # public (#104 exception: registration)
       parameters:
         - $ref: '#/components/parameters/XsrfToken'         # public, but still a mutation — CSRF applies
+        - $ref: '#/components/parameters/AcceptLanguage'
       requestBody:
         required: true
         content:
@@ -126,6 +130,40 @@ paths:
                 $ref: '#/components/schemas/User'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      tags: [users]
+      summary: Change the current user's language (FR-002)
+      description: >
+        Sets the language this account reads in. PATCH rather than PUT because the other members of
+        `User` are the id and the email, neither of which this operation may touch. The change takes
+        effect on the *calling session* immediately — the response is the updated user, and the very
+        next GET /users/me reports the new value without a re-login.
+      operationId: updateCurrentUser
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: The updated user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'         # a `language` outside the enum never deserializes
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'          # missing / invalid CSRF token
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity' # `language` omitted
         '500':
           $ref: '#/components/responses/InternalServerError'
     delete:
@@ -641,6 +679,22 @@ components:
       schema:
         type: string
 
+    AcceptLanguage:
+      name: Accept-Language
+      in: header
+      required: false
+      description: >
+        The language to answer in. This is the *transport* for the app's locale; `User.language` is
+        the persistence. The SPA sends whatever it is currently rendering on every call, so the
+        server never has to load an account to know what to write — which is what keeps
+        GET /users/me free of any database query. Negotiation is the standard quality-ordered one:
+        the first supported tag in the list wins, region is ignored (`en-GB` is `en`), and a header
+        naming neither supported language — or no header at all — means English. Sent by the SPA on
+        every request; only the operations that generate text for a person read it.
+      schema:
+        type: string
+        example: en-GB,en;q=0.9
+
     GoalId:
       name: id
       in: path
@@ -663,7 +717,7 @@ components:
     User:
       type: object
       description: A user identity. Minimal by design (YAGNI) — display name / flags come later.
-      required: [id, email]
+      required: [id, email, language]
       properties:
         id:
           type: string
@@ -673,6 +727,33 @@ components:
           type: string
           format: email
           example: alice@example.com
+        language:
+          $ref: '#/components/schemas/AppLanguage'
+
+    AppLanguage:
+      # THE ANCHOR for these two literals, the way GoalLayer is for its three — named once and
+      # $ref'd by User and UserUpdate rather than spelled out in each.
+      type: string
+      description: >
+        The language a person is addressed in. Two letters, not a BCP 47 tag: there are exactly two
+        locales and no region variants, so a client choosing between `en` and `en-GB` would be
+        choosing about nothing. This is what the account reads in, and what the SPA seeds itself
+        from at login — before it, the browser decides what the auth screens are rendered in; after
+        it, the account does. An account created before this field existed reports PL: null in
+        storage means "never chosen", and those accounts were never asked (FR-004).
+      # #112 open-ended enum: a third language must not break existing clients.
+      x-extensible-enum:
+        - PL
+        - EN
+      example: EN
+
+    UserUpdate:
+      type: object
+      description: The account's language setting (FR-002). See PATCH /users/me.
+      required: [language]
+      properties:
+        language:
+          $ref: '#/components/schemas/AppLanguage'
 
     UserRegistration:
       type: object

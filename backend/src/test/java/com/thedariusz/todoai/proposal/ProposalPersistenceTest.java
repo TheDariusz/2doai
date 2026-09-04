@@ -10,6 +10,7 @@ import com.thedariusz.todoai.goal.GoalHorizon;
 import com.thedariusz.todoai.goal.GoalLayer;
 import com.thedariusz.todoai.goal.GoalRepository;
 import com.thedariusz.todoai.user.Email;
+import com.thedariusz.todoai.user.AppLanguage;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -175,7 +176,7 @@ class ProposalPersistenceTest {
 
 	private UUID persistedUserId() {
 		return users.saveAndFlush(new User(Email.of("owner-" + UUID.randomUUID() + "@example.com"),
-				"{bcrypt}$2a$10$hash")).getId();
+				"{bcrypt}$2a$10$hash", AppLanguage.PL)).getId();
 	}
 
 	private UUID persistedGoalId(UUID userId) {

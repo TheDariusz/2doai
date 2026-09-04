@@ -2,6 +2,7 @@ package com.thedariusz.todoai.security;
 
 import java.util.UUID;
 
+import com.thedariusz.todoai.user.AppLanguage;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
@@ -28,7 +29,7 @@ class CurrentUserTest {
 	@Test
 	void returnsAuthenticatedUserId() {
 		UUID userId = UUID.randomUUID();
-		UserPrincipal principal = new UserPrincipal(userId, "alice@example.com", "{bcrypt}$2a$10$hash");
+		UserPrincipal principal = new UserPrincipal(userId, "alice@example.com", "{bcrypt}$2a$10$hash", AppLanguage.PL);
 		SecurityContextHolder.getContext().setAuthentication(
 				new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
 

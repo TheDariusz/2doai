@@ -14,6 +14,7 @@ import com.thedariusz.todoai.goal.GoalLayer;
 import com.thedariusz.todoai.goal.GoalRepository;
 import com.thedariusz.todoai.proposal.Proposal;
 import com.thedariusz.todoai.proposal.ProposalRepository;
+import com.thedariusz.todoai.user.AppLanguage;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -60,8 +61,8 @@ class AccountDeletionIntegrationTest {
 
 	@Test
 	void scopedFinderReturnsOnlyTheOwnersMemory() {
-		User alice = registrationService.register(uniqueEmail(), "correct-horse");
-		User bob = registrationService.register(uniqueEmail(), "correct-horse");
+		User alice = registrationService.register(uniqueEmail(), "correct-horse", AppLanguage.PL);
+		User bob = registrationService.register(uniqueEmail(), "correct-horse", AppLanguage.PL);
 
 		AiMemory aliceMemory = memories.findByUserId(alice.getId()).orElseThrow();
 		AiMemory bobMemory = memories.findByUserId(bob.getId()).orElseThrow();
@@ -72,15 +73,15 @@ class AccountDeletionIntegrationTest {
 
 	@Test
 	void registrationProvisionsExactlyOneMemoryPerUser() {
-		User user = registrationService.register(uniqueEmail(), "correct-horse");
+		User user = registrationService.register(uniqueEmail(), "correct-horse", AppLanguage.PL);
 
 		assertThat(memories.findByUserId(user.getId())).isPresent();
 	}
 
 	@Test
 	void deletingAnAccountRemovesTheUserTheMemoryAndItsChildren() {
-		User alice = registrationService.register(uniqueEmail(), "correct-horse");
-		User bob = registrationService.register(uniqueEmail(), "correct-horse");
+		User alice = registrationService.register(uniqueEmail(), "correct-horse", AppLanguage.PL);
+		User bob = registrationService.register(uniqueEmail(), "correct-horse", AppLanguage.PL);
 		UUID aliceMemoryId = givenMemoryWithChildren(alice.getId());
 		UUID bobMemoryId = givenMemoryWithChildren(bob.getId());
 
@@ -104,8 +105,8 @@ class AccountDeletionIntegrationTest {
 	 */
 	@Test
 	void deletingAnAccountRemovesItsProposalsToo() {
-		User alice = registrationService.register(uniqueEmail(), "correct-horse");
-		User bob = registrationService.register(uniqueEmail(), "correct-horse");
+		User alice = registrationService.register(uniqueEmail(), "correct-horse", AppLanguage.PL);
+		User bob = registrationService.register(uniqueEmail(), "correct-horse", AppLanguage.PL);
 		givenPendingProposal(alice.getId());
 		givenPendingProposal(bob.getId());
 
@@ -188,7 +189,7 @@ class AccountDeletionIntegrationTest {
 	 */
 	@Test
 	void deletingAUserWithDataLeftBehindFailsOnTheForeignKey() {
-		User orphaned = registrationService.register(uniqueEmail(), "correct-horse");
+		User orphaned = registrationService.register(uniqueEmail(), "correct-horse", AppLanguage.PL);
 
 		assertThatThrownBy(() -> {
 			users.deleteById(orphaned.getId());

@@ -2,6 +2,7 @@ package com.thedariusz.todoai.security;
 
 import java.util.Optional;
 
+import com.thedariusz.todoai.user.AppLanguage;
 import com.thedariusz.todoai.user.Email;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRepository;
@@ -31,11 +32,26 @@ class AppUserDetailsServiceTest {
 	@Test
 	void normalizesCaseAndWhitespaceBeforeLookup() {
 		when(users.findByEmail(STORED_EMAIL))
-				.thenReturn(Optional.of(new User(Email.of(STORED_EMAIL), "{bcrypt}$2a$10$hash")));
+				.thenReturn(Optional.of(new User(Email.of(STORED_EMAIL), "{bcrypt}$2a$10$hash", AppLanguage.PL)));
 
 		UserDetails details = service.loadUserByUsername("  Alice@Example.COM  ");
 
 		assertThat(details.getUsername()).isEqualTo(STORED_EMAIL);
+	}
+
+	/**
+	 * The account's language rides on the principal so {@code GET /api/users/me} can report it
+	 * without a query — the login lookup is the one round-trip that already has the row in hand, and
+	 * every avoided query afterwards is idle time Neon can autosuspend through (lessons.md).
+	 */
+	@Test
+	void carriesTheAccountsLanguageOntoThePrincipal() {
+		when(users.findByEmail(STORED_EMAIL))
+				.thenReturn(Optional.of(new User(Email.of(STORED_EMAIL), "{bcrypt}$2a$10$hash", AppLanguage.PL)));
+
+		UserDetails details = service.loadUserByUsername(STORED_EMAIL);
+
+		assertThat(((UserPrincipal) details).language()).isEqualTo(AppLanguage.PL);
 	}
 
 	@Test

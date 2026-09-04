@@ -1,6 +1,8 @@
 package com.thedariusz.todoai.user;
 
 import java.net.URI;
+import java.time.OffsetDateTime;
+import java.util.Locale;
 
 import com.thedariusz.todoai.account.AccountDeletionService;
 import com.thedariusz.todoai.auth.DeleteAccountRequest;
@@ -8,6 +10,7 @@ import com.thedariusz.todoai.auth.ReAuthenticationFailedException;
 import com.thedariusz.todoai.auth.RegisterRequest;
 import com.thedariusz.todoai.auth.RegistrationService;
 import com.thedariusz.todoai.auth.UserResponse;
+import com.thedariusz.todoai.auth.UserUpdate;
 import com.thedariusz.todoai.security.UserPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -15,15 +18,20 @@ import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.session.SessionInformation;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -49,14 +57,22 @@ public class UserController {
 
 	private final SessionRegistry sessionRegistry;
 
+	private final UserRepository users;
+
+	/** The chain's own repository (a {@code SecurityConfig} bean), never a private instance — see there. */
+	private final SecurityContextRepository securityContextRepository;
+
 	public UserController(RegistrationService registrationService,
 			AccountDeletionService accountDeletionService, PasswordEncoder passwordEncoder,
-			LogoutHandler logoutHandler, SessionRegistry sessionRegistry) {
+			LogoutHandler logoutHandler, SessionRegistry sessionRegistry, UserRepository users,
+			SecurityContextRepository securityContextRepository) {
 		this.registrationService = registrationService;
 		this.accountDeletionService = accountDeletionService;
 		this.passwordEncoder = passwordEncoder;
 		this.logoutHandler = logoutHandler;
 		this.sessionRegistry = sessionRegistry;
+		this.users = users;
+		this.securityContextRepository = securityContextRepository;
 	}
 
 	/**
@@ -65,8 +81,11 @@ public class UserController {
 	 * {@code /users/{id}} endpoint to point at (nor should there be, in a flat single-tenant model).
 	 */
 	@PostMapping
-	ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
-		User user = registrationService.register(request.email(), request.password());
+	ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request, Locale locale) {
+		// FR-003 — the account starts in the language of the screen it was created from, which is the
+		// language this very request advertised. `locale` is resolved by the LocaleResolver in
+		// `i18n/LocaleConfig`, so quality ordering and unsupported tags are already handled.
+		User user = registrationService.register(request.email(), request.password(), AppLanguage.of(locale));
 		return ResponseEntity.created(URI.create("/api/users/me")).body(UserResponse.from(user));
 	}
 
@@ -78,6 +97,45 @@ public class UserController {
 	@GetMapping("/me")
 	UserResponse currentUser(@AuthenticationPrincipal UserPrincipal principal) {
 		return UserResponse.from(principal);
+	}
+
+	/**
+	 * FR-002 — changes the language this account reads in, effective on the current session.
+	 *
+	 * <p>The write is a targeted repository update, mirroring how {@code next_proposal_at} moves;
+	 * {@link User} gains no setter.
+	 *
+	 * <p><b>Then the principal has to be rebuilt, and that is the whole subtlety of this endpoint.</b>
+	 * {@code GET /api/users/me} is answered from the {@code UserPrincipal} held in the session and
+	 * never queries, so writing the column alone would leave the user switched in the database and
+	 * unswitched everywhere they can see, until they logged out. Replacing the {@code Authentication}
+	 * on the holder is not enough either: Spring Security 6 stopped persisting the context
+	 * automatically ({@code SecurityContextHolderFilter} only reads), so it must be saved through the
+	 * chain's own {@link SecurityContextRepository} — the same three steps {@code SessionController}
+	 * performs after a login, and for the same reason.
+	 */
+	@PatchMapping("/me")
+	UserResponse updateCurrentUser(@Valid @RequestBody UserUpdate request,
+			@AuthenticationPrincipal UserPrincipal principal,
+			HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+
+		if (users.updateLanguage(principal.userId(), request.language(), OffsetDateTime.now()) == 0) {
+			// The account was erased between this session being established and this request arriving.
+			// An AuthenticationException, so the ExceptionTranslationFilter answers 401 — which is the
+			// truth: there is no longer an account to be authenticated as.
+			throw new AuthenticationCredentialsNotFoundException("The account no longer exists");
+		}
+
+		UserPrincipal switched = principal.withLanguage(request.language());
+		Authentication current = SecurityContextHolder.getContext().getAuthentication();
+		SecurityContext context = SecurityContextHolder.createEmptyContext();
+		context.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(
+				switched, current.getCredentials(), current.getAuthorities()));
+		SecurityContextHolder.setContext(context);
+		securityContextRepository.saveContext(context, httpRequest, httpResponse);
+
+		log.info("Account {} switched language to {}", switched.userId(), switched.language());
+		return UserResponse.from(switched);
 	}
 
 	/**

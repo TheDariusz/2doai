@@ -8,6 +8,7 @@ import java.util.UUID;
 import com.thedariusz.todoai.TestcontainersConfiguration;
 import com.thedariusz.todoai.category.LifeDomain;
 import com.thedariusz.todoai.user.Email;
+import com.thedariusz.todoai.user.AppLanguage;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -56,7 +57,7 @@ class GoalPersistenceTest {
 
 	private UUID persistedUserId() {
 		User owner = users.saveAndFlush(new User(Email.of("owner-" + UUID.randomUUID() + "@example.com"),
-				"{bcrypt}$2a$10$hash"));
+				"{bcrypt}$2a$10$hash", AppLanguage.PL));
 		return owner.getId();
 	}
 

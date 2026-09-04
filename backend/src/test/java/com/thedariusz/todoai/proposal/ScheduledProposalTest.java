@@ -13,6 +13,7 @@ import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.goal.GoalLayer;
 import com.thedariusz.todoai.goal.GoalRepository;
 import com.thedariusz.todoai.user.Email;
+import com.thedariusz.todoai.user.AppLanguage;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -148,7 +149,7 @@ class ScheduledProposalTest {
 	/** A user with one overdue task per name — the only neglect signal a freshly written row can carry. */
 	private UUID userWithOverdueEntries(String... contents) {
 		UUID userId = users.saveAndFlush(new User(Email.of("owner-" + UUID.randomUUID() + "@example.com"),
-				"{bcrypt}$2a$10$hash")).getId();
+				"{bcrypt}$2a$10$hash", AppLanguage.PL)).getId();
 
 		// Distinct domains so the balancing rule has nothing to say, and created in order so the
 		// comparator's final tie-break (UUID v7 ascends with creation) picks the first one named.

@@ -44,4 +44,25 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 	@Transactional
 	@Query("update User u set u.nextProposalAt = :next, u.updatedAt = :now where u.id = :id")
 	int scheduleNextProposalAt(UUID id, OffsetDateTime next, OffsetDateTime now);
+
+	/**
+	 * Change one account's language (DEV-49, FR-002).
+	 *
+	 * <p>A targeted update for the same reason as {@link #scheduleNextProposalAt}, minus the detached
+	 * -account hazard: {@link User} deliberately has <b>no setters at all</b>, and leaving one here
+	 * would leave a {@code save}-shaped resurrection bug one call away on an aggregate whose whole
+	 * point is that it cannot be re-inserted by accident.
+	 *
+	 * <p>{@code updated_at} is set here because a bulk update bypasses Hibernate's
+	 * {@code @UpdateTimestamp}, and this row did change.
+	 *
+	 * @param id the account switching language
+	 * @param language the language chosen
+	 * @param now the moment of the switch, for the audit column
+	 * @return 1 when the row was there, 0 when the account no longer exists
+	 */
+	@Modifying(flushAutomatically = true)
+	@Transactional
+	@Query("update User u set u.preferredLanguage = :language, u.updatedAt = :now where u.id = :id")
+	int updateLanguage(UUID id, AppLanguage language, OffsetDateTime now);
 }
