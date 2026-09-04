@@ -170,6 +170,31 @@ class ProposalApiTest extends ApiTestBase {
 				.body("message", not(equalTo(PHRASED)));
 	}
 
+	/**
+	 * The same fallback arm, asked for in the other language (FR-009 on the on-demand path). The
+	 * model call fails exactly as above, so what is asserted is the sentence the app writes on its
+	 * own — the one surface where a missing language argument would otherwise be invisible, since a
+	 * mocked model answers whatever it was stubbed with regardless of the prompt it was handed.
+	 */
+	@Test
+	void writesTheTemplateProposalInTheLanguageTheRequestAskedFor() {
+		doThrow(new LlmException("provider unreachable")).when(llm).complete(any());
+		givenLoggedInUser();
+		createTask(task("Oddać książkę", "EDUCATION", LocalDate.now().minusDays(2)));
+
+		csrfAware()
+				.header("Accept-Language", "en")
+				.when()
+				.post("/api/proposals")
+				.then()
+				.statusCode(200)
+				.body("source", equalTo("TEMPLATE"))
+				// The entry is the user's own words and is quoted, not translated; the sentence around
+				// it is the app's, and that is the half that follows the request.
+				.body("message", containsString("Oddać książkę"))
+				.body("message", containsString("you wrote"));
+	}
+
 	@Test
 	void answersNoContentWhileNothingHasBeenNeglected() {
 		givenLoggedInUser();

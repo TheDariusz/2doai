@@ -9,6 +9,7 @@ import com.thedariusz.todoai.category.LifeDomain;
 import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.goal.GoalHorizon;
 import com.thedariusz.todoai.goal.GoalLayer;
+import com.thedariusz.todoai.user.AppLanguage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.slf4j.Logger;
@@ -61,7 +62,7 @@ class ProposalLiveTest {
 
 						## Recent activity
 						- 2026-06-14T20:11:00Z · proposal_answered: {"answer":"NOT_NOW"}""",
-				entry, 243));
+				entry, 243, AppLanguage.PL));
 
 		log.info("Proposal message:\n{}", message);
 		assertThat(message).isNotBlank();
@@ -77,7 +78,7 @@ class ProposalLiveTest {
 		// The strict json_schema path, which OpenRouterLiveTest proves in the abstract and this one
 		// exercises with the schema production actually sends.
 		FirstStep firstStep = llmClient.completeStructured(
-				ProposalPrompt.forFirstStep(properties.model().sonnet(), "", entry),
+				ProposalPrompt.forFirstStep(properties.model().sonnet(), "", entry, AppLanguage.PL),
 				FirstStep.class, FirstStep.SCHEMA);
 
 		log.info("First step:\n- {}", String.join("\n- ", firstStep.steps()));

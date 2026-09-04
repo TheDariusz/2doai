@@ -4,6 +4,7 @@ import com.thedariusz.todoai.ai.LlmMessage;
 import com.thedariusz.todoai.ai.LlmRequest;
 import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.goal.GoalLayer;
+import com.thedariusz.todoai.user.AppLanguage;
 import org.apache.commons.lang3.StringUtils;
 
 /**
@@ -16,10 +17,10 @@ import org.apache.commons.lang3.StringUtils;
  * <p><b>Everything addressed to the model is English; only the answer is localized.</b> The
  * personas, the field labels and the layer gloss are machine-facing text — code, in effect — and
  * they <em>state</em> which language the answer must come back in rather than demonstrating it by
- * being written in it. That is what keeps a second locale down to {@link #OUTPUT_LANGUAGE} instead
- * of a second copy of every instruction, free to drift from the first the moment either is
- * tightened. {@link ProposalTemplate} is the opposite case and stays localized, because its output
- * <em>is</em> what the user reads.
+ * being written in it. That is what keeps a second locale down to one interpolated word — the
+ * {@link AppLanguage} the caller hands in — instead of a second copy of every instruction, free to
+ * drift from the first the moment either is tightened. {@link ProposalTemplate} is the opposite case
+ * and stays localized, because its output <em>is</em> what the user reads.
  *
  * <p><b>Every untrusted value is fenced, never concatenated.</b> The memory block and the entry's
  * content both originate from the user, and a stored value reaching a system/context slot verbatim
@@ -37,22 +38,11 @@ import org.apache.commons.lang3.StringUtils;
  */
 final class ProposalPrompt {
 
-	/**
-	 * The one localized thing in this class, and the seam a second locale moves. It names the
-	 * language of the <em>answer</em>; the instructions asking for it stay English either way.
-	 *
-	 * <p>Hardcoded because there is nowhere yet to read a locale from — no {@code user.locale}
-	 * column, no {@code Accept-Language} handling. When one appears this becomes a parameter
-	 * threaded from the caller, and nothing else in the class changes.
-	 */
-	// ponytail: one hardcoded language while every account is Polish; a user.locale column is the
-	// upgrade, and these two prompts are the only readers.
-	private static final String OUTPUT_LANGUAGE = "Polish";
-
 	private static final String FENCE_OPEN = "<data";
 
 	private static final String FENCE_CLOSE = "</data>";
 
+	/** Its one {@code %s} is the answer's language, named in English — see the class javadoc. */
 	private static final String PERSONA = """
 			You are the user's friend, and you have noticed that one of the things they wrote down \
 			has been sitting untouched. You are not a coach, a trainer or a motivational app — do \
@@ -70,7 +60,7 @@ final class ProposalPrompt {
 			answer.
 
 			Reply with the message itself — no heading, no list, no quotation marks around the \
-			whole thing.""".formatted(OUTPUT_LANGUAGE);
+			whole thing.""";
 
 	/**
 	 * The second persona: the user has already said yes, so nothing here persuades. It asks for
@@ -97,7 +87,7 @@ final class ProposalPrompt {
 			answer.
 
 			Reply with a JSON object matching the schema: a "steps" field holding the list of \
-			steps.""".formatted(OUTPUT_LANGUAGE);
+			steps.""";
 
 	private ProposalPrompt() {
 	}
@@ -108,9 +98,12 @@ final class ProposalPrompt {
 	 * @param entry the entry the engine picked
 	 * @param neglectedDays the silence that earned it the proposal, the same number the message
 	 *        quotes — and zero when the term earned it instead, which {@link #elapsed} reads
+	 * @param language the language the answer must be written in — the instructions asking for it
+	 *        stay English either way
 	 */
-	static LlmRequest forProposal(String model, String memoryBlock, Goal entry, long neglectedDays) {
-		return LlmRequest.of(model, LlmMessage.system(PERSONA),
+	static LlmRequest forProposal(String model, String memoryBlock, Goal entry, long neglectedDays,
+			AppLanguage language) {
+		return LlmRequest.of(model, LlmMessage.system(PERSONA.formatted(language.englishName())),
 				LlmMessage.user(context(memoryBlock, entry, elapsed(neglectedDays))));
 	}
 
@@ -142,9 +135,11 @@ final class ProposalPrompt {
 	 *        user asked to see
 	 * @param memoryBlock the rendered {@code AiMemory} block, blank when the user has no history yet
 	 * @param entry the entry the user is starting on
+	 * @param language the language the steps must be written in
 	 */
-	static LlmRequest forFirstStep(String model, String memoryBlock, Goal entry) {
-		return LlmRequest.of(model, LlmMessage.system(FIRST_STEP_PERSONA),
+	static LlmRequest forFirstStep(String model, String memoryBlock, Goal entry, AppLanguage language) {
+		return LlmRequest.of(model,
+				LlmMessage.system(FIRST_STEP_PERSONA.formatted(language.englishName())),
 				LlmMessage.user(context(memoryBlock, entry, "")));
 	}
 

@@ -7,6 +7,9 @@ import java.util.UUID;
 
 import com.thedariusz.todoai.TestcontainersConfiguration;
 import com.thedariusz.todoai.ai.LlmClient;
+import com.thedariusz.todoai.ai.LlmException;
+import com.thedariusz.todoai.ai.LlmMessage;
+import com.thedariusz.todoai.ai.LlmRequest;
 import com.thedariusz.todoai.ai.memory.AiMemoryService;
 import com.thedariusz.todoai.category.LifeDomain;
 import com.thedariusz.todoai.goal.Goal;
@@ -18,6 +21,7 @@ import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -25,6 +29,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -146,10 +152,37 @@ class ScheduledProposalTest {
 				.isEqualTo("Oddać książkę");
 	}
 
+	/**
+	 * The accepted FR-009 exception, pinned so it can neither widen nor quietly close: the scheduled
+	 * path writes one language whatever the account reads in, because the text is generated once at
+	 * send time and stored, and nothing on this thread carries a request to read a language from.
+	 * Both halves are asserted — the language the model is asked for, and the language of the
+	 * sentence written when it does not answer. See {@code change.md} for what was accepted and why.
+	 */
+	@Test
+	void writesAScheduledProposalInOneLanguageWhateverTheAccountReadsIn() {
+		UUID user = userWithOverdueEntries(AppLanguage.EN, "Oddać książkę");
+		doThrow(new LlmException("provider unreachable")).when(llm).complete(any());
+
+		ProposalResponse proposal = proposals.proposeScheduled(user).orElseThrow();
+
+		assertThat(proposal.message()).isEqualTo(ProposalTemplate.phrase(
+				goals.findByUserIdOrderByCreatedAtDesc(user).getFirst(), proposal.neglectedDays()));
+
+		ArgumentCaptor<LlmRequest> prompt = ArgumentCaptor.forClass(LlmRequest.class);
+		verify(llm).complete(prompt.capture());
+		assertThat(prompt.getValue().messages()).extracting(LlmMessage::content)
+				.anySatisfy(content -> assertThat(content).contains("Polish"));
+	}
+
 	/** A user with one overdue task per name — the only neglect signal a freshly written row can carry. */
 	private UUID userWithOverdueEntries(String... contents) {
+		return userWithOverdueEntries(AppLanguage.PL, contents);
+	}
+
+	private UUID userWithOverdueEntries(AppLanguage language, String... contents) {
 		UUID userId = users.saveAndFlush(new User(Email.of("owner-" + UUID.randomUUID() + "@example.com"),
-				"{bcrypt}$2a$10$hash", AppLanguage.PL)).getId();
+				"{bcrypt}$2a$10$hash", language)).getId();
 
 		// Distinct domains so the balancing rule has nothing to say, and created in order so the
 		// comparator's final tie-break (UUID v7 ascends with creation) picks the first one named.

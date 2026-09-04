@@ -1,7 +1,9 @@
 package com.thedariusz.todoai.proposal;
 
+import java.util.Locale;
 import java.util.UUID;
 
+import com.thedariusz.todoai.user.AppLanguage;
 import jakarta.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
@@ -38,6 +40,13 @@ import org.springframework.web.bind.annotation.RestController;
  * publish {@code answer} as a settable field and invite a client to change it, when in fact it can
  * be written exactly once. {@code /answer} names the act instead (#138 favours resources, and this
  * is one: the answer belongs to the proposal), and its 409 says so out loud.
+ *
+ * <p><b>The two writing operations take a {@link Locale}</b>, resolved from {@code Accept-Language}
+ * by {@code i18n/LocaleConfig} and handed on as a domain value. Both generate text for a person to
+ * read, so both need to know which language that person is reading in; {@link #pending()} does not,
+ * because it returns text written when the proposal was opened. The service is given the language as
+ * an argument rather than reading one from a holder, which is what keeps it testable off a request —
+ * and is what {@code ProposalService.proposeScheduled} relies on, having no request at all.
  */
 @RestController
 @RequestMapping("/api/proposals")
@@ -50,8 +59,8 @@ class ProposalController {
 	}
 
 	@PostMapping
-	ResponseEntity<ProposalResponse> propose() {
-		return proposals.propose()
+	ResponseEntity<ProposalResponse> propose(Locale locale) {
+		return proposals.propose(AppLanguage.of(locale))
 				.map(ResponseEntity::ok)
 				.orElseGet(() -> ResponseEntity.noContent().build());
 	}
@@ -74,7 +83,8 @@ class ProposalController {
 	 * just asked for a proposal or just answered one.
 	 */
 	@PostMapping("/{id}/answer")
-	ProposalResponse answer(@PathVariable UUID id, @Valid @RequestBody ProposalAnswerRequest request) {
-		return proposals.answer(id, request);
+	ProposalResponse answer(@PathVariable UUID id, @Valid @RequestBody ProposalAnswerRequest request,
+			Locale locale) {
+		return proposals.answer(id, request, AppLanguage.of(locale));
 	}
 }

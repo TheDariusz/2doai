@@ -777,10 +777,10 @@ rewrites user data. `CategorySyncCheck` is unaffected — it reads only `code`.
 
 #### Automated
 
-- [x] 2.1 Backend suite passes: `cd backend && mvn test`
-- [x] 2.2 `CategoryApiTest` returns English, Polish and the English default per header
-- [x] 2.3 `CategoryApiTest` asserts `Vary: Accept-Language`
-- [x] 2.4 `CategorySeedTest` asserts 11 non-blank `name_en`
+- [x] 2.1 Backend suite passes: `cd backend && mvn test` — 3d87762
+- [x] 2.2 `CategoryApiTest` returns English, Polish and the English default per header — 3d87762
+- [x] 2.3 `CategoryApiTest` asserts `Vary: Accept-Language` — 3d87762
+- [x] 2.4 `CategorySeedTest` asserts 11 non-blank `name_en` — 3d87762
 
 #### Manual
 
@@ -791,11 +791,11 @@ rewrites user data. `CategorySyncCheck` is unaffected — it reads only `code`.
 
 #### Automated
 
-- [ ] 3.1 Backend suite passes: `cd backend && mvn test`
-- [ ] 3.2 `ProposalPromptTest` asserts the language word per `AppLanguage`
-- [ ] 3.3 English fallback test class covers sentence, elapsed phrasing, plural boundary, passed deadline
-- [ ] 3.4 `ProposalApiTest`: English request + failed model → English `TEMPLATE` sentence
-- [ ] 3.5 A test pins `proposeScheduled` to Polish (the accepted gap)
+- [x] 3.1 Backend suite passes: `cd backend && mvn test`
+- [x] 3.2 `ProposalPromptTest` asserts the language word per `AppLanguage`
+- [x] 3.3 English fallback test class covers sentence, elapsed phrasing, plural boundary, passed deadline
+- [x] 3.4 `ProposalApiTest`: English request + failed model → English `TEMPLATE` sentence
+- [x] 3.5 A test pins `proposeScheduled` to Polish (the accepted gap)
 
 #### Manual
 
