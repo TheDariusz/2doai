@@ -38,7 +38,7 @@ info:
   # versioning — deliberately not done, because x-audience is component-internal: the only client is
   # the SPA in this repository, and it gained the field in the same commit the server did. The day a
   # second consumer exists, that exemption expires and this is the paragraph that says so.
-  version: 1.7.0
+  version: 1.7.1
   contact:
     name: 2do AI
     email: thedariusz@gmail.com
@@ -510,6 +510,7 @@ paths:
       operationId: createProposal
       parameters:
         - $ref: '#/components/parameters/XsrfToken'
+        - $ref: '#/components/parameters/AcceptLanguage'
       responses:
         '200':
           description: The entry the engine picked.
@@ -599,6 +600,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ProposalId'
         - $ref: '#/components/parameters/XsrfToken'
+        - $ref: '#/components/parameters/AcceptLanguage'
       requestBody:
         required: true
         content:

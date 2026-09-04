@@ -423,6 +423,13 @@ request's language. The scheduled path deliberately does not.
 passes `AppLanguage.PL` unconditionally** and carries a comment naming this as the accepted FR-009
 exception with a pointer to `change.md`. That single line is the whole of the gap.
 
+#### 4. Specification
+
+> **Added after the full-plan review (2026-09-04).** This phase originally had no specification
+> item, and the review found `POST /proposals` and `POST /proposals/{id}/answer` answering in the
+> header's language with `openapi.yaml` silent about it — `ApiSurfaceTest` compares operations, not
+> parameters, so nothing went red. Both operations now reference the `AcceptLanguage` parameter.
+
 ### Success Criteria:
 
 #### Automated Verification:
@@ -833,8 +840,8 @@ rewrites user data. `CategorySyncCheck` is unaffected — it reads only `code`.
 
 #### Automated
 
-- [x] 6.1 Docs structure test passes: `node --test docs/index.test.mjs`
-- [x] 6.2 The full gate is green: `/check`
+- [x] 6.1 Docs structure test passes: `node --test docs/index.test.mjs` — e88aab6
+- [x] 6.2 The full gate is green: `/check` — e88aab6
 
 #### Manual
 

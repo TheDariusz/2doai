@@ -24,7 +24,7 @@ export function AccountMenu() {
   const [pending, setPending] = useState(false)
   // What the account is stored as, so a re-pick of the language it already has can be told from a
   // real change. Seeded from `/users/me` and moved by the PATCH's own response.
-  const [language, setLanguage] = useState(user?.language)
+  const [language, setLanguage] = useState(user?.language ?? null)
 
   /**
    * FR-002. The `PATCH` is skipped when nothing would change, and that is not cosmetic: the server
@@ -45,7 +45,7 @@ export function AccountMenu() {
       // The response is the updated account, so the screen follows what the server stored rather
       // than what was asked for.
       const updated = await api<User>('/users/me', { method: 'PATCH', body: { language: chosen } })
-      const stored = updated.language ?? chosen
+      const stored = updated.language
       setLanguage(stored)
       await i18n.changeLanguage(stored.toLowerCase())
     } catch {

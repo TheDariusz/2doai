@@ -17,7 +17,7 @@ export type Domain = { code: string; name: string }
  * ordering live in the Flyway seed alone and are guarded by nothing.
  */
 export function AppLayout() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [domains, setDomains] = useState<Domain[]>([])
   const [failed, setFailed] = useState(false)
 
@@ -28,7 +28,11 @@ export function AppLayout() {
       // the user cannot navigate, so say so instead of rendering an empty nav that looks finished.
       () => setFailed(true),
     )
-  }, [])
+    // Re-run on a language switch: the labels are server-rendered in the request's language, and
+    // the account-menu switch changes it in place. This costs no database query — the controller
+    // answers from a startup-built map — and a switch back is served from the browser cache, which
+    // `Vary: Accept-Language` keys per language.
+  }, [i18n.resolvedLanguage])
 
   return (
     <div className="shell">

@@ -5,9 +5,11 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
-// Anything outside ASCII is copy in disguise: no identifier, path or wire literal in this app needs
-// it, and every screen string that did now lives in src/i18n. The one exception is the middot the
-// entry meta joins on, which is punctuation rather than words — allowed in the class below.
+// A non-ASCII character in a string is copy in disguise: no identifier, path or wire literal in this
+// app needs one, and every screen string that did now lives in src/i18n. It is a diacritic detector,
+// not a copy detector — a Polish literal without diacritics or a hardcoded English one passes — so
+// it catches the leak that is easy to see and relies on review for the rest. The one exception is
+// the middot the entry meta joins on, which is punctuation rather than words — allowed below.
 const NON_ASCII = String.raw`[^\x00-\x7F·]`
 
 const noStrayCopy = [

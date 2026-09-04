@@ -311,9 +311,11 @@ class AuthApiTest extends ApiTestBase {
 	 * disagree, which is exactly how six of eleven category codes rotted unnoticed (lessons.md, "A
 	 * contract value duplicated across the stack needs one guard that spans the boundary").
 	 *
-	 * <p>Compared as a <b>set</b>, never searched for: a substring check passes happily after a value
-	 * has been <em>deleted</em> from the spec. The SPA's copy is the third and joins this assertion in
-	 * Phase 4, when the catalog gives it one.
+	 * <p>The spec is compared as a <b>set</b>, never searched for: a substring check passes happily
+	 * after a value has been <em>deleted</em> from the spec. The SPA's two copies — the {@code User}
+	 * type and the account menu's mapping — are held by substring, the way the re-auth URN above is:
+	 * a TypeScript union cannot be read as a set from here, so a value <em>removed</em> on that side
+	 * is the one drift this does not see. A rename on any side goes red.
 	 */
 	@Test
 	@SuppressWarnings("unchecked")
@@ -328,6 +330,18 @@ class AuthApiTest extends ApiTestBase {
 				.as("openapi.yaml is the anchor for every language literal the stack hardcodes")
 				.containsExactlyInAnyOrderElementsOf(
 						Stream.of(AppLanguage.values()).map(Enum::name).toList());
+
+		String userType = read("../frontend/src/auth/auth-context.ts");
+		String accountMenu = read("../frontend/src/auth/AccountMenu.tsx");
+		for (AppLanguage language : AppLanguage.values()) {
+			String literal = "'" + language.name() + "'";
+			assertThat(userType)
+					.as("the SPA's User type names every language the contract does")
+					.contains(literal);
+			assertThat(accountMenu)
+					.as("the account menu maps to every language literal the contract does")
+					.contains(literal);
+		}
 	}
 
 	private static String read(String path) throws IOException {

@@ -115,8 +115,9 @@ final class ProposalPrompt {
 	 * which is the opposite of why it was picked; production said exactly that on 2026-09-03 about a
 	 * task a week past its term.
 	 *
-	 * <p>{@link ProposalTemplate} already reads zero this way ("termin już minął"), and the two arms
-	 * of the same catch must not disagree about what the number means. This one stays English and
+	 * <p>{@link ProposalTemplate} and {@link ProposalTemplateEn} already read zero this way — as the
+	 * term having passed, not as no silence — and the arms of the same catch must not disagree about
+	 * what the number means. This one stays English and
 	 * says only that the term passed: the day count is what the entry does not have, and inventing
 	 * one is the failure being fixed.
 	 */

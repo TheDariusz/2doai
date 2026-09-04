@@ -1604,7 +1604,7 @@ sequenceDiagram
   SPA->>SC: POST /api/sessions {email, password}
   SC->>AM: authenticate(unauthenticated token)
   AM->>UDS: loadUserByUsername(email)
-  UDS-->>AM: UserPrincipal (userId, email, passwordHash)
+  UDS-->>AM: UserPrincipal (userId, email, passwordHash, language)
   alt bad credentials (unknown email OR wrong password)
     AM-->>SPA: 401 Problem JSON — identical either way,&lt;br/&gt;reveals nothing about which emails exist
   else authenticated

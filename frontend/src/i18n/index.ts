@@ -41,9 +41,9 @@ i18n.use(initReactI18next).init({
 })
 
 /**
- * The document's language is not decoration: it drives screen-reader pronunciation and the display
- * format of `<input type="date">`. `index.html` carries the initial value; from here on the switch
- * owns it. The same handler persists the choice, which is what makes it survive a reload — and,
+ * The document's language is not decoration: it drives screen-reader pronunciation and hyphenation
+ * (browsers format `<input type="date">` from their own locale, not from this). `index.html` carries
+ * the initial value; from here on the switch owns it. The same handler persists the choice, which is what makes it survive a reload — and,
  * after login, what carries the account's language into the next boot before `/users/me` lands.
  */
 i18n.on('languageChanged', (language) => {

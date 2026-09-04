@@ -20,7 +20,7 @@ export function stubAuth(overrides: Partial<Auth> = {}): Auth {
 /** The signed-in overrides every shell test starts from. */
 export const LOGGED_IN: Partial<Auth> = {
   status: 'authenticated',
-  user: { id: 'u1', email: 'ala@example.pl' },
+  user: { id: 'u1', email: 'ala@example.pl', language: 'EN' },
 }
 
 /** Minimal stand-in for `Response` — the client only reads these four members. */

@@ -903,6 +903,13 @@ describe('GoalsPage — the same path in Polish', () => {
     expect(await screen.findByText(WAITING.message)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Zaczynam' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Nigdy' })).toBeInTheDocument()
+    // The one place the Polish catalog has a plural table: 7, 30 and 90 all take the `many` form,
+    // and only rendering them in Polish proves that form exists — a misspelled key would fall
+    // through to `other` and read "Za 7 dnia" with every English test green.
+    await user.click(screen.getByRole('button', { name: 'Przypomnij później' }))
+    expect(screen.getByRole('button', { name: 'Za 7 dni' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Za 30 dni' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Za 90 dni' })).toBeInTheDocument()
     // And the wire carries the same choice, which is what makes the server's half follow.
     const headers = fetchMock.mock.calls.at(-1)?.[1].headers as Record<string, string>
     expect(headers['Accept-Language']).toBe('pl')

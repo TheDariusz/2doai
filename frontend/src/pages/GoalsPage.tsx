@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext, useSearchParams } from 'react-router'
 import { ApiError, api } from '../api/client'
@@ -95,18 +94,31 @@ function draftOf(goal: Goal): GoalDraft {
  * wrong twice over: a 422 repeats identically however many times it is retried, and a missing CSRF
  * cookie needs a reload rather than a retry.
  */
-function messageFor(t: TFunction, status: number): string {
+function messageFor(status: number): GoalsError {
   if (status === 422) {
     // The form caps length and requires content, so this means the entry broke the layer × time
     // fields rule — the one validation a caller can hit without bypassing the form.
-    return t('goals.errors.rejected')
+    return 'goals.errors.rejected'
   }
   if (status === 0) {
     // Never reached the server: the CSRF priming response has not landed. A reload primes it.
-    return t('goals.errors.refresh')
+    return 'goals.errors.refresh'
   }
-  return t('goals.errors.save')
+  return 'goals.errors.save'
 }
+
+/**
+ * The banner is stored as a catalog key and translated at render, not as a translated string. Two
+ * reasons: a banner raised before a language switch then follows the switch, and `load` does not
+ * close over `t` — react-i18next hands out a new `t` per language, and a `load` that depended on it
+ * would refetch every goal on every switch, a database query for content that is not localized.
+ */
+type GoalsError =
+  | 'goals.errors.load'
+  | 'goals.errors.gone'
+  | 'goals.errors.rejected'
+  | 'goals.errors.refresh'
+  | 'goals.errors.save'
 
 /** The whole S-02 + S-07 screen: all three layers, grouped, completed entries folded away. */
 export function GoalsPage() {
@@ -134,7 +146,7 @@ export function GoalsPage() {
   // exactly one, and an unknown one can only ever err towards showing the user their own entries.
   const withdrawn = params.has('withdrawn')
   const [goals, setGoals] = useState<Goal[]>([])
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<GoalsError | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
 
   const load = useCallback(
@@ -151,11 +163,11 @@ export function GoalsPage() {
         // a 500 and a parse bug are indistinguishable from the outside and leave no trace.
         (failure: unknown) => {
           console.error('goals: load failed', failure)
-          setError(t('goals.errors.load'))
+          setError('goals.errors.load')
           return false
         },
       ),
-    [t],
+    [],
   )
 
   useEffect(() => {
@@ -187,12 +199,12 @@ export function GoalsPage() {
         // it on success — and only if the reload succeeded: otherwise the row is still on screen
         // and `load`'s own "could not load" banner is the true one, so it must stand.
         if (await load()) {
-          setError(t('goals.errors.gone'))
+          setError('goals.errors.gone')
         }
         return false
       }
 
-      setError(messageFor(t, status))
+      setError(messageFor(status))
       return false
     }
   }
@@ -227,7 +239,7 @@ export function GoalsPage() {
   return (
     <div className="goals">
       <h1>{t('goals.title')}</h1>
-      {error && <p role="alert">{error}</p>}
+      {error && <p role="alert">{t(error)}</p>}
 
       {/* Above the create form on purpose: FR-015 is the app asking the user a question, and it has
           to be the first thing on a screen whose whole point is that they had stopped looking.

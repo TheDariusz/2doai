@@ -25,7 +25,7 @@ function Session({ children, initial }: { children: ReactNode; initial: Auth['st
     <AuthContext
       value={stubAuth({
         status,
-        user: status === 'authenticated' ? { id: 'u1', email: 'ala@example.pl' } : null,
+        user: status === 'authenticated' ? { id: 'u1', email: 'ala@example.pl', language: 'EN' } : null,
         login: async () => setStatus('authenticated'),
       })}
     >
