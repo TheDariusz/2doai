@@ -1,255 +1,275 @@
 ---
 project: "2do AI"
-context_type: greenfield
-created: 2026-05-24
-updated: 2026-07-07
+context_type: brownfield
+created: 2026-09-03
+updated: 2026-09-04
 checkpoint:
   current_phase: 8
   phases_completed: [1, 2, 3, 4, 5, 6, 7]
   gray_areas_resolved:
-    - topic: "pain category"
-      decision: "brak pamięci proaktywnej + brak kontekstu o użytkowniku + brak warstwy marzeń 'kiedyś'"
-    - topic: "differentiating insight vs Motion/Reclaim/Todoist-AI"
-      decision: "AI proaktywnie wraca z zaniedbanymi celami/marzeniami — nie tylko czeka na input"
+    - topic: "pain / gap"
+      decision: "English readers can't use it (someone shown the app, submission/repo reviewers, future growth); product to become English-first"
+    - topic: "insight — why not done already"
+      decision: "nothing deep; cut for the 2026-09-14 deadline. Obvious work."
+    - topic: "must preserve"
+      decision: "the natural-rhythm loop keeps firing; Polish preserved as a language, not as the default; existing accounts keep Polish without acting"
+    - topic: "change category"
+      decision: "architectural improvement — the locale mechanism is the deliverable, English copy rides on it"
     - topic: "primary persona scope"
-      decision: "ja + 'osoby jak ja': planujące długoterminowo, Obsidian/markdown-friendly"
+      decision: "new English-reading user landing on 2doai.app; existing Polish account switching is secondary"
     - topic: "auth model"
-      decision: "konto w chmurze (email + hasło lub magic link); multi-user web/mobile od MVP"
-    - topic: "role model"
-      decision: "płaski (user = jego dane); brak workspace'ów; export/import md jako bezpieczna droga przenośności"
-    - topic: "MVP scope vs timeline"
-      decision: "commit do 6-8 tyg po godzinach z pełnym 5-krokowym flow; nie scope-down; świadoma akceptacja sustained-effort"
-    - topic: "rhythm of proactive AI reminders"
-      decision: "losowość JEST cechą — naturalny rytm 'znajomego po miesiącu', nie sztywny scheduler. Critical insight."
-    - topic: "categorization scope"
-      decision: "marzenia + długoterminowe wymagają kategorii; bieżące opcjonalnie"
-    - topic: "category list editability"
-      decision: "11 predefiniowanych kategorii (życiowe domeny), nieedytowalne w MVP"
-    - topic: "auto-tagging"
-      decision: "AI proponuje kategorię z treści; user może zmienić przed zapisem"
-    - topic: "category balancing in proactivity"
-      decision: "AI bilansuje propozycje proaktywne między kategoriami — nie zalewa jedną domeną"
-  frs_drafted: 17
+      decision: "no change; account gains one setting: preferred language"
+    - topic: "pre-login language"
+      decision: "browser language, English fallback, with a visible switch on the auth screens (FR-001 revised in the Socrates round)"
+    - topic: "first slice vs 09-14 deadline"
+      decision: "scoped down — increment 1 (UI, categories, on-demand proposal + fallback) by 2026-09-14; increment 2 (rhythm e-mail) after submission, so the protected loop is not touched before the freeze"
+    - topic: "domain rule delta"
+      decision: "no domain logic change — language is a presentation concern"
+    - topic: "where the language lives"
+      decision: "on the account, one defaulted column, existing rows = Polish; client-only rejected because e-mails and the Polish default need the server to know"
+    - topic: "product type / user base"
+      decision: "no change — web app (PWA) + API; opens to English readers, still a handful"
+  frs_drafted: 12
   quality_check_status: accepted
+product_type: web-app
+target_scale:
+  users: small
+  qps: low
+  data_volume: small
+timeline_budget:
+  delivery_weeks: 1
+  hard_deadline: 2026-09-14
+  after_hours_only: true
 ---
 
-# 2do AI — Shape Notes
+# 2do AI — Shape Notes: PL + EN localization
 
-> Seed idea: `idea-notes.md` — Todo lista oraz asystent planowania z AI. Łączy zadania bieżące, długoterminowe i marzenia "kiedyś"; AI buduje pamięć o użytkowniku i proaktywnie przypomina o zaniedbanych celach.
+> Seed idea (verbatim): "I'd like to add to our service localization feature. I'd like to have Polish and English languange in the app"
+
+> Prior greenfield session archived under `context/foundation/archive/` — it produced `prd.md`. This session shapes a change to that system.
+
+## Current System
+
+**2do AI** — a personal AI-powered todo and planning app, live at `2doai.app`. Three task layers
+(task / goal / dream) in one `goal` aggregate across 11 fixed life domains; a proposal engine picks a
+neglected entry, an LLM phrases the proposal, and the natural-rhythm scheduler (S-05, live since
+2026-09-01) returns to the user by e-mail without being asked.
+
+- **Architecture:** two deployables behind one origin — Spring Boot 4 / Java 25 REST API on Fly.io
+  with Postgres 18 on Neon; React 19 + Vite PWA on Cloudflare Pages proxying `/api/*`.
+  Server-side session cookie auth; Flyway-owned schema.
+- **Users today:** the author plus "people like the author" — long-term planners. Production
+  verified by hand on 2026-09-03. Polish is the only language of the UI, proposals, e-mails and data.
+- **Locale seams already in place:** `category.name_pl` is served as a language-neutral `name`
+  (an `Accept-Language` header was reserved for the day a second language lands); prompts *name* the
+  output language (`ProposalPrompt.OUTPUT_LANGUAGE`) instead of being written in it; the SPA renders
+  whatever language the server picks and never chooses a locale itself (`<html lang="pl">`).
+- **Polish-bound surfaces:** hardcoded SPA copy, the `ProposalTemplate` fallback sentence,
+  `ProposalEmail`, category names, and everything users have typed or the AI has memorised.
 
 ## Vision & Problem Statement
 
-Osoby planujące długoterminowo wpisują swoje cele roczne i marzenia raz — na początku roku, w przypływie inspiracji — a potem rzadko do nich wracają. Klasyczne todo-listy (Todoist, kalendarz) i markdown w Obsidianie świetnie obsługują **bieżące zadania**, ale są pasywne wobec **długoterminowych celów** i **marzeń "kiedyś"** — nie przypominają, nie pytają, nie wyciągają zaniedbanych pozycji. Skutek: frustracja z niezrealizowanych celów; mniejsze zadania też pełzają w czasie bez nikogo, kto by zapytał "czemu to wisi 3 tygodnie".
+Anyone who does not read Polish cannot use 2do AI: a person shown the app, a reviewer of the
+10xBuilder submission or the public repository, a future signup. The product is Polish-only in its
+copy, its generated text and its e-mails, so the audience stops at one language.
 
-Insight: AI nie musi być pasywnym asystentem czekającym na polecenia — może być **aktywnym partnerem, który sam wraca z propozycjami**. Konkurenci (Motion, Reclaim, Todoist AI, Akiflow) optymalizują **kalendarz**: gdzie wcisnąć następne zadanie. Nikt nie podchodzi od strony "pamiętam, że w styczniu mówiłeś o prawie jazdy — minęło 8 miesięcy, zacznijmy". To jest luka.
+The change: the app speaks **English and Polish**, and becomes **English-first**. Polish is
+preserved as a language, not as the default. There is no deep reason this was not done already — it
+was cut for the 2026-09-14 deadline and is otherwise obvious work. The delivered thing is the locale
+*mechanism*; English copy is what rides on it.
 
 ## User & Persona
 
-**Dariusz (i osoby o tym samym profilu).** Indywidualny użytkownik, który:
+**Primary: a new English-reading user** landing on `2doai.app` — a reviewer, a friend, a future
+signup — who must get through sign-up, the goals view, a proposal and its e-mail without meeting a
+Polish word.
 
-- już planuje długoterminowo (ma cele roczne, marzenia "kiedyś", listę projektów na lata),
-- używa narzędzi pokroju Obsidian, Todoist, Google Calendar — czyli umie z markdown, lubi mieć dane "u siebie",
-- sięga po aplikację w **dwóch trybach**: (1) codzienne zarządzanie zadaniami bieżącymi, (2) okresowe "siadanie do planowania" — przegląd celów, decyzje co dalej.
+### Secondary persona
 
-MVP myśli o tym profilu od początku (a nie tylko o jednym egzemplarzu = autorze), żeby decyzje produktowe były ogólniejsze niż "moje preferencje".
+**The existing Polish account (the author)** who flips the language to English and back and expects
+the app to follow in every surface, not only the labels.
 
 ## Access Control
 
-Konto w chmurze (email + hasło; magic link rozważany post-MVP — decyzja 2026-07-07) — multi-user web/mobile od MVP. Model **płaski**: jeden użytkownik = jego własne zadania, cele, marzenia i pamięć AI. Brak współdzielonych workspace'ów, brak ról admin/member, brak sharingu.
+No change to authentication or roles — email + password, flat single-tenant, no sharing. The account
+gains **one setting: preferred language** (Polish or English), chosen by the user and applied to every
+surface addressed to them once logged in.
 
-Każdy użytkownik ma jednak **export i import danych w formacie markdown** — żeby dane były przenośne (filozofia "u siebie", zgodna z duchem Obsidiana) i żeby tryb offline (poza MVP, ale przewidywany) mógł później skorzystać z tych samych plików.
-
-Niezalogowany użytkownik na bramkowanej trasie → przekierowanie do logowania/rejestracji. Brak trybu anonimowego — pamięć o użytkowniku wymaga tożsamości.
+Before login (sign-in, sign-up) the language follows the **browser language, with English as the
+fallback**: a Polish browser sees Polish, everyone else sees English.
 
 ## Success Criteria
 
 ### Primary
 
-Po 6-8 tygodniach pracy działa **pełen flow pierwszej sesji** (logowanie → wpisanie zadań i celów → AI inicjuje pamięć → kolejnego/innego dnia AI sama wraca z propozycją związaną z konkretnym zaniedbanym celem/marzeniem → użytkownik może podjąć lub odłożyć). Trzy warstwy zadań (bieżące / długoterminowe / marzenia) mają działający CRUD. Co najmniej jeden zrealizowany cykl: marzenie wpisane → AI wraca po kilku dniach → użytkownik wykonuje pierwszy krok.
+A new English-reading visitor on `2doai.app` signs up, sees the shell, the goals view, the forms and
+the 11 category names in English, adds entries, requests a proposal and receives the proposal and its
+first step phrased in English — without meeting a Polish word. The same account switched to Polish
+reads Polish on every one of those surfaces. **Increment 1, on `master` before 2026-09-14.**
+
+The rhythm e-mail phrased in the account's language is **increment 2**, after the submission, so the
+protected loop is not touched inside the freeze window.
 
 ### Secondary
 
-- AI pamięta z poprzedniej sesji co użytkownik powiedział (kontekst rośnie między rozmowami, nie tylko w jednej).
-- Można dodać zadanie z dowolnego źródła: wklejony link / tekst → AI proponuje "przeczytaj X, oto TLDR, pomyśl jak wdrożyć"; integracja z kalendarzem.
-- Bot Telegram do szybkich akcji z telefonu (bez otwierania webu).
-- Eksport wszystkiego do plików markdown (backup, portability, ścieżka do trybu offline w v2).
+- Switching language mid-session re-renders every surface without a reload.
+- Proposals keep the user's own words verbatim whatever the UI language — a Polish dream quoted inside
+  an English sentence reads as intended, never translated.
+- New entries are detected as Polish or English when typed.
 
 ### Guardrails
 
-- **Prywatność**: dane użytkownika i pamięć AI są dostępne tylko jemu. Nie wyciekają do osób trzecich, nie są używane do trenowania modeli. Pamięć osobista może być bardzo intymna — to obowiązuje od MVP.
-- **Naturalny rytm proaktywnych przypomnień, NIE harmonogram**: AI wraca do zaniedbanych celów/marzeń z **losowym tempem**, tak jak znajomy, który po miesiącu pyta "hej, ruszyłeś tę rzecz, o której gadaliśmy?". Nie codziennie o tej samej godzinie. Nie powiadomienie push przy każdym otwarciu. Częstotliwość ma czuć się **organicznie**, nie jak scheduler. (To jest jednocześnie guardrail przeciw spamowi i kluczowy element insightu produktu — losowość JEST cechą, nie błędem.)
-- Trwałość danych — padnięcie aplikacji ani błąd nie kasuje wpisanych zadań, celów ani pamięci AI.
+- **The natural-rhythm loop keeps firing** — scheduler, e-mail delivery and the four responses are
+  not disturbed. Increment 2 touches the e-mail body only, never the trigger.
+- **No Polish word reaches an English account, and vice versa.** A leaked untranslated string is a
+  regression, not a cosmetic bug. This includes the text fallback proposal, which sits on the
+  on-demand path when the model is unavailable.
+- **Existing Polish accounts keep Polish without doing anything.** The default flips only for new
+  accounts; nobody wakes up to an English app.
 
 ## Timeline acknowledgment
 
-Acknowledged on 2026-05-24: ~7-tygodniowy MVP po godzinach wymaga sustained dedication; użytkownik świadomie zaakceptował koszt. Surfaced trade-off: flow 5-krokowy z proaktywną pamięcią AI nie zmieści się w 3 tygodniach — wybrano commit zamiast scope-down.
-
-> **Addendum 2026-07-07 (przegląd fundamentów):** pierwotne okno 6-8 tygodni upłynęło na etapie fundamentów (F-01 + F-02 gotowe, zero slice'ów widocznych dla użytkownika). Re-baseline: nowe okno ~7 tygodni liczone od 2026-07-07 + fast-path w roadmapie (minimalny S-01 → S-02 → S-03 → S-04 → S-05; S-07/S-08/S-10 po walidacji gwiazdy). Zapis oryginalny powyżej pozostaje bez zmian (append-only).
+Scoped down on 2026-09-03: increment 1 (~1 week of evenings) before the 2026-09-14 submission, inside
+the roadmap's 09-11 freeze; increment 2 after. No sustained-effort override recorded — the user chose
+scope-down over commit.
 
 ## Functional Requirements
 
-### Konto i tożsamość
+### Language selection
 
-- FR-001: Użytkownik może założyć konto (email + hasło). Priority: must-have
-  > Socrates: Counter-argument rozważony: "magic link to friction / OAuth-Google byłby standardowy". Rozstrzygnięcie: stoi — metoda auth to detal implementacyjny, kluczowe że konto istnieje (pamięć AI wymaga tożsamości).
-  > Decyzja (2026-07-07): email + hasło jako jedyna metoda MVP; magic link post-MVP (wymagałby infrastruktury e-mail już w S-01 — infrastruktura e-mail dochodzi z dostarczaniem propozycji, PRD FR-018).
+- FR-001: A visitor sees sign-in and sign-up in their browser language, English when unmatched, with a visible language switch on those screens. Priority: must-have. Change: new
+  > Socrates: Counter-argument considered: "a visible switch on the auth screen beats detection — Polish users on English-OS laptops would otherwise hunt for a switch they haven't got yet." Resolution: revised — detection stays as the default, and the auth screens gain an explicit switch.
+- FR-002: A user can set the account's preferred language (Polish or English). Priority: must-have. Change: new
+  > Socrates: Counter-argument considered: "browser language alone is enough; a stored setting is extra state." Resolution: stands — the setting must also drive e-mails, and an e-mail has no browser to ask.
+- FR-003: A new account starts in the language its sign-up screen was shown in. Priority: must-have. Change: new
+  > Socrates: Counter-argument considered: "ask explicitly at sign-up instead of inheriting a silent guess." Resolution: stands, with a condition — the account switch (FR-002) ships in increment 1 so the inherited language is changeable before the first proposal.
+- FR-004: An existing account keeps Polish with no action from the user. Priority: must-have. Change: preserved
+  > Socrates: Counter-argument considered: "there is one real existing user; set it by hand." Resolution: stands — the guardrail says nobody wakes up to an English app.
 
-- FR-002: Użytkownik może zalogować się i wylogować. Priority: must-have
-  > Socrates: Counter-argument rozważony: "logout jest nice-to-have w MVP". Rozstrzygnięcie: stoi — standardowy auth flow.
+### Surfaces — increment 1 (before 2026-09-14)
 
-### Trzy warstwy zadań
+- FR-005: A user sees the shell, goals view, forms, filters and account menu in the account language. Priority: must-have. Change: new
+  > Socrates: Counter-arguments considered: "every string now has two texts to keep in step"; "dates, plurals and 'idle for N days' must follow too". Resolution: stands as written.
+- FR-006: A user sees the 11 category names in the account language. Priority: must-have. Change: modified
+  > Socrates: Counter-arguments considered: "the category API's `name` becomes language-dependent, making the reserved Vary/Accept-Language path live behaviour"; "English names for the 11 domains do not exist yet". Resolution: stands as written.
+- FR-007: A user requesting a proposal receives the proposal, its first step and its four responses in the account language, with their own entry text quoted verbatim. Priority: must-have. Change: modified
+  > Socrates: Counter-arguments considered: "English output quality is unverified — prompts were only tuned on Polish"; "a Polish entry quoted verbatim inside English reads odd"; "the AI memory is Polish, so reasoning mixes languages". Resolution: stands as written.
+- FR-008: When the model is unavailable, the text fallback proposal is in the account language — it sits on the same on-demand path. Priority: must-have. Change: modified
+  > Socrates: Counter-arguments considered: "the fallback is rare; defer to increment 2"; "a second `phrase` implementation is a lot for a rare path". Resolution: stands as written — the guardrail forbids any leaked string, rare or not.
 
-- FR-003: Użytkownik może utworzyć, edytować, ukończyć i usunąć **zadanie bieżące** (krótka treść + termin opcjonalny + kategoria opcjonalna). Priority: must-have
-  > Socrates: Counter-argument rozważony: "zadania bieżące są niepotrzebne w MVP — konkurujesz z Todoistem na ich terenie zamiast skupić się na różnicującym obszarze (długoterminowe + marzenia)". Rozstrzygnięcie: zostawione świadomie — aplikacja docelowo ma zastąpić Todoist, więc bieżące są częścią value proposition. Ryzyko zakresu zauważone.
+### Surfaces — increment 2 (after submission)
 
-- FR-004: Użytkownik może utworzyć, edytować i ukończyć **cel długoterminowy** (treść + horyzont czasowy: ten rok / kilka miesięcy + kategoria opcjonalna z auto-tagiem AI gdy nie wybrano). Priority: must-have
-  > Socrates: Counter-argument rozważony: "wymagana kategoria to friction, user może zrezygnować". Rozstrzygnięcie: zmieniono — kategoria opcjonalna; AI auto-taguje cicho jeśli user nic nie wybrał.
+- FR-009: A user receives the natural-rhythm e-mail in the account language. Priority: must-have. Change: modified
+  > Socrates: Counter-arguments considered: "an English account receiving a Polish e-mail in the gap between increments breaks the leak guardrail"; "deliverability is language-sensitive". Resolution: stands in increment 2. The inter-increment gap is logged under Open Questions.
 
-- FR-005: Użytkownik może utworzyć, edytować i ukończyć **marzenie "kiedyś"** (treść, bez ram czasowych + kategoria opcjonalna z auto-tagiem AI gdy nie wybrano). Priority: must-have
-  > Socrates: Counter-argument rozważony: konsekwentnie z FR-004 — kategoria opcjonalna + AI auto-tag. Rozstrzygnięcie: zmieniono jak FR-004.
+### Nice-to-have
 
-- FR-006: Użytkownik widzi wszystkie 3 warstwy w jednym widoku oraz może filtrować po warstwie i po kategorii. Priority: must-have
-  > Socrates: Counter-argument rozważony: "3 warstwy w jednym widoku to bałagan; zakładki byłyby czytelniejsze". Rozstrzygnięcie: stoi — jednolity widok pozwala zobaczyć całość życia, filtry obsługują skupienie.
+- FR-010: Switching language re-renders every surface without a reload. Priority: nice-to-have. Change: new
+  > Socrates: Counter-arguments considered: "a full reload on switch is fine; drop it"; "promote to must-have — a reload feels broken in a PWA". Resolution: stands as nice-to-have.
+- FR-011: A new entry is detected as Polish or English when typed. Priority: nice-to-have. Change: new
+  > Socrates: Counter-arguments considered: "nothing consumes the detected language yet — speculative data"; "keep, but name the consumer". Resolution: stands as nice-to-have.
 
-### Kategoryzacja
+### Preserved
 
-- FR-007: System udostępnia stałą listę 11 kategorii życiowych domen (Zdrowie, Finanse, Kariera i rozwój zawodowy, Edukacja i rozwój osobisty, Relacje, Dom i otoczenie, Czas wolny i hobby, Sprawy formalne i administracyjne, Bezpieczeństwo i przygotowanie na sytuacje awaryjne, Transport i mobilność, Rozwój wewnętrzny / wartości). Lista nieedytowalna w MVP. Priority: must-have
-  > Socrates: Counter-argument rozważony: "11 to za dużo, niektóre będą puste / nie wpasują się we wszystkie persony". Rozstrzygnięcie: stoi — 11 kategorii pochodzi z konkretnej refleksji autora, pokrywa kluczowe domeny "osoby jak ja"; edycja jest w roadmapie post-MVP.
-
-- FR-008: Przy tworzeniu pozycji AI proponuje kategorię na podstawie treści. Użytkownik może zaakceptować propozycję, wybrać inną lub zignorować (auto-tag stosowany cicho, możliwy do zmiany później). Priority: must-have
-  > Socrates: Counter-argument rozważony: "auto-tag = wołanie LLM na każdy wpis = koszt + latencja". Rozstrzygnięcie: stoi treścią — mechanizm tagowania (heurystyka vs LLM vs hybryda) to detal implementacyjny poniżej PRD.
-
-### Pamięć AI
-
-- FR-009: Przy pierwszym założeniu konta AI **może** zadać użytkownikowi 2-4 pytania osobiste (kim jest zawodowo, co już osiągnął, jakie wartości są ważne) jako seed pamięci. Krok onboardingu jest **opcjonalny** — użytkownik może pominąć i pamięć rośnie organicznie z FR-010. Priority: must-have
-  > Socrates: Counter-argument rozważony: "pytania osobiste mogą być odbierane jako 'AI śledzi mnie'". Rozstrzygnięcie: zmieniono — krok jest opcjonalny / pomijalny.
-
-- FR-010: Każda ukończona pozycja (zadanie/cel/marzenie) wzbogaca pamięć AI o użytkowniku. Priority: must-have
-  > Socrates: Counter-argument rozważony: "pamięć zape­łni się szumem (np. 'kup mleko')". Rozstrzygnięcie: stoi — selekcja co istotne należy do AI, user nie filtruje ręcznie. Jakość pamięci to property AI, nie kontraktu FR.
-
-### Proaktywne wracanie
-
-- FR-011: AI samodzielnie wraca do użytkownika z propozycją podjęcia zaniedbanego celu długoterminowego lub marzenia, używając naturalnego rytmu (losowość — patrz Guardrails). Priority: must-have
-  > Socrates: Counter-argument rozważony: "cele terminowe wymagają większej częstotliwości niż marzenia". Rozstrzygnięcie: stoi treścią — AI ma decydować o rytmie z uwzględnieniem terminu (część logiki AI, nie kontraktu FR).
-
-- FR-012: Wybierając zaniedbaną pozycję do proaktywnej propozycji, AI bilansuje wybór między kategoriami w czasie — nie zalewa użytkownika propozycjami z jednej domeny. Priority: must-have
-  > Socrates: Counter-argument rozważony: "AI nie wie co użytkownik priorytetyzuje". Rozstrzygnięcie: stoi + dodano FR-016 (kategorie priorytetowe od usera).
-
-- FR-013: Użytkownik może na proaktywną propozycję odpowiedzieć: "zaczynam" / "nie teraz" / "przypomnij za <X dni/tygodni>" (presety: 7d, 30d, 90d) / "nigdy o to nie pytaj". Każda odpowiedź wpływa na przyszłe propozycje; "nigdy" przenosi pozycję do widoku "wycofanych" z możliwością przywrócenia. Priority: must-have
-  > Socrates: Counter-argument rozważony: "brakuje snooze na konkretny czas". Rozstrzygnięcie: rozszerzono — dodano 4. opcję "przypomnij za X" z presetami.
-
-### AI pomaga w realizacji
-
-- FR-014: Gdy użytkownik odpowie "zaczynam" na proaktywną propozycję, AI proponuje konkretny pierwszy krok — lista 3-5 punktów z własnej wiedzy modelu. **Bez wyszukiwania w internecie w MVP.** Priority: must-have
-  > Socrates: Counter-argument rozważony: "wyszukiwanie w internecie to duży kawałek agent tools, lepiej v2". Rozstrzygnięcie: zmieniono — drop internetu z MVP, AI używa tylko własnej wiedzy. Internet w roadmapie post-MVP.
-
-### Kontrola użytkownika nad proaktywnością
-
-- FR-015: Użytkownik może w dowolnym momencie wymusić proaktywną propozycję ("daj mi coś teraz") — AI wybiera zaniedbaną pozycję z bazy stosując te same reguły co automat (bilansowanie kategorii, priorytety). Priority: must-have
-  > Socrates: Counter-argument rozważony: "manual trigger psuje filozofię 'znajomy po miesiącu', user będzie kompulsywnie klikać". Rozstrzygnięcie: stoi — user czasem chce kontroli; automat dalej istnieje jako "znajomy". Limit (np. cooldown) może być detalem implementacyjnym.
-
-- FR-016: Użytkownik może (opcjonalnie) oznaczyć 3-5 kategorii jako priorytetowe. AI bilansuje proaktywne propozycje głównie wewnątrz priorytetowych kategorii; pozostałe wraca rzadziej. Domyślnie wszystkie kategorie są równe. Priority: must-have
-  > Socrates: Counter-argument rozważony: "statyczne priorytety się zdezaktualizują — lepiej żeby AI sam wykrywał z aktywności usera". Rozstrzygnięcie: stoi treścią — explicit priorytety od usera są czystym sygnałem; AI-detected priority może być dodany w roadmapie ale nie zastępuje user-explicit.
-
-### Dostępność offline
-
-- FR-017: Aplikacja jako PWA pozwala zalogowanemu użytkownikowi przeglądać (read-only) swoje zapisane pozycje wszystkich trzech warstw bez połączenia z internetem. Edycja pozycji oraz wszystkie funkcje AI (auto-tag, propozycje proaktywne, pomoc w realizacji) wymagają online. Priority: must-have
-
-## Business Logic
-
-**Aplikacja sama, w nieregularnym rytmie, przypomina użytkownikowi o jego zaniedbanych celach i marzeniach — wybierając co, kiedy i z której domeny życia, na podstawie pamięci o nim.**
-
-Reguła konsumuje cztery rodzaje wejścia: (1) pozycje wpisane przez użytkownika z ich metadanymi — typ warstwy, kategoria, horyzont czasowy, status, historia interakcji; (2) pamięć o użytkowniku zbudowaną z odpowiedzi onboardingowych i ukończonych pozycji; (3) historię proaktywnych propozycji aplikacji — co już zostało zaproponowane, kiedy, z jakim wynikiem (zaczynam / nie teraz / przypomnij za / nigdy); (4) ewentualne oznaczenie kategorii priorytetowych.
-
-Wyjściem reguły jest **konkretna propozycja w naturalnym języku**: cytat zaniedbanej pozycji + zaproszenie do działania ("Hej, dwa miesiące temu wpisałeś marzenie X — chcesz zrobić pierwszy krok?"). Decyzja dotyczy czterech wymiarów jednocześnie: **co** (która pozycja), **kiedy** (rytm — losowo, organicznie, ~1 propozycja na kilka dni), **skąd** (która kategoria — bilansowanie domen + priorytetowość), **jak** (sformułowanie odwołujące się do pamięci użytkownika).
-
-Użytkownik spotyka się z regułą w dwóch miejscach: (a) **automatycznie** — aplikacja wraca samodzielnie, jak znajomy po miesiącu; (b) **na żądanie** — przycisk "wyciągnij mi coś teraz" stosuje tę samą regułę z pominięciem rytmu. To nie jest CRUD: użytkownik nie pytany dostaje aktywną decyzję o czym ma teraz pomyśleć — coś, czego siedząc nad statyczną listą w Obsidianie sam by nie zrobił.
-
-## Non-Functional Requirements
-
-- Treść pozycji oraz pamięć AI nie wyciekają do osób trzecich; nie są używane do trenowania zewnętrznych modeli ani dzielone z innymi użytkownikami systemu. Obowiązuje od MVP — to twardy guardrail osobistych danych.
-- Akcje CRUD (utworzenie, edycja, oznaczenie pozycji jako ukończonej) skutkują widocznym efektem w interfejsie w mniej niż 500 ms. Operacje wymagające wywołania modelu AI zaczynają wyświetlać widoczną zwrotną informację o postępie w mniej niż 500 ms, niezależnie od końcowej długości operacji.
-- Po awarii klienta, restarcie urządzenia lub utracie połączenia użytkownik po ponownym zalogowaniu odzyskuje 100% wpisanych pozycji i 100% pamięci AI. Żadna zapisana akcja nie znika cicho.
-- Interfejs i komunikacja AI prowadzone są wyłącznie po polsku w MVP. Inne języki są poza zakresem wersji pierwszej.
-
-## Non-Goals
-
-- **AI nie zarządza kalendarzem ani nie optymalizuje czasu użytkownika.** Aplikacja może mieć wgląd w cele i pozycje, ale nie planuje "gdzie wcisnąć następne zadanie" — to świadoma różnica od Motion/Reclaim/Akiflow.
-- **Brak czatu głosowego z AI.** Komunikacja wyłącznie tekstowa w MVP.
-- **Brak natywnej aplikacji mobilnej.** PWA / web responsywny pokrywa zarówno desktop, jak i mobile.
-- **Brak współdzielonych workspace'ów, rodzin, ról.** Aplikacja jest single-tenant per użytkownik; rodzina/zespół to roadmapa post-MVP.
-- **AI w MVP nie szuka informacji w internecie.** Pomoc w realizacji (FR-014) używa tylko własnej wiedzy modelu — bez agent-tools z dostępem do web.
-- **Brak integracji z zewnętrznymi kalendarzami** (Google Calendar, Outlook, etc.). Aplikacja jest "czystym todo + planowaniem", nie sync'ującym do innych systemów.
-- **Brak komercjalizacji / paywallu w MVP.** Aplikacja w wersji pierwszej darmowa; monetyzacja po walidacji insightu.
-- **Brak pełnego offline-first z dwukierunkowym sync.** MVP ma tylko read-only offline (FR-017); edycja offline i synchronizacja md ↔ chmura to roadmapa.
-- **Brak edycji listy 11 kategorii przez użytkownika.** User-defined taxonomy to roadmapa post-MVP.
-
-## Forward: tech-stack (informational — out of PRD scope)
-
-> Notatki kierunkowe pod tech-stack-selector — NIE część PRD.
-
-- Aplikacja webowa jako **PWA** (offline-read z service worker; dodawanie na ekran główny mobile).
-- **Monorepo**: backend i frontend rozdzielone, ale w jednym repozytorium (decyzja autora).
-- Język interfejsu: polski (MVP single-language → wpływa na pamięć AI i prompty).
-- Komunikacja z LLM (auto-tag, propozycje proaktywne, pomoc w realizacji, pytania onboardingowe) wymaga dostawcy AI z dobrym wsparciem polskiego.
-- Pamięć AI o użytkowniku — szczegóły mechanizmu (RAG vs system prompt vs structured profile vs hybryda) do rozstrzygnięcia w tech-stack-selector.
-
-## Forward: technical-roadmap (informational — out of PRD scope)
-
-> Capability post-MVP. Nie część PRD, ale captured żeby nie zaginęło.
-
-- **v2**: bot Telegram do szybkich akcji z telefonu.
-- **v2**: integracja AI z internetem (agent tools — wyszukiwanie, podpowiedzi z linków).
-- **v2**: dodawanie zadania z dowolnego źródła (wklejony link → AI generuje "przeczytaj X, oto TLDR").
-- **v2**: pełen offline-first z lokalnymi plikami md i dwukierunkowym sync.
-- **v2**: lokalny model AI dla trybu offline.
-- **v2**: integracja z zewnętrznymi kalendarzami (Google Calendar).
-- **v2**: edytowalne kategorie przez użytkownika; user-defined taxonomy.
-- **v2**: współdzielone workspace'y dla rodzin / zespołów.
-- **v2**: monetyzacja (subskrypcja / one-time).
-- **v3**: voice chat z AI.
-
-## Quality cross-check
-
-Wszystkie 5 elementów obecnych — soft gate przepuszczony.
-
-- Access Control: present
-- Business Logic: present (jednozdaniowa reguła zapisana)
-- Project artifacts: present (shape-notes.md, frontmatter checkpoint)
-- Timeline-cost acknowledgment: present (~7 tyg po godzinach, świadomie zaakceptowane)
-- Non-Goals: present (9 explicit non-goals)
-
-Brak gapów do mirrored do Open Questions w PRD.
-
-## Open Questions (do rozstrzygnięcia później, niewymagające block)
-
-1. **Jaki dostawca AI dla auto-tagowania (FR-008)?** — Wpływa na koszt + latencję. Decyzja w tech-stack-selector. Owner: autor.
-2. **Czy "naturalny rytm" proaktywnych propozycji to algorytm losowy, ML, czy reguły heurystyczne?** — Implementation detail; nie blokuje PRD. Owner: autor (faza implementacji).
-3. **Jak konkretnie kategorie priorytetowe (FR-016) wpływają na bilansowanie (FR-012)?** — Algorytmiczna decyzja; może być zwykła waga ×N na propozycje z kategorii priorytetowych. Owner: autor.
-4. **Czy onboarding-pytania (FR-009) generuje AI dynamicznie, czy są stałą listą?** — Można zacząć od stałych 4 pytań; iterować potem.
-
-
-
+- FR-012: The natural-rhythm loop selects, sends and records responses exactly as today. Priority: must-have. Change: preserved
+  > Socrates: Counter-arguments considered: "'exactly as today' is too strong once FR-009 changes the e-mail body"; "it blocks fixing anything in the loop". Resolution: stands as written.
 
 ## User Stories
 
-### US-01: Pierwsza proaktywna propozycja zaniedbanego marzenia
+### US-01: An English-reading visitor gets a proposal without meeting Polish
 
-- **Given** zalogowany użytkownik, który tydzień wcześniej wpisał marzenie "pojechać do Japonii kiedyś" w kategorii Czas wolny i hobby i od tamtego czasu nic z nim nie zrobił
-- **When** AI rozpoznaje moment do proaktywnego wracania (naturalny rytm) i wybiera tę pozycję jako zaniedbaną
-- **Then** użytkownik widzi propozycję w formie wiadomości od AI: "Hej, tydzień temu wpisałeś marzenie o Japonii — chcesz dziś zrobić pierwszy krok?"
+- **Given** a visitor whose browser language is English and who has no account
+- **When** they sign up, add a dream, and press the proposal button
+- **Then** every screen, the 11 category names, the proposal, its first step and the four response labels are in English, and their dream text is quoted verbatim inside the proposal
 
 #### Acceptance Criteria
 
-- Propozycja zawiera odniesienie do **konkretnej** wpisanej pozycji (cytat tekstu marzenia), nie ogólnik
-- Propozycja zawiera 4 przyciski akcji (komplet z FR-013): "zaczynam" / "nie teraz" / "przypomnij za X (7/30/90 dni)" / "nigdy o to nie pytaj"
-- Kliknięcie "zaczynam" wywołuje FR-014 (AI proponuje pierwszy krok)
-- Kliknięcie "nie teraz" → AI nie pyta o tę pozycję przez kolejny tydzień (ale może pytać o inne)
-- Kliknięcie "przypomnij za X" → AI nie pyta o tę pozycję przez wybrany okres
-- Kliknięcie "nigdy o to nie pytaj" → pozycja jest oznaczona jako "wycofana z proaktywności"; nie jest usuwana ani ukończona
-- Rytm jest **losowy** — dwa kolejne wybory nie idą jeden po drugim ani w sztywnym oknie; oczekiwana częstotliwość maksymalnie ~1 propozycja na 2-7 dni
-- Pierwsza propozycja w sesji użytkownika jest z innej kategorii niż 2-3 poprzednie propozycje (bilansowanie z FR-012)
+- Sign-in and sign-up render in English before any account exists (FR-001)
+- The new account's preferred language is English without the visitor choosing it (FR-003)
+- Shell, goals view, forms, filters and account menu carry no Polish string (FR-005)
+- Category names are the English names, in the same `display_order` (FR-006)
+- The proposal and first step are English prose; the dream text appears unchanged (FR-007)
+- With the model unavailable, the fallback proposal is English (FR-008)
+- A Polish-browser visitor walking the same path reads Polish on every surface
 
+## Business Logic
 
+**No domain logic change. This is an infrastructure/technical change** — language is a presentation
+concern.
 
+The existing rule is untouched: the app itself, at an irregular rhythm, reminds the user of neglected
+goals and dreams, choosing what, when and from which life domain, based on what it remembers about
+them. Selection, rhythm and category balancing consume the same inputs and produce the same choice;
+only the language in which the choice is phrased — and in which every screen addressed to the person
+is written — follows the account (after login) or the browser (before), with English when unknown.
 
+## Constraints & Preserved Behavior
+
+- **`openapi.yaml` stays additive** — no field renamed or removed. `name` on the category resource
+  keeps its meaning (the name in the language the server picked); language-related fields are
+  additions.
+- **Flyway stays expand-only** — any new column is nullable or defaulted; no existing row is rewritten,
+  so an image rollback stays safe.
+- **Prompts stay English and only *name* the output language** — the existing rule from the project
+  guide; a Polish (or English-demonstrating) prompt is the bug.
+- **Existing-system constraints:** the roadmap's **2026-09-11 code freeze** — only submission-blocking
+  fixes after it, so increment 1 is merged and verified on production by then; the full gate
+  (`/check`) and the living-documentation walk (`docs/index.html`, `openapi.yaml`) are part of the
+  slice, not follow-up; **production is verified by hand on `2doai.app` in both languages**, the same
+  walk as on 2026-09-03, once per language.
+- **Preserved behavior:** the natural-rhythm loop (trigger, selection, e-mail delivery, response
+  recording) works exactly as today throughout increment 1 (FR-012); existing accounts read Polish
+  without acting (FR-004); users' entry text is quoted verbatim, never translated (FR-007).
+- **Data migration:** the language lives **on the account** — one defaulted column; existing rows read as
+  Polish. Entries, AI memory and the category table are not rewritten. (A client-only language was
+  considered and rejected on 2026-09-04: it cannot drive e-mails or keep existing accounts Polish.)
+
+## Non-Functional Requirements
+
+- Switching language takes effect within one page load — no surface shows the previous language after
+  the switch.
+- Language choice does not noticeably change response timing: CRUD actions still show a visible effect
+  in under 500 ms, in either language.
+- Both languages are usable on the latest two major versions of the mainstream browsers, as today.
+
+## Non-Goals
+
+- **No translation of stored entries or AI memory.** What users typed and what the AI remembers stay
+  in their original language; the change touches what the app says, never what the user said.
+- **No per-entry language tags driving behavior.** FR-011 stays a nice-to-have; nothing in this change
+  consumes a detected entry language.
+
+## Open Questions
+
+1. **The inter-increment gap:** an English account created in increment 1 may receive a Polish rhythm
+   e-mail before increment 2 lands — a direct conflict with the "no leaked word" guardrail. Suppress
+   e-mails for non-Polish accounts until FR-009, accept the gap, or pull FR-009 forward? Owner: author.
+   By: before increment 1 merges.
+2. **English names for the 11 life domains** do not exist yet (FR-006); "Sprawy formalne i
+   administracyjne" and "Rozwój wewnętrzny / wartości" need product naming, not translation. Owner:
+   author. By: increment 1.
+3. **English proposal quality** (FR-007) is unverified — prompts were tuned on Polish and the memory of
+   the existing account is Polish. Resolved only by the by-hand production walk in English. Owner: author.
+
+## Quality cross-check
+
+All six brownfield elements present — soft gate passed on 2026-09-04, no gaps to mirror into Open Questions.
+
+- Access Control: present (no auth change; account language setting)
+- Business Logic: present ("No domain logic change" — valid for an infrastructure change)
+- Project artifacts: present
+- Timeline-cost acknowledgment: present (scoped down to ~1 week before 2026-09-14)
+- Non-Goals: present (2 entries)
+- Preserved behavior: present (rhythm loop, Polish default, verbatim entries, additive API, expand-only schema, 09-11 freeze)
+
+## Forward: stack-assess (informational — out of PRD scope)
+
+> Repo-derived seams the downstream step should start from — not decisions.
+
+- Backend already separates *instruction language* from *output language* (`ProposalPrompt.OUTPUT_LANGUAGE`);
+  `ProposalTemplate.phrase` and `ProposalEmail` are the two Polish-bound server surfaces named in code.
+- `CategoryController` reserved `Accept-Language` / `Vary` for the day a second language is seeded;
+  `name` is already language-neutral on the wire.
+- The SPA has no i18n dependency; copy is hardcoded Polish and `<html lang="pl">` is static. The
+  project guide says a second locale of the fallback proposal is "a second implementation of `phrase`".
+- Account-level language column is expand-only Flyway per the persistence rules.

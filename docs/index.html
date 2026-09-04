@@ -273,9 +273,14 @@
   layers, a proposal requested, answered <code>STARTING</code>, and one of its first steps saved as
   its own task. The walk is what found the defect this slice fixes — a task a week past its term
   reached the model as <code>Idle for: 0 days</code> and came back described as fresh — which no
-  probe and no test would have produced, because every assertion involved was passing. The fix
-  itself is pinned by <code>ProposalPromptTest</code> and is walked again on the next deploy; that
-  is the one claim on this page a human has not yet read on a screen. The previous snapshot walked
+  probe and no test would have produced, because every assertion involved was passing. The fix is
+  pinned by <code>ProposalPromptTest</code> and was walked again on production after the deploy of
+  <code>51ea090</code>, on a task four days past its term: <q>Zapisałeś, żeby „zapłacić ratę
+  ubezpieczenia mieszkania" — termin już minął. Chcesz teraz do tego wrócić?</q> The same walk
+  turned up no defect but two behaviours worth knowing are deliberate: a <code>STARTING</code>
+  answer quiets its entry for seven days (<code>STARTING_QUIET_DAYS</code>), so the entry that
+  earned the first proposal cannot earn a second one that afternoon; and the deploy itself logged
+  the account out, because sessions live in the machine's memory and a restart discards them. The previous snapshot walked
   was S-05, the natural-rhythm scheduler with its email and the pending proposal the app shows on
   arrival (DEV-24), on 2026-09-01. That slice found drift of a kind the earlier passes had not
   produced: not a sentence left stale, but a <em>prediction</em> that came true. The decision
