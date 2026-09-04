@@ -12,7 +12,7 @@ const fetchMock = vi.fn()
 beforeEach(() => {
   fetchMock.mockReset()
   fetchMock.mockResolvedValue(
-    response(200, { items: [{ code: 'LEISURE', name: 'Czas wolny i hobby' }] }),
+    response(200, { items: [{ code: 'LEISURE', name: 'Leisure & hobbies' }] }),
   )
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -55,25 +55,25 @@ describe('AppRoutes', () => {
     renderApp('/domain/leisure?view=week')
     const user = userEvent.setup()
 
-    expect(await screen.findByRole('heading', { name: 'Zaloguj się' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
     await user.type(screen.getByLabelText('Email'), 'ala@example.pl')
-    await user.type(screen.getByLabelText('Hasło'), 'tajnehaslo')
-    await user.click(screen.getByRole('button', { name: 'Zaloguj się' }))
+    await user.type(screen.getByLabelText('Password'), 'tajnehaslo')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     // Not '/' — the whole location, query included, survives the round trip through /login.
-    expect(await screen.findByRole('heading', { name: 'Czas wolny i hobby' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Leisure & hobbies' })).toBeInTheDocument()
     expect(await screen.findByTestId('location')).toHaveTextContent('/domain/leisure?view=week')
   })
 
   it('sends an unknown path home, and an anonymous visitor on to /login', async () => {
-    renderApp('/nie-ma-takiej-sciezki')
+    renderApp('/no-such-path')
 
-    expect(await screen.findByRole('heading', { name: 'Zaloguj się' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
   })
 
   it('points an authenticated user at the navigation from the index route', async () => {
     renderApp('/', 'authenticated')
 
-    expect(await screen.findByText('Wybierz domenę z nawigacji.')).toBeInTheDocument()
+    expect(await screen.findByText('Pick a life domain from the navigation.')).toBeInTheDocument()
   })
 })

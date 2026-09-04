@@ -71,7 +71,7 @@ function renderCard() {
 
 /** Press the button and wait for the card, which is what every answer test starts from. */
 async function propose(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: 'Daj mi coś teraz' }))
+  await user.click(screen.getByRole('button', { name: 'Give me something now' }))
   await screen.findByText(PROPOSAL.message)
 }
 
@@ -81,7 +81,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock)
 })
 
-describe('ProposalCard — proszenie o propozycję', () => {
+describe('ProposalCard — asking for a proposal', () => {
   it('asks the engine for one entry and shows the prose it phrased', async () => {
     stubApi(response(200, PROPOSAL))
     const user = renderCard()
@@ -102,10 +102,10 @@ describe('ProposalCard — proszenie o propozycję', () => {
     stubApi(response(204))
     const user = renderCard()
 
-    await user.click(screen.getByRole('button', { name: 'Daj mi coś teraz' }))
+    await user.click(screen.getByRole('button', { name: 'Give me something now' }))
 
-    expect(await screen.findByRole('status')).toHaveTextContent(/nic (teraz )?nie/i)
-    expect(screen.queryByRole('button', { name: 'Zaczynam' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('status')).toHaveTextContent(/nothing is waiting/i)
+    expect(screen.queryByRole('button', { name: "I'm starting" })).not.toBeInTheDocument()
   })
 
   it('shows the failure instead of an empty card when the engine cannot be reached', async () => {
@@ -113,10 +113,10 @@ describe('ProposalCard — proszenie o propozycję', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const user = renderCard()
 
-    await user.click(screen.getByRole('button', { name: 'Daj mi coś teraz' }))
+    await user.click(screen.getByRole('button', { name: 'Give me something now' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/nie udało się/i)
-    expect(screen.queryByRole('button', { name: 'Zaczynam' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not/i)
+    expect(screen.queryByRole('button', { name: "I'm starting" })).not.toBeInTheDocument()
   })
 
   /**
@@ -135,9 +135,9 @@ describe('ProposalCard — proszenie o propozycję', () => {
     )
     const user = renderCard()
 
-    await user.click(screen.getByRole('button', { name: 'Daj mi coś teraz' }))
+    await user.click(screen.getByRole('button', { name: 'Give me something now' }))
 
-    const button = screen.getByRole('button', { name: 'Daj mi coś teraz' })
+    const button = screen.getByRole('button', { name: 'Give me something now' })
     expect(button).toBeDisabled()
     expect(screen.getByRole('status')).toBeInTheDocument()
 
@@ -153,7 +153,7 @@ describe('ProposalCard — proszenie o propozycję', () => {
  * this is the same proposal reaching the user who came back to the app instead, which is the whole
  * point of the slot being persistent rather than a notification.
  */
-describe('ProposalCard — propozycja, która już czeka', () => {
+describe('ProposalCard — a proposal already waiting', () => {
   it('shows what the rhythm left waiting, without anyone pressing anything', async () => {
     fetchMock.mockResolvedValue(response(200, PROPOSAL))
     renderCard()
@@ -161,7 +161,7 @@ describe('ProposalCard — propozycja, która już czeka', () => {
     expect(await screen.findByText(PROPOSAL.message)).toBeInTheDocument()
     // Not just the prose: the card is answerable straight away, which is what makes the email's
     // link land on something the user can act on.
-    expect(screen.getByRole('button', { name: 'Zaczynam' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: "I'm starting" })).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith(PENDING_READ, expect.objectContaining({ method: 'GET' }))
   })
 
@@ -175,7 +175,7 @@ describe('ProposalCard — propozycja, która już czeka', () => {
     renderCard()
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(PENDING_READ, expect.anything()))
-    expect(screen.getByRole('button', { name: 'Daj mi coś teraz' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Give me something now' })).toBeEnabled()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
@@ -192,17 +192,17 @@ describe('ProposalCard — propozycja, która już czeka', () => {
 
     await waitFor(() => expect(logged).toHaveBeenCalled())
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Daj mi coś teraz' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Give me something now' })).toBeEnabled()
   })
 })
 
-describe('ProposalCard — cztery odpowiedzi', () => {
+describe('ProposalCard — the four answers', () => {
   it('sends STARTING and nothing else', async () => {
     stubApi(response(200, PROPOSAL), response(200, answered('STARTING', ['Wypożycz gitarę'])))
     const user = renderCard()
 
     await propose(user)
-    await user.click(screen.getByRole('button', { name: 'Zaczynam' }))
+    await user.click(screen.getByRole('button', { name: "I'm starting" }))
 
     await waitFor(() => expect(calls()).toHaveLength(2))
     expect(calls()[1]).toEqual({
@@ -217,7 +217,7 @@ describe('ProposalCard — cztery odpowiedzi', () => {
     const user = renderCard()
 
     await propose(user)
-    await user.click(screen.getByRole('button', { name: 'Nie teraz' }))
+    await user.click(screen.getByRole('button', { name: 'Not now' }))
 
     await waitFor(() => expect(calls()).toHaveLength(2))
     // A term beside any answer but REMIND_LATER is a 422: the server refuses to silently drop it.
@@ -233,10 +233,10 @@ describe('ProposalCard — cztery odpowiedzi', () => {
     const user = renderCard()
 
     await propose(user)
-    await user.click(screen.getByRole('button', { name: 'Przypomnij później' }))
+    await user.click(screen.getByRole('button', { name: 'Remind me later' }))
 
     expect(calls()).toHaveLength(1)
-    await user.click(screen.getByRole('button', { name: 'Za 30 dni' }))
+    await user.click(screen.getByRole('button', { name: 'In 30 days' }))
 
     await waitFor(() => expect(calls()).toHaveLength(2))
     expect(calls()[1].body).toEqual({ answer: 'REMIND_LATER', remind_in_days: 30 })
@@ -247,12 +247,12 @@ describe('ProposalCard — cztery odpowiedzi', () => {
     const user = renderCard()
 
     await propose(user)
-    await user.click(screen.getByRole('button', { name: 'Przypomnij później' }))
+    await user.click(screen.getByRole('button', { name: 'Remind me later' }))
 
     // 7/30/90 and nothing else — anything the server does not know is a 422 the user cannot fix.
-    expect(screen.getByRole('button', { name: 'Za 7 dni' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Za 30 dni' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Za 90 dni' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'In 7 days' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'In 30 days' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'In 90 days' })).toBeInTheDocument()
   })
 
   it('sends NEVER and says where the entry went', async () => {
@@ -260,13 +260,15 @@ describe('ProposalCard — cztery odpowiedzi', () => {
     const user = renderCard()
 
     await propose(user)
-    await user.click(screen.getByRole('button', { name: 'Nigdy' }))
+    await user.click(screen.getByRole('button', { name: 'Never' }))
 
     await waitFor(() => expect(calls()).toHaveLength(2))
     expect(calls()[1].body).toEqual({ answer: 'NEVER' })
     // Withdrawal is reversible, and the filter is the only way back — saying so is the difference
-    // between a reversible state and a delete the user thinks they just performed.
-    expect(await screen.findByText(/wycofan/i)).toBeInTheDocument()
+    // between a reversible state and a delete the user thinks they just performed. The filter is
+    // named by quoting its own label (i18next nesting), so the two cannot drift into two wordings:
+    // asserting the whole sentence is what holds them together.
+    expect(await screen.findByText(/under the “Show withdrawn” filter/)).toBeInTheDocument()
   })
 
   /**
@@ -280,7 +282,7 @@ describe('ProposalCard — cztery odpowiedzi', () => {
     await propose(user)
     expect(onChange).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: 'Nie teraz' }))
+    await user.click(screen.getByRole('button', { name: 'Not now' }))
 
     await waitFor(() => expect(onChange).toHaveBeenCalled())
   })
@@ -291,15 +293,15 @@ describe('ProposalCard — cztery odpowiedzi', () => {
     const user = renderCard()
 
     await propose(user)
-    await user.click(screen.getByRole('button', { name: 'Nie teraz' }))
+    await user.click(screen.getByRole('button', { name: 'Not now' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/nie udało się/i)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not/i)
     // The answer can be retried only if the buttons are still there.
-    expect(screen.getByRole('button', { name: 'Nie teraz' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Not now' })).toBeEnabled()
   })
 })
 
-describe('ProposalCard — pierwszy krok', () => {
+describe('ProposalCard — the first step', () => {
   const STEPS = ['Wypożycz gitarę na miesiąc', 'Znajdź nauczyciela w okolicy', 'Zagraj jeden akord']
 
   it('renders the bullets the model came back with', async () => {
@@ -307,7 +309,7 @@ describe('ProposalCard — pierwszy krok', () => {
     const user = renderCard()
 
     await propose(user)
-    await user.click(screen.getByRole('button', { name: 'Zaczynam' }))
+    await user.click(screen.getByRole('button', { name: "I'm starting" }))
 
     for (const step of STEPS) {
       expect(await screen.findByText(step)).toBeInTheDocument()
@@ -320,10 +322,10 @@ describe('ProposalCard — pierwszy krok', () => {
     const user = renderCard()
 
     await propose(user)
-    await user.click(screen.getByRole('button', { name: 'Zaczynam' }))
+    await user.click(screen.getByRole('button', { name: "I'm starting" }))
 
     const row = within((await screen.findByText(STEPS[1])).closest('li') as HTMLElement)
-    await user.click(row.getByRole('button', { name: 'Zapisz jako zadanie' }))
+    await user.click(row.getByRole('button', { name: 'Save as a task' }))
 
     await waitFor(() => expect(calls()).toHaveLength(3))
     expect(calls()[2]).toEqual({
@@ -348,12 +350,12 @@ describe('ProposalCard — pierwszy krok', () => {
     const user = renderCard()
 
     await propose(user)
-    await user.click(screen.getByRole('button', { name: 'Zaczynam' }))
+    await user.click(screen.getByRole('button', { name: "I'm starting" }))
     const row = within((await screen.findByText(STEPS[0])).closest('li') as HTMLElement)
-    await user.click(row.getByRole('button', { name: 'Zapisz jako zadanie' }))
+    await user.click(row.getByRole('button', { name: 'Save as a task' }))
 
-    await waitFor(() => expect(row.queryByRole('button', { name: 'Zapisz jako zadanie' })).toBeNull())
-    expect(row.getByText(/zapisano/i)).toBeInTheDocument()
+    await waitFor(() => expect(row.queryByRole('button', { name: 'Save as a task' })).toBeNull())
+    expect(row.getByText(/saved/i)).toBeInTheDocument()
   })
 
   /** Nothing stops a model repeating itself, and two identical bullets are still two bullets. */
@@ -363,14 +365,14 @@ describe('ProposalCard — pierwszy krok', () => {
     const user = renderCard()
 
     await propose(user)
-    await user.click(screen.getByRole('button', { name: 'Zaczynam' }))
+    await user.click(screen.getByRole('button', { name: "I'm starting" }))
 
-    const buttons = await screen.findAllByRole('button', { name: 'Zapisz jako zadanie' })
+    const buttons = await screen.findAllByRole('button', { name: 'Save as a task' })
     expect(buttons).toHaveLength(2)
     await user.click(buttons[0])
 
     await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: 'Zapisz jako zadanie' })).toHaveLength(1),
+      expect(screen.getAllByRole('button', { name: 'Save as a task' })).toHaveLength(1),
     )
   })
 
@@ -383,8 +385,8 @@ describe('ProposalCard — pierwszy krok', () => {
     const user = renderCard()
 
     await propose(user)
-    await user.click(screen.getByRole('button', { name: 'Zaczynam' }))
+    await user.click(screen.getByRole('button', { name: "I'm starting" }))
 
-    expect(await screen.findByText(/nie udało się przygotować/i)).toBeInTheDocument()
+    expect(await screen.findByText(/could not be prepared/i)).toBeInTheDocument()
   })
 })

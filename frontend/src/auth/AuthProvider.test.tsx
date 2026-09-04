@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from './AuthProvider'
 import { useAuth } from './auth-context'
+import i18n from '../i18n'
 import { response } from '../test/auth'
 
 const fetchMock = vi.fn()
@@ -43,6 +44,21 @@ describe('AuthProvider', () => {
 
     expect(await screen.findByText('status: authenticated')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith('/api/users/me', expect.anything())
+  })
+
+  /**
+   * After login the account decides what the app reads in; before it, the browser did. The
+   * reconcile is deliberately one-way: an app that answered a disagreement with a `PATCH` would
+   * write once per session forever, and a write is what wakes the metered database.
+   */
+  it('adopts the account language from /users/me without ever writing it back', async () => {
+    fetchMock.mockResolvedValue(response(200, { id: 'u1', email: 'ala@example.pl', language: 'PL' }))
+
+    render(<AuthProvider><Probe /></AuthProvider>)
+    await screen.findByText('status: authenticated')
+
+    await waitFor(() => expect(i18n.resolvedLanguage).toBe('pl'))
+    expect(fetchMock.mock.calls.every(([, init]) => (init?.method ?? 'GET') === 'GET')).toBe(true)
   })
 
   it('drops to anonymous when a later call reports the session expired', async () => {

@@ -22,7 +22,7 @@ describe('AppLayout', () => {
 
     // Waited on by name: the static entries link is in the DOM before the fetch lands,
     // so `findAllByRole('link')` alone would resolve on a nav that has no domains in it yet.
-    await screen.findByRole('link', { name: 'Zdrowie' })
+    await screen.findByRole('link', { name: 'Health' })
     const links = screen
       .getAllByRole('link')
       .filter((link) => link.getAttribute('href')?.startsWith('/domain/'))
@@ -36,7 +36,7 @@ describe('AppLayout', () => {
   it('offers the three-layer screen alongside the domains', async () => {
     renderShell('/')
 
-    expect(await screen.findByRole('link', { name: 'Zadania, cele i marzenia' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Tasks, goals and dreams' })).toHaveAttribute(
       'href',
       '/goals',
     )
@@ -47,20 +47,20 @@ describe('AppLayout', () => {
 
     renderShell('/')
 
-    expect(await screen.findByText(/nie udało się wczytać/i)).toBeInTheDocument()
+    expect(await screen.findByText(/could not load/i)).toBeInTheDocument()
   })
 
   it('shows the account controls in the header', async () => {
     renderShell('/')
 
     expect(await screen.findByText('ala@example.pl')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Wyloguj' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument()
   })
 
   it('routes a domain to its placeholder, named from the shell data', async () => {
     renderShell('/domain/leisure')
 
-    expect(await screen.findByRole('heading', { name: 'Czas wolny i hobby' })).toBeInTheDocument()
-    expect(screen.getByText(/kolejnym wycinku/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Leisure & hobbies' })).toBeInTheDocument()
+    expect(screen.getByText(/later slice/i)).toBeInTheDocument()
   })
 })

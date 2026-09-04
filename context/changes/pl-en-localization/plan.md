@@ -806,9 +806,9 @@ rewrites user data. `CategorySyncCheck` is unaffected — it reads only `code`.
 
 #### Automated
 
-- [x] 4.1 Type check and build pass: `cd frontend && npm run build`
-- [x] 4.2 Lint passes including the non-ASCII rule: `cd frontend && npm run lint`
-- [x] 4.3 Removing an `en` key fails the build (verified once, then restored)
+- [x] 4.1 Type check and build pass: `cd frontend && npm run build` — ca68446
+- [x] 4.2 Lint passes including the non-ASCII rule: `cd frontend && npm run lint` — ca68446
+- [x] 4.3 Removing an `en` key fails the build (verified once, then restored) — ca68446
 
 #### Manual
 
@@ -820,9 +820,9 @@ rewrites user data. `CategorySyncCheck` is unaffected — it reads only `code`.
 
 #### Automated
 
-- [ ] 5.1 Frontend suite passes: `cd frontend && npm test`
-- [ ] 5.2 Lint and build still pass
-- [ ] 5.3 The full gate is green: `/check`
+- [x] 5.1 Frontend suite passes: `cd frontend && npm test`
+- [x] 5.2 Lint and build still pass
+- [x] 5.3 The full gate is green: `/check`
 
 #### Manual
 

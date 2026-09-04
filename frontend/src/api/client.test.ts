@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, ApiError } from './client'
+import i18n from '../i18n'
 import { response } from '../test/auth'
 
 const fetchMock = vi.fn()
@@ -30,6 +31,22 @@ describe('api client', () => {
 
     expect(headersOf(0)['X-XSRF-TOKEN']).toBe('token-123')
     expect(fetchMock.mock.calls[0][1].credentials).toBe('include')
+  })
+
+  /**
+   * The transport half of the locale: the server renders category labels and proposal prose in
+   * whatever this header asks for, and registration seeds the new account from it (FR-003). Sent
+   * on every call, safe ones included — `GET /categories` is exactly the one that depends on it.
+   */
+  it('tells the server which language to answer in', async () => {
+    fetchMock.mockResolvedValue(response(200, { items: [] }))
+
+    await api('/categories')
+    expect(headersOf(0)['Accept-Language']).toBe('en')
+
+    await i18n.changeLanguage('pl')
+    await api('/categories')
+    expect(headersOf(1)['Accept-Language']).toBe('pl')
   })
 
   it('surfaces the status and the Problem JSON detail as an ApiError', async () => {
