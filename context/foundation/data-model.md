@@ -12,6 +12,7 @@ erDiagram
     category {
         varchar code PK "stable UPPER_SNAKE natural key; mirrors LifeDomain enum"
         varchar name_pl "Polish display name"
+        varchar name_en "English display name (DEV-49, V11); nullable in the schema, seeded for all 11"
         int display_order "1..11, unique, canonical FR-007 order"
     }
 
@@ -189,29 +190,57 @@ episode — because the next prompt has to tell "they said not now" from "they s
 The `CHECK ((answer IS NULL) = (answered_at IS NULL))` above covers it unchanged: superseding fills
 both columns, which is also what frees the FR-018 pending slot before the replacement is inserted.
 
+DEV-49 (`V10`, `V11`) adds **two nullable columns and no table** — `app_user.preferred_language` and
+`category.name_en`. Both are expand-only, neither rewrites an existing row, and the section below
+records why each is a column rather than the table or catalog it could have been. Only `name_en`
+shows up in the diagram at the top of this file: `app_user` has never been drawn there (it arrived in
+`V4`, after this diagram, and the other tables reference it in column comments), so its columns live
+in the prose here and in `data-model-current.drawio`, the same way `next_proposal_at` does.
+
 ### Internationalization
 
 The **language-neutral identity is `code`**, never the label. All domain and AI logic
-keys off `code` (= the `LifeDomain` enum) and `display_order`; `name_pl` is *purely a
-display label* that nothing functional reads. The explicit `_pl` suffix documents the
-locale assumption rather than hiding it behind a bare `name`.
+keys off `code` (= the `LifeDomain` enum) and `display_order`; the `name_*` columns are *purely
+display labels* that nothing functional reads. The explicit locale suffix documents the locale
+assumption rather than hiding it behind a bare `name`.
 
-The MVP is Polish-only (single user), so we store one label and stop there (YAGNI).
-Adding a language later never touches identity or behavior and is always **expand-only**
-(backward-compatible). When a second language is genuinely needed, pick by how many
-locales we expect to support:
+**DEV-49 took the first of the three paths this section used to offer** — `name_en` as a second
+column (`V11`), one expand-only migration and no joins — and left the other two unbuilt. The set is
+eleven rows fixed by `V1`/`V2` and owned by a Flyway seed, so a
+`category_translation(category_code, locale, name)` table would buy a join and a migration per
+locale to model a list that cannot grow at runtime, and moving the labels into message catalogs
+would leave half the reference table in the JAR and half in Postgres while `CategorySyncCheck`
+guards only the half in Postgres. Both remain reachable for the original reason: `code` is the
+identity, so neither is a destructive migration. The column is nullable with no `DEFAULT` so an
+image rollback is safe — the previous image reads `name_pl` and never looks at it — which also
+means nothing in the schema guarantees the seed ran, and
+`CategorySeedTest.everyEnglishNameIsNonBlank` is what does.
 
-- **A few fixed languages (PL + EN):** add a `name_en` column — one expand-only
-  migration, no joins.
-- **Many/growing locales, or a translator workflow:** add a
-  `category_translation(category_code, locale, name)` table (locales become data, not
-  schema).
-- **Adopting i18n tooling anyway:** move labels out of the DB into message catalogs
-  keyed by `code`; the table then keeps only `code` + `display_order`. Arguably the
-  cleanest for pure display strings.
+Which column fills the wire's `name` is decided **per request from `Accept-Language`**, not per
+account: `CategoryController` builds one immutable collection per `AppLanguage` at startup and picks
+between them, and answers `Vary: Accept-Language` so a cache cannot hand the Polish response to a
+caller who asked for English. Nothing on the wire was renamed — `CategoryResponse.name` was already
+spelled for its role ("the label for this caller"), which is why the second language landed without
+a client change.
 
-Because `code` is the identity, any of these is reachable without a destructive
-migration.
+**The account's own language is the other half, and it is a column rather than a header.**
+`app_user.preferred_language` (`V10`, `VARCHAR(2)`) holds the `AppLanguage` name — `PL` or `EN`, not
+a BCP 47 tag, because there are two locales and no region variants. `Accept-Language` answers "what
+should *this* response be rendered in" and cannot answer "what language does this account read" at a
+moment when no request exists, which is exactly what the natural-rhythm e-mail needs at send time
+(FR-009) and what the SPA seeds itself from at login. The column is moved by a targeted
+`update ... where id = ?` (`UserSettingsService.changeLanguage`), for the same reason
+`next_proposal_at` is: `User` keeps having no setters, and no call site is one `save` away from
+re-inserting an account FR-019 erased.
+
+`NULL` is a meaningful state here too, and it does **not** mean what the enum's own default means.
+A *request* naming no language the app speaks resolves to English, because the app is English-first
+(`AppLanguage.DEFAULT`); an *account* that never chose reads as Polish, because it predates the
+question being asked (`User.getLanguage()`). That null **is** the FR-004 backfill — every account
+created before `V10` keeps reading Polish without a row being rewritten and without ever being
+prompted — which is why the column is nullable with no `DEFAULT`, exactly like `next_proposal_at`.
+Collapsing the two rules into one constant would flip the existing account to English on its next
+login.
 
 ## Conventions
 

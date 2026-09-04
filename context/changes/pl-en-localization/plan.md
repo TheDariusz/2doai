@@ -820,9 +820,9 @@ rewrites user data. `CategorySyncCheck` is unaffected — it reads only `code`.
 
 #### Automated
 
-- [x] 5.1 Frontend suite passes: `cd frontend && npm test`
-- [x] 5.2 Lint and build still pass
-- [x] 5.3 The full gate is green: `/check`
+- [x] 5.1 Frontend suite passes: `cd frontend && npm test` — 6d7a26f
+- [x] 5.2 Lint and build still pass — 6d7a26f
+- [x] 5.3 The full gate is green: `/check` — 6d7a26f
 
 #### Manual
 
@@ -833,8 +833,8 @@ rewrites user data. `CategorySyncCheck` is unaffected — it reads only `code`.
 
 #### Automated
 
-- [ ] 6.1 Docs structure test passes: `node --test docs/index.test.mjs`
-- [ ] 6.2 The full gate is green: `/check`
+- [x] 6.1 Docs structure test passes: `node --test docs/index.test.mjs`
+- [x] 6.2 The full gate is green: `/check`
 
 #### Manual
 

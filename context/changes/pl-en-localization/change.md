@@ -26,3 +26,14 @@ archived_at: null
   framed it — the text is generated once at send time and stored, so the Polish reaches both the
   e-mail *and* the pending card in the SPA. Named at one seam (`ProposalService.proposeScheduled`)
   so pulling FR-009 forward stays a small change.
+- **PRD open questions closed (2026-09-04), all three now recorded in `prd-v2.md`:**
+  (1) *the inter-increment gap* — **accept the gap**, with the widened consequence written down: the
+  scheduled text is stored, so the Polish reaches the pending card as well as the e-mail, and
+  `ScheduledProposalTest` pins it so nobody removes it later believing it was a bug;
+  (2) *English names for the 11 life domains* — **confirmed** and seeded by `V11`, product labels
+  rather than translations (Health · Finances · Career & professional growth · Education & personal
+  growth · Relationships · Home & surroundings · Leisure & hobbies · Admin & paperwork · Safety &
+  preparedness · Transport & mobility · Inner growth & values), `display_order` untouched;
+  (3) *English proposal quality* — **stays open** until the by-hand production walk on `2doai.app`.
+  Nothing merged is evidence about it, and the `Verified against` note in `docs/index.html` says so
+  rather than claiming a walk that has not happened.

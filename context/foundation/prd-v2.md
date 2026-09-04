@@ -214,12 +214,23 @@ fallback**: a Polish browser sees Polish, everyone else sees English.
 
 ## Open Questions
 
-1. **The inter-increment gap:** an English account created in increment 1 may receive a Polish rhythm
-   e-mail before increment 2 lands — a direct conflict with the "no leaked word" guardrail. Suppress
-   e-mails for non-Polish accounts until FR-009, accept the gap, or pull FR-009 forward? Owner: author.
-   By: before increment 1 merges.
-2. **English names for the 11 life domains** do not exist yet (FR-006); "Sprawy formalne i
-   administracyjne" and "Rozwój wewnętrzny / wartości" need product naming, not translation. Owner:
-   author. By: increment 1.
+1. **The inter-increment gap** — **resolved 2026-09-04: accept the gap.** Suppressing the e-mail for
+   non-Polish accounts would break FR-012 (the loop fires exactly as today) to avoid a wording defect,
+   and pulling FR-009 forward would touch the protected loop inside the freeze window. The consequence
+   is **wider than this question framed it**: the scheduled text is generated once at send time and
+   stored, so the Polish reaches the **pending card in the app as well as the e-mail**. It is named at
+   exactly one seam — `ProposalService.proposeScheduled` passes `AppLanguage.PL` unconditionally — so
+   pulling FR-009 forward stays a small change, and `ScheduledProposalTest` pins the exception so that
+   nobody later removes it believing it was a bug.
+2. **English names for the 11 life domains** — **resolved 2026-09-04**, named as product labels rather
+   than translated and seeded by `V11__category_name_en.sql`: Health, Finances,
+   Career & professional growth, Education & personal growth, Relationships, Home & surroundings,
+   Leisure & hobbies, Admin & paperwork, Safety & preparedness, Transport & mobility,
+   Inner growth & values. The two this question called out landed as **Admin & paperwork** (`ADMIN`)
+   and **Inner growth & values** (`INNER_GROWTH`). `display_order` is untouched, so FR-006's "same
+   order as today" holds by construction.
 3. **English proposal quality** (FR-007) is unverified — prompts were tuned on Polish and the memory of
    the existing account is Polish. Resolved only by the by-hand production walk in English. Owner: author.
+   **Still open as increment 1 merges.** The gate is green and the template fallback is covered in both
+   languages, but no English proposal has been read off `2doai.app` yet, so nothing merged is evidence
+   about what the model actually writes.
