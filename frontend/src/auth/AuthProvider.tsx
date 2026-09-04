@@ -1,5 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { ApiError, api } from '../api/client'
+import i18n from '../i18n'
 import { AuthContext, type User } from './auth-context'
 
 /**
@@ -8,6 +9,19 @@ import { AuthContext, type User } from './auth-context'
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null | undefined>(undefined)
+
+  /**
+   * After login the account decides what the app is rendered in; before it, the browser did
+   * (FR-001/FR-002). So every answer that carries a session adopts its language — and only into
+   * i18next: reconciling the other way would `PATCH` on every boot, and a write is what wakes the
+   * metered database that this app is otherwise careful to let sleep.
+   */
+  const adopt = useCallback((next: User | null) => {
+    if (next?.language) {
+      void i18n.changeLanguage(next.language.toLowerCase())
+    }
+    setUser(next)
+  }, [])
 
   // Any 401 after the bootstrap means the session ended under the app's feet; `client.ts` raises
   // this event so no caller has to handle it. Registered before the bootstrap effect below so its
@@ -23,8 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Any other failure is also read as anonymous: the login screen is the one place a user can act
   // from, and stalling on 'loading' would render a permanently blank page.
   useEffect(() => {
-    api<User>('/users/me').then(setUser, () => setUser(null))
-  }, [])
+    api<User>('/users/me').then(adopt, () => setUser(null))
+  }, [adopt])
 
   return (
     <AuthContext
@@ -32,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: user ?? null,
         status: user === undefined ? 'loading' : user ? 'authenticated' : 'anonymous',
         login: async (email, password) => {
-          setUser(await api<User>('/sessions', { method: 'POST', body: { email, password } }))
+          adopt(await api<User>('/sessions', { method: 'POST', body: { email, password } }))
         },
         register: async (email, password) => {
           await api('/users', { method: 'POST', body: { email, password } })

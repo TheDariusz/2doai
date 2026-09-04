@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { NavLink, Outlet } from 'react-router'
 import { api } from '../api/client'
 import { AccountMenu } from '../auth/AccountMenu'
 
 /**
-  * A row of the `categories` resource — snake_case straight off the wire. `name` carries whichever
-  * language the server chose (Polish today); the SPA renders it and never picks a locale itself.
+  * A row of the `categories` resource — snake_case straight off the wire. `name` is already written
+  * in the language the request negotiated, so the SPA renders it verbatim and never keys on it.
   */
 export type Domain = { code: string; name: string }
 
@@ -16,6 +17,7 @@ export type Domain = { code: string; name: string }
  * ordering live in the Flyway seed alone and are guarded by nothing.
  */
 export function AppLayout() {
+  const { t } = useTranslation()
   const [domains, setDomains] = useState<Domain[]>([])
   const [failed, setFailed] = useState(false)
 
@@ -35,12 +37,12 @@ export function AppLayout() {
         <AccountMenu />
       </header>
 
-      <nav aria-label="Nawigacja">
+      <nav aria-label={t('layout.nav')}>
         <ul>
           <li>
-            <NavLink to="/goals">Zadania, cele i marzenia</NavLink>
+            <NavLink to="/goals">{t('goals.title')}</NavLink>
           </li>
-          {failed && <li>Nie udało się wczytać domen — odśwież stronę.</li>}
+          {failed && <li>{t('layout.domainsFailed')}</li>}
           {domains.map((domain) => (
             <li key={domain.code}>
               <NavLink to={`/domain/${domain.code.toLowerCase()}`}>{domain.name}</NavLink>

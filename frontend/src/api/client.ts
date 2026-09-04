@@ -3,6 +3,8 @@
  * in dev, Cloudflare does it in production, so there is no base URL and no CORS on either side.
  */
 
+import i18n from '../i18n'
+
 const CSRF_COOKIE = 'XSRF-TOKEN='
 
 type Method = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
@@ -38,7 +40,10 @@ export async function api<T = void>(
   init: { method?: Method; body?: unknown } = {},
 ): Promise<T> {
   const method = init.method ?? 'GET'
-  const headers: Record<string, string> = {}
+  // The language the server renders in — category labels and proposal prose both follow it, and
+  // registration reads it to seed the new account (FR-003). Read off the live i18next instance
+  // rather than from React context: this module has no React coupling and must keep none.
+  const headers: Record<string, string> = { 'Accept-Language': i18n.resolvedLanguage ?? 'en' }
 
   if (init.body !== undefined) {
     headers['Content-Type'] = 'application/json'
@@ -53,7 +58,7 @@ export async function api<T = void>(
       // Fail here rather than spend a round-trip on a request the server is bound to reject —
       // without a token there is nothing for the double-submit check to match. Status 0 marks a
       // failure that never reached the server; screens map it to their generic copy.
-      throw new ApiError(0, 'No XSRF-TOKEN cookie — the priming response has not landed yet')
+      throw new ApiError(0, 'No XSRF-TOKEN cookie: the priming response has not landed yet')
     }
     headers['X-XSRF-TOKEN'] = token
   }

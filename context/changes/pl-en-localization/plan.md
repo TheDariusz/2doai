@@ -791,11 +791,11 @@ rewrites user data. `CategorySyncCheck` is unaffected — it reads only `code`.
 
 #### Automated
 
-- [x] 3.1 Backend suite passes: `cd backend && mvn test`
-- [x] 3.2 `ProposalPromptTest` asserts the language word per `AppLanguage`
-- [x] 3.3 English fallback test class covers sentence, elapsed phrasing, plural boundary, passed deadline
-- [x] 3.4 `ProposalApiTest`: English request + failed model → English `TEMPLATE` sentence
-- [x] 3.5 A test pins `proposeScheduled` to Polish (the accepted gap)
+- [x] 3.1 Backend suite passes: `cd backend && mvn test` — 2a65cc8
+- [x] 3.2 `ProposalPromptTest` asserts the language word per `AppLanguage` — 2a65cc8
+- [x] 3.3 English fallback test class covers sentence, elapsed phrasing, plural boundary, passed deadline — 2a65cc8
+- [x] 3.4 `ProposalApiTest`: English request + failed model → English `TEMPLATE` sentence — 2a65cc8
+- [x] 3.5 A test pins `proposeScheduled` to Polish (the accepted gap) — 2a65cc8
 
 #### Manual
 
@@ -806,9 +806,9 @@ rewrites user data. `CategorySyncCheck` is unaffected — it reads only `code`.
 
 #### Automated
 
-- [ ] 4.1 Type check and build pass: `cd frontend && npm run build`
-- [ ] 4.2 Lint passes including the non-ASCII rule: `cd frontend && npm run lint`
-- [ ] 4.3 Removing an `en` key fails the build (verified once, then restored)
+- [x] 4.1 Type check and build pass: `cd frontend && npm run build`
+- [x] 4.2 Lint passes including the non-ASCII rule: `cd frontend && npm run lint`
+- [x] 4.3 Removing an `en` key fails the build (verified once, then restored)
 
 #### Manual
 

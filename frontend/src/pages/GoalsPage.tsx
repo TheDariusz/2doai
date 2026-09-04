@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import type { TFunction } from 'i18next'
+import { useTranslation } from 'react-i18next'
 import { useOutletContext, useSearchParams } from 'react-router'
 import { ApiError, api } from '../api/client'
 import { ProposalCard } from './ProposalCard'
@@ -40,24 +42,15 @@ export type Goal = {
   updated_at: string
 }
 
-const HORIZON_LABEL: Record<NonNullable<Goal['horizon']>, string> = {
-  THIS_YEAR: 'W tym roku',
-  FEW_MONTHS: 'Najbliższe miesiące',
-}
+const HORIZONS = ['THIS_YEAR', 'FEW_MONTHS'] as const satisfies readonly NonNullable<Goal['horizon']>[]
 
-const LAYER_LABEL: Record<Goal['layer'], string> = {
-  TASK: 'Zadanie',
-  GOAL: 'Cel',
-  DREAM: 'Marzenie',
-}
-
-/** The three layers, in the order the screen shows them — the layer filter picks from this list. */
-const SECTIONS = [
-  // Tasks first: it is the layer that gives a reason to open the app on an ordinary day.
-  { layer: 'TASK', title: 'Zadania bieżące' },
-  { layer: 'GOAL', title: 'Cele długoterminowe' },
-  { layer: 'DREAM', title: 'Marzenia' },
-] as const
+/**
+ * The three layers, in the order the screen shows them — the layer filter picks from this list, and
+ * so do both `<select>`s. Tasks first: that is the layer which gives a reason to open the app on an
+ * ordinary day. The labels live in the catalog under two different keys on purpose — `goals.layers`
+ * names one entry, `goals.sections` names the group of them.
+ */
+const LAYERS = ['TASK', 'GOAL', 'DREAM'] as const satisfies readonly Goal['layer'][]
 
 /**
  * The category filter's value for `category_code: null`. Not the empty string, because that is
@@ -102,21 +95,22 @@ function draftOf(goal: Goal): GoalDraft {
  * wrong twice over: a 422 repeats identically however many times it is retried, and a missing CSRF
  * cookie needs a reload rather than a retry.
  */
-function messageFor(status: number): string {
+function messageFor(t: TFunction, status: number): string {
   if (status === 422) {
     // The form caps length and requires content, so this means the entry broke the layer × time
     // fields rule — the one validation a caller can hit without bypassing the form.
-    return 'Serwer odrzucił ten wpis — horyzont ma tylko cel, termin tylko zadanie.'
+    return t('goals.errors.rejected')
   }
   if (status === 0) {
     // Never reached the server: the CSRF priming response has not landed. A reload primes it.
-    return 'Odśwież stronę i spróbuj ponownie.'
+    return t('goals.errors.refresh')
   }
-  return 'Nie udało się zapisać zmiany. Spróbuj ponownie.'
+  return t('goals.errors.save')
 }
 
 /** The whole S-02 + S-07 screen: all three layers, grouped, completed entries folded away. */
 export function GoalsPage() {
+  const { t } = useTranslation()
   const domains = useOutletContext<Domain[]>()
   // The filters live in the query string rather than in React state: a reload, a link pasted to
   // yourself and coming back to the screen from elsewhere all keep the view for free, and the
@@ -124,12 +118,13 @@ export function GoalsPage() {
   const [params] = useSearchParams()
   // A layer the app never wrote — a stale bookmark, a link from a later build — falls back to "no
   // filter", and has to: a controlled `<select>` displays its *first* option when the value matches
-  // none, so an unknown value would otherwise leave the control reading "Wszystkie" over an empty
-  // screen. That is the one state that claims you have no entries while actively hiding them.
+  // none, so an unknown value would otherwise leave the control reading as the no-filter option
+  // over an empty screen. That is the one state that claims you have no entries while actively
+  // hiding them.
   // Both filter values live lowercased in the URL and uppercased on the wire: the query string
   // is a link a user reads and edits, the SCREAMING_CASE belongs to the enum behind it.
   const requested = (params.get('layer') ?? '').toUpperCase()
-  const layer = SECTIONS.some((section) => section.layer === requested) ? requested : ''
+  const layer = LAYERS.some((known) => known === requested) ? requested : ''
   // `category` deliberately gets no such guard: its options are fetched, so `domains` is still empty
   // on the first paint and normalising would throw away a perfectly valid `?category=home` on every
   // load. A stale code is covered by the "nothing matched" message instead.
@@ -156,11 +151,11 @@ export function GoalsPage() {
         // a 500 and a parse bug are indistinguishable from the outside and leave no trace.
         (failure: unknown) => {
           console.error('goals: load failed', failure)
-          setError('Nie udało się wczytać wpisów — odśwież stronę.')
+          setError(t('goals.errors.load'))
           return false
         },
       ),
-    [],
+    [t],
   )
 
   useEffect(() => {
@@ -192,12 +187,12 @@ export function GoalsPage() {
         // it on success — and only if the reload succeeded: otherwise the row is still on screen
         // and `load`'s own "could not load" banner is the true one, so it must stand.
         if (await load()) {
-          setError('Ten wpis już nie istnieje — lista została odświeżona.')
+          setError(t('goals.errors.gone'))
         }
         return false
       }
 
-      setError(messageFor(status))
+      setError(messageFor(t, status))
       return false
     }
   }
@@ -231,7 +226,7 @@ export function GoalsPage() {
 
   return (
     <div className="goals">
-      <h1>Zadania, cele i marzenia</h1>
+      <h1>{t('goals.title')}</h1>
       {error && <p role="alert">{error}</p>}
 
       {/* Above the create form on purpose: FR-015 is the app asking the user a question, and it has
@@ -240,8 +235,8 @@ export function GoalsPage() {
       <ProposalCard onChange={load} />
 
       <GoalForm
-        name="Nowy wpis"
-        submitLabel="Dodaj"
+        name={t('goals.createForm')}
+        submitLabel={t('goals.create')}
         domains={domains}
         onSubmit={(draft) => save(api('/goals', { method: 'POST', body: draft }))}
       />
@@ -250,20 +245,18 @@ export function GoalsPage() {
 
       {/* An empty list under an active filter is not "you have no entries" — `load`'s failure path
           refuses that same lie a few lines up. It is also the last honest signal when a stale
-          `?category=` leaves the select reading "Wszystkie".
+          `?category=` leaves the select reading as the no-filter option.
 
           The condition is "there are entries, none of them showing" rather than a list of the
           filters that might be on, because one of them is *always* on: withdrawn entries are hidden
           by default, so a user whose only entry is withdrawn would otherwise get the blank screen
           this message exists to prevent. */}
-      {visible.length === 0 && goals.length > 0 && (
-        <p role="status">Żaden wpis nie pasuje do filtrów.</p>
-      )}
+      {visible.length === 0 && goals.length > 0 && <p role="status">{t('goals.noMatches')}</p>}
 
-      {/* A filtered-out layer loses its heading along with its entries: an empty
-          "Cele długoterminowe" would read as "you have no goals". */}
-      {SECTIONS.filter((section) => !layer || section.layer === layer).map((section) => (
-        <Section key={section.layer} {...section} {...sectionProps} />
+      {/* A filtered-out layer loses its heading along with its entries: an empty long-term
+          section would read as "you have no goals". */}
+      {LAYERS.filter((known) => !layer || known === layer).map((known) => (
+        <Section key={known} layer={known} {...sectionProps} />
       ))}
     </div>
   )
@@ -276,12 +269,12 @@ export function GoalsPage() {
  *
  * The labels are phrased as "show …" rather than reusing the forms' bare field names: those are
  * already taken by the create form's fields and the edit form's, and three controls answering to
- * one name is what a screen reader reads out of its form-controls list. The options themselves
- * reuse `LAYER_LABEL` rather than re-spelling it — note that is a *different* wording from the
- * section headings (a layer names one entry, a heading names the group), and nothing but this
- * comment keeps the two in step.
+ * one name is what a screen reader reads out of its form-controls list. The options reuse the
+ * per-entry layer labels rather than the section headings, which are deliberately worded
+ * differently — a layer names one entry, a heading names the group.
  */
 function Filters({ domains }: { domains: Domain[] }) {
+  const { t } = useTranslation()
   const [params, setParams] = useSearchParams()
 
   function set(key: 'layer' | 'category' | 'withdrawn', value: string) {
@@ -292,29 +285,29 @@ function Filters({ domains }: { domains: Domain[] }) {
   }
 
   return (
-    <section className="filters" aria-label="Filtry">
+    <section className="filters" aria-label={t('goals.filters.label')}>
       <label>
-        Pokaż rodzaj
+        {t('goals.filters.layer')}
         <select
           value={(params.get('layer') ?? '').toUpperCase()}
           onChange={(event) => set('layer', event.target.value)}
         >
-          <option value="">Wszystkie</option>
-          {Object.entries(LAYER_LABEL).map(([value, label]) => (
+          <option value="">{t('goals.filters.all')}</option>
+          {LAYERS.map((value) => (
             <option key={value} value={value}>
-              {label}
+              {t(`goals.layers.${value}`)}
             </option>
           ))}
         </select>
       </label>
       <label>
-        Pokaż kategorię
+        {t('goals.filters.category')}
         <select
           value={(params.get('category') ?? '').toUpperCase()}
           onChange={(event) => set('category', event.target.value)}
         >
-          <option value="">Wszystkie</option>
-          <option value={NO_CATEGORY}>Bez kategorii</option>
+          <option value="">{t('goals.filters.all')}</option>
+          <option value={NO_CATEGORY}>{t('goals.noCategory')}</option>
           {domains.map((domain) => (
             <option key={domain.code} value={domain.code}>
               {domain.name}
@@ -326,7 +319,7 @@ function Filters({ domains }: { domains: Domain[] }) {
           already the "which of many" controls. `1` is what it writes because the value is never
           read — the parameter's presence is the whole signal. */}
       <label>
-        Pokaż wycofane
+        {t('goals.filters.withdrawn')}
         <input
           type="checkbox"
           checked={params.has('withdrawn')}
@@ -356,6 +349,7 @@ function GoalForm({
   domains: Domain[]
   onSubmit: (draft: GoalDraft) => Promise<boolean>
 }) {
+  const { t } = useTranslation()
   const defaultLayer = goal?.layer ?? 'GOAL'
   const [layer, setLayer] = useState<Goal['layer']>(defaultLayer)
   const [pending, setPending] = useState(false)
@@ -389,31 +383,31 @@ function GoalForm({
   return (
     <form aria-label={name} onSubmit={submit}>
       <label>
-        Treść
+        {t('goals.content')}
         {/* Mirrors Goal.MAX_CONTENT_LENGTH and the column width — same rule, stated client-side. */}
         <input name="content" required maxLength={500} defaultValue={goal?.content} />
       </label>
       <label>
-        Rodzaj
+        {t('goals.layer')}
         <select
           name="layer"
           value={layer}
           onChange={(event) => setLayer(event.target.value as Goal['layer'])}
         >
-          {Object.entries(LAYER_LABEL).map(([value, label]) => (
+          {LAYERS.map((value) => (
             <option key={value} value={value}>
-              {label}
+              {t(`goals.layers.${value}`)}
             </option>
           ))}
         </select>
       </label>
       {layer === 'GOAL' && (
         <label>
-          Horyzont
+          {t('goals.horizon')}
           <select name="horizon" required defaultValue={goal?.horizon ?? undefined}>
-            {Object.entries(HORIZON_LABEL).map(([value, label]) => (
+            {HORIZONS.map((value) => (
               <option key={value} value={value}>
-                {label}
+                {t(`goals.horizons.${value}`)}
               </option>
             ))}
           </select>
@@ -421,16 +415,16 @@ function GoalForm({
       )}
       {layer === 'TASK' && (
         <label>
-          Termin
+          {t('goals.dueDate')}
           {/* Native control, not a picker library — an ISO `YYYY-MM-DD` value for no bytes.
               Deliberately not `required`: most tasks have no deadline at all. */}
           <input type="date" name="due_date" defaultValue={goal?.due_date ?? undefined} />
         </label>
       )}
       <label>
-        Kategoria
+        {t('goals.category')}
         <select name="category_code" defaultValue={goal?.category_code ?? ''}>
-          <option value="">Bez kategorii</option>
+          <option value="">{t('goals.noCategory')}</option>
           {domains.map((domain) => (
             <option key={domain.code} value={domain.code}>
               {domain.name}
@@ -446,25 +440,24 @@ function GoalForm({
 }
 
 function Section({
-  title,
   layer,
   goals,
   domains,
   actions,
 }: {
-  title: string
   layer: Goal['layer']
   goals: Goal[]
   domains: Domain[]
   actions: ItemActions
 }) {
+  const { t } = useTranslation()
   const mine = goals.filter((goal) => goal.layer === layer)
   const active = mine.filter((goal) => !goal.completed_at)
   const completed = mine.filter((goal) => goal.completed_at)
 
   return (
     <section>
-      <h2>{title}</h2>
+      <h2>{t(`goals.sections.${layer}`)}</h2>
       <ul>
         {active.map((goal) => (
           <Item key={goal.id} goal={goal} domains={domains} actions={actions} />
@@ -474,7 +467,7 @@ function Section({
         // Native disclosure rather than a state toggle: closed by default, keyboard-accessible and
         // no JavaScript of ours involved.
         <details>
-          <summary>Ukończone ({completed.length})</summary>
+          <summary>{t('goals.completed', { n: completed.length })}</summary>
           <ul>
             {completed.map((goal) => (
               <Item key={goal.id} goal={goal} domains={domains} actions={actions} />
@@ -495,6 +488,7 @@ function Item({
   domains: Domain[]
   actions: ItemActions
 }) {
+  const { t } = useTranslation()
   const done = Boolean(goal.completed_at)
   const withdrawn = Boolean(goal.withdrawn_at)
 
@@ -502,8 +496,8 @@ function Item({
     return (
       <li>
         <GoalForm
-          name="Edytuj wpis"
-          submitLabel="Zapisz"
+          name={t('goals.editForm')}
+          submitLabel={t('goals.save')}
           goal={goal}
           domains={domains}
           onSubmit={async (draft) => {
@@ -514,7 +508,7 @@ function Item({
           }}
         />
         <button type="button" onClick={() => actions.setEditing(null)}>
-          Anuluj
+          {t('goals.cancel')}
         </button>
       </li>
     )
@@ -523,12 +517,12 @@ function Item({
   // The wire carries the code; the label lives in the shell data the outlet already handed us.
   const category = domains.find((domain) => domain.code === goal.category_code)?.name
   const meta = [
-    goal.horizon && HORIZON_LABEL[goal.horizon],
-    goal.due_date && `do ${goal.due_date}`,
+    goal.horizon && t(`goals.horizons.${goal.horizon}`),
+    goal.due_date && t('goals.due', { date: goal.due_date }),
     category,
     // Only ever seen under the withdrawn filter, where every row carries it — but the filter is a
     // control the user may have forgotten they ticked, and the row should say what it is.
-    withdrawn && 'wycofane',
+    withdrawn && t('goals.withdrawnTag'),
   ]
     .filter(Boolean)
     .join(' · ')
@@ -539,16 +533,16 @@ function Item({
       {meta && <small>{meta}</small>}
       {/*
         A withdrawn entry offers restore and delete, nothing else. Completing or editing one asks the
-        user to act on an entry they have just said they never will — and "Przywróć" is already the
-        complete toggle's label, so a withdrawn *and* completed entry would otherwise put two
-        identically named buttons in one row meaning different things.
+        user to act on an entry they have just said they never will — and restore is already the
+        complete toggle's own label for a completed entry, so a withdrawn *and* completed entry
+        would otherwise put two identically named buttons in one row meaning different things.
       */}
       {withdrawn ? (
         <button
           type="button"
           onClick={() => actions.replace(goal.id, draftOf(goal), { completed: done, withdrawn: false })}
         >
-          Przywróć
+          {t('goals.restore')}
         </button>
       ) : (
         <>
@@ -556,10 +550,10 @@ function Item({
             type="button"
             onClick={() => actions.replace(goal.id, draftOf(goal), { completed: !done, withdrawn })}
           >
-            {done ? 'Przywróć' : 'Ukończ'}
+            {done ? t('goals.restore') : t('goals.complete')}
           </button>
           <button type="button" onClick={() => actions.setEditing(goal.id)}>
-            Edytuj
+            {t('goals.edit')}
           </button>
         </>
       )}
@@ -571,12 +565,12 @@ function Item({
       <button
         type="button"
         onClick={() => {
-          if (window.confirm(`Usunąć „${goal.content}”? Tej operacji nie da się cofnąć.`)) {
+          if (window.confirm(t('goals.confirmDelete', { content: goal.content }))) {
             actions.remove(goal.id)
           }
         }}
       >
-        Usuń
+        {t('goals.delete')}
       </button>
     </li>
   )
