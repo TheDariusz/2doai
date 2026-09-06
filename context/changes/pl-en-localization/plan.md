@@ -777,8 +777,8 @@ rewrites user data. `CategorySyncCheck` is unaffected — it reads only `code`.
 
 #### Manual
 
-- [x] 1.6 Register from an English browser and confirm `/me` reports `EN` — 130f84d
-- [x] 1.7 Switch via `PATCH`, reload, confirm it survives — 130f84d
+- [ ] 1.6 Register from an English browser and confirm `/me` reports `EN` — folded into the Phase 6 production walk (6.4)
+- [ ] 1.7 Switch via `PATCH`, reload, confirm it survives — folded into the Phase 6 production walk (6.5)
 
 ### Phase 2: Category names in two languages
 

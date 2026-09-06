@@ -8,7 +8,7 @@
 - **Date**: 2026-09-04
 - **Reviewers**: two Opus 5 sub-agents (plan drift; safety, quality and pattern compliance), findings
   re-verified by hand against the source before ranking
-- **Verdict**: NEEDS ATTENTION → triaged 2026-09-04: 9 fixed, 1 accepted, 1 pending (F11)
+- **Verdict**: NEEDS ATTENTION → triaged 2026-09-04: 10 fixed, 1 accepted
 - **Findings**: 0 critical, 6 warnings, 4 observations
 
 ## Verdicts
@@ -225,7 +225,7 @@
   covered by `AuthApiTest`, so the risk is bookkeeping, not correctness.
 - **Fix**: Either note the date of the by-hand check beside them or untick them and fold them into
   the Phase 6 production walk.
-- **Decision**: PENDING — only the author knows whether the Phase 1 walk happened
+- **Decision**: FIXED — 1.6 and 1.7 unticked and folded into the Phase 6 production walk
 
 ## Checked and clean
 
