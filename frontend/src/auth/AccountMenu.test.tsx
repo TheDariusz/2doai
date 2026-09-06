@@ -4,8 +4,7 @@ import { Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AccountMenu } from './AccountMenu'
 import { ApiError } from '../api/client'
-import i18n from '../i18n'
-import { LOGGED_IN as loggedIn, renderWithAuth, response, stubAuth } from '../test/auth'
+import { LOGGED_IN as loggedIn, renderWithAuth, stubAuth } from '../test/auth'
 import { type Auth } from './auth-context'
 
 const fetchMock = vi.fn()
@@ -25,52 +24,29 @@ function renderMenu(auth: Auth) {
   )
 }
 
-/** The signed-in user the language tests start from — the account is stored as English. */
-const ENGLISH_ACCOUNT: Partial<Auth> = {
-  ...loggedIn,
-  user: { id: 'u1', email: 'ala@example.pl', language: 'EN' },
-}
-
 describe('AccountMenu — the account language (FR-002)', () => {
-  it('stores the language the user picks and follows the answer the server gives', async () => {
-    fetchMock.mockResolvedValue(response(200, { id: 'u1', email: 'ala@example.pl', language: 'PL' }))
-    renderMenu(stubAuth(ENGLISH_ACCOUNT))
+  /**
+   * The menu offers the pick and hands it to the context; what a pick *costs* — the PATCH, the
+   * no-op guard, the account the answer moves — belongs to whatever owns `user.language`, and is
+   * pinned in `AuthProvider.test.tsx` against real fetches.
+   */
+  it('hands the pick to the context that owns the account language', async () => {
+    const auth = stubAuth(loggedIn)
+    renderMenu(auth)
 
     await userEvent.setup().selectOptions(screen.getByLabelText('Language'), 'pl')
 
-    const [url, init] = fetchMock.mock.calls[0]
-    expect(url).toBe('/api/users/me')
-    expect(init.method).toBe('PATCH')
-    expect(JSON.parse(init.body)).toEqual({ language: 'PL' })
-    // The response is what the screen follows, not the value that was asked for.
-    expect(await screen.findByRole('button', { name: 'Wyloguj' })).toBeInTheDocument()
-  })
-
-  /**
-   * The server writes unconditionally — it has to, because an update guarded on "only if it
-   * differs" returns zero rows for a no-op, which the handler can only read as "no such account"
-   * and answer 401. So the guard lives here, and it is not cosmetic: a query is what wakes the
-   * metered database. This is also what any boot-time reconcile has to honour — it may move
-   * i18next, never the column.
-   */
-  it('writes nothing when the language picked is the one the account already has', async () => {
-    await i18n.changeLanguage('pl')
-    renderMenu(stubAuth(ENGLISH_ACCOUNT))
-
-    await userEvent.setup().selectOptions(screen.getByLabelText('Język'), 'en')
-
-    expect(fetchMock).not.toHaveBeenCalled()
-    // The pick is still honoured on screen — it was the app that disagreed with the account.
-    expect(await screen.findByRole('button', { name: 'Log out' })).toBeInTheDocument()
+    expect(auth.changeLanguage).toHaveBeenCalledWith('pl')
   })
 
   it('says so when the language cannot be stored, and stays in the language it was in', async () => {
-    fetchMock.mockResolvedValue(response(500, { detail: 'boom' }))
-    renderMenu(stubAuth(ENGLISH_ACCOUNT))
+    const changeLanguage = vi.fn().mockRejectedValue(new ApiError(500, 'boom'))
+    renderMenu(stubAuth({ ...loggedIn, changeLanguage }))
 
     await userEvent.setup().selectOptions(screen.getByLabelText('Language'), 'pl')
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not change the language. Try again.')
+    // The switch reads the live i18next language, so a failed write leaves the screen where it was.
     expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument()
   })
 })

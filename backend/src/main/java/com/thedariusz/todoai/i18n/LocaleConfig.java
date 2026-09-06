@@ -1,6 +1,6 @@
 package com.thedariusz.todoai.i18n;
 
-import java.util.List;
+import java.util.Arrays;
 import java.util.Locale;
 
 import com.thedariusz.todoai.user.AppLanguage;
@@ -40,7 +40,9 @@ public class LocaleConfig {
 	@Bean
 	LocaleResolver localeResolver() {
 		AcceptHeaderLocaleResolver resolver = new AcceptHeaderLocaleResolver();
-		resolver.setSupportedLocales(List.of(AppLanguage.EN.locale(), AppLanguage.PL.locale()));
+		// Every constant, never a hand-written pair: a third language becomes negotiable by being
+		// declared, rather than by someone remembering this line.
+		resolver.setSupportedLocales(Arrays.stream(AppLanguage.values()).map(AppLanguage::locale).toList());
 		// Also what an absent or blank header resolves to. Without it the resolver falls through to
 		// the server's own default locale, which would make the answer depend on the machine the JVM
 		// happens to run on — Polish on this laptop, English on Fly. A header that is *present* but

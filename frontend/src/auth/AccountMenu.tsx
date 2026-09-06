@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
-import { ApiError, api } from '../api/client'
+import { ApiError } from '../api/client'
 import type { Language } from '../i18n'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
-import { useAuth, type User } from './auth-context'
+import { useAuth } from './auth-context'
 
 /**
  * The Problem `type` the backend puts on a failed re-authentication. `openapi.yaml` is the anchor
@@ -16,38 +16,21 @@ const RE_AUTH_FAILED = 'urn:2doai:problem:re-auth-failed'
 
 /** Header controls: the account's language, and the two session-ending actions. */
 export function AccountMenu() {
-  const { t, i18n } = useTranslation()
-  const { user, logout, deleteAccount } = useAuth()
+  const { t } = useTranslation()
+  const { user, changeLanguage, logout, deleteAccount } = useAuth()
   const navigate = useNavigate()
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
-  // What the account is stored as, so a re-pick of the language it already has can be told from a
-  // real change. Seeded from `/users/me` and moved by the PATCH's own response.
-  const [language, setLanguage] = useState(user?.language ?? null)
 
   /**
-   * FR-002. The `PATCH` is skipped when nothing would change, and that is not cosmetic: the server
-   * writes unconditionally (it has to — a guarded update returning zero rows reads as "no such
-   * account" and answers 401), and a database query is what wakes the metered Neon compute. A
-   * person pressing this by hand is rare; an app that wrote on every equal value would not be.
+   * FR-002. The account owns the language and `AuthProvider.changeLanguage` owns the write — what
+   * belongs here is what the user is told when it fails.
    */
   async function chooseLanguage(next: Language) {
-    const chosen = next === 'pl' ? 'PL' : 'EN'
-    if (chosen === language) {
-      // Nothing to store, but the screen still follows the pick: if the app and the account ever
-      // disagree about the language, this is the one way out of it that costs no write.
-      await i18n.changeLanguage(next)
-      return
-    }
     setError(null)
     try {
-      // The response is the updated account, so the screen follows what the server stored rather
-      // than what was asked for.
-      const updated = await api<User>('/users/me', { method: 'PATCH', body: { language: chosen } })
-      const stored = updated.language
-      setLanguage(stored)
-      await i18n.changeLanguage(stored.toLowerCase())
+      await changeLanguage(next)
     } catch {
       // The switch reads the live i18next language, so a failed write leaves it where it was.
       setError(t('account.errors.language'))

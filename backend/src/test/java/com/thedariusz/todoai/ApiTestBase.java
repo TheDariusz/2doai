@@ -1,5 +1,10 @@
 package com.thedariusz.todoai;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -12,8 +17,10 @@ import io.restassured.specification.RequestSpecification;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.yaml.snakeyaml.Yaml;
 
 import static io.restassured.RestAssured.given;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Shared browser-like client for the REST Assured endpoint tests: it carries cookies, primes and
@@ -141,5 +148,47 @@ abstract class ApiTestBase {
 	/** Each test uses its own account, so runs never collide on the {@code app_user.email} UNIQUE index. */
 	protected static String uniqueEmail() {
 		return "user-" + UUID.randomUUID() + "@example.com";
+	}
+
+	/**
+	 * The contract, read from disk.
+	 *
+	 * <p>Several suites hold a wire literal against {@code openapi.yaml} — it is the anchor, and each
+	 * side of the stack is checked against it rather than against another copy of itself (lessons.md,
+	 * "A contract value duplicated across the stack needs one guard that spans the boundary"). The
+	 * path and the navigation below are the part of that which is not specific to any one literal, so
+	 * they live here instead of once per suite.
+	 */
+	protected static final String OPENAPI = "../context/foundation/openapi.yaml";
+
+	protected static String read(String path) throws IOException {
+		return Files.readString(Path.of(path));
+	}
+
+	protected static Map<String, Object> openApi() throws IOException {
+		return new Yaml().load(read(OPENAPI));
+	}
+
+	/**
+	 * Each enum is a <em>named</em> schema the operations {@code $ref}, so the anchor holds one copy of
+	 * each list rather than repeating it across every request and response body — copies inside the
+	 * anchor would reintroduce, within the spec itself, the drift these guards exist to catch.
+	 */
+	@SuppressWarnings("unchecked")
+	protected static List<String> extensibleEnum(Map<String, Object> spec, String schema) {
+		return (List<String>) schema(spec, schema).get("x-extensible-enum");
+	}
+
+	@SuppressWarnings("unchecked")
+	protected static Map<String, Object> schema(Map<String, Object> spec, String name) {
+		Map<String, Object> components = (Map<String, Object>) spec.get("components");
+		Map<String, Object> schemas = (Map<String, Object>) components.get("schemas");
+		Map<String, Object> target = (Map<String, Object>) schemas.get(name);
+		assertThat(target).as("schema %s is missing from openapi.yaml", name).isNotNull();
+		return target;
+	}
+
+	protected static List<String> constantNames(Enum<?>[] constants) {
+		return Arrays.stream(constants).map(Enum::name).toList();
 	}
 }

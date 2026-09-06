@@ -5,7 +5,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +23,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
-import org.yaml.snakeyaml.Yaml;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -599,9 +597,8 @@ class GoalApiTest extends ApiTestBase {
 	 */
 	@Test
 	void publishesTheWireEnumsTheContractAnchors() throws IOException {
-		Map<String, Object> spec = new Yaml().load(Files.readString(
-				Path.of("../context/foundation/openapi.yaml")));
-		String spa = Files.readString(Path.of("../frontend/src/pages/GoalsPage.tsx"));
+		Map<String, Object> spec = openApi();
+		String spa = read("../frontend/src/pages/GoalsPage.tsx");
 
 		assertThat(extensibleEnum(spec, "GoalLayer"))
 				.as("openapi.yaml is the anchor for every wire literal the stack hardcodes")
@@ -659,29 +656,6 @@ class GoalApiTest extends ApiTestBase {
 			literals.add(literal.group(1));
 		}
 		return literals;
-	}
-
-	private static List<String> constantNames(Enum<?>[] constants) {
-		return Arrays.stream(constants).map(Enum::name).toList();
-	}
-
-	/**
-	 * Each enum is a <em>named</em> schema the operations {@code $ref}, so the anchor holds one copy of
-	 * each list rather than repeating it across Goal / GoalCreation / GoalUpdate — three copies inside
-	 * the anchor would reintroduce, within the spec itself, the drift this guard exists to catch.
-	 */
-	@SuppressWarnings("unchecked")
-	private static List<String> extensibleEnum(Map<String, Object> spec, String schema) {
-		return (List<String>) schema(spec, schema).get("x-extensible-enum");
-	}
-
-	@SuppressWarnings("unchecked")
-	private static Map<String, Object> schema(Map<String, Object> spec, String name) {
-		Map<String, Object> components = (Map<String, Object>) spec.get("components");
-		Map<String, Object> schemas = (Map<String, Object>) components.get("schemas");
-		Map<String, Object> target = (Map<String, Object>) schemas.get(name);
-		assertThat(target).as("schema %s is missing from openapi.yaml", name).isNotNull();
-		return target;
 	}
 
 	/** The {@code instance} member carries the request path, which differs between the two probes. */

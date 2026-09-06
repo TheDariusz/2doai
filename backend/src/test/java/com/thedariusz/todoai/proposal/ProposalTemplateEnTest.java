@@ -7,11 +7,11 @@ import java.util.UUID;
 
 import com.thedariusz.todoai.category.LifeDomain;
 import com.thedariusz.todoai.goal.Goal;
-import com.thedariusz.todoai.goal.GoalHorizon;
 import com.thedariusz.todoai.goal.GoalLayer;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import static com.thedariusz.todoai.proposal.ProposalTemplateTest.createdIn;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -24,15 +24,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  * have to be written in whichever grammar has more rules.
  */
 class ProposalTemplateEnTest {
-
-	/** {@code created_at} is a {@code @CreationTimestamp}, so a unit test has to place it by hand. */
-	private static Goal createdIn(int year, int month, String content) {
-		Goal goal = new Goal(UUID.randomUUID(), content, GoalLayer.GOAL, GoalHorizon.THIS_YEAR, null,
-				LifeDomain.CAREER);
-		ReflectionTestUtils.setField(goal, "createdAt",
-				OffsetDateTime.of(year, month, 12, 9, 0, 0, 0, ZoneOffset.UTC));
-		return goal;
-	}
 
 	@Test
 	void quotesTheEntryAndTheMonthItWasWrittenIn() {

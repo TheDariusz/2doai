@@ -246,8 +246,10 @@
   screen; an ESLint rule then refuses non-ASCII literals outside the catalogs and the tests, which is
   what stops the next Polish sentence being typed straight into a component. The switch appears twice for two
   different reasons: on the auth screens it writes only <code>localStorage</code>, because there is no
-  account to write to yet, and in the account menu it <code>PATCH</code>es — but only when the value
-  actually changes, since a same-value write would wake the metered database for nothing.
+  account to write to yet, and in the account menu it moves the account itself — through the auth
+  context, which owns <code>user.language</code> and so is what has to perform the write, but only
+  when the value actually changes, since a same-value write would wake the metered database for
+  nothing.
   <code>&lt;html lang&gt;</code> follows the switch, which is what makes the date input render in the
   reader's format and a screen reader pronounce the page correctly.</p>
   <h4>Four decisions that shaped it</h4>
@@ -650,7 +652,8 @@ classDiagram
   }
   class AuthenticatedSession {
     &lt;&lt;security adapter&gt;&gt;
-    +replacePrincipal(principal, request, response)
+    +establish(authentication, request, response) — login and the switch share this one write-back
+    +replacePrincipal(principal, request, response) — establish() with the changed principal
     writes through the chain's SecurityContextRepository — the holder alone is not enough
   }
   class AccountDeletionService {
@@ -719,6 +722,11 @@ classDiagram
     +login(LoginRequest) 201
     +logout() 204
   }
+  class AuthenticatedSession {
+    &lt;&lt;security adapter&gt;&gt;
+    +establish(authentication, request, response)
+    +replacePrincipal(principal, request, response)
+  }
   class UserRepository {
     &lt;&lt;persistence adapter / Spring Data&gt;&gt;
   }
@@ -728,6 +736,8 @@ classDiagram
   AppUserDetailsService --> UserRepository
   AppUserDetailsService ..> UserPrincipal : creates
   SessionController --> SecurityConfig : uses chain beans (AuthenticationManager, LogoutHandler, ...)
+  SessionController --> AuthenticatedSession : write the context back (login)
+  AuthenticatedSession --> SecurityConfig : the chain's own SecurityContextRepository
   </pre>
   <p class="note">The record's generated <code>equals</code> was fine only while every component came
   off the same row and never changed. DEV-49 put the account language on the principal and then moved
@@ -1610,7 +1620,7 @@ sequenceDiagram
   else authenticated
     SC->>SC: SessionAuthenticationStrategy.onAuthentication()&lt;br/&gt;rotates session id (fixation) + CSRF token
     SC->>SC: materializeRotatedCsrfToken() — forces new&lt;br/&gt;XSRF-TOKEN cookie onto THIS response
-    SC->>SC: SecurityContextRepository.saveContext()&lt;br/&gt;— actually writes the session
+    SC->>SC: AuthenticatedSession.establish()&lt;br/&gt;— saveContext() through the chain's repository,&lt;br/&gt;which is what actually writes the session
     SC-->>SPA: 201 Created + Set-Cookie (session, XSRF-TOKEN)
   end
   </pre>

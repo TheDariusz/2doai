@@ -17,8 +17,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * metered database that this app is otherwise careful to let sleep.
    */
   const adopt = useCallback((next: User | null) => {
-    if (next?.language) {
-      void i18n.changeLanguage(next.language.toLowerCase())
+    const language = next?.language?.toLowerCase()
+    // Only when it actually moves: i18next fires `languageChanged` unconditionally, and that is a
+    // DOM write, a `localStorage` write and a re-render of every consumer. The common case is a
+    // reload where the account and the app already agree, because the same handler persisted it.
+    if (language && language !== i18n.resolvedLanguage) {
+      void i18n.changeLanguage(language)
     }
     setUser(next)
   }, [])
@@ -50,6 +54,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
         register: async (email, password) => {
           await api('/users', { method: 'POST', body: { email, password } })
+        },
+        changeLanguage: async (language) => {
+          const chosen = language.toUpperCase() as User['language']
+          if (chosen === user?.language) {
+            // Nothing to store, but the pick is still honoured: if the app and the account ever
+            // disagree, this is the one way out of it that costs no write. And the guard is not
+            // cosmetic — the server writes unconditionally (it has to: an update guarded on "only
+            // if it differs" returns zero rows for a no-op, which it can only read as "no such
+            // account" and answer 401), so keeping a same-value switch off the wire is the
+            // client's job, and a query is what wakes the metered Neon compute.
+            await i18n.changeLanguage(language)
+            return
+          }
+          // `adopt`, not `setUser`: the response is the updated account, so the app follows what
+          // the server stored rather than what was asked for, by the same path a login does.
+          adopt(await api<User>('/users/me', { method: 'PATCH', body: { language: chosen } }))
         },
         logout: async () => {
           try {

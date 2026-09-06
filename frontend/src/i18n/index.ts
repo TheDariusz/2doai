@@ -4,10 +4,21 @@ import { en } from './en'
 import { pl } from './pl'
 
 /** The two locales the server renders in, spelled the way BCP 47 and `<html lang>` want them. */
-export type Language = 'pl' | 'en'
+export const LANGUAGES = ['pl', 'en'] as const
+
+export type Language = (typeof LANGUAGES)[number]
 
 /** Where the pre-login choice survives a reload. The account column is the post-login answer. */
 const STORED = '2doai.language'
+
+/**
+ * Reads a tag as one of the two, or as nothing. Region is ignored: there is nothing to choose
+ * between `en` and `en-GB` here. `AppLanguage.of` is the server's half of the same rule.
+ */
+function supported(tag: string | null): Language | undefined {
+  const base = tag?.toLowerCase().split('-')[0]
+  return LANGUAGES.find((language) => language === base)
+}
 
 /**
  * Local choice first, then the browser, then English — the order FR-001 asks for. Written by hand
@@ -15,18 +26,17 @@ const STORED = '2doai.language'
  * preference list, so the whole rule is this loop, and a dependency would only wrap it.
  *
  * The *first* supported tag wins rather than "does the list mention Polish": a browser asking for
- * `['en-US', 'pl']` prefers English, and region is ignored because there is nothing to choose
- * between `en` and `en-GB` here.
+ * `['en-US', 'pl']` prefers English.
  */
 function detect(): Language {
-  const stored = localStorage.getItem(STORED)
-  if (stored === 'pl' || stored === 'en') {
+  const stored = supported(localStorage.getItem(STORED))
+  if (stored) {
     return stored
   }
   for (const tag of navigator.languages ?? [navigator.language]) {
-    const base = tag.toLowerCase().split('-')[0]
-    if (base === 'pl' || base === 'en') {
-      return base
+    const match = supported(tag)
+    if (match) {
+      return match
     }
   }
   return 'en'

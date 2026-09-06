@@ -1,8 +1,6 @@
 package com.thedariusz.todoai;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -17,7 +15,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.web.servlet.mvc.condition.RequestMethodsRequestCondition;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
-import org.yaml.snakeyaml.Yaml;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -73,9 +70,7 @@ class ApiSurfaceTest extends ApiTestBase {
 
 	@SuppressWarnings("unchecked")
 	private static Set<String> specifiedOperations() throws IOException {
-		Map<String, Object> spec = new Yaml().load(
-				Files.readString(Path.of("../context/foundation/openapi.yaml")));
-		Map<String, Object> paths = (Map<String, Object>) spec.get("paths");
+		Map<String, Object> paths = (Map<String, Object>) openApi().get("paths");
 
 		return paths.entrySet().stream()
 				.flatMap(path -> ((Map<String, Object>) path.getValue()).keySet().stream()

@@ -11,6 +11,7 @@ export function stubAuth(overrides: Partial<Auth> = {}): Auth {
     status: 'anonymous',
     login: vi.fn().mockResolvedValue(undefined),
     register: vi.fn().mockResolvedValue(undefined),
+    changeLanguage: vi.fn().mockResolvedValue(undefined),
     logout: vi.fn().mockResolvedValue(undefined),
     deleteAccount: vi.fn().mockResolvedValue(undefined),
     ...overrides,

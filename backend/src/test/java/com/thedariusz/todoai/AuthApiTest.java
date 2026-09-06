@@ -1,9 +1,6 @@
 package com.thedariusz.todoai;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -12,7 +9,11 @@ import java.util.stream.Stream;
 import com.thedariusz.todoai.user.AppLanguage;
 import io.restassured.filter.cookie.CookieFilter;
 import io.restassured.http.Cookie;
+import io.restassured.specification.RequestSpecification;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -20,9 +21,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.yaml.snakeyaml.Yaml;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -294,7 +295,7 @@ class AuthApiTest extends ApiTestBase {
 				.extract()
 				.path("type");
 
-		assertThat(read("../context/foundation/openapi.yaml"))
+		assertThat(read(OPENAPI))
 				.as("openapi.yaml is the anchor for every wire literal both sides hardcode")
 				.contains(onTheWire);
 		assertThat(read("../frontend/src/auth/AccountMenu.tsx"))
@@ -312,40 +313,24 @@ class AuthApiTest extends ApiTestBase {
 	 * contract value duplicated across the stack needs one guard that spans the boundary").
 	 *
 	 * <p>The spec is compared as a <b>set</b>, never searched for: a substring check passes happily
-	 * after a value has been <em>deleted</em> from the spec. The SPA's two copies — the {@code User}
-	 * type and the account menu's mapping — are held by substring, the way the re-auth URN above is:
-	 * a TypeScript union cannot be read as a set from here, so a value <em>removed</em> on that side
-	 * is the one drift this does not see. A rename on any side goes red.
+	 * after a value has been <em>deleted</em> from the spec. The SPA's single copy — the {@code User}
+	 * type in {@code auth-context.ts}, which everything else derives from — is held by substring, the
+	 * way the re-auth URN above is: a TypeScript union cannot be read as a set from here, so a value
+	 * <em>removed</em> on that side is the one drift this does not see. A rename on either side goes
+	 * red.
 	 */
 	@Test
-	@SuppressWarnings("unchecked")
 	void publishesTheLanguageLiteralsTheContractAnchors() throws IOException {
-		Map<String, Object> spec = new Yaml().load(read("../context/foundation/openapi.yaml"));
-		Map<String, Object> schemas =
-				(Map<String, Object>) ((Map<String, Object>) spec.get("components")).get("schemas");
-		List<String> specified =
-				(List<String>) ((Map<String, Object>) schemas.get("AppLanguage")).get("x-extensible-enum");
-
-		assertThat(specified)
+		assertThat(extensibleEnum(openApi(), "AppLanguage"))
 				.as("openapi.yaml is the anchor for every language literal the stack hardcodes")
-				.containsExactlyInAnyOrderElementsOf(
-						Stream.of(AppLanguage.values()).map(Enum::name).toList());
+				.containsExactlyInAnyOrderElementsOf(constantNames(AppLanguage.values()));
 
 		String userType = read("../frontend/src/auth/auth-context.ts");
-		String accountMenu = read("../frontend/src/auth/AccountMenu.tsx");
 		for (AppLanguage language : AppLanguage.values()) {
-			String literal = "'" + language.name() + "'";
 			assertThat(userType)
 					.as("the SPA's User type names every language the contract does")
-					.contains(literal);
-			assertThat(accountMenu)
-					.as("the account menu maps to every language literal the contract does")
-					.contains(literal);
+					.contains("'" + language.name() + "'");
 		}
-	}
-
-	private static String read(String path) throws IOException {
-		return Files.readString(Path.of(path));
 	}
 
 	/**
@@ -586,25 +571,45 @@ class AuthApiTest extends ApiTestBase {
 	 * on the registration payload and there does not need to be: the sign-up screen's language <em>is</em>
 	 * the {@code Accept-Language} the sign-up request carried, because the SPA sets that header from
 	 * whatever it is currently rendering (including after the switch on the auth screens themselves).
+	 *
+	 * <p>The cases are a table rather than a test each, because they differ by a header and a letter
+	 * and agree on everything else — which is also what makes them readable as the negotiation rule
+	 * they collectively state. Two of them carry the whole reason negotiation is left to Spring's
+	 * {@code AcceptHeaderLocaleResolver} instead of being hand-parsed; see {@code signUpHeaders}.
 	 */
-	@Test
-	void registrationInheritsTheLanguageOfTheSignUpRequest() {
-		String email = uniqueEmail();
+	@ParameterizedTest(name = "Accept-Language {0} registers as {1}")
+	@MethodSource("signUpHeaders")
+	void registrationInheritsTheLanguageOfTheSignUpRequest(String acceptLanguage, AppLanguage stored) {
+		RequestSpecification signUp = csrfAware();
+		if (acceptLanguage != null) {
+			signUp = signUp.header("Accept-Language", acceptLanguage);
+		}
 
-		csrfAware()
-				.header("Accept-Language", "en-GB,en;q=0.9")
-				.body(Map.of("email", email, "password", "correct-horse"))
+		signUp.body(Map.of("email", uniqueEmail(), "password", "correct-horse"))
 				.when()
 				.post("/api/users")
 				.then()
 				.statusCode(201)
-				.body("language", equalTo("EN"));
-
-		login(email, "correct-horse").statusCode(201).body("language", equalTo("EN"));
+				.body("language", equalTo(stored.name()));
 	}
 
+	static Stream<Arguments> signUpHeaders() {
+		return Stream.of(
+				arguments("en-GB,en;q=0.9", AppLanguage.EN),
+				arguments("pl-PL,pl;q=0.9,en;q=0.8", AppLanguage.PL),
+				// The browser's first choice is one the app does not speak, so the quality-ordered
+				// second decides. A naive "read the first tag" parser answers this one wrongly, which
+				// is why the negotiation is AcceptHeaderLocaleResolver's rather than ours.
+				arguments("fr-FR;q=0.9,pl;q=0.8", AppLanguage.PL),
+				// The app is English-first: a header naming neither locale, and no header at all,
+				// both mean English.
+				arguments("de-DE,de;q=0.9", AppLanguage.EN),
+				arguments(null, AppLanguage.EN));
+	}
+
+	/** The language is stored, not merely echoed: the next session reads it back off the account. */
 	@Test
-	void registrationInPolishStoresPolish() {
+	void theLanguageChosenAtSignUpIsWhatTheNextLoginAnswersWith() {
 		String email = uniqueEmail();
 
 		csrfAware()
@@ -613,48 +618,9 @@ class AuthApiTest extends ApiTestBase {
 				.when()
 				.post("/api/users")
 				.then()
-				.statusCode(201)
-				.body("language", equalTo("PL"));
-	}
+				.statusCode(201);
 
-	/**
-	 * Negotiation is left to Spring's {@code AcceptHeaderLocaleResolver} rather than hand-parsed, which
-	 * is what makes this case work: the browser's first choice is one the app does not speak, so the
-	 * quality-ordered second choice decides — a header a naive "read the first tag" parser gets wrong.
-	 */
-	@Test
-	void registrationHonoursQualityOrderingWhenTheFirstChoiceIsUnsupported() {
-		String email = uniqueEmail();
-
-		csrfAware()
-				.header("Accept-Language", "fr-FR;q=0.9,pl;q=0.8")
-				.body(Map.of("email", email, "password", "correct-horse"))
-				.when()
-				.post("/api/users")
-				.then()
-				.statusCode(201)
-				.body("language", equalTo("PL"));
-	}
-
-	/** The app is English-first: a header naming neither locale, and no header at all, both mean English. */
-	@Test
-	void registrationFallsBackToEnglishForAnUnsupportedOrAbsentHeader() {
-		csrfAware()
-				.header("Accept-Language", "de-DE,de;q=0.9")
-				.body(Map.of("email", uniqueEmail(), "password", "correct-horse"))
-				.when()
-				.post("/api/users")
-				.then()
-				.statusCode(201)
-				.body("language", equalTo("EN"));
-
-		csrfAware()
-				.body(Map.of("email", uniqueEmail(), "password", "correct-horse"))
-				.when()
-				.post("/api/users")
-				.then()
-				.statusCode(201)
-				.body("language", equalTo("EN"));
+		login(email, "correct-horse").statusCode(201).body("language", equalTo("PL"));
 	}
 
 	/**

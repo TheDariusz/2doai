@@ -23,8 +23,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ProposalTemplateTest {
 
-	/** {@code created_at} is a {@code @CreationTimestamp}, so a unit test has to place it by hand. */
-	private static Goal createdIn(int year, int month, String content) {
+	/**
+	 * {@code created_at} is a {@code @CreationTimestamp}, so a unit test has to place it by hand.
+	 * Shared with {@code ProposalTemplateEnTest}: the cases are one locale's each, the builder is
+	 * neither's.
+	 */
+	static Goal createdIn(int year, int month, String content) {
 		Goal goal = new Goal(UUID.randomUUID(), content, GoalLayer.GOAL, GoalHorizon.THIS_YEAR, null,
 				LifeDomain.CAREER);
 		ReflectionTestUtils.setField(goal, "createdAt",

@@ -5,15 +5,17 @@ import { MemoryRouter, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from './App'
 import { AuthContext, type Auth } from './auth/auth-context'
-import { response, stubAuth } from './test/auth'
+import { LOGGED_IN, response, stubAuth } from './test/auth'
+import { DOMAINS } from './test/domains'
 
 const fetchMock = vi.fn()
 
+/** The one domain this suite routes to, from the shared fixture — a relabelled category is one edit. */
+const LEISURE = DOMAINS.find((domain) => domain.code === 'LEISURE')!
+
 beforeEach(() => {
   fetchMock.mockReset()
-  fetchMock.mockResolvedValue(
-    response(200, { items: [{ code: 'LEISURE', name: 'Leisure & hobbies' }] }),
-  )
+  fetchMock.mockResolvedValue(response(200, { items: [LEISURE] }))
   vi.stubGlobal('fetch', fetchMock)
 })
 
@@ -25,7 +27,7 @@ function Session({ children, initial }: { children: ReactNode; initial: Auth['st
     <AuthContext
       value={stubAuth({
         status,
-        user: status === 'authenticated' ? { id: 'u1', email: 'ala@example.pl', language: 'EN' } : null,
+        user: status === 'authenticated' ? LOGGED_IN.user : null,
         login: async () => setStatus('authenticated'),
       })}
     >
@@ -61,7 +63,7 @@ describe('AppRoutes', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     // Not '/' — the whole location, query included, survives the round trip through /login.
-    expect(await screen.findByRole('heading', { name: 'Leisure & hobbies' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: LEISURE.name })).toBeInTheDocument()
     expect(await screen.findByTestId('location')).toHaveTextContent('/domain/leisure?view=week')
   })
 
