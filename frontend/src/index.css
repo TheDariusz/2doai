@@ -16,6 +16,12 @@
   --track: #eeecf2;
   /* The unset half of a switch — darker than the segmented track, because the knob on it is white. */
   --track-off: #d9d6e0;
+  /* A border that has to be seen rather than merely felt: a hovered row, an empty check circle. */
+  --border-strong: #cfcbd6;
+  /* The one chip drawn away from the neutral palette — a term is the only part of an entry that
+     can be late, so it is the only one that reads as a state rather than a fact. */
+  --due-bg: #fff4e5;
+  --due-text: #8a4b00;
   --danger: #b3261e;
   --shadow: rgba(8, 6, 13, 0.06) 0 10px 24px -8px;
 
@@ -48,6 +54,9 @@
     --chip: #262730;
     --track: #262730;
     --track-off: #3a3c47;
+    --border-strong: #494c59;
+    --due-bg: rgba(255, 176, 46, 0.14);
+    --due-text: #f0b76e;
     --danger: #f2b8b5;
     --shadow: rgba(0, 0, 0, 0.4) 0 10px 24px -8px;
   }
@@ -117,6 +126,47 @@ button:disabled {
   cursor: progress;
 }
 
+/* Three weights over the one button: the thing a screen is for, the same thing offered more
+   quietly on a wash that already carries the accent, and an action nothing should invite. */
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+button.soft {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+button.ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text);
+}
+
+button.ghost:hover {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--text-h);
+}
+
+/* A square button whose icon is the label — the accessible name is on the button itself. */
+button.icon-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+button.icon-btn:hover {
+  background: var(--chip);
+  border-color: transparent;
+  color: var(--text-h);
+}
+
 label {
   display: flex;
   flex-direction: column;
@@ -147,6 +197,17 @@ input[type='checkbox'] {
 [role='alert'] {
   color: var(--danger);
   font-size: 14px;
+}
+
+/* Off the screen, still in the accessibility tree — a field whose name is carried by a placeholder
+   would otherwise lose it the moment anything is typed. */
+.vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* The segmented control: the options are the control, and the pressed one is the state. */
@@ -498,94 +559,332 @@ input[type='checkbox'] {
 
 /* Goals */
 
-.goals section {
-  margin: 24px 0;
+.goals {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
 }
 
-/* Overrides the column layout `.auth form` uses — these fields are short and belong on one line.
-   The filter row is the same shape (short labelled controls), so it shares the rule rather than
-   restating it; without this the global `label { flex-direction: column }` stacks the two selects
-   full-width, which reads nothing like the create form directly above them. */
-.goals form,
-.goals .filters {
+/* The heading and the layer tabs share one line, the tabs sitting on the heading's baseline. */
+.title-row {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-/* The proposal card's bullet list is the same row shape, so it shares these three rules rather
-   than restating them; the handful of declarations that differ live beside `.proposal` below. */
+.title-row h1 {
+  margin: 0;
+}
+
+.goals section {
+  display: flex;
+  flex-direction: column;
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 10px;
+}
+
+.section-head h2 {
+  margin: 0;
+}
+
+/* The proposal card's bullets are the same stack of rows, so they share this rule. */
 .goals ul,
 .proposal ul {
   display: flex;
   flex-direction: column;
   gap: 8px;
   list-style: none;
-  margin: 12px 0;
+  margin: 0;
   padding: 0;
 }
 
-.goals li,
-.proposal li {
+/* No `display` of our own: that is what keeps the native disclosure marker, which already turns
+   as the section opens. */
+.goals summary {
+  padding: 0 4px;
+  cursor: pointer;
+}
+
+.goals details {
+  margin-top: 10px;
+}
+
+.goals details ul {
+  margin-top: 8px;
+}
+
+.goals summary,
+.section-head small {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* An entry */
+
+.row {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 8px 12px;
+  gap: 14px;
   padding: 12px 14px;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 10px;
 }
 
-/* The entry takes the row and pushes its buttons to the end; below ~12rem everything wraps. */
-.goals li > p,
+.row:hover {
+  border-color: var(--border-strong);
+  box-shadow: rgba(8, 6, 13, 0.06) 0 4px 12px -4px;
+}
+
+/* A withdrawn entry: still there, no longer one of the live ones. */
+.row.dim {
+  background: transparent;
+  border-style: dashed;
+}
+
+.row.dim .content {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--border-strong);
+}
+
+.row .content {
+  flex: 1 1 12rem;
+  color: var(--text-h);
+}
+
+/* The complete toggle: a circle that fills once the entry is done. */
+button.check {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  flex-shrink: 0;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 50%;
+  color: #fff;
+}
+
+button.check:hover {
+  border-color: var(--accent);
+}
+
+button.check.done {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.chip.due {
+  background: var(--due-bg);
+  color: var(--due-text);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* An open edit form takes the row it was opened in. */
+.row.editing {
+  flex-wrap: wrap;
+  padding: 8px;
+}
+
+.row.editing .entry-form {
+  flex: 1 1 20rem;
+}
+
+/* Adding an entry */
+
+.entry-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The create form is one bar rather than a stack of labelled fields: the fastest thing on the
+   screen should look like the fastest thing on the screen. */
+.quick-add {
+  padding: 8px 8px 8px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  /* The plus mark draws itself in `currentColor`, and so does the placeholder beside it. */
+  color: var(--muted);
+}
+
+.quick-content {
+  flex: 1 1 12rem;
+}
+
+.quick-content input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Inside the bar the field is the bar: its own border would draw a box within a box. */
+.quick-add .quick-content input {
+  padding-left: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+/* A control with its name beside it rather than above — the bar is one line, not a form. */
+.field {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding-left: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  white-space: nowrap;
+}
+
+.field > span {
+  color: var(--muted);
+}
+
+.field input,
+.field select {
+  height: 34px;
+  padding-left: 4px;
+  border: 0;
+  background: transparent;
+}
+
+/* The proposal card (S-04b) — the one gradient on the screen, which is the point: FR-015 is the app
+   asking a question, and it has to look unlike the rows below it. */
+.proposal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 22px;
+  border: 1px solid var(--accent-border);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(134, 59, 255, 0.1), rgba(71, 191, 255, 0.08));
+}
+
+.proposal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* The rail's eyebrow, in the accent: this one names a voice rather than a group of links. */
+.proposal .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  color: var(--accent-text);
+  font-size: 12px;
+}
+
+.proposal article {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* The prose, not the entry: the message is what the user reads first. */
+.proposal-message {
+  max-width: 44rem;
+  color: var(--text-h);
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+.proposal-entry {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.proposal-entry .content {
+  color: var(--text-h);
+}
+
+.answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* A bullet reads as the task it is about to become, so it is a row — tighter than one in the list,
+   because it sits on the card's wash rather than on the page. */
+.proposal li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
 .proposal li > p {
   flex: 1 1 12rem;
   color: var(--text-h);
 }
 
-/* An open edit form owns the whole row rather than squeezing in beside the buttons. */
-.goals li > form {
-  flex: 1 1 100%;
-}
-
-.goals small {
+.proposal small {
   font-size: 13px;
   color: var(--muted);
 }
 
-.goals summary {
-  cursor: pointer;
+@media (max-width: 640px) {
+  /* The meta drops under the content rather than squeezing in beside it. */
+  .row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .row .content {
+    flex: 1 1 100%;
+  }
+
+  /* The bar becomes three lines, and the button that finishes the job keeps one to itself. */
+  .quick-add .seg,
+  .quick-add button[type='submit'] {
+    flex: 1 1 100%;
+  }
+
+  .quick-add .field {
+    flex: 1 1 auto;
+  }
 }
 
-/* The proposal card (S-04b) — the accent border is the one place on the screen that gets it, which
-   is the point: FR-015 is the app asking a question, and it has to look unlike the rows below it. */
-.proposal {
-  padding: 20px 22px;
-  border: 1px solid var(--accent-border);
-  border-radius: 14px;
-  background: var(--accent-bg);
-}
-
-/* The prose, not the entry: the message is what the user reads first. */
-.proposal article > p:first-child {
-  color: var(--text-h);
-  font-size: 17px;
-  margin: 16px 0 4px;
-}
-
-/* Answers and terms share the row `<p>` they sit in; the bullets' save buttons do not wrap. */
-.proposal p > button {
-  margin: 12px 8px 0 0;
-}
-
-.proposal ul {
-  margin: 12px 0 0;
-}
-
-/* Tighter than an entry row: a bullet reads as the task it is about to become, but it sits on the
-   card's accent wash rather than the page. */
-.proposal li {
-  padding: 8px 12px;
-}

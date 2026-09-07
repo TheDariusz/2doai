@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { useOutletContext, useSearchParams } from 'react-router'
 import { ApiError, api } from '../api/client'
 import { ProposalCard } from './ProposalCard'
-import type { Domain } from '../layout/AppLayout'
+import { CheckIcon, PencilIcon, PlusIcon, TrashIcon } from './icons'
+import { domainColor, type Domain } from '../layout/AppLayout'
 
 /**
  * A task, a goal or a dream — one representation for all three layers, exactly as the `Goal` schema
@@ -52,7 +53,20 @@ const HORIZONS = ['THIS_YEAR', 'FEW_MONTHS'] as const satisfies readonly NonNull
 const LAYERS = ['TASK', 'GOAL', 'DREAM'] as const satisfies readonly Goal['layer'][]
 
 /**
- * The category filter's value for `category_code: null`. Not the empty string, because that is
+ * The layer the URL is asking for, or `''` for "all of them". Shared by the page and the tabs so
+ * they cannot disagree — and normalising is what keeps them honest: a layer the app never wrote (a
+ * stale bookmark, a link from a later build) is no filter at all, because tabs showing nothing
+ * pressed over a list that is being filtered is the one state that hides entries while claiming not
+ * to. The value lives lowercased in the URL and uppercased on the wire, as `category` does: the
+ * query string is a link a user reads and edits, the SCREAMING_CASE belongs to the enum behind it.
+ */
+function layerIn(params: URLSearchParams): '' | Goal['layer'] {
+  const requested = (params.get('layer') ?? '').toUpperCase()
+  return LAYERS.find((known) => known === requested) ?? ''
+}
+
+/**
+ * The `?category=` value that asks for `category_code: null`. Not the empty string, because that is
  * already taken by "no filter at all" — and the distinction is the point: the proposal engine
  * treats null as one shared bucket, so uncategorised entries are a group a user can ask for, not
  * an absence to be hidden.
@@ -128,22 +142,15 @@ export function GoalsPage() {
   // yourself and coming back to the screen from elsewhere all keep the view for free, and the
   // controls read from the URL rather than mirroring it, so there is one source of truth.
   const [params] = useSearchParams()
-  // A layer the app never wrote — a stale bookmark, a link from a later build — falls back to "no
-  // filter", and has to: a controlled `<select>` displays its *first* option when the value matches
-  // none, so an unknown value would otherwise leave the control reading as the no-filter option
-  // over an empty screen. That is the one state that claims you have no entries while actively
-  // hiding them.
-  // Both filter values live lowercased in the URL and uppercased on the wire: the query string
-  // is a link a user reads and edits, the SCREAMING_CASE belongs to the enum behind it.
-  const requested = (params.get('layer') ?? '').toUpperCase()
-  const layer = LAYERS.some((known) => known === requested) ? requested : ''
-  // `category` deliberately gets no such guard: its options are fetched, so `domains` is still empty
-  // on the first paint and normalising would throw away a perfectly valid `?category=home` on every
-  // load. A stale code is covered by the "nothing matched" message instead.
+  const layer = layerIn(params)
+  // `category` deliberately gets no `layerIn` guard of its own: its options are fetched, so
+  // `domains` is still empty on the first paint and normalising would throw away a perfectly valid
+  // `?category=home` on every load. A stale code is covered by the "nothing matched" message
+  // instead. The rail writes this one; the page only ever reads it.
   const category = (params.get('category') ?? '').toUpperCase()
   // A third axis, and the only one that is on/off: a withdrawn entry is one the user asked not to be
-  // shown, so it is hidden until this is set. Any value counts as "show them" — a checkbox writes
-  // exactly one, and an unknown one can only ever err towards showing the user their own entries.
+  // shown, so it is hidden until this is set. Any value counts as "show them" — the rail's switch
+  // writes exactly one, and an unknown one can only ever err towards showing the user their entries.
   const withdrawn = params.has('withdrawn')
   const [goals, setGoals] = useState<Goal[]>([])
   const [error, setError] = useState<GoalsError | null>(null)
@@ -238,13 +245,16 @@ export function GoalsPage() {
 
   return (
     <div className="goals">
-      <h1>{t('goals.title')}</h1>
+      <div className="title-row">
+        <h1>{t('goals.title')}</h1>
+        <LayerTabs />
+      </div>
       {error && <p role="alert">{t(error)}</p>}
 
       {/* Above the create form on purpose: FR-015 is the app asking the user a question, and it has
           to be the first thing on a screen whose whole point is that they had stopped looking.
           `load` is the refetch — every answer changes an entry, and so does saving a first step. */}
-      <ProposalCard onChange={load} />
+      <ProposalCard domains={domains} onChange={load} />
 
       <GoalForm
         name={t('goals.createForm')}
@@ -253,11 +263,9 @@ export function GoalsPage() {
         onSubmit={(draft) => save(api('/goals', { method: 'POST', body: draft }))}
       />
 
-      <Filters domains={domains} />
-
       {/* An empty list under an active filter is not "you have no entries" — `load`'s failure path
           refuses that same lie a few lines up. It is also the last honest signal when a stale
-          `?category=` leaves the select reading as the no-filter option.
+          `?category=` matches no tag in the rail, so nothing on screen looks filtered at all.
 
           The condition is "there are entries, none of them showing" rather than a list of the
           filters that might be on, because one of them is *always* on: withdrawn entries are hidden
@@ -275,70 +283,44 @@ export function GoalsPage() {
 }
 
 /**
- * The two filter axes, reading and writing the query string themselves — `useSearchParams` is
- * context-backed, so this call and the page's see the same URL and there is nothing to pass down
- * or keep in sync.
+ * The one filter axis the screen still owns — the other two moved into the rail — reading and
+ * writing the query string itself: `useSearchParams` is context-backed, so this call and the page's
+ * see the same URL and there is nothing to pass down or keep in sync. The write merges rather than
+ * replaces, or a layer press would silently clear the category the rail had set.
  *
- * The labels are phrased as "show …" rather than reusing the forms' bare field names: those are
- * already taken by the create form's fields and the edit form's, and three controls answering to
- * one name is what a screen reader reads out of its form-controls list. The options reuse the
- * per-entry layer labels rather than the section headings, which are deliberately worded
- * differently — a layer names one entry, a heading names the group.
+ * A segmented group rather than a `<select>`: four options is a list short enough to *be* the
+ * control, and the pressed tab says which layer is on without opening anything. The labels are the
+ * per-entry layer names rather than the section headings, which are deliberately worded differently
+ * — a layer names one entry, a heading names the group.
  */
-function Filters({ domains }: { domains: Domain[] }) {
+function LayerTabs() {
   const { t } = useTranslation()
   const [params, setParams] = useSearchParams()
+  const chosen = layerIn(params)
 
-  function set(key: 'layer' | 'category' | 'withdrawn', value: string) {
+  function choose(value: string) {
     const next = new URLSearchParams(params)
-    if (value) next.set(key, value.toLowerCase())
-    else next.delete(key)
+    if (value) next.set('layer', value.toLowerCase())
+    else next.delete('layer')
     setParams(next, { replace: true })
   }
 
   return (
-    <section className="filters" aria-label={t('goals.filters.label')}>
-      <label>
-        {t('goals.filters.layer')}
-        <select
-          value={(params.get('layer') ?? '').toUpperCase()}
-          onChange={(event) => set('layer', event.target.value)}
+    <div className="seg" role="group" aria-label={t('goals.filters.layer')}>
+      <button type="button" aria-pressed={!chosen} onClick={() => choose('')}>
+        {t('goals.filters.all')}
+      </button>
+      {LAYERS.map((value) => (
+        <button
+          key={value}
+          type="button"
+          aria-pressed={value === chosen}
+          onClick={() => choose(value)}
         >
-          <option value="">{t('goals.filters.all')}</option>
-          {LAYERS.map((value) => (
-            <option key={value} value={value}>
-              {t(`goals.layers.${value}`)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        {t('goals.filters.category')}
-        <select
-          value={(params.get('category') ?? '').toUpperCase()}
-          onChange={(event) => set('category', event.target.value)}
-        >
-          <option value="">{t('goals.filters.all')}</option>
-          <option value={NO_CATEGORY}>{t('goals.noCategory')}</option>
-          {domains.map((domain) => (
-            <option key={domain.code} value={domain.code}>
-              {domain.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      {/* A checkbox rather than a third select: this axis has two states, and the two selects are
-          already the "which of many" controls. `1` is what it writes because the value is never
-          read — the parameter's presence is the whole signal. */}
-      <label>
-        {t('goals.filters.withdrawn')}
-        <input
-          type="checkbox"
-          checked={params.has('withdrawn')}
-          onChange={(event) => set('withdrawn', event.target.checked ? '1' : '')}
-        />
-      </label>
-    </section>
+          {t(`goals.layers.${value}`)}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -393,29 +375,41 @@ function GoalForm({
   }
 
   return (
-    <form aria-label={name} onSubmit={submit}>
-      <label>
-        {t('goals.content')}
+    // The create form is the quick-add bar at the top of the screen; the edit form is the same
+    // fields opened inside a row, so it drops the bar's own chrome and stacks when it has to.
+    // `goal` is the discriminator either way — it is present only when an entry is being edited.
+    <form className={goal ? 'entry-form' : 'entry-form quick-add'} aria-label={name} onSubmit={submit}>
+      {!goal && <PlusIcon />}
+      <label className="quick-content">
+        {/* The placeholder names the three layers, but it cannot be the field's name: it disappears
+            the moment anything is typed. The name stays, visually hidden. */}
+        <span className="vh">{t('goals.content')}</span>
         {/* Mirrors Goal.MAX_CONTENT_LENGTH and the column width — same rule, stated client-side. */}
-        <input name="content" required maxLength={500} defaultValue={goal?.content} />
+        <input
+          name="content"
+          required
+          maxLength={500}
+          placeholder={t('goals.placeholder')}
+          defaultValue={goal?.content}
+        />
       </label>
-      <label>
-        {t('goals.layer')}
-        <select
-          name="layer"
-          value={layer}
-          onChange={(event) => setLayer(event.target.value as Goal['layer'])}
-        >
-          {LAYERS.map((value) => (
-            <option key={value} value={value}>
-              {t(`goals.layers.${value}`)}
-            </option>
-          ))}
-        </select>
-      </label>
+      {/* The same segmented control the layer tabs use, and for the same reason: three options that
+          decide what the rest of the bar offers are worth seeing all at once. */}
+      <div className="seg" role="group" aria-label={t('goals.layer')}>
+        {LAYERS.map((value) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={value === layer}
+            onClick={() => setLayer(value)}
+          >
+            {t(`goals.layers.${value}`)}
+          </button>
+        ))}
+      </div>
       {layer === 'GOAL' && (
-        <label>
-          {t('goals.horizon')}
+        <label className="field">
+          <span>{t('goals.horizon')}</span>
           <select name="horizon" required defaultValue={goal?.horizon ?? undefined}>
             {HORIZONS.map((value) => (
               <option key={value} value={value}>
@@ -426,15 +420,15 @@ function GoalForm({
         </label>
       )}
       {layer === 'TASK' && (
-        <label>
-          {t('goals.dueDate')}
+        <label className="field">
+          <span>{t('goals.dueDate')}</span>
           {/* Native control, not a picker library — an ISO `YYYY-MM-DD` value for no bytes.
               Deliberately not `required`: most tasks have no deadline at all. */}
           <input type="date" name="due_date" defaultValue={goal?.due_date ?? undefined} />
         </label>
       )}
-      <label>
-        {t('goals.category')}
+      <label className="field">
+        <span>{t('goals.category')}</span>
         <select name="category_code" defaultValue={goal?.category_code ?? ''}>
           <option value="">{t('goals.noCategory')}</option>
           {domains.map((domain) => (
@@ -444,7 +438,7 @@ function GoalForm({
           ))}
         </select>
       </label>
-      <button type="submit" disabled={pending}>
+      <button className="primary" type="submit" disabled={pending}>
         {submitLabel}
       </button>
     </form>
@@ -469,7 +463,12 @@ function Section({
 
   return (
     <section>
-      <h2>{t(`goals.sections.${layer}`)}</h2>
+      {/* The count is of the active entries alone: the completed ones are folded away below, and a
+          heading that counted them would be a tally of a list nobody is looking at. */}
+      <div className="section-head">
+        <h2>{t(`goals.sections.${layer}`)}</h2>
+        <small>{active.length}</small>
+      </div>
       <ul>
         {active.map((goal) => (
           <Item key={goal.id} goal={goal} domains={domains} actions={actions} />
@@ -506,7 +505,7 @@ function Item({
 
   if (actions.editing === goal.id) {
     return (
-      <li>
+      <li className="row editing">
         <GoalForm
           name={t('goals.editForm')}
           submitLabel={t('goals.save')}
@@ -526,64 +525,82 @@ function Item({
     )
   }
 
-  // The wire carries the code; the label lives in the shell data the outlet already handed us.
-  const category = domains.find((domain) => domain.code === goal.category_code)?.name
-  const meta = [
-    goal.horizon && t(`goals.horizons.${goal.horizon}`),
-    goal.due_date && t('goals.due', { date: goal.due_date }),
-    category,
-    // Only ever seen under the withdrawn filter, where every row carries it — but the filter is a
-    // control the user may have forgotten they ticked, and the row should say what it is.
-    withdrawn && t('goals.withdrawnTag'),
-  ]
-    .filter(Boolean)
-    .join(' · ')
+  // The wire carries the code; the label and the colour live in the shell data the outlet already
+  // handed us, and the colour is the domain's *position* in it — the same derivation the rail's
+  // tags use, so a row and its tag cannot end up two different shades of the same domain.
+  const domain = domains.findIndex((known) => known.code === goal.category_code)
 
   return (
-    <li>
-      <p>{goal.content}</p>
-      {meta && <small>{meta}</small>}
+    <li className={withdrawn ? 'row dim' : 'row'}>
       {/*
         A withdrawn entry offers restore and delete, nothing else. Completing or editing one asks the
         user to act on an entry they have just said they never will — and restore is already the
         complete toggle's own label for a completed entry, so a withdrawn *and* completed entry
         would otherwise put two identically named buttons in one row meaning different things.
       */}
-      {withdrawn ? (
+      {!withdrawn && (
         <button
+          className={done ? 'check done' : 'check'}
           type="button"
-          onClick={() => actions.replace(goal.id, draftOf(goal), { completed: done, withdrawn: false })}
+          aria-label={done ? t('goals.restore') : t('goals.complete')}
+          onClick={() => actions.replace(goal.id, draftOf(goal), { completed: !done, withdrawn })}
         >
-          {t('goals.restore')}
+          {done && <CheckIcon />}
         </button>
-      ) : (
-        <>
-          <button
-            type="button"
-            onClick={() => actions.replace(goal.id, draftOf(goal), { completed: !done, withdrawn })}
-          >
-            {done ? t('goals.restore') : t('goals.complete')}
-          </button>
-          <button type="button" onClick={() => actions.setEditing(goal.id)}>
-            {t('goals.edit')}
-          </button>
-        </>
       )}
-      {/*
-        Native `confirm` rather than a dialog of our own: blocking, focus-trapped and
-        screen-reader-announced for free, for a single yes/no. A 404 needs no special handling —
-        `save` already refetches when the entry turns out to be gone.
-      */}
-      <button
-        type="button"
-        onClick={() => {
-          if (window.confirm(t('goals.confirmDelete', { content: goal.content }))) {
-            actions.remove(goal.id)
-          }
-        }}
-      >
-        {t('goals.delete')}
-      </button>
+      <span className="content">{goal.content}</span>
+      <span className="meta">
+        {/* The term is the one chip drawn in its own colour: it is the only piece of an entry that
+            can be late, and the rest are facts about the entry rather than about the clock. */}
+        {goal.due_date && <span className="chip due">{t('goals.due', { date: goal.due_date })}</span>}
+        {goal.horizon && <span className="chip">{t(`goals.horizons.${goal.horizon}`)}</span>}
+        {domain >= 0 && (
+          <span className="chip">
+            <span className="dot" style={{ background: domainColor(domain) }} />
+            {domains[domain].name}
+          </span>
+        )}
+        {/* Only ever seen under the withdrawn filter, where every row carries it — but the switch is
+            a control the user may have forgotten they flipped, and the row should say what it is. */}
+        {withdrawn && <span className="chip">{t('goals.withdrawnTag')}</span>}
+      </span>
+      <span className="actions">
+        {withdrawn ? (
+          <button
+            className="ghost"
+            type="button"
+            onClick={() => actions.replace(goal.id, draftOf(goal), { completed: done, withdrawn: false })}
+          >
+            {t('goals.restore')}
+          </button>
+        ) : (
+          <button
+            className="icon-btn"
+            type="button"
+            aria-label={t('goals.edit')}
+            onClick={() => actions.setEditing(goal.id)}
+          >
+            <PencilIcon />
+          </button>
+        )}
+        {/*
+          Native `confirm` rather than a dialog of our own: blocking, focus-trapped and
+          screen-reader-announced for free, for a single yes/no. A 404 needs no special handling —
+          `save` already refetches when the entry turns out to be gone.
+        */}
+        <button
+          className="icon-btn"
+          type="button"
+          aria-label={t('goals.delete')}
+          onClick={() => {
+            if (window.confirm(t('goals.confirmDelete', { content: goal.content }))) {
+              actions.remove(goal.id)
+            }
+          }}
+        >
+          <TrashIcon />
+        </button>
+      </span>
     </li>
   )
 }

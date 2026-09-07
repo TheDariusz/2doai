@@ -59,6 +59,9 @@ export const pl = {
     save: 'Zapisz',
     cancel: 'Anuluj',
     content: 'Treść',
+    // The one field the quick-add bar shows without its own visible label — the placeholder names
+    // all three layers, because it is the first control a new account meets.
+    placeholder: 'Dodaj zadanie, cel albo marzenie…',
     layer: 'Rodzaj',
     horizon: 'Horyzont',
     dueDate: 'Termin',
@@ -74,12 +77,11 @@ export const pl = {
     delete: 'Usuń',
     confirmDelete: 'Usunąć „{{content}}”? Tej operacji nie da się cofnąć.',
     noMatches: 'Żaden wpis nie pasuje do filtrów.',
+    // The two axes that survive as controls: the layer tabs on the screen, and the rail's switch.
+    // Both are phrased as "show …" rather than reusing the form's bare field names — two controls
+    // answering to one name is what a screen reader reads out of its controls list.
     filters: {
-      label: 'Filtry',
-      // Phrased as "show …" rather than the forms' bare field names: three controls answering to
-      // one name is what a screen reader reads out of its form-controls list.
       layer: 'Pokaż rodzaj',
-      category: 'Pokaż kategorię',
       withdrawn: 'Pokaż wycofane',
       all: 'Wszystkie',
     },
