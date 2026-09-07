@@ -11,11 +11,11 @@ import com.thedariusz.todoai.goal.GoalLayer;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import static com.thedariusz.todoai.proposal.ProposalTemplateTest.createdIn;
+import static com.thedariusz.todoai.proposal.ProposalTemplatePlTest.createdIn;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * {@code ProposalTemplateTest}'s sibling, for the sibling implementation — the same four things
+ * {@code ProposalTemplatePlTest}'s sibling, for the sibling implementation — the same four things
  * pinned about the other locale's sentence, because the fallback is what the user reads when the
  * model is unreachable and nobody proofreads it first.
  *

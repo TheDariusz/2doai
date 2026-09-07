@@ -7,12 +7,12 @@ import org.apache.commons.lang3.StringUtils;
  * already phrased, and a link to the app where the four answers live.
  *
  * <p><b>It adds no prose of its own around the message, on purpose.</b> The message is the product —
- * phrased by Sonnet against this user's memory, or by {@link ProposalTemplate} when the model was
+ * phrased by Sonnet against this user's memory, or by {@link ProposalTemplatePl} when the model was
  * unreachable — and a wrapper of newsletter copy ("Cześć! Mamy dla Ciebie…") would turn a friend
  * noticing something into a mailing. The whole body is one sentence and one link.
  *
  * <p><b>Second locale-bound surface on the backend, and it is one for the same reason
- * {@link ProposalTemplate} is</b>: unlike {@code ProposalPrompt}, whose instructions merely
+ * {@link ProposalTemplatePl} is</b>: unlike {@code ProposalPrompt}, whose instructions merely
  * <em>name</em> the answer's language, what this class returns <em>is</em> what the user reads. A
  * second locale is a second implementation of these two methods.
  *

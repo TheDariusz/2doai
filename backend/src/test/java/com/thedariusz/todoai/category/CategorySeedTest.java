@@ -5,6 +5,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 import java.util.List;
@@ -13,6 +16,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Proves the Flyway migrations seed exactly the 11 expected domains and that the
@@ -25,6 +29,9 @@ class CategorySeedTest {
 
 	@Autowired
 	CategoryRepository categories;
+
+	@Autowired
+	JdbcTemplate jdbc;
 
 	@Test
 	void seedsExactlyElevenDomains() {
@@ -60,13 +67,30 @@ class CategorySeedTest {
 	}
 
 	/**
-	 * The column is nullable so the previous image still boots against the new schema, which means
-	 * nothing in the schema itself guarantees the 11 rows were actually seeded. This does.
+	 * V11 added the column without a constraint, so nothing in the schema guaranteed the 11 rows
+	 * were actually seeded. This is what does.
 	 */
 	@Test
 	void everyEnglishNameIsNonBlank() {
 		assertThat(categories.findAll())
 				.isNotEmpty()
 				.allSatisfy(category -> assertThat(category.getNameEn()).isNotBlank());
+	}
+
+	/**
+	 * The test above proves the eleven rows were seeded; this proves nothing can take a label away
+	 * again. Without the constraint a row missing its English name is an error nowhere — it
+	 * serializes as {@code "name": null} and reaches the user as a nav link with no text on it, the
+	 * one failure the frontend cannot tell apart from a domain that is genuinely called nothing.
+	 *
+	 * <p>Asserted by writing rather than by reading {@code information_schema}, so what is under test
+	 * is the rule and not the spelling of the DDL that states it.
+	 */
+	@Test
+	@Transactional
+	void refusesToLeaveACategoryWithoutItsEnglishName() {
+		assertThatThrownBy(
+				() -> jdbc.update("UPDATE category SET name_en = NULL WHERE code = 'HEALTH'"))
+				.isInstanceOf(DataIntegrityViolationException.class);
 	}
 }

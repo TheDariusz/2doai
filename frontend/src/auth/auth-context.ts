@@ -11,6 +11,17 @@ import type { Language } from '../i18n'
  */
 export type User = { id: string; email: string; language: 'PL' | 'EN' }
 
+/**
+ * The two spellings of one language: `AppLanguage` on the wire, the BCP 47 tag i18next and
+ * `<html lang>` want. Tables rather than `toUpperCase()`/`toLowerCase()`, because the case change
+ * is not the point — the point is that these are two closed sets that have to stay in step, and a
+ * `Record` keyed on each says so to the compiler. A third language becomes two compile errors here
+ * instead of a cast that quietly returns a string nothing speaks.
+ */
+export const ACCOUNT_LANGUAGE: Record<Language, User['language']> = { pl: 'PL', en: 'EN' }
+
+export const APP_LANGUAGE: Record<User['language'], Language> = { PL: 'pl', EN: 'en' }
+
 export type Auth = {
   user: User | null
   status: 'loading' | 'authenticated' | 'anonymous'

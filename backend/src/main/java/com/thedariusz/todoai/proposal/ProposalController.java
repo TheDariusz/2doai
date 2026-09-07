@@ -68,7 +68,7 @@ class ProposalController {
 	/**
 	 * What is waiting for the user, so the app can show it the moment they open it — the in-app half
 	 * of FR-018, beside the email the scheduler sends. 204 when the slot is empty, for the same
-	 * reason {@link #propose()} answers 204: the resource answered, nothing is gathering dust.
+	 * reason {@link #propose(Locale)} answers 204: the resource answered, nothing is gathering dust.
 	 */
 	@GetMapping("/pending")
 	ResponseEntity<ProposalResponse> pending() {
@@ -78,7 +78,7 @@ class ProposalController {
 	}
 
 	/**
-	 * Returns the same representation {@link #propose()} does — now carrying the answer and, after
+	 * Returns the same representation {@link #propose(Locale)} does — now carrying the answer and, after
 	 * {@code STARTING}, the stored bullets. One shape, so the client renders one thing whether it
 	 * just asked for a proposal or just answered one.
 	 */

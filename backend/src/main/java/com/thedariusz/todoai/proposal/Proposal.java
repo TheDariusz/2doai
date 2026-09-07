@@ -51,7 +51,7 @@ public class Proposal implements UserOwned {
 		/** Phrased by the model. */
 		LLM,
 
-		/** Phrased by {@code ProposalTemplate} because the model call failed. */
+		/** Phrased by {@code ProposalTemplatePl} because the model call failed. */
 		TEMPLATE
 	}
 

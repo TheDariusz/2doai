@@ -36,7 +36,7 @@ neglected entry, an LLM phrases the proposal, and the natural-rhythm scheduler (
   (an `Accept-Language` header was reserved for the day a second language lands); prompts *name* the
   output language (`ProposalPrompt.OUTPUT_LANGUAGE`) instead of being written in it; the SPA renders
   whatever language the server picks and never chooses a locale itself (`<html lang="pl">`).
-- **Polish-bound surfaces:** hardcoded SPA copy, the `ProposalTemplate` fallback sentence,
+- **Polish-bound surfaces:** hardcoded SPA copy, the `ProposalTemplatePl` fallback sentence,
   `ProposalEmail`, category names, and everything users have typed or the AI has memorised.
 
 ## Problem Statement & Motivation

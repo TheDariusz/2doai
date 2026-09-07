@@ -94,10 +94,15 @@ describe('AuthProvider', () => {
    */
   it('writes nothing when the language picked is the one the account already has', async () => {
     fetchMock.mockResolvedValue(response(200, { id: 'u1', email: 'ala@example.pl', language: 'EN' }))
-    await i18n.changeLanguage('pl')
 
     render(<AuthProvider><Probe /></AuthProvider>)
     await screen.findByText('status: authenticated')
+    // Driven out of step *after* the bootstrap, because the bootstrap is what puts them in step:
+    // `adopt` has already reconciled the app to the account by the time anything can be clicked.
+    // Nothing is supposed to produce this state — which is precisely the state the branch is for,
+    // and the only one in which it does anything at all.
+    await act(() => i18n.changeLanguage('pl'))
+
     await userEvent.setup().click(screen.getByRole('button', { name: 'to English' }))
 
     expect(fetchMock.mock.calls.every(([, init]) => (init?.method ?? 'GET') === 'GET')).toBe(true)

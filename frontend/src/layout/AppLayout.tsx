@@ -22,16 +22,36 @@ export function AppLayout() {
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
+    // Only the load this effect started may speak. A cold Fly machine can leave the first request
+    // outstanding long enough for an impatient switch to overtake it, and the answer that lands
+    // last would otherwise win — labels in the language the user just left.
+    let current = true
+
     api<{ items: Domain[] }>('/categories').then(
-      (page) => setDomains(page.items),
+      (page) => {
+        if (current) {
+          setDomains(page.items)
+          // Cleared, not just set: the load runs once per language now, so a shell that recovered
+          // must stop telling the user to refresh a page whose nav is already underneath the notice.
+          setFailed(false)
+        }
+      },
       // A 401 already routes to /login via the session-expired event. Anything else leaves a shell
       // the user cannot navigate, so say so instead of rendering an empty nav that looks finished.
-      () => setFailed(true),
+      () => {
+        if (current) {
+          setFailed(true)
+        }
+      },
     )
+
     // Re-run on a language switch: the labels are server-rendered in the request's language, and
     // the account-menu switch changes it in place. This costs no database query — the controller
     // answers from a startup-built map — and a switch back is served from the browser cache, which
     // `Vary: Accept-Language` keys per language.
+    return () => {
+      current = false
+    }
   }, [i18n.resolvedLanguage])
 
   return (

@@ -6,7 +6,7 @@ import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.user.AppLanguage;
 
 /**
- * {@link ProposalTemplate}'s sibling for the other language — the second implementation of
+ * {@link ProposalTemplatePl}'s sibling for the other language — the second implementation of
  * {@code phrase} that class's javadoc calls for, rather than branches inside the first one. What the
  * two share is the shape of the sentence and the three readings of the count; they share no wording,
  * because every word here is what a user reads.

@@ -157,12 +157,12 @@ class ProposalService {
 	 * rhythm's fire. {@link CurrentUser} is never consulted: a scheduler thread has no
 	 * {@code SecurityContext}, and inventing one would make the scoping decorative.
 	 *
-	 * <p><b>It is not {@link #propose()} with an argument, and the difference is the whole method.</b>
-	 * The manual trigger short-circuits on a pending proposal — a second press must return the same
-	 * card rather than pay for a second model call. Doing that here would mean the rhythm stops dead
-	 * the first time the user ignores a proposal, which is exactly the user this feature exists for.
-	 * So the scheduled path <em>replaces</em> instead: the unanswered proposal is closed as
-	 * {@code SUPERSEDED} and the new one takes the pending slot.
+	 * <p><b>It is not {@link #propose(AppLanguage)} with an argument, and the difference is the whole
+	 * method.</b> The manual trigger short-circuits on a pending proposal — a second press must return
+	 * the same card rather than pay for a second model call. Doing that here would mean the rhythm
+	 * stops dead the first time the user ignores a proposal, which is exactly the user this feature
+	 * exists for. So the scheduled path <em>replaces</em> instead: the unanswered proposal is closed
+	 * as {@code SUPERSEDED} and the new one takes the pending slot.
 	 *
 	 * <p><b>Selection runs first, with the ignored entry excluded, and superseding happens only if it
 	 * produced something.</b> Both halves of that are load-bearing. Superseding first would snooze the
@@ -277,7 +277,7 @@ class ProposalService {
 			// A switch rather than a ternary, so a third language has to be given a sentence of its
 			// own here rather than silently inheriting this one's.
 			String message = switch (language) {
-				case PL -> ProposalTemplate.phrase(entry, neglectedDays);
+				case PL -> ProposalTemplatePl.phrase(entry, neglectedDays);
 				case EN -> ProposalTemplateEn.phrase(entry, neglectedDays);
 			};
 			return new Proposal(userId, entry.getId(), message, neglectedDays, Proposal.Source.TEMPLATE);

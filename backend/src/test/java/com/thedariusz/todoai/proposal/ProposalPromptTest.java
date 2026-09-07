@@ -80,7 +80,7 @@ class ProposalPromptTest {
 	 * passed term, and at zero idle days only the second can be true — no layer's patience (7, 14 or
 	 * 30 days) is met by a number that small. Handed "Idle for: 0 days" the model does the honest
 	 * thing with it and calls the entry fresh, which is the opposite of why it was picked — seen for
-	 * real against production on 2026-09-03. {@link ProposalTemplate} already reads zero this way, and
+	 * real against production on 2026-09-03. {@link ProposalTemplatePl} already reads zero this way, and
 	 * the two arms of the same catch must not disagree about what the number means.
 	 */
 	@Test

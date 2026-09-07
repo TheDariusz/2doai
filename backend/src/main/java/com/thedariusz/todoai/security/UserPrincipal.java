@@ -2,6 +2,7 @@ package com.thedariusz.todoai.security;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import com.thedariusz.todoai.user.AppLanguage;
@@ -28,6 +29,20 @@ import org.springframework.security.core.userdetails.UserDetails;
  */
 public record UserPrincipal(UUID userId, String email, String passwordHash, AppLanguage language)
 		implements UserDetails {
+
+	/**
+	 * Every component is required, and {@link #userId} is the one that would fail quietly without
+	 * this: {@link #equals} dereferences it, so a principal built with a null id throws from inside a
+	 * {@code SessionRegistry} lookup rather than at the point that built it. The others are stated for
+	 * the same reason a NOT NULL column is — this is the record the whole request is authorized
+	 * against, and "absent" is not one of the states it has.
+	 */
+	public UserPrincipal {
+		Objects.requireNonNull(userId, "userId");
+		Objects.requireNonNull(email, "email");
+		Objects.requireNonNull(passwordHash, "passwordHash");
+		Objects.requireNonNull(language, "language");
+	}
 
 	public static UserPrincipal from(User user) {
 		return new UserPrincipal(user.getId(), user.getEmail(), user.getPasswordHash(), user.getLanguage());

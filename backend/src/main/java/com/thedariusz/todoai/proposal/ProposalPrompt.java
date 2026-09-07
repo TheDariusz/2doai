@@ -19,7 +19,7 @@ import org.apache.commons.lang3.StringUtils;
  * they <em>state</em> which language the answer must come back in rather than demonstrating it by
  * being written in it. That is what keeps a second locale down to one interpolated word — the
  * {@link AppLanguage} the caller hands in — instead of a second copy of every instruction, free to
- * drift from the first the moment either is tightened. {@link ProposalTemplate} is the opposite case
+ * drift from the first the moment either is tightened. {@link ProposalTemplatePl} is the opposite case
  * and stays localized, because its output <em>is</em> what the user reads.
  *
  * <p><b>Every untrusted value is fenced, never concatenated.</b> The memory block and the entry's
@@ -115,7 +115,7 @@ final class ProposalPrompt {
 	 * which is the opposite of why it was picked; production said exactly that on 2026-09-03 about a
 	 * task a week past its term.
 	 *
-	 * <p>{@link ProposalTemplate} and {@link ProposalTemplateEn} already read zero this way — as the
+	 * <p>{@link ProposalTemplatePl} and {@link ProposalTemplateEn} already read zero this way — as the
 	 * term having passed, not as no silence — and the arms of the same catch must not disagree about
 	 * what the number means. This one stays English and
 	 * says only that the term passed: the day count is what the entry does not have, and inventing

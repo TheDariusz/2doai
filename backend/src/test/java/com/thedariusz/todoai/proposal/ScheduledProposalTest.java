@@ -166,7 +166,7 @@ class ScheduledProposalTest {
 
 		ProposalResponse proposal = proposals.proposeScheduled(user).orElseThrow();
 
-		assertThat(proposal.message()).isEqualTo(ProposalTemplate.phrase(
+		assertThat(proposal.message()).isEqualTo(ProposalTemplatePl.phrase(
 				goals.findByUserIdOrderByCreatedAtDesc(user).getFirst(), proposal.neglectedDays()));
 
 		ArgumentCaptor<LlmRequest> prompt = ArgumentCaptor.forClass(LlmRequest.class);

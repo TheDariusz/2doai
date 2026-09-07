@@ -21,8 +21,8 @@ public class Category {
 	@Column(name = "name_pl", nullable = false)
 	private String namePl;
 
-	/** Nullable in the schema (V11 is expand-only), seeded for all 11 rows by that same migration. */
-	@Column(name = "name_en")
+	/** Added nullable by V11, which seeds all 11 rows; NOT NULL since V12 states that as a rule. */
+	@Column(name = "name_en", nullable = false)
 	private String nameEn;
 
 	@Column(name = "display_order", nullable = false)

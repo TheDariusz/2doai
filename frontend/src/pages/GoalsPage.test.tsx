@@ -657,11 +657,11 @@ describe('GoalsPage — filters', () => {
 
     expect(screen.getByText('Przebiec półmaraton')).toBeInTheDocument()
     expect(screen.queryByText('Zapłacić za prąd')).not.toBeInTheDocument()
-    // An uncategorised entry is not a match for every category: picking one has to hide it, or
-    // "Bez kategorii" would be the only choice that ever changes what a null-category entry does.
+    // An uncategorised entry is not a match for every category: picking one has to hide it, or the
+    // NO_CATEGORY option would be the only choice that ever changes what a null-category entry does.
     expect(screen.queryByText('Pojechać do Japonii')).not.toBeInTheDocument()
     // Category narrows the list without touching the layer split — the sections all still render,
-    // empty ones included. That is the deliberate asymmetry with the `rodzaj` filter above.
+    // empty ones included. That is the deliberate asymmetry with the layer filter above.
     expect(screen.getByRole('heading', { name: 'Dreams' })).toBeInTheDocument()
   })
 

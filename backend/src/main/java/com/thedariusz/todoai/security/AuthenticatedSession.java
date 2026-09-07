@@ -2,6 +2,7 @@ package com.thedariusz.todoai.security;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -65,11 +66,22 @@ public class AuthenticatedSession {
 	 * <p>Deliberately does <b>not</b> rotate the session id or the CSRF token, unlike login. Both
 	 * rotations exist for the anonymous → authenticated privilege transition; there is no transition
 	 * here, and minting a new CSRF token mid-session would 403 the SPA's next in-flight mutation.
+	 *
+	 * @throws AuthenticationCredentialsNotFoundException when the calling session has no
+	 *         authentication to replace — a 401, the same answer {@link CurrentUser#requireId()}
+	 *         gives for the same reason.
 	 */
 	public void replacePrincipal(UserPrincipal principal, HttpServletRequest request,
 			HttpServletResponse response) {
 
 		Authentication current = SecurityContextHolder.getContext().getAuthentication();
+		if (current == null) {
+			// Only reachable if an unauthenticated path ever calls this — but the honest answer to
+			// "replace the principal of a session that has none" is 401, not the 500 the NPE two lines
+			// down would produce. The same exception {@code CurrentUser.requireId()} raises, so the
+			// ExceptionTranslationFilter renders it the same way.
+			throw new AuthenticationCredentialsNotFoundException("No authenticated session to re-authenticate");
+		}
 		UsernamePasswordAuthenticationToken refreshed = UsernamePasswordAuthenticationToken.authenticated(
 				principal, current.getCredentials(), current.getAuthorities());
 		// Carried over rather than left null: the factory copies credentials and authorities but not

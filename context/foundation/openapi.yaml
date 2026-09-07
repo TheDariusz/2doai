@@ -30,7 +30,9 @@ info:
   # +the phrased, stored, answerable proposal (S-04b) → 1.4.0, +the pending read the natural rhythm
   # made necessary (S-05) → 1.5.0, +the account language and the Accept-Language negotiation it is
   # the persistence for (DEV-49) → 1.6.0, +the category labels answering in that language (DEV-49)
-  # → 1.7.0.
+  # → 1.7.0, +the two proposal operations declaring the `Accept-Language` they already honoured
+  # (DEV-49) → 1.7.1 — a PATCH, because it documents behaviour the server already had rather than
+  # changing any.
   #
   # 1.4.0 carries one genuinely *incompatible* change and is not pretending otherwise:
   # `GoalUpdate.withdrawn` is a required boolean (Jackson rejects a null for a primitive), so a
@@ -1071,10 +1073,12 @@ components:
           type: string
           description: >
             The proposal in prose, 2–3 sentences, citing the entry's own words and the time that has
-            passed. Written in the language the server picked — Polish today, because it is the only
-            locale the app has (the same framing as `Category.name`). Written once when the proposal
-            is created and stored, so a re-read never silently says something different from what the
-            user already read.
+            passed. Written in the language the request negotiated (`Accept-Language`), the same
+            framing as `Category.name`. Unlike that one it is written **once**, when the proposal is
+            created, and stored — so a re-read never silently says something different from what the
+            user already read, and a pending proposal keeps the language it was written in even after
+            the reader switches. The entry it quotes is the user's own words either way, and is never
+            translated.
           readOnly: true
           example: W styczniu wpisałeś „zrobić prawo jazdy" — minęło 8 miesięcy. Wracamy do tego?
         source:

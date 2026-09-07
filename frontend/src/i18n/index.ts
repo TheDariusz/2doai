@@ -27,11 +27,26 @@ function supported(tag: string | null): Language | undefined {
  *
  * The *first* supported tag wins rather than "does the list mention Polish": a browser asking for
  * `['en-US', 'pl']` prefers English.
+ *
+ * Exported for its test: it runs once, during this module's own evaluation, so by the time any test
+ * body starts there is nothing left to observe — and `i18next` is a singleton a second `init` will
+ * not move, so re-importing this file cannot re-ask it either.
+ *
+ * Storage is read inside a `try`, and so is the write below. A browser set to block site data does
+ * not hand back `null` — every `localStorage` member throws a `SecurityError` (Safari's "Block all
+ * cookies", Chrome in a third-party iframe). Both touches happen outside React, one of them while
+ * this module is still being evaluated, so an escaping throw is a blank page. Losing the remembered
+ * choice is the whole cost of catching it: the browser list still answers, and after login the
+ * account column does.
  */
-function detect(): Language {
-  const stored = supported(localStorage.getItem(STORED))
-  if (stored) {
-    return stored
+export function detect(): Language {
+  try {
+    const stored = supported(localStorage.getItem(STORED))
+    if (stored) {
+      return stored
+    }
+  } catch {
+    // Storage unavailable — fall through to the browser's own preference list.
   }
   for (const tag of navigator.languages ?? [navigator.language]) {
     const match = supported(tag)
@@ -58,7 +73,12 @@ i18n.use(initReactI18next).init({
  */
 i18n.on('languageChanged', (language) => {
   document.documentElement.lang = language
-  localStorage.setItem(STORED, language)
+  try {
+    localStorage.setItem(STORED, language)
+  } catch {
+    // Storage unavailable (see `detect`). The switch still applies to this tab; only the next boot
+    // forgets it, and the `<html lang>` write above already happened.
+  }
 })
 document.documentElement.lang = i18n.resolvedLanguage ?? 'en'
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { ApiError, api } from '../api/client'
 import i18n from '../i18n'
-import { AuthContext, type User } from './auth-context'
+import { ACCOUNT_LANGUAGE, APP_LANGUAGE, AuthContext, type User } from './auth-context'
 
 /**
  * Holds the session for the whole app. `undefined` means "not asked yet" — which is what keeps
@@ -17,7 +17,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * metered database that this app is otherwise careful to let sleep.
    */
   const adopt = useCallback((next: User | null) => {
-    const language = next?.language?.toLowerCase()
+    const language = next && APP_LANGUAGE[next.language]
     // Only when it actually moves: i18next fires `languageChanged` unconditionally, and that is a
     // DOM write, a `localStorage` write and a re-render of every consumer. The common case is a
     // reload where the account and the app already agree, because the same handler persisted it.
@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await api('/users', { method: 'POST', body: { email, password } })
         },
         changeLanguage: async (language) => {
-          const chosen = language.toUpperCase() as User['language']
+          const chosen = ACCOUNT_LANGUAGE[language]
           if (chosen === user?.language) {
             // Nothing to store, but the pick is still honoured: if the app and the account ever
             // disagree, this is the one way out of it that costs no write. And the guard is not

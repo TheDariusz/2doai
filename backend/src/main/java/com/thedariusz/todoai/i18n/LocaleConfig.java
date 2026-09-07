@@ -22,8 +22,8 @@ import org.springframework.web.servlet.i18n.AcceptHeaderLocaleResolver;
  * a single tag — it is a quality-ordered list, and a browser's first choice is regularly one the app
  * does not speak. {@link AcceptHeaderLocaleResolver} already walks that list in order, matches on
  * language while ignoring region, and survives malformed input; a hand-rolled "read the first tag"
- * parser answers {@code fr-FR;q=0.9,pl;q=0.8} wrongly, which is the case
- * {@code AuthApiTest.registrationHonoursQualityOrderingWhenTheFirstChoiceIsUnsupported} pins.
+ * parser answers {@code fr-FR;q=0.9,pl;q=0.8} wrongly — the case
+ * {@code AuthApiTest.registrationInheritsTheLanguageOfTheSignUpRequest} carries in its table.
  *
  * <p>Handlers then read the outcome by declaring a plain {@link Locale} parameter — Spring MVC
  * resolves it through this bean — and turn it into the domain type with {@link AppLanguage#of}.

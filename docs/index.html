@@ -250,8 +250,10 @@
   context, which owns <code>user.language</code> and so is what has to perform the write, but only
   when the value actually changes, since a same-value write would wake the metered database for
   nothing.
-  <code>&lt;html lang&gt;</code> follows the switch, which is what makes the date input render in the
-  reader's format and a screen reader pronounce the page correctly.</p>
+  <code>&lt;html lang&gt;</code> follows the switch, which is what makes a screen reader pronounce the
+  page correctly and hyphenation break words the right way. It does <em>not</em> reach
+  <code>&lt;input type="date"&gt;</code>: browsers format those from their own locale, which the page
+  cannot set and should not try to.</p>
   <h4>Four decisions that shaped it</h4>
   <dl class="term-grid">
     <dt>Filters live in the URL</dt>
@@ -281,18 +283,22 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
-  <p class="note">Verified against DEV-49 on 2026-09-04, at snapshot <code>6d7a26f</code> — the
-  two-language slice, phases 1&ndash;5. <strong>This stamp is weaker than the ones below it, and the
-  difference is deliberate.</strong> The nine surfaces were walked against the merged code, and the
-  full gate is green; what has <em>not</em> happened is the walk on
+  <p class="note">Verified against DEV-49 on 2026-09-07, after the PR review pass on the
+  two-language slice. <strong>This stamp is weaker than the ones below it, and the difference is
+  deliberate.</strong> The nine surfaces were walked against the merged code, and the full gate is
+  green; what has <em>not</em> happened is the walk on
   <a href="https://2doai.app">2doai.app</a> — US-01 in English on a fresh account, then the same path
   in Polish on the existing one, confirming it was never asked anything. Nothing on this page is
   evidence about what the model actually writes in English, and PRD open question 3 stays open for
-  exactly that reason. Two things this pass found, both of the kind a green test suite cannot see:
-  the decision register's <q>Polish-only category labels</q> row named <q>the UI supports a second
-  language</q> as its own revisit trigger and the trigger had just fired, so the row now records the
-  answer (<code>name_en</code>, not a translation table); and the flows introduction still called
-  S-05 a plan, three slices after it shipped. The previous stamp, and the last one backed by a
+  exactly that reason. This pass corrected two claims a green suite cannot see: that
+  <code>&lt;html lang&gt;</code> drives how <code>&lt;input type="date"&gt;</code> renders (it does
+  not — browsers use their own locale), and a login-flow diagram edge reading <q>the principal it
+  invalidates</q> for what is a replacement. It also carries a schema change the review produced:
+  <code>V12</code> makes <code>category.name_en</code> <code>NOT NULL</code>, so the paragraph
+  arguing the column was deliberately nullable no longer describes it. The pass before this one,
+  at snapshot <code>6d7a26f</code>, found the decision register's <q>Polish-only category labels</q>
+  row naming <q>the UI supports a second language</q> as its own revisit trigger after the trigger
+  had fired, and the flows introduction still calling S-05 a plan three slices after it shipped. The previous stamp, and the last one backed by a
   production walk, was DEV-48 on 2026-09-03 at snapshot <code>d6dc4dc</code>: the
   first pass walked <em>by hand against production</em> rather than by probe — an account registered
   on <a href="https://2doai.app">2doai.app</a> from the sign-up screen, entries added in all three
@@ -655,6 +661,7 @@ classDiagram
     +establish(authentication, request, response) — login and the switch share this one write-back
     +replacePrincipal(principal, request, response) — establish() with the changed principal
     writes through the chain's SecurityContextRepository — the holder alone is not enough
+    replacePrincipal on a session with no authentication is 401, not a dereference
   }
   class AccountDeletionService {
     &lt;&lt;application service&gt;&gt;
@@ -667,7 +674,7 @@ classDiagram
   UserRepository --> User
   UserController --> RegistrationService
   UserController --> UserSettingsService : the write
-  UserController --> AuthenticatedSession : and the principal it invalidates
+  UserController --> AuthenticatedSession : and the principal it replaces
   UserController --> AccountDeletionService
   RegistrationService --> UserRepository
   RegistrationService --> AiMemoryRepository : creates AiMemory root (same tx)
@@ -707,6 +714,7 @@ classDiagram
     String passwordHash
     AppLanguage language — the one mutable component, so /me costs no query
     +withLanguage(AppLanguage) UserPrincipal
+    compact constructor — every component required, because equals dereferences userId
     equals/hashCode on userId alone — see the note below
   }
   class CsrfCookieFilter {
@@ -799,7 +807,7 @@ classDiagram
     &lt;&lt;domain reference entity&gt;&gt;
     String code — natural PK, the language-neutral identity
     String namePl
-    String nameEn — V11, nullable in the schema so a rollback is safe
+    String nameEn — V11 seeds it, V12 makes it NOT NULL
     int displayOrder
   }
   class CategoryController {
@@ -943,7 +951,7 @@ classDiagram
   <p><strong>The model never gets to fail the request.</strong> <code>ProposalPrompt</code> builds
   both conversations — the 2–3 sentence proposal, and the 3–5 bullet first step through
   <code>completeStructured</code> — and every <code>LlmException</code> has an answer waiting:
-  phrasing falls back to <code>ProposalTemplate</code>, a deterministic sentence with no model in it,
+  phrasing falls back to <code>ProposalTemplatePl</code>, a deterministic sentence with no model in it,
   and the <code>source</code> column records which arm wrote the message so a demo can tell them
   apart. Both arms read the neglect count the same way: zero can only mean the entry came in on a
   passed term rather than on silence, so the prompt says the deadline went by instead of handing the
@@ -1013,7 +1021,7 @@ classDiagram
   <p>The address rides along on the <code>User</code> row the fire already loaded for its
   vanished-account check, so reaching a user costs no query of its own.
   <code>ProposalEmail</code> writes the subject and body; it is localized rather than English for the
-  same reason <code>ProposalTemplate</code> is, and for no other — the message on the screen and the
+  same reason <code>ProposalTemplatePl</code> is, and for no other — the message on the screen and the
   message in the inbox are both the sentence the user reads, while every instruction to the model
   stays English. It has only a Polish implementation today, which is the FR-009 half of the gap below.
   The subject names the entry, abbreviated, so a week of proposals does not collapse into one mail
@@ -1099,7 +1107,7 @@ classDiagram
     &lt;&lt;domain service&gt;&gt;
     +subject(proposal) String
     +body(proposal, baseUrl) String
-    localized, like ProposalTemplate — it is what the user reads
+    localized, like ProposalTemplatePl — it is what the user reads
     Polish only until FR-009 (increment 2) — the accepted gap
   }
   class ProposalSelector {
@@ -1146,7 +1154,7 @@ classDiagram
     English instructions that name the answer's language via englishName()
     every untrusted value fenced in a data block
   }
-  class ProposalTemplate {
+  class ProposalTemplatePl {
     &lt;&lt;domain service&gt;&gt;
     +phrase(entry, days) String — Polish
     the LlmException arm — no model, localized
@@ -1185,7 +1193,7 @@ classDiagram
   ProposalService --> LlmClient : phrase, then first step
   ProposalService --> AiMemoryService : render for the prompt, record the answer
   ProposalService ..> ProposalPrompt
-  ProposalService ..> ProposalTemplate : on LlmException, when the account reads PL
+  ProposalService ..> ProposalTemplatePl : on LlmException, when the account reads PL
   ProposalService ..> ProposalTemplateEn : on LlmException, when it reads EN
   ProposalSelector --> Candidate
   Candidate ..> Goal : flattened for the engine
@@ -1788,7 +1796,7 @@ sequenceDiagram
       alt the model answers
         LLM-->>PS: 2–3 sentences in the request's language, quoting the entry verbatim
       else LlmException
-        PS->>PS: ProposalTemplate or ProposalTemplateEn .phrase(entry, days) — source = TEMPLATE
+        PS->>PS: ProposalTemplatePl or ProposalTemplateEn .phrase(entry, days) — source = TEMPLATE
       end
       PS->>PG: insert proposal (partial UNIQUE = at most one pending)
       Note over PS,PG: a lost insert race returns the winner,&lt;br/&gt;never a 500
@@ -1947,8 +1955,8 @@ sequenceDiagram
   what every account predating this slice is, and what the boot pass converts into a first drawn
   moment. It is also not a lease: it presumes the single machine <code>fly.toml</code> pins, and two
   schedulers over one column would each fire for every account.</p>
-  <p>DEV-49's two columns (<code>V10</code>, <code>V11</code>) follow the same restraint and repeat
-  the same trick with null. <code>app_user.preferred_language</code> is <code>VARCHAR(2)</code>
+  <p>DEV-49's two columns (<code>V10</code>, <code>V11</code>/<code>V12</code>) follow the same
+  restraint, and one of them repeats the same trick with null. <code>app_user.preferred_language</code> is <code>VARCHAR(2)</code>
   holding the <code>AppLanguage</code> name rather than a BCP 47 tag — two locales, no region
   variants — and it exists at all because <code>Accept-Language</code> cannot be asked at a moment
   when no request exists, which is exactly the moment the natural-rhythm e-mail is composed in.
@@ -1961,11 +1969,18 @@ sequenceDiagram
   <p><code>category.name_en</code> is the second column rather than a
   <code>category_translation</code> table because the set is eleven rows a Flyway seed owns and
   cannot grow at runtime; a table would buy a join and a migration per locale to model a list that
-  has none. It is nullable so an image rollback stays safe — the previous image reads
-  <code>name_pl</code> and never looks at it — which means nothing in the schema guarantees the
-  seed ran, and <code>CategorySeedTest.everyEnglishNameIsNonBlank</code> is what does instead. The
-  identity did not move: <code>code</code> is still what every domain and AI path keys off, which is
-  why the wire field <code>name</code> could change meaning without any client changing at all.</p>
+  has none. <code>V11</code> added it nullable and seeded all eleven rows in the same migration;
+  <code>V12</code> then made it <code>NOT NULL</code> &mdash; textbook expand, then contract. The
+  contract half is safe here for a reason that does <em>not</em> transfer to
+  <code>preferred_language</code>: nothing but a migration ever writes <code>category</code>, so
+  there is no deployed image whose <code>INSERT</code> the constraint could break, while
+  <code>app_user</code> rows are written by the running application and a constraint it does not know
+  about would break registration the moment it landed. The constraint is worth having because a row
+  with no English name is an error nowhere else &mdash; it serializes as <code>"name": null</code>
+  and arrives as a nav link with no text on it, and <code>CategorySyncCheck</code> compares
+  <code>code</code> against the enum and never looks at a label. The identity did not move:
+  <code>code</code> is still what every domain and AI path keys off, which is why the wire field
+  <code>name</code> could change meaning without any client changing at all.</p>
   <img class="diagram" src="../context/foundation/data-model-current.svg" width="1082" height="1272" loading="lazy" alt="Current entity relationship model: app user with its next_proposal_at scheduling column and preferred_language setting, goal with its three layers, proposal, category with its two label columns, AI memory, profile facts, and episodes">
   <h3>Target model <span class="badge badge-planned">planned</span></h3>
   <p>The target diagram shows the whole shape, migrated and not: solid tables exist today, ghosted
