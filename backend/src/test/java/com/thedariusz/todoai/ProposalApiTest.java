@@ -58,7 +58,7 @@ import static org.mockito.Mockito.when;
  * <p>The model is a {@link MockitoBean}: a real OpenRouter call would make the suite non-hermetic
  * and cost credits per run, and what these tests are about is the wiring around the call — how often
  * it happens, and what the endpoint answers when it fails. The prompt itself is asserted without a
- * container in {@code ProposalPromptTest}, the fallback's Polish in {@code ProposalTemplateTest},
+ * container in {@code ProposalPromptTest}, the fallback's Polish in {@code ProposalTemplatePlTest},
  * and the live round-trip is the gated {@code OpenRouterLiveTest}.
  */
 @Import(TestcontainersConfiguration.class)
@@ -165,9 +165,74 @@ class ProposalApiTest extends ApiTestBase {
 				.then()
 				.statusCode(200)
 				.body("source", equalTo("TEMPLATE"))
-				// Quoting the entry is the fallback's whole job; ProposalTemplateTest pins the sentence.
+				// Quoting the entry is the fallback's whole job; ProposalTemplatePlTest pins the sentence.
 				.body("message", containsString("Oddać książkę"))
 				.body("message", not(equalTo(PHRASED)));
+	}
+
+	/**
+	 * The same fallback arm, asked for in the other language (FR-009 on the on-demand path). The
+	 * model call fails exactly as above, so what is asserted is the sentence the app writes on its
+	 * own. The model arm cannot be read off a response this way — a mocked model answers whatever it
+	 * was stubbed with, whatever prompt it was handed — so it is asserted against the prompt instead,
+	 * in {@link #tellsTheModelToWriteInTheLanguageTheRequestAskedFor}.
+	 */
+	@Test
+	void writesTheTemplateProposalInTheLanguageTheRequestAskedFor() {
+		doThrow(new LlmException("provider unreachable")).when(llm).complete(any());
+		givenLoggedInUser();
+		createTask(task("Oddać książkę", "EDUCATION", LocalDate.now().minusDays(2)));
+
+		csrfAware()
+				.header("Accept-Language", "en")
+				.when()
+				.post("/api/proposals")
+				.then()
+				.statusCode(200)
+				.body("source", equalTo("TEMPLATE"))
+				// The entry is the user's own words and is quoted, not translated; the sentence around
+				// it is the app's, and that is the half that follows the request.
+				.body("message", containsString("Oddać książkę"))
+				.body("message", containsString("you wrote"));
+	}
+
+	/**
+	 * The model arm of the same rule, on both writing endpoints. {@code ProposalPromptTest} proves a
+	 * prompt names the language it is <em>handed</em>; only this proves the endpoints hand it the one
+	 * the request asked for.
+	 *
+	 * <p>Worth its own test because a stubbed model is deaf: it returns the same bullets whatever
+	 * prompt it was given, so the argument could be dropped anywhere between {@code Accept-Language}
+	 * and {@code ProposalPrompt}, and every other case here would stay green while the user read
+	 * Polish bullets after asking for English. The assertion is therefore made against the prompt
+	 * rather than the response.
+	 */
+	@Test
+	void tellsTheModelToWriteInTheLanguageTheRequestAskedFor() {
+		givenLoggedInUser();
+		createTask(task("Zrobić prawo jazdy", "TRANSPORT", LocalDate.now(USER_ZONE).minusDays(2)));
+
+		String proposal = csrfAware().header("Accept-Language", "en")
+				.when().post("/api/proposals").then().statusCode(200).extract().path("id");
+		csrfAware().header("Accept-Language", "en").body(Map.of("answer", "STARTING"))
+				.when().post("/api/proposals/" + proposal + "/answer").then().statusCode(200);
+
+		ArgumentCaptor<LlmRequest> phrasing = ArgumentCaptor.forClass(LlmRequest.class);
+		verify(llm).complete(phrasing.capture());
+		ArgumentCaptor<LlmRequest> firstStep = ArgumentCaptor.forClass(LlmRequest.class);
+		verify(llm).completeStructured(firstStep.capture(), eq(FirstStep.class), any());
+
+		// Not just "says English": a hardcoded constant that never moved would still say Polish here.
+		assertThat(systemMessage(phrasing.getValue())).contains("English").doesNotContain("Polish");
+		assertThat(systemMessage(firstStep.getValue())).contains("English").doesNotContain("Polish");
+	}
+
+	/** Where the output language is named — the user message carries the entry, not the instruction. */
+	private static String systemMessage(LlmRequest request) {
+		return request.messages().stream()
+				.filter(message -> message.role() == LlmMessage.Role.SYSTEM)
+				.map(LlmMessage::content)
+				.collect(Collectors.joining("\n"));
 	}
 
 	@Test

@@ -12,7 +12,7 @@ function renderAt(path: '/login' | '/register', auth: Auth) {
     <Routes>
       <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/register" element={<AuthPage mode="register" />} />
-      <Route path="/" element={<p>aplikacja</p>} />
+      <Route path="/" element={<p>the app</p>} />
     </Routes>,
     { path, auth },
   )
@@ -21,11 +21,33 @@ function renderAt(path: '/login' | '/register', auth: Auth) {
 async function fillIn(email: string, password: string) {
   const user = userEvent.setup()
   await user.type(screen.getByLabelText('Email'), email)
-  await user.type(screen.getByLabelText('Hasło'), password)
-  await user.click(screen.getByRole('button', { name: /zaloguj się|załóż konto/i }))
+  await user.type(screen.getByLabelText('Password'), password)
+  await user.click(screen.getByRole('button', { name: /sign in|create account/i }))
 }
 
-describe('AuthPage — logowanie', () => {
+describe('AuthPage — the language switch (FR-001)', () => {
+  /**
+   * The auth screens are the only ones rendered before there is an account to read a language
+   * from, so the switch on them is the whole of FR-001. It re-renders in place rather than
+   * reloading (FR-010), which is why the half-filled form has to survive it.
+   */
+  it('re-renders both screens in the language picked, without losing what was typed', async () => {
+    renderAt('/login', stubAuth())
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText('Email'), 'ala@example.pl')
+    await user.selectOptions(screen.getByLabelText('Language'), 'pl')
+
+    expect(await screen.findByRole('heading', { name: 'Zaloguj się' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Załóż konto' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).toHaveValue('ala@example.pl')
+    // Kept locally, because there is no account to keep it on yet: it is what the sign-up request
+    // then carries as Accept-Language, and what the account inherits from it (FR-003).
+    expect(localStorage.getItem('2doai.language')).toBe('pl')
+  })
+})
+
+describe('AuthPage — signing in', () => {
   it('submits the credentials and lands in the app', async () => {
     const auth = stubAuth()
     renderAt('/login', auth)
@@ -33,7 +55,7 @@ describe('AuthPage — logowanie', () => {
     await fillIn('ala@example.pl', 'tajnehaslo')
 
     expect(auth.login).toHaveBeenCalledWith('ala@example.pl', 'tajnehaslo')
-    expect(await screen.findByText('aplikacja')).toBeInTheDocument()
+    expect(await screen.findByText('the app')).toBeInTheDocument()
   })
 
   it('shows a generic message on 401 — never which half was wrong', async () => {
@@ -42,7 +64,7 @@ describe('AuthPage — logowanie', () => {
 
     await fillIn('ala@example.pl', 'zlehaslo')
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Nieprawidłowy email lub hasło.')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Incorrect email or password.')
   })
 
   it('does not quote the registration password rule when login is rejected (422)', async () => {
@@ -52,11 +74,11 @@ describe('AuthPage — logowanie', () => {
     await fillIn('ala@example.pl', 'x')
 
     // LoginRequest has no minimum — advice the user cannot act on is worse than none.
-    expect(await screen.findByRole('alert')).not.toHaveTextContent(/8 znaków/)
+    expect(await screen.findByRole('alert')).not.toHaveTextContent(/8 characters/)
   })
 })
 
-describe('AuthPage — rejestracja', () => {
+describe('AuthPage — registering', () => {
   it('registers and sends the user to the login screen', async () => {
     const auth = stubAuth()
     renderAt('/register', auth)
@@ -64,7 +86,7 @@ describe('AuthPage — rejestracja', () => {
     await fillIn('nowa@example.pl', 'tajnehaslo')
 
     expect(auth.register).toHaveBeenCalledWith('nowa@example.pl', 'tajnehaslo')
-    expect(await screen.findByRole('heading', { name: 'Zaloguj się' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
   })
 
   it('maps 409 to "email already in use, log in instead"', async () => {
@@ -73,13 +95,13 @@ describe('AuthPage — rejestracja', () => {
 
     await fillIn('zajety@example.pl', 'tajnehaslo')
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/zajęty/i)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/already registered/i)
   })
 
   it('mirrors the server contract client-side: email format and an 8-character minimum', () => {
     renderAt('/register', stubAuth())
 
     expect(screen.getByLabelText('Email')).toHaveAttribute('type', 'email')
-    expect(screen.getByLabelText('Hasło')).toHaveAttribute('minlength', '8')
+    expect(screen.getByLabelText('Password')).toHaveAttribute('minlength', '8')
   })
 })

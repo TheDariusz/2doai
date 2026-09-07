@@ -1,6 +1,7 @@
 package com.thedariusz.todoai.user;
 
 import java.net.URI;
+import java.util.Locale;
 
 import com.thedariusz.todoai.account.AccountDeletionService;
 import com.thedariusz.todoai.auth.DeleteAccountRequest;
@@ -8,6 +9,8 @@ import com.thedariusz.todoai.auth.ReAuthenticationFailedException;
 import com.thedariusz.todoai.auth.RegisterRequest;
 import com.thedariusz.todoai.auth.RegistrationService;
 import com.thedariusz.todoai.auth.UserResponse;
+import com.thedariusz.todoai.auth.UserUpdate;
+import com.thedariusz.todoai.security.AuthenticatedSession;
 import com.thedariusz.todoai.security.UserPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -24,6 +27,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -49,14 +53,21 @@ public class UserController {
 
 	private final SessionRegistry sessionRegistry;
 
+	private final UserSettingsService settings;
+
+	private final AuthenticatedSession session;
+
 	public UserController(RegistrationService registrationService,
 			AccountDeletionService accountDeletionService, PasswordEncoder passwordEncoder,
-			LogoutHandler logoutHandler, SessionRegistry sessionRegistry) {
+			LogoutHandler logoutHandler, SessionRegistry sessionRegistry, UserSettingsService settings,
+			AuthenticatedSession session) {
 		this.registrationService = registrationService;
 		this.accountDeletionService = accountDeletionService;
 		this.passwordEncoder = passwordEncoder;
 		this.logoutHandler = logoutHandler;
 		this.sessionRegistry = sessionRegistry;
+		this.settings = settings;
+		this.session = session;
 	}
 
 	/**
@@ -65,8 +76,11 @@ public class UserController {
 	 * {@code /users/{id}} endpoint to point at (nor should there be, in a flat single-tenant model).
 	 */
 	@PostMapping
-	ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
-		User user = registrationService.register(request.email(), request.password());
+	ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request, Locale locale) {
+		// FR-003 — the account starts in the language of the screen it was created from, which is the
+		// language this very request advertised. `locale` is resolved by the LocaleResolver in
+		// `i18n/LocaleConfig`, so quality ordering and unsupported tags are already handled.
+		User user = registrationService.register(request.email(), request.password(), AppLanguage.of(locale));
 		return ResponseEntity.created(URI.create("/api/users/me")).body(UserResponse.from(user));
 	}
 
@@ -78,6 +92,28 @@ public class UserController {
 	@GetMapping("/me")
 	UserResponse currentUser(@AuthenticationPrincipal UserPrincipal principal) {
 		return UserResponse.from(principal);
+	}
+
+	/**
+	 * FR-002 — changes the language this account reads in, effective on the current session.
+	 *
+	 * <p>Two collaborators, because each half is a rule rather than a step:
+	 * {@link UserSettingsService#changeLanguage} owns the write and what an unmatched row means, and
+	 * {@link AuthenticatedSession#replacePrincipal} owns putting the changed principal back into the
+	 * session — without which the switch is real in Postgres and invisible on {@code /me}, which is
+	 * answered from the principal with no query. Both javadocs are worth reading before touching this.
+	 */
+	@PatchMapping("/me")
+	UserResponse updateCurrentUser(@Valid @RequestBody UserUpdate request,
+			@AuthenticationPrincipal UserPrincipal principal,
+			HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+
+		settings.changeLanguage(principal.userId(), request.language());
+		UserPrincipal switched = principal.withLanguage(request.language());
+		session.replacePrincipal(switched, httpRequest, httpResponse);
+
+		log.info("Account {} switched language to {}", switched.userId(), switched.language());
+		return UserResponse.from(switched);
 	}
 
 	/**

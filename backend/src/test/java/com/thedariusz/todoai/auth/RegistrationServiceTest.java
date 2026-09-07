@@ -3,6 +3,7 @@ package com.thedariusz.todoai.auth;
 import java.sql.SQLException;
 
 import com.thedariusz.todoai.ai.memory.AiMemoryRepository;
+import com.thedariusz.todoai.user.AppLanguage;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRepository;
 import org.hibernate.exception.ConstraintViolationException;
@@ -35,7 +36,7 @@ class RegistrationServiceTest {
 		when(passwordEncoder.encode("correct-horse")).thenReturn("{bcrypt}$2a$10$hash");
 		when(users.saveAndFlush(any(User.class))).thenThrow(violationOf("app_user_email_key"));
 
-		assertThatThrownBy(() -> service.register("alice@example.com", "correct-horse"))
+		assertThatThrownBy(() -> service.register("alice@example.com", "correct-horse", AppLanguage.EN))
 				.isInstanceOf(EmailAlreadyRegisteredException.class)
 				.hasCauseInstanceOf(DataIntegrityViolationException.class);
 		verifyNoInteractions(memories, events);
@@ -51,7 +52,7 @@ class RegistrationServiceTest {
 		when(passwordEncoder.encode("correct-horse")).thenReturn("{bcrypt}$2a$10$hash");
 		when(users.saveAndFlush(any(User.class))).thenThrow(violationOf("app_user_password_hash_check"));
 
-		assertThatThrownBy(() -> service.register("alice@example.com", "correct-horse"))
+		assertThatThrownBy(() -> service.register("alice@example.com", "correct-horse", AppLanguage.EN))
 				.isInstanceOf(DataIntegrityViolationException.class)
 				.isNotInstanceOf(EmailAlreadyRegisteredException.class);
 		verifyNoInteractions(memories, events);

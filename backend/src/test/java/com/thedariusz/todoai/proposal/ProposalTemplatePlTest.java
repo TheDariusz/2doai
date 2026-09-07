@@ -21,10 +21,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  * branches an end-to-end test cannot reach, while {@code ProposalApiTest} covers that the arm is
  * wired at all. A second locale gets its own copy of this class, not extra cases here.
  */
-class ProposalTemplateTest {
+class ProposalTemplatePlTest {
 
-	/** {@code created_at} is a {@code @CreationTimestamp}, so a unit test has to place it by hand. */
-	private static Goal createdIn(int year, int month, String content) {
+	/**
+	 * {@code created_at} is a {@code @CreationTimestamp}, so a unit test has to place it by hand.
+	 * Shared with {@code ProposalTemplateEnTest}: the cases are one locale's each, the builder is
+	 * neither's.
+	 */
+	static Goal createdIn(int year, int month, String content) {
 		Goal goal = new Goal(UUID.randomUUID(), content, GoalLayer.GOAL, GoalHorizon.THIS_YEAR, null,
 				LifeDomain.CAREER);
 		ReflectionTestUtils.setField(goal, "createdAt",
@@ -34,22 +38,22 @@ class ProposalTemplateTest {
 
 	@Test
 	void quotesTheEntryAndTheMonthItWasWrittenIn() {
-		assertThat(ProposalTemplate.phrase(createdIn(2026, 1, "Zrobić prawo jazdy"), 240))
+		assertThat(ProposalTemplatePl.phrase(createdIn(2026, 1, "Zrobić prawo jazdy"), 240))
 				.isEqualTo("W styczniu wpisałeś: „Zrobić prawo jazdy” — minęło 8 miesięcy. Wracamy do tego?");
 	}
 
 	@Test
 	void countsInDaysUntilTwoMonthsAndInMonthsAfterThat() {
-		assertThat(ProposalTemplate.phrase(createdIn(2026, 3, "x"), 59)).contains("minęło 59 dni");
-		assertThat(ProposalTemplate.phrase(createdIn(2026, 3, "x"), 60)).contains("minęły 2 miesiące");
+		assertThat(ProposalTemplatePl.phrase(createdIn(2026, 3, "x"), 59)).contains("minęło 59 dni");
+		assertThat(ProposalTemplatePl.phrase(createdIn(2026, 3, "x"), 60)).contains("minęły 2 miesiące");
 	}
 
 	@Test
 	void inflectsTheCountTheWayThisLocaleDoes() {
-		assertThat(ProposalTemplate.phrase(createdIn(2026, 5, "x"), 33 * 30)).contains("33 miesiące");
+		assertThat(ProposalTemplatePl.phrase(createdIn(2026, 5, "x"), 33 * 30)).contains("33 miesiące");
 		// The 12–14 exception: thirteen takes the many-form even though it ends in three.
-		assertThat(ProposalTemplate.phrase(createdIn(2026, 5, "x"), 13 * 30)).contains("13 miesięcy");
-		assertThat(ProposalTemplate.phrase(createdIn(2026, 5, "x"), 1)).contains("minął dzień");
+		assertThat(ProposalTemplatePl.phrase(createdIn(2026, 5, "x"), 13 * 30)).contains("13 miesięcy");
+		assertThat(ProposalTemplatePl.phrase(createdIn(2026, 5, "x"), 1)).contains("minął dzień");
 	}
 
 	/**
@@ -59,12 +63,12 @@ class ProposalTemplateTest {
 	 */
 	@Test
 	void inflectsTheVerbWithTheCountAndNotOnlyTheNoun() {
-		assertThat(ProposalTemplate.phrase(createdIn(2026, 5, "x"), 2)).contains("minęły 2 dni");
-		assertThat(ProposalTemplate.phrase(createdIn(2026, 5, "x"), 5)).contains("minęło 5 dni");
+		assertThat(ProposalTemplatePl.phrase(createdIn(2026, 5, "x"), 2)).contains("minęły 2 dni");
+		assertThat(ProposalTemplatePl.phrase(createdIn(2026, 5, "x"), 5)).contains("minęło 5 dni");
 		// Same rule, same exception: 22 rejoins the 2–4 group, 13 does not.
-		assertThat(ProposalTemplate.phrase(createdIn(2026, 5, "x"), 22)).contains("minęły 22 dni");
-		assertThat(ProposalTemplate.phrase(createdIn(2026, 5, "x"), 13)).contains("minęło 13 dni");
-		assertThat(ProposalTemplate.phrase(createdIn(2026, 5, "x"), 13 * 30)).contains("minęło 13 miesięcy");
+		assertThat(ProposalTemplatePl.phrase(createdIn(2026, 5, "x"), 22)).contains("minęły 22 dni");
+		assertThat(ProposalTemplatePl.phrase(createdIn(2026, 5, "x"), 13)).contains("minęło 13 dni");
+		assertThat(ProposalTemplatePl.phrase(createdIn(2026, 5, "x"), 13 * 30)).contains("minęło 13 miesięcy");
 	}
 
 	@Test
@@ -75,7 +79,7 @@ class ProposalTemplateTest {
 		ReflectionTestUtils.setField(overdue, "createdAt",
 				OffsetDateTime.of(2026, 7, 2, 9, 0, 0, 0, ZoneOffset.UTC));
 
-		assertThat(ProposalTemplate.phrase(overdue, 0))
+		assertThat(ProposalTemplatePl.phrase(overdue, 0))
 				.isEqualTo("W lipcu wpisałeś: „Oddać książkę” — termin już minął. Wracamy do tego?");
 	}
 }

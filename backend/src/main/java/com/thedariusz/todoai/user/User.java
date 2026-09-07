@@ -6,6 +6,8 @@ import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
@@ -22,7 +24,8 @@ import org.hibernate.annotations.UuidGenerator;
  * points its {@code user_id} FK at. Mirrors the {@code AiMemory} conventions: UUID v7 surrogate
  * PK, {@code timestamptz} audit columns, invariant-in-constructor, getters only.
  *
- * <p>Deliberately <em>minimal identity</em> (YAGNI): email + password hash. Display name, flags,
+ * <p>Deliberately <em>minimal identity</em> (YAGNI): email + password hash + the language the
+ * account reads in. Display name, flags,
  * preferences are later, expand-only additions. The <b>raw password never enters the domain</b> —
  * the constructor takes an already-encoded hash (the {@code PasswordEncoder} runs in the
  * application layer), so the aggregate never sees or stores a plaintext credential.
@@ -72,6 +75,25 @@ public class User {
 	@Column(name = "next_proposal_at")
 	private OffsetDateTime nextProposalAt;
 
+	/**
+	 * The language every surface addressed to this person is rendered in (DEV-49, FR-002).
+	 *
+	 * <p><b>Nullable in the column, never null through {@link #getLanguage()}.</b> {@code V10} adds the
+	 * column with no {@code DEFAULT} and rewrites no rows, so every account that existed before the
+	 * choice was offered holds null — and null means "never chosen", which reads as Polish. That
+	 * <em>is</em> the FR-004 backfill: those accounts keep reading Polish and were never asked
+	 * anything. Note this is not {@link AppLanguage#DEFAULT}, and must not be collapsed into it: a
+	 * request naming no language the app speaks means English, because the app is English-first; an
+	 * account naming none means Polish, because it predates the question.
+	 *
+	 * <p><b>Read here, never written here</b> — the same rule, for the same reason, as
+	 * {@link #nextProposalAt}: there is no setter, and {@code UserRepository.updateLanguage} moves the
+	 * column with a targeted update that cannot resurrect a deleted account.
+	 */
+	@Enumerated(EnumType.STRING)
+	@Column(name = "preferred_language", length = 2)
+	private AppLanguage preferredLanguage;
+
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private OffsetDateTime createdAt;
@@ -84,7 +106,7 @@ public class User {
 		// JPA requires a no-arg constructor.
 	}
 
-	public User(Email email, String passwordHash) {
+	public User(Email email, String passwordHash, AppLanguage language) {
 		// Identity invariants fail fast at construction: no user without a valid email or a hash.
 		// The declarative @NotBlank constraints keep the persist/schema-time guard in step.
 		this.email = Objects.requireNonNull(email, "email").value();
@@ -92,6 +114,10 @@ public class User {
 			throw new IllegalArgumentException("passwordHash must not be blank");
 		}
 		this.passwordHash = passwordHash;
+		// FR-003 — a new account starts in the language its sign-up screen was shown in, so a language
+		// is as much part of a new identity as the address. The null this field can still hold comes
+		// only from a row written before the column existed, which JPA hydrates past this constructor.
+		this.preferredLanguage = Objects.requireNonNull(language, "language");
 	}
 
 	public UUID getId() {
@@ -104,6 +130,11 @@ public class User {
 
 	public String getPasswordHash() {
 		return passwordHash;
+	}
+
+	/** Never null: an account that never chose reads as Polish (FR-004) — see the field. */
+	public AppLanguage getLanguage() {
+		return preferredLanguage == null ? AppLanguage.PL : preferredLanguage;
 	}
 
 	public OffsetDateTime getNextProposalAt() {

@@ -4,6 +4,7 @@ import java.net.URI;
 
 import com.thedariusz.todoai.auth.LoginRequest;
 import com.thedariusz.todoai.auth.UserResponse;
+import com.thedariusz.todoai.security.AuthenticatedSession;
 import com.thedariusz.todoai.security.UserPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -50,16 +51,16 @@ public class SessionController {
 
 	private final LogoutHandler logoutHandler;
 
-	/** The chain's own repository (a {@code SecurityConfig} bean), never a private instance — see there. */
-	private final SecurityContextRepository securityContextRepository;
+	/** Owns step 3 below — the write-back through the chain's own {@code SecurityContextRepository}. */
+	private final AuthenticatedSession session;
 
 	public SessionController(AuthenticationManager authenticationManager,
 			SessionAuthenticationStrategy sessionAuthenticationStrategy, LogoutHandler logoutHandler,
-			SecurityContextRepository securityContextRepository) {
+			AuthenticatedSession session) {
 		this.authenticationManager = authenticationManager;
 		this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
 		this.logoutHandler = logoutHandler;
-		this.securityContextRepository = securityContextRepository;
+		this.session = session;
 	}
 
 	/**
@@ -79,10 +80,7 @@ public class SessionController {
 		sessionAuthenticationStrategy.onAuthentication(authentication, httpRequest, httpResponse);
 		materializeRotatedCsrfToken(httpRequest);
 
-		SecurityContext context = SecurityContextHolder.createEmptyContext();
-		context.setAuthentication(authentication);
-		SecurityContextHolder.setContext(context);
-		securityContextRepository.saveContext(context, httpRequest, httpResponse);
+		session.establish(authentication, httpRequest, httpResponse);
 
 		UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
 		return ResponseEntity.created(URI.create("/api/sessions/current")).body(UserResponse.from(principal));

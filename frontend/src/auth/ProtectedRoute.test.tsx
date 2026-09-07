@@ -33,7 +33,7 @@ describe('ProtectedRoute', () => {
   })
 
   it('lets an authenticated user through', () => {
-    renderAt('/tajne', stubAuth({ status: 'authenticated', user: { id: 'u1', email: 'a@b.pl' } }))
+    renderAt('/tajne', stubAuth({ status: 'authenticated', user: { id: 'u1', email: 'a@b.pl', language: 'EN' } }))
 
     expect(screen.getByText('zawartość dla zalogowanych')).toBeInTheDocument()
   })

@@ -5,15 +5,17 @@ import { MemoryRouter, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from './App'
 import { AuthContext, type Auth } from './auth/auth-context'
-import { response, stubAuth } from './test/auth'
+import { LOGGED_IN, response, stubAuth } from './test/auth'
+import { DOMAINS } from './test/domains'
 
 const fetchMock = vi.fn()
 
+/** The one domain this suite routes to, from the shared fixture — a relabelled category is one edit. */
+const LEISURE = DOMAINS.find((domain) => domain.code === 'LEISURE')!
+
 beforeEach(() => {
   fetchMock.mockReset()
-  fetchMock.mockResolvedValue(
-    response(200, { items: [{ code: 'LEISURE', name: 'Czas wolny i hobby' }] }),
-  )
+  fetchMock.mockResolvedValue(response(200, { items: [LEISURE] }))
   vi.stubGlobal('fetch', fetchMock)
 })
 
@@ -25,7 +27,7 @@ function Session({ children, initial }: { children: ReactNode; initial: Auth['st
     <AuthContext
       value={stubAuth({
         status,
-        user: status === 'authenticated' ? { id: 'u1', email: 'ala@example.pl' } : null,
+        user: status === 'authenticated' ? LOGGED_IN.user : null,
         login: async () => setStatus('authenticated'),
       })}
     >
@@ -55,25 +57,25 @@ describe('AppRoutes', () => {
     renderApp('/domain/leisure?view=week')
     const user = userEvent.setup()
 
-    expect(await screen.findByRole('heading', { name: 'Zaloguj się' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
     await user.type(screen.getByLabelText('Email'), 'ala@example.pl')
-    await user.type(screen.getByLabelText('Hasło'), 'tajnehaslo')
-    await user.click(screen.getByRole('button', { name: 'Zaloguj się' }))
+    await user.type(screen.getByLabelText('Password'), 'tajnehaslo')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     // Not '/' — the whole location, query included, survives the round trip through /login.
-    expect(await screen.findByRole('heading', { name: 'Czas wolny i hobby' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: LEISURE.name })).toBeInTheDocument()
     expect(await screen.findByTestId('location')).toHaveTextContent('/domain/leisure?view=week')
   })
 
   it('sends an unknown path home, and an anonymous visitor on to /login', async () => {
-    renderApp('/nie-ma-takiej-sciezki')
+    renderApp('/no-such-path')
 
-    expect(await screen.findByRole('heading', { name: 'Zaloguj się' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
   })
 
   it('points an authenticated user at the navigation from the index route', async () => {
     renderApp('/', 'authenticated')
 
-    expect(await screen.findByText('Wybierz domenę z nawigacji.')).toBeInTheDocument()
+    expect(await screen.findByText('Pick a life domain from the navigation.')).toBeInTheDocument()
   })
 })

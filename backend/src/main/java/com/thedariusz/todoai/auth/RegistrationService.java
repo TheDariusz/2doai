@@ -2,6 +2,7 @@ package com.thedariusz.todoai.auth;
 
 import com.thedariusz.todoai.ai.memory.AiMemory;
 import com.thedariusz.todoai.ai.memory.AiMemoryRepository;
+import com.thedariusz.todoai.user.AppLanguage;
 import com.thedariusz.todoai.user.Email;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRegistered;
@@ -48,9 +49,16 @@ public class RegistrationService {
 		this.events = events;
 	}
 
+	/**
+	 * @param language the language the sign-up screen was shown in (FR-003). It is a parameter rather
+	 *         than a field on {@code RegisterRequest} because the SPA already advertises what it is
+	 *         rendering on every call: the sign-up screen's language <em>is</em> the
+	 *         {@code Accept-Language} the sign-up request carried, so asking for it twice would create
+	 *         a second answer that can disagree with the first.
+	 */
 	@Transactional
-	public User register(String rawEmail, String rawPassword) {
-		User user = new User(Email.of(rawEmail), passwordEncoder.encode(rawPassword));
+	public User register(String rawEmail, String rawPassword, AppLanguage language) {
+		User user = new User(Email.of(rawEmail), passwordEncoder.encode(rawPassword), language);
 		try {
 			// Flush while still inside this service so the UNIQUE(email) constraint is translated to
 			// the API's 409. The constraint is the *only* duplicate check: an application-level

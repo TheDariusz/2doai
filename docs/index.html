@@ -209,14 +209,15 @@
         <tr><th scope="row">AI provider port</th><td><span class="badge badge-live">implemented</span></td><td><code>LlmClient</code>, Spring AI adapter, structured output support — and, since S-04b, a production caller on both operations</td></tr>
         <tr><th scope="row">AI memory aggregate</th><td><span class="badge badge-foundation">implemented foundation</span></td><td>Per-user root, profile facts, append-only episodes. Proposal answers are its first writer (S-04b); the onboarding profile seed is still S-03</td></tr>
         <tr><th scope="row">Account and session auth</th><td><span class="badge badge-live">implemented</span></td><td>Spring Security, server-side in-memory sessions, account erasure</td></tr>
-        <tr><th scope="row">Categories</th><td><span class="badge badge-live">implemented</span></td><td>Seeded reference table, <code>LifeDomain</code>, startup drift check</td></tr>
-        <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens, 11-domain shell; <code>/api</code> proxies in development and production</td></tr>
+        <tr><th scope="row">Categories</th><td><span class="badge badge-live">implemented</span></td><td>Seeded reference table, <code>LifeDomain</code>, startup drift check — and, since DEV-49, a Polish and an English name per row, picked per request</td></tr>
+        <tr><th scope="row">Localization (PL + EN)</th><td><span class="badge badge-live">implemented</span></td><td>English-first with Polish preserved (DEV-49): <code>AppLanguage</code> stored on the account (<code>app_user.preferred_language</code>), <code>Accept-Language</code> as the per-request transport, i18next in the SPA, and every server-generated sentence on the on-demand path — the model's answer and the template fallback alike — written in the caller's language. One surface is deliberately excluded: the scheduled proposal stays Polish until FR-009 lands in increment 2</td></tr>
+        <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens, 11-domain shell, and the two-language catalog behind a switch on the auth screens and in the account menu; <code>/api</code> proxies in development and production</td></tr>
         <tr><th scope="row">Goals and dreams</th><td><span class="badge badge-live">implemented</span></td><td>One <code>goal</code> aggregate for both layers, <code>/api/goals</code>, and the <code>/goals</code> screen (S-02)</td></tr>
         <tr><th scope="row">Current tasks</th><td><span class="badge badge-live">implemented</span></td><td>A third <code>GoalLayer</code> value plus an optional <code>due_date</code> on the same aggregate and screen (S-07)</td></tr>
         <tr><th scope="row">Unified three-layer view</th><td><span class="badge badge-live">implemented</span></td><td>All three layers on one <code>/goals</code> screen, narrowed by layer and by category from the query string — filtered in the browser, no API change (S-08)</td></tr>
         <tr><th scope="row">Selection engine</th><td><span class="badge badge-live">implemented</span></td><td>Deterministic neglect heuristic and category balancing behind <code>POST /api/proposals</code> (S-04a); the engine itself still holds no clock, no repository and no model — the AI enters after it has picked</td></tr>
         <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-live">implemented</span></td><td>Sonnet phrases the picked entry, the proposal is stored (at most one pending per user), the four FR-013 answers act on the entry, and <code>STARTING</code> returns FR-014's bullets — all behind the manual trigger on <code>/goals</code> (S-04b)</td></tr>
-        <tr><th scope="row">Natural-rhythm return</th><td><span class="badge badge-live">implemented</span></td><td>The non-fixed cycle that decides <em>when</em> to ask (S-05): a per-account moment drawn 2–7 days out inside daytime hours, held in memory and backed by <code>app_user.next_proposal_at</code>, firing <code>ProposalService.proposeScheduled</code> without anyone pressing anything. What comes back is emailed and waits in the app at <code>GET /api/proposals/pending</code></td></tr>
+        <tr><th scope="row">Natural-rhythm return</th><td><span class="badge badge-live">implemented</span></td><td>The non-fixed cycle that decides <em>when</em> to ask (S-05): a per-account moment drawn 2–7 days out inside daytime hours, held in memory and backed by <code>app_user.next_proposal_at</code>, firing <code>ProposalService.proposeScheduled</code> without anyone pressing anything. What comes back is emailed and waits in the app at <code>GET /api/proposals/pending</code>. Its text is the one server-generated sentence still Polish for every account — the accepted FR-009 exception, named at that one seam</td></tr>
         <tr><th scope="row">PWA/offline behavior</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-10</td></tr>
       </tbody>
     </table>
@@ -238,6 +239,21 @@
   That read deliberately stays quiet: nobody asked for it, so a failure is recorded in the console
   instead of raising a banner about something the user did not cause, and 204 leaves the idle screen
   exactly as it looks before anyone asks anything.</p>
+  <p>Since DEV-49 no screen carries a hard-coded sentence. Every string comes from an i18next catalog
+  with a Polish and an English entry. The Polish catalog is the shape both are typed against, and
+  <code>en</code> is declared <code>typeof pl</code>, so a key missing from one half or present only
+  in the other is a <code>tsc</code> failure rather than a silent fallback to the wrong language on
+  screen; an ESLint rule then refuses non-ASCII literals outside the catalogs and the tests, which is
+  what stops the next Polish sentence being typed straight into a component. The switch appears twice for two
+  different reasons: on the auth screens it writes only <code>localStorage</code>, because there is no
+  account to write to yet, and in the account menu it moves the account itself — through the auth
+  context, which owns <code>user.language</code> and so is what has to perform the write, but only
+  when the value actually changes, since a same-value write would wake the metered database for
+  nothing.
+  <code>&lt;html lang&gt;</code> follows the switch, which is what makes a screen reader pronounce the
+  page correctly and hyphenation break words the right way. It does <em>not</em> reach
+  <code>&lt;input type="date"&gt;</code>: browsers format those from their own locale, which the page
+  cannot set and should not try to.</p>
   <h4>Four decisions that shaped it</h4>
   <dl class="term-grid">
     <dt>Filters live in the URL</dt>
@@ -267,15 +283,36 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
-  <p class="note">Verified against DEV-48 on 2026-09-03, at snapshot <code>d6dc4dc</code> — and the
-  first pass walked <em>by hand against production</em> rather than by probe: an account registered
+  <p class="note">Verified against DEV-49 on 2026-09-07, after the PR review pass on the
+  two-language slice. <strong>This stamp is weaker than the ones below it, and the difference is
+  deliberate.</strong> The nine surfaces were walked against the merged code, and the full gate is
+  green; what has <em>not</em> happened is the walk on
+  <a href="https://2doai.app">2doai.app</a> — US-01 in English on a fresh account, then the same path
+  in Polish on the existing one, confirming it was never asked anything. Nothing on this page is
+  evidence about what the model actually writes in English, and PRD open question 3 stays open for
+  exactly that reason. This pass corrected two claims a green suite cannot see: that
+  <code>&lt;html lang&gt;</code> drives how <code>&lt;input type="date"&gt;</code> renders (it does
+  not — browsers use their own locale), and a login-flow diagram edge reading <q>the principal it
+  invalidates</q> for what is a replacement. It also carries a schema change the review produced:
+  <code>V12</code> makes <code>category.name_en</code> <code>NOT NULL</code>, so the paragraph
+  arguing the column was deliberately nullable no longer describes it. The pass before this one,
+  at snapshot <code>6d7a26f</code>, found the decision register's <q>Polish-only category labels</q>
+  row naming <q>the UI supports a second language</q> as its own revisit trigger after the trigger
+  had fired, and the flows introduction still calling S-05 a plan three slices after it shipped. The previous stamp, and the last one backed by a
+  production walk, was DEV-48 on 2026-09-03 at snapshot <code>d6dc4dc</code>: the
+  first pass walked <em>by hand against production</em> rather than by probe — an account registered
   on <a href="https://2doai.app">2doai.app</a> from the sign-up screen, entries added in all three
   layers, a proposal requested, answered <code>STARTING</code>, and one of its first steps saved as
   its own task. The walk is what found the defect this slice fixes — a task a week past its term
   reached the model as <code>Idle for: 0 days</code> and came back described as fresh — which no
-  probe and no test would have produced, because every assertion involved was passing. The fix
-  itself is pinned by <code>ProposalPromptTest</code> and is walked again on the next deploy; that
-  is the one claim on this page a human has not yet read on a screen. The previous snapshot walked
+  probe and no test would have produced, because every assertion involved was passing. The fix is
+  pinned by <code>ProposalPromptTest</code> and was walked again on production after the deploy of
+  <code>51ea090</code>, on a task four days past its term: <q>Zapisałeś, żeby „zapłacić ratę
+  ubezpieczenia mieszkania" — termin już minął. Chcesz teraz do tego wrócić?</q> The same walk
+  turned up no defect but two behaviours worth knowing are deliberate: a <code>STARTING</code>
+  answer quiets its entry for seven days (<code>STARTING_QUIET_DAYS</code>), so the entry that
+  earned the first proposal cannot earn a second one that afternoon; and the deploy itself logged
+  the account out, because sessions live in the machine's memory and a restart discards them. The previous snapshot walked
   was S-05, the natural-rhythm scheduler with its email and the pending proposal the app shows on
   arrival (DEV-24), on 2026-09-01. That slice found drift of a kind the earlier passes had not
   produced: not a sentence left stale, but a <em>prediction</em> that came true. The decision
@@ -287,9 +324,11 @@
   of this note rather than an aside about it. It records the last commit walked, not the last merged:
   pointing it at a newer merge would hide exactly that kind of drift — and so would naming a commit
   that never touched the page, which drops everything between it and the real walk out of the range
-  below. To review, run
-  <code>git log d6dc4dc.. -- backend frontend .github/workflows
-  context/foundation docs/index.html</code>.</p>
+  below. To review this page, run
+  <code>git log 6d7a26f.. -- backend frontend .github/workflows
+  context/foundation docs/index.html</code>. The <em>production</em> ledger is still anchored one
+  stamp back at <code>d6dc4dc</code>, and it moves only when someone has read both languages on
+  <a href="https://2doai.app">2doai.app</a>.</p>
 </section>
 <section id="architecture">
   <h2>System context and containers</h2>
@@ -369,19 +408,21 @@ flowchart LR
         <tr><th scope="col">Location</th><th scope="col">Responsibility</th><th scope="col">State</th></tr>
       </thead>
       <tbody>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/user"><code>backend/…/user</code></a></th><td>User aggregate, email value object, repository, and user API</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/user"><code>backend/…/user</code></a></th><td>User aggregate, email value object, repository, the user API, and the account's one setting — <code>AppLanguage</code> and <code>UserSettingsService</code></td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/i18n"><code>backend/…/i18n</code></a></th><td>How a request says which language to answer in: one <code>AcceptHeaderLocaleResolver</code> bean, and nothing else</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/auth"><code>backend/…/auth</code></a></th><td>Registration, request validation, and registration error mapping</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/session"><code>backend/…/session</code></a></th><td>Explicit login and logout endpoints</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/security"><code>backend/…/security</code></a></th><td>Filter chain, CSRF, session identity, and RFC 9457 security errors</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/account"><code>backend/…/account</code></a></th><td>Modular per-user erasure coordinated before the user row is deleted</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/category"><code>backend/…/category</code></a></th><td>Fixed life-domain reference data and enum/table drift detection</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/category"><code>backend/…/category</code></a></th><td>Fixed life-domain reference data in two languages, and enum/table drift detection</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/goal"><code>backend/…/goal</code></a></th><td>One aggregate for all three layers — current tasks, goals and dreams — its CRUD API, and its erasure adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/proposal"><code>backend/…/proposal</code></a></th><td>The whole proactive loop: the selection engine, the two Sonnet prompts and their template fallback, the stored <code>proposal</code> aggregate, the four answers, the three endpoints — and, since S-05, the natural-rhythm scheduler that fires without a caller and the Polish email it sends</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/proposal"><code>backend/…/proposal</code></a></th><td>The whole proactive loop: the selection engine, the two Sonnet prompts and their template fallback, the stored <code>proposal</code> aggregate, the four answers, the three endpoints — and, since S-05, the natural-rhythm scheduler that fires without a caller and the email it sends, still Polish for every account until FR-009</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/mail"><code>backend/…/mail</code></a></th><td>The <code>EmailSender</code> outbound port and its SMTP adapter — how the app reaches a user who is not looking at it</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai"><code>backend/…/ai</code></a></th><td>Provider-neutral LLM port, schema contract, and Spring AI adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai/memory"><code>backend/…/ai/memory</code></a></th><td>Personal AI-memory aggregate, rendering, persistence, erasure adapter, and the <code>AiMemoryService</code> seam other contexts read and write it through</td><td><span class="badge badge-foundation">foundation</span></td></tr>
         <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, auth screens, the 11-domain shell, the filtered three-layer screen, and the proposal card</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../frontend/src/api"><code>frontend/src/api</code></a></th><td>The one backend boundary: same-origin fetch, CSRF double-submit, RFC 9457 errors, 401 session-expired signal</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../frontend/src/api"><code>frontend/src/api</code></a></th><td>The one backend boundary: same-origin fetch, CSRF double-submit, RFC 9457 errors, 401 session-expired signal, and the <code>Accept-Language</code> header every call carries</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../frontend/src/i18n"><code>frontend/src/i18n</code></a></th><td>The two catalogs, the i18next instance and its detection order, and the switch both screens share</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/functions/api/[[path]].ts"><code>frontend/functions/api</code></a></th><td>Production same-origin reverse proxy to Fly.io</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../context/foundation"><code>context/foundation</code></a></th><td>Canonical product, data, security, deployment, and roadmap decisions</td><td>design source</td></tr>
       </tbody>
@@ -410,8 +451,8 @@ flowchart LR
         <tr><th scope="row"><a href="../context/foundation/ai-provider.md">Provider-neutral <code>LlmClient</code></a></th><td>Domain use cases depend on a narrow port rather than OpenRouter or model SDK details</td><td>An adapter layer must translate structured-output capabilities</td><td>Provider-specific features become central enough that the common port distorts the design</td></tr>
         <tr><th scope="row"><a href="../context/foundation/data-model.md">Structured profile plus episodic memory</a></th><td>Durable facts and bounded interaction history serve different prompt-context needs</td><td>Retention, rendering, and erasure must be managed explicitly</td><td>Measured proposal quality or data growth shows a different memory model is needed</td></tr>
         <tr><th scope="row"><a href="../context/foundation/infrastructure.md">Neon PostgreSQL with autosuspend</a></th><td>Low idle cost fits fewer than 10 users and less than 1 QPS</td><td>Cold wake-up latency and careful connection-pool behavior</td><td>Sustained traffic makes always-on capacity simpler or cheaper</td></tr>
-        <tr><th scope="row"><a href="../context/foundation/data-model.md">Polish-only category labels for MVP</a></th><td>A single label avoids speculative localization tables</td><td>Adding a second locale requires a translation model</td><td>The UI supports a second language</td></tr>
-        <tr><th scope="row">Prompts are written in English and <em>name</em> the answer's language</th><td>Text addressed to a model is code, not copy. Writing the persona in the language the answer must come back in makes a second locale a second copy of every instruction, free to drift the first time either is tightened</td><td>One indirection between the instruction and the language it asks for</td><td>Never for the instructions; the language constant becomes a parameter the day a user locale exists. The template fallback is the deliberate exception — its output <em>is</em> what the user reads</td></tr>
+        <tr><th scope="row"><a href="../context/foundation/data-model.md">Category labels are columns, not a translation table</a></th><td>The set is eleven rows fixed by a Flyway seed and cannot grow at runtime, so a <code>category_translation</code> table would buy a join and a migration per locale to model a list that has none</td><td>A third language is a third column and a migration, not data</td><td>This row's own trigger — "the UI supports a second language" — fired in DEV-49, and the answer was <code>name_en</code> beside <code>name_pl</code> (<code>V11</code>). It fires again only if locales stop being two: a translator workflow or a growing set is what the table was reserved for, and <code>code</code> being the identity keeps it reachable without a destructive migration</td></tr>
+        <tr><th scope="row">Prompts are written in English and <em>name</em> the answer's language</th><td>Text addressed to a model is code, not copy. Writing the persona in the language the answer must come back in makes a second locale a second copy of every instruction, free to drift the first time either is tightened</td><td>One indirection between the instruction and the language it asks for</td><td>Never for the instructions. The parameter this row predicted arrived in DEV-49: <code>ProposalPrompt</code> takes an <code>AppLanguage</code> and interpolates <code>englishName()</code>, and the constant is gone. The template fallback was the named exception and behaved like one — a second language meant a second class, <code>ProposalTemplateEn</code>, because its output <em>is</em> what the user reads</td></tr>
         <tr><th scope="row">At most one pending proposal is an index, not a check</th><td>A service-level "does this user already have one?" races with itself on a double-click and stores both; a partial unique index cannot</td><td>The lost race surfaces as a constraint violation the service must translate into "return the winner"</td><td>Proposals stop being per-user singletons. S-05 was the case this row anticipated — a cycle that must replace an ignored proposal — and the index held: superseding closes the old row <em>before</em> the new insert, so the slot is freed rather than shared</td></tr>
         <tr><th scope="row">The rhythm's schedule lives in memory, not in a query</th><td>Neon bills metered compute and suspends after ~5 idle minutes, while the Fly machine hosting the tick is always-on. A tick asking the database "is anyone due?" would hold that compute awake 24/7 for roughly one fire per 2–7 days — about 183 CU-h a month to send a handful of emails</td><td>The schedule is authoritative only while the JVM lives; <code>app_user.next_proposal_at</code> is its only backup, reloaded at boot</td><td>The backend runs on more than one machine. Two schedulers over one column would each fire for every account, and the column is a backup rather than a lease</td></tr>
       </tbody>
@@ -438,9 +479,32 @@ flowchart LR
     <dt>Session</dt>
     <dd>The authenticated login state held in backend memory and referenced by the browser's
     session cookie. It is not the user's durable application data.</dd>
+    <dt>Account language</dt>
+    <dd>The language 2do AI writes to a person in, one of two (<code>AppLanguage.PL</code> /
+    <code>EN</code>), stored on the account in <code>app_user.preferred_language</code>. It is the
+    <em>account's</em> answer, needed at moments when no request exists — the natural-rhythm e-mail is
+    composed by a scheduler thread with no browser to ask. Null there means "never chosen", which
+    reads as Polish: that is the whole of the FR-004 backfill, and it is deliberately not the same
+    rule as the request default below.</dd>
+    <dt>Request language</dt>
+    <dd>What <em>this</em> response is rendered in, negotiated from the <code>Accept-Language</code>
+    header by the resolver in <code>i18n/LocaleConfig</code> and handed to handlers as a plain
+    <code>Locale</code>. A header naming nothing the app speaks resolves to <b>English</b>, because
+    the app is English-first — the opposite of what a null account column means, and the two must not
+    be collapsed into one constant. The SPA sends whatever it is currently rendering, which is what
+    lets a language switch take effect on the very next call.</dd>
+    <dt>The FR-009 gap</dt>
+    <dd>The one accepted exception to "no leaked word": a <em>scheduled</em> proposal is phrased in
+    Polish for every account, whatever it reads in. Increment 1 deliberately does not touch the
+    protected loop, and because the text is generated once at send time and stored, the Polish reaches
+    the pending card in the app as well as the e-mail. It lives at exactly one seam —
+    <code>ProposalService.proposeScheduled</code> passes <code>AppLanguage.PL</code> literally — and
+    <code>ScheduledProposalTest</code> pins it so it reads as a decision rather than an oversight.</dd>
     <dt>Category</dt>
     <dd>One fixed life-domain classification, such as HEALTH or FINANCE. The database
-    <code>category</code> row and Java <code>LifeDomain</code> enum represent the same set.</dd>
+    <code>category</code> row and Java <code>LifeDomain</code> enum represent the same set. Its label
+    exists twice — <code>name_pl</code> and <code>name_en</code> — while its identity, the
+    <code>code</code>, exists once and is what every domain and AI path keys off.</dd>
     <dt>Goal</dt>
     <dd>A long-term intention the user commits to, carrying a horizon of either this year or the
     coming months. Stored in the <code>goal</code> table with <code>layer = GOAL</code>.</dd>
@@ -534,6 +598,22 @@ flowchart LR
   </dl>
 
   <h3>user + auth</h3>
+  <p>DEV-49 gave the account its first and so far only setting, and the shape of it is worth reading
+  before the diagram. <code>AppLanguage</code> is a two-valued domain type rather than a string, so
+  "an unrecognised locale means English" is written once instead of per layer. It is stored by
+  <code>name()</code> in a nullable column, moved by a targeted update in
+  <code>UserSettingsService</code> rather than by saving a loaded <code>User</code> — the aggregate
+  still has no setters, and no call site is one <code>save</code> away from re-inserting an account
+  FR-019 erased. The write is deliberately unconditional: guarding it with
+  <code>and preferred_language &lt;&gt; :language</code> would match zero rows for a user re-picking
+  what they already have, and zero rows is how this method learns the account is gone, so the
+  optimisation would log that user out. Keeping a same-value switch off the wire is the client's job
+  instead.</p>
+  <p><code>PATCH</code>, not <code>PUT</code>: the other members of the <code>User</code> schema are
+  the id and the email, neither of which this operation may touch. The handler does two things rather
+  than one, and the second is the load-bearing half — <code>AuthenticatedSession.replacePrincipal</code>
+  puts the changed principal back into the session, without which the switch is real in Postgres and
+  invisible on <code>/me</code>, which is answered from the principal with no query at all.</p>
   <pre class="mermaid">
 classDiagram
   class User {
@@ -541,7 +621,16 @@ classDiagram
     UUID id
     String email
     String passwordHash
+    AppLanguage preferredLanguage — null means never chosen, and reads as PL, which is the FR-004 backfill
     OffsetDateTime nextProposalAt — the rhythm's only durable state, read here and never written here
+  }
+  class AppLanguage {
+    &lt;&lt;domain enumeration&gt;&gt;
+    PL, EN
+    DEFAULT = EN — what a request naming no known language resolves to
+    +of(Locale) AppLanguage
+    +locale() Locale
+    +englishName() String — the word the prompt names
   }
   class Email {
     &lt;&lt;value object&gt;&gt;
@@ -549,16 +638,30 @@ classDiagram
   }
   class UserRepository {
     &lt;&lt;persistence adapter / Spring Data&gt;&gt;
+    updateLanguage(userId, language, now) int
   }
   class UserController {
     &lt;&lt;inbound adapter / REST&gt;&gt;
-    +register(RegisterRequest) 201
+    +register(RegisterRequest, Locale) 201
     +currentUser() UserResponse
+    +updateCurrentUser(UserUpdate) PATCH /api/users/me
     +deleteCurrentUser(DeleteAccountRequest) 204
   }
   class RegistrationService {
     &lt;&lt;application service&gt;&gt;
-    +register(email, password) User
+    +register(email, password, AppLanguage) User
+  }
+  class UserSettingsService {
+    &lt;&lt;application service&gt;&gt;
+    +changeLanguage(userId, AppLanguage)
+    0 rows updated means the account is gone — 401, never a silent no-op
+  }
+  class AuthenticatedSession {
+    &lt;&lt;security adapter&gt;&gt;
+    +establish(authentication, request, response) — login and the switch share this one write-back
+    +replacePrincipal(principal, request, response) — establish() with the changed principal
+    writes through the chain's SecurityContextRepository — the holder alone is not enough
+    replacePrincipal on a session with no authentication is 401, not a dereference
   }
   class AccountDeletionService {
     &lt;&lt;application service&gt;&gt;
@@ -567,12 +670,31 @@ classDiagram
     &lt;&lt;persistence adapter / Spring Data&gt;&gt;
   }
   User ..> Email : normalizes via constructor
+  User ..> AppLanguage
   UserRepository --> User
   UserController --> RegistrationService
+  UserController --> UserSettingsService : the write
+  UserController --> AuthenticatedSession : and the principal it replaces
   UserController --> AccountDeletionService
   RegistrationService --> UserRepository
   RegistrationService --> AiMemoryRepository : creates AiMemory root (same tx)
+  UserSettingsService --> UserRepository : targeted update, never save(User)
   </pre>
+
+  <h3>i18n</h3>
+  <p>One package, one bean, and the reason it is a package at all is that it belongs to no domain
+  slice. <code>LocaleConfig</code> publishes an <code>AcceptHeaderLocaleResolver</code> under the name
+  <code>localeResolver</code> — the name <code>DispatcherServlet</code> looks it up under, and what
+  makes Boot's own auto-configured resolver back off — restricted to the two supported locales with
+  English as the default.</p>
+  <p>Spring's resolver does the negotiation deliberately rather than a hand-rolled read of the first
+  tag. <code>Accept-Language</code> is a quality-ordered list, and a browser's first choice is
+  regularly one this app does not speak: <code>fr-FR;q=0.9,pl;q=0.8</code> must resolve to Polish, and
+  a first-tag parser answers it wrongly. Handlers then read the outcome by declaring a plain
+  <code>Locale</code> parameter and converting with <code>AppLanguage.of</code>. There is no
+  request-scoped holder to read it from on purpose — passing the language down as an argument keeps
+  every service that renders text testable without a servlet, and keeps the resolved language visible
+  in the signature of everything that depends on it.</p>
 
   <h3>security + session</h3>
   <pre class="mermaid">
@@ -590,6 +712,10 @@ classDiagram
     UUID userId
     String email
     String passwordHash
+    AppLanguage language — the one mutable component, so /me costs no query
+    +withLanguage(AppLanguage) UserPrincipal
+    compact constructor — every component required, because equals dereferences userId
+    equals/hashCode on userId alone — see the note below
   }
   class CsrfCookieFilter {
     &lt;&lt;inbound security adapter&gt;&gt;
@@ -604,6 +730,11 @@ classDiagram
     +login(LoginRequest) 201
     +logout() 204
   }
+  class AuthenticatedSession {
+    &lt;&lt;security adapter&gt;&gt;
+    +establish(authentication, request, response)
+    +replacePrincipal(principal, request, response)
+  }
   class UserRepository {
     &lt;&lt;persistence adapter / Spring Data&gt;&gt;
   }
@@ -613,7 +744,17 @@ classDiagram
   AppUserDetailsService --> UserRepository
   AppUserDetailsService ..> UserPrincipal : creates
   SessionController --> SecurityConfig : uses chain beans (AuthenticationManager, LogoutHandler, ...)
+  SessionController --> AuthenticatedSession : write the context back (login)
+  AuthenticatedSession --> SecurityConfig : the chain's own SecurityContextRepository
   </pre>
+  <p class="note">The record's generated <code>equals</code> was fine only while every component came
+  off the same row and never changed. DEV-49 put the account language on the principal and then moved
+  it mid-session, and <code>SessionRegistry</code> is a map keyed on the principal, populated once at
+  login. A post-switch principal would therefore miss its own registry entry, so FR-019's sweep of a
+  user's other devices would find nothing: a phone left logged in would keep authenticating as a
+  deleted account while deletion still answered 204. Identity is the user id now, and
+  <code>AuthApiTest.endsEverySessionAfterALanguageSwitchHasReplacedThePrincipal</code> is what holds
+  it there.</p>
 
   <h3>account (FR-019 deletion)</h3>
   <pre class="mermaid">
@@ -642,6 +783,20 @@ classDiagram
   </pre>
 
   <h3>category</h3>
+  <p>The label exists twice and the identity exists once. <code>code</code> is what every domain and
+  AI path keys off, so adding <code>name_en</code> beside <code>name_pl</code> (<code>V11</code>)
+  changed no behaviour — and changed no client either, because the wire field was always called
+  <code>name</code>, spelled for its role ("the label for this caller") rather than for its column. A
+  <code>name_pl</code>/<code>name_en</code> pair on the wire would instead have made every client
+  choose, and renaming it later would have been the breaking change this spelling avoided while there
+  was exactly one client to move.</p>
+  <p>The endpoint keeps its startup-built collection and now builds one per language into an
+  <code>EnumMap</code> in the constructor: eleven rows twice is nothing to hold, and a query taking a
+  language argument would have traded away the property the field exists for — no request touches the
+  database, so an idle app never wakes it. <code>Vary: Accept-Language</code> ships in the same commit
+  as the second language and is not optional: the response is <code>private, max-age=3600</code>, and
+  a cache keyed on the URL alone would hand the Polish body to a caller who asked for English.
+  <code>CategoryApiTest</code> asserts the header, not only the body.</p>
   <pre class="mermaid">
 classDiagram
   class LifeDomain {
@@ -650,15 +805,18 @@ classDiagram
   }
   class Category {
     &lt;&lt;domain reference entity&gt;&gt;
-    String code — natural PK
+    String code — natural PK, the language-neutral identity
     String namePl
+    String nameEn — V11 seeds it, V12 makes it NOT NULL
     int displayOrder
   }
   class CategoryController {
     &lt;&lt;inbound adapter / REST&gt;&gt;
-    +list() GET /api/categories
+    +list(Locale) GET /api/categories
+    EnumMap of one rendered collection per AppLanguage, built in the constructor
     Cache-Control: private, max-age=3600
-    wire: code, name, display_order
+    Vary: Accept-Language
+    wire: code, name, display_order — name is the label for this caller
   }
   class CategoryRepository {
     &lt;&lt;persistence adapter / Spring Data&gt;&gt;
@@ -793,7 +951,7 @@ classDiagram
   <p><strong>The model never gets to fail the request.</strong> <code>ProposalPrompt</code> builds
   both conversations — the 2–3 sentence proposal, and the 3–5 bullet first step through
   <code>completeStructured</code> — and every <code>LlmException</code> has an answer waiting:
-  phrasing falls back to <code>ProposalTemplate</code>, a deterministic sentence with no model in it,
+  phrasing falls back to <code>ProposalTemplatePl</code>, a deterministic sentence with no model in it,
   and the <code>source</code> column records which arm wrote the message so a demo can tell them
   apart. Both arms read the neglect count the same way: zero can only mean the entry came in on a
   passed term rather than on silence, so the prompt says the deadline went by instead of handing the
@@ -862,11 +1020,38 @@ classDiagram
   the reliable one.</p>
   <p>The address rides along on the <code>User</code> row the fire already loaded for its
   vanished-account check, so reaching a user costs no query of its own.
-  <code>ProposalEmail</code> writes the subject and body; it is Polish for the same reason
-  <code>ProposalTemplate</code> is, and for no other — the message on the screen and the message in
-  the inbox are both the sentence the user reads, while every instruction to the model stays
-  English. The subject names the entry, abbreviated, so a week of proposals does not collapse into
-  one mail thread.</p>
+  <code>ProposalEmail</code> writes the subject and body; it is localized rather than English for the
+  same reason <code>ProposalTemplatePl</code> is, and for no other — the message on the screen and the
+  message in the inbox are both the sentence the user reads, while every instruction to the model
+  stays English. It has only a Polish implementation today, which is the FR-009 half of the gap below.
+  The subject names the entry, abbreviated, so a week of proposals does not collapse into one mail
+  thread.</p>
+  <h4>Which language it comes back in (DEV-49)</h4>
+  <p><strong>The two arms of the same catch localize by opposite mechanisms, and that asymmetry is the
+  design.</strong> The model is <em>told</em> which language to answer in: the personas stay English
+  and interpolate <code>AppLanguage.englishName()</code>, so a second locale is one word rather than a
+  second copy of every instruction, free to drift from the first the moment either is tightened. The
+  fallback <em>is</em> the sentence the user reads, so it cannot be told anything — it needed a second
+  implementation, <code>ProposalTemplateEn</code>, chosen by an exhaustive <code>switch</code> in
+  <code>ProposalService.draft</code> that a third language would turn into a compile error rather than
+  a silent English answer. The sibling is markedly the smaller of the two: English inflects neither
+  the month nor the noun by case, so the month comes straight from the JDK and the plural rule is one
+  comparison, where the Polish class needs twelve literals and a three-form table. Serving both from
+  one implementation would have meant writing the simpler language in the harder one's machinery.</p>
+  <p><strong>The language is the request's, not the account's</strong>, on both writing operations:
+  <code>ProposalController</code> takes a <code>Locale</code> and hands
+  <code>AppLanguage.of(locale)</code> down. The SPA sends the header from whatever it is currently
+  rendering, so a switch takes effect on the next call without a query to find out what the account
+  says. The user's own words are never touched either way — a Polish dream quoted inside an English
+  proposal is what FR-007 asks for, not a translation.</p>
+  <p><strong><code>proposeScheduled</code> is the accepted exception, and it is wider than it looks.</strong>
+  It passes <code>AppLanguage.PL</code> literally, so an English account gets a Polish nudge until
+  FR-009 lands in increment 2 — and because the text is generated once here and <em>stored</em>, that
+  Polish reaches the pending card in the app as well as the e-mail, not the e-mail alone. It is a
+  scheduler thread with no request to negotiate from and no <code>SecurityContext</code>; the account
+  column is what FR-009 will read at that moment. The exception lives at this one seam so pulling it
+  forward stays a small change, and <code>ScheduledProposalTest</code> pins it so a later reader finds
+  a decision rather than a bug.</p>
   <p class="note">One FK in this schema carries <code>ON DELETE CASCADE</code>:
   <code>proposal.goal_id</code>, so <code>DELETE /api/goals/{id}</code> keeps working while a
   proposal points at the entry. The cost is named rather than hidden, and it is charged twice. The
@@ -881,15 +1066,18 @@ classDiagram
 classDiagram
   class ProposalController {
     &lt;&lt;inbound adapter / REST&gt;&gt;
-    +propose() POST /api/proposals
+    +propose(Locale) POST /api/proposals
     +pending() GET /api/proposals/pending
-    +answer(id, request) POST /api/proposals/:id/answer
+    +answer(id, request, Locale) POST /api/proposals/:id/answer
+    the two writing operations take the request's language
     204 when nothing is neglected — or nothing waiting
   }
   class ProposalService {
     &lt;&lt;application service&gt;&gt;
     scopes every read to CurrentUser
-    +proposeScheduled(userId) — no caller, no SecurityContext
+    +propose(AppLanguage) — the request's language, never a lookup of the account's
+    +answer(id, request, AppLanguage) — the first step is written in the same one
+    +proposeScheduled(userId) — no caller, no SecurityContext, AppLanguage.PL literally
     pending proposal short-circuits propose(), never proposeScheduled
     no @Transactional — the model call is outside one
   }
@@ -919,7 +1107,8 @@ classDiagram
     &lt;&lt;domain service&gt;&gt;
     +subject(proposal) String
     +body(proposal, baseUrl) String
-    localized, like ProposalTemplate — it is what the user reads
+    localized, like ProposalTemplatePl — it is what the user reads
+    Polish only until FR-009 (increment 2) — the accepted gap
   }
   class ProposalSelector {
     &lt;&lt;domain service&gt;&gt;
@@ -959,16 +1148,21 @@ classDiagram
   }
   class ProposalPrompt {
     &lt;&lt;domain service&gt;&gt;
-    +forProposal(model, memory, entry, days)
-    +forFirstStep(model, memory, entry)
+    +forProposal(model, memory, entry, days, AppLanguage)
+    +forFirstStep(model, memory, entry, AppLanguage)
     days = 0 means the term passed, not silence
-    English instructions, OUTPUT_LANGUAGE names the answer
+    English instructions that name the answer's language via englishName()
     every untrusted value fenced in a data block
   }
-  class ProposalTemplate {
+  class ProposalTemplatePl {
     &lt;&lt;domain service&gt;&gt;
-    +phrase(entry, days) String
+    +phrase(entry, days) String — Polish
     the LlmException arm — no model, localized
+  }
+  class ProposalTemplateEn {
+    &lt;&lt;domain service&gt;&gt;
+    +phrase(entry, days) String — English
+    a sibling implementation, not a branch: this output IS what the user reads
   }
   class FirstStep {
     &lt;&lt;port contract&gt;&gt;
@@ -999,7 +1193,8 @@ classDiagram
   ProposalService --> LlmClient : phrase, then first step
   ProposalService --> AiMemoryService : render for the prompt, record the answer
   ProposalService ..> ProposalPrompt
-  ProposalService ..> ProposalTemplate : on LlmException
+  ProposalService ..> ProposalTemplatePl : on LlmException, when the account reads PL
+  ProposalService ..> ProposalTemplateEn : on LlmException, when it reads EN
   ProposalSelector --> Candidate
   Candidate ..> Goal : flattened for the engine
   ProposalRepository --> Proposal
@@ -1110,16 +1305,20 @@ classDiagram
   ProposalService ..> AiMemoryService : first caller — S-04b
   </pre>
   <p class="note">Exact endpoints: <code>POST /api/users</code>, <code>GET /api/users/me</code>,
-  <code>DELETE /api/users/me</code>, <code>POST /api/sessions</code>,
+  <code>PATCH /api/users/me</code>, <code>DELETE /api/users/me</code>, <code>POST /api/sessions</code>,
   <code>DELETE /api/sessions/current</code>, <code>GET /api/categories</code>,
   <code>GET /api/goals</code>, <code>POST /api/goals</code>, <code>PUT /api/goals/{id}</code>,
   <code>DELETE /api/goals/{id}</code>, <code>POST /api/proposals</code>,
   <code>GET /api/proposals/pending</code>, <code>POST /api/proposals/{id}/answer</code>,
   <code>GET /api/ping</code>. That list is not maintained by hand: <code>ApiSurfaceTest</code>
-  compares the paths Spring publishes against the ones
+  compares the operations Spring publishes against the ones
   <a href="../context/foundation/openapi.yaml"><code>openapi.yaml</code></a> declares, as a set in
   both directions, so a controller the spec never mentions fails the build — which is how
-  <code>/api/ping</code> stayed unspecified from S-01 until the DEV-28 contract pass.
+  <code>/api/ping</code> stayed unspecified from S-01 until the DEV-28 contract pass. The unit of
+  comparison is the <em>operation</em> — method and path — only since DEV-49, and the change was the
+  point: <code>PATCH /api/users/me</code> was added to a path the spec already declared for
+  <code>GET</code> and <code>DELETE</code>, so a path-only comparison would have gone green over a
+  method the spec had never heard of.
   <code>GET /api/categories</code> is the only cacheable response
   (<code>private, max-age=3600</code>: eleven seed-owned rows the SPA refetches on every load);
   every other endpoint keeps Spring Security's <code>no-store</code> default. The goal delete is a
@@ -1383,8 +1582,8 @@ String reply = llmClient.complete(request);</code></pre>
   <h2>Behavioral flows</h2>
   <p>The detailed diagrams are grouped by responsibility. Identity flows came first and are still
   the largest group, but the AI/product group is now the architectural story: the whole proposal
-  loop is implemented, and only the cycle that decides <em>when</em> to ask (S-05) and the auto-tag
-  at capture (S-09) are still drawn as plans.</p>
+  loop is implemented — the cycle that decides <em>when</em> to ask included, since S-05 — and the
+  auto-tag at capture (S-09) is the only flow below still drawn as a plan.</p>
   <h3>Identity and security</h3>
   <h4>Registration <span class="badge badge-live">implemented</span></h4>
   <pre class="mermaid">
@@ -1395,9 +1594,10 @@ sequenceDiagram
   participant RS as RegistrationService
   participant UR as UserRepository
   participant MR as AiMemoryRepository
-  SPA->>UC: POST /api/users {email, password}
-  UC->>RS: register(email, password)
-  Note over RS: BCrypt-encode password,&lt;br/&gt;new User(Email.of(email), hash)
+  SPA->>UC: POST /api/users {email, password} + Accept-Language
+  UC->>UC: AppLanguage.of(locale) — the language the sign-up screen was shown in (FR-003)
+  UC->>RS: register(email, password, language)
+  Note over RS: BCrypt-encode password,&lt;br/&gt;new User(Email.of(email), hash, language)
   RS->>UR: saveAndFlush(user)
   alt UNIQUE(app_user.email) violated
     UR-->>RS: DataIntegrityViolationException
@@ -1422,13 +1622,13 @@ sequenceDiagram
   SPA->>SC: POST /api/sessions {email, password}
   SC->>AM: authenticate(unauthenticated token)
   AM->>UDS: loadUserByUsername(email)
-  UDS-->>AM: UserPrincipal (userId, email, passwordHash)
+  UDS-->>AM: UserPrincipal (userId, email, passwordHash, language)
   alt bad credentials (unknown email OR wrong password)
     AM-->>SPA: 401 Problem JSON — identical either way,&lt;br/&gt;reveals nothing about which emails exist
   else authenticated
     SC->>SC: SessionAuthenticationStrategy.onAuthentication()&lt;br/&gt;rotates session id (fixation) + CSRF token
     SC->>SC: materializeRotatedCsrfToken() — forces new&lt;br/&gt;XSRF-TOKEN cookie onto THIS response
-    SC->>SC: SecurityContextRepository.saveContext()&lt;br/&gt;— actually writes the session
+    SC->>SC: AuthenticatedSession.establish()&lt;br/&gt;— saveContext() through the chain's repository,&lt;br/&gt;which is what actually writes the session
     SC-->>SPA: 201 Created + Set-Cookie (session, XSRF-TOKEN)
   end
   </pre>
@@ -1459,6 +1659,49 @@ sequenceDiagram
   SC->>LH: logout(request, response, authentication)
   Note over LH: invalidates the HttpSession,&lt;br/&gt;clears context + cookies
   SC-->>SPA: 204 No Content
+  </pre>
+
+  <h4>Choosing a language, before and after login <span class="badge badge-live">implemented</span></h4>
+  <p>Two different authorities, and the handover is the whole flow. Before an account exists the
+  browser decides and the choice lives in <code>localStorage</code>; after login the account decides,
+  and the SPA adopts what <code>/users/me</code> reports without ever writing back — reconciling the
+  other way would <code>PATCH</code> on every boot, and a write is what wakes the metered database
+  this app is otherwise careful to let sleep.</p>
+  <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor V as Visitor
+  participant SPA as SPA — i18next
+  participant UC as UserController
+  participant US as UserSettingsService
+  participant AS as AuthenticatedSession
+  participant PG as Postgres
+  Note over SPA: detect(): localStorage, then navigator.languages,&lt;br/&gt;then English — the FR-001 order
+  V->>SPA: opens /login on an English browser
+  SPA->>SPA: renders English, and stamps the document's lang attribute
+  Note over SPA,UC: every call from here carries Accept-Language
+  alt the visitor signs up
+    SPA->>UC: POST /api/users + Accept-Language
+    UC->>PG: insert app_user with preferred_language = EN
+    Note over UC: FR-003 — the account starts in the language&lt;br/&gt;of the screen it was created from
+  else the visitor logs in to an account that already exists
+    SPA->>UC: GET /api/users/me
+    UC-->>SPA: UserResponse with language — from the principal, no query
+    SPA->>SPA: i18next adopts it, and writes nothing back
+    Note over SPA: an account that never chose reports PL —&lt;br/&gt;FR-004, and it was never asked anything
+  end
+  V->>SPA: picks the other language in the account menu
+  alt the pick would not change the stored value
+    SPA->>SPA: i18next only — no request, no write
+  else it changes
+    SPA->>UC: PATCH /api/users/me {language}
+    UC->>US: changeLanguage(userId, language)
+    US->>PG: targeted update on app_user
+    UC->>AS: replacePrincipal(principal.withLanguage(language))
+    Note over AS: written through the chain's SecurityContextRepository —&lt;br/&gt;without it the switch is real in Postgres&lt;br/&gt;and invisible on /me
+    UC-->>SPA: 200 UserResponse with the stored language
+  end
+  Note over V,PG: 0 rows updated means the account was erased mid-session — 401, never a silent no-op
   </pre>
 
   <h3>Data integrity and erasure</h3>
@@ -1532,8 +1775,8 @@ sequenceDiagram
   participant MEM as AiMemoryService
   participant LLM as LlmClient → Sonnet
   participant PG as Postgres
-  SPA->>PC: POST /api/proposals (the manual trigger)
-  PC->>PS: propose()
+  SPA->>PC: POST /api/proposals (the manual trigger) + Accept-Language
+  PC->>PS: propose(AppLanguage.of(locale))
   PS->>PG: pending proposal for this user?
   alt one is already pending
     PG-->>PS: the stored proposal
@@ -1549,11 +1792,11 @@ sequenceDiagram
     else an entry wins
       SEL-->>PS: the chosen entry and its idle days
       PS->>MEM: renderFor(userId)
-      PS->>LLM: complete(persona + memory + entry + idle days or a passed term)
+      PS->>LLM: complete(English persona naming the answer's language + memory + entry + idle days or a passed term)
       alt the model answers
-        LLM-->>PS: 2–3 Polish sentences quoting the entry
+        LLM-->>PS: 2–3 sentences in the request's language, quoting the entry verbatim
       else LlmException
-        PS->>PS: ProposalTemplate.phrase(entry, days) — source = TEMPLATE
+        PS->>PS: ProposalTemplatePl or ProposalTemplateEn .phrase(entry, days) — source = TEMPLATE
       end
       PS->>PG: insert proposal (partial UNIQUE = at most one pending)
       Note over PS,PG: a lost insert race returns the winner,&lt;br/&gt;never a 500
@@ -1574,9 +1817,9 @@ sequenceDiagram
   participant PS as ProposalService
   participant LLM as LlmClient → Sonnet
   participant PG as Postgres
-  SPA->>PC: POST /api/proposals/:id/answer {answer, remind_in_days?}
+  SPA->>PC: POST /api/proposals/:id/answer {answer, remind_in_days?} + Accept-Language
   Note over PC: Bean Validation — REMIND_LATER needs 7/30/90,&lt;br/&gt;any other answer must omit it (422)
-  PC->>PS: answer(id, request)
+  PC->>PS: answer(id, request, AppLanguage.of(locale))
   PS->>PG: findByIdAndUserId — a foreign id is 404, not 403
   alt already answered
     PS-->>SPA: 409 — a proposal is answered exactly once
@@ -1623,7 +1866,8 @@ sequenceDiagram
     else it is still there
       SCH->>PS: proposeScheduled(userId)
       PS->>PG: pending proposal? its entry is excluded from the candidates
-      PS->>LLM: phrase the winner — template fallback on LlmException
+      PS->>LLM: phrase the winner in PL, whatever the account reads — template fallback on LlmException
+      Note over PS,LLM: the accepted FR-009 gap: the text is written once here&lt;br/&gt;and stored, so it reaches the card as well as the email
       Note over PS,PG: superseding runs only if selection produced something,&lt;br/&gt;and closes the old row before the new insert
       PS->>PG: SUPERSEDED the ignored one, snooze its entry, insert the new one
       PS-->>SCH: the stored proposal, or empty
@@ -1657,8 +1901,10 @@ sequenceDiagram
   user, fixed category reference data, the AI-memory aggregate, the <code>goal</code> table holding
   all three layers, and — since S-04b — the <code>proposal</code> table recording what the user was
   shown and what they answered. S-05 added the last missing piece as a single column rather than a
-  table: <code>app_user.next_proposal_at</code>. Nothing in the data model still belongs only to the
-  target diagram.</p>
+  table: <code>app_user.next_proposal_at</code>, and DEV-49 added two more of the same kind —
+  <code>app_user.preferred_language</code> and <code>category.name_en</code>. Nothing in the data
+  model still belongs only to the target diagram, and no slice has yet needed a table for a change
+  that a nullable column could carry.</p>
   <div class="card-grid">
     <div class="card"><strong>Ownership and isolation</strong><br><code>AiMemory</code> is one
     aggregate per user. Child profile facts and episodes are reached through that root.</div>
@@ -1709,7 +1955,33 @@ sequenceDiagram
   what every account predating this slice is, and what the boot pass converts into a first drawn
   moment. It is also not a lease: it presumes the single machine <code>fly.toml</code> pins, and two
   schedulers over one column would each fire for every account.</p>
-  <img class="diagram" src="../context/foundation/data-model-current.svg" width="1082" height="1222" loading="lazy" alt="Current entity relationship model: app user with its next_proposal_at scheduling column, goal with its three layers, proposal, category, AI memory, profile facts, and episodes">
+  <p>DEV-49's two columns (<code>V10</code>, <code>V11</code>/<code>V12</code>) follow the same
+  restraint, and one of them repeats the same trick with null. <code>app_user.preferred_language</code> is <code>VARCHAR(2)</code>
+  holding the <code>AppLanguage</code> name rather than a BCP 47 tag — two locales, no region
+  variants — and it exists at all because <code>Accept-Language</code> cannot be asked at a moment
+  when no request exists, which is exactly the moment the natural-rhythm e-mail is composed in.
+  Nullable with no <code>DEFAULT</code>: null means "never chosen", which reads as Polish, and that
+  <em>is</em> FR-004's backfill — every account that predates the choice keeps its language without a
+  row being rewritten and without ever being asked. It is deliberately not the same rule as the
+  request default, which is English: an unknown <em>locale</em> means the app's first language, an
+  unset <em>account</em> means the language it already had, and collapsing the two into one constant
+  would flip the existing account to English on its next login.</p>
+  <p><code>category.name_en</code> is the second column rather than a
+  <code>category_translation</code> table because the set is eleven rows a Flyway seed owns and
+  cannot grow at runtime; a table would buy a join and a migration per locale to model a list that
+  has none. <code>V11</code> added it nullable and seeded all eleven rows in the same migration;
+  <code>V12</code> then made it <code>NOT NULL</code> &mdash; textbook expand, then contract. The
+  contract half is safe here for a reason that does <em>not</em> transfer to
+  <code>preferred_language</code>: nothing but a migration ever writes <code>category</code>, so
+  there is no deployed image whose <code>INSERT</code> the constraint could break, while
+  <code>app_user</code> rows are written by the running application and a constraint it does not know
+  about would break registration the moment it landed. The constraint is worth having because a row
+  with no English name is an error nowhere else &mdash; it serializes as <code>"name": null</code>
+  and arrives as a nav link with no text on it, and <code>CategorySyncCheck</code> compares
+  <code>code</code> against the enum and never looks at a label. The identity did not move:
+  <code>code</code> is still what every domain and AI path keys off, which is why the wire field
+  <code>name</code> could change meaning without any client changing at all.</p>
+  <img class="diagram" src="../context/foundation/data-model-current.svg" width="1082" height="1272" loading="lazy" alt="Current entity relationship model: app user with its next_proposal_at scheduling column and preferred_language setting, goal with its three layers, proposal, category with its two label columns, AI memory, profile facts, and episodes">
   <h3>Target model <span class="badge badge-planned">planned</span></h3>
   <p>The target diagram shows the whole shape, migrated and not: solid tables exist today, ghosted
   ones are direction rather than an implemented database contract. After S-07 — and still after
@@ -1717,7 +1989,7 @@ sequenceDiagram
   is <code>task</code>, and it marks a deferred split rather than planned work: current tasks shipped
   as a third <code>goal</code> layer, so that table is the escape hatch for the day tasks earn a
   lifecycle of their own.</p>
-  <img class="diagram" src="../context/foundation/data-model-target.svg" width="2003" height="1268" loading="lazy" alt="Target entity relationship model: migrated app user, goal, proposal, category and AI memory alongside the deferred task table">
+  <img class="diagram" src="../context/foundation/data-model-target.svg" width="2003" height="1268" loading="lazy" alt="Target entity relationship model: migrated app user with its language setting, goal, proposal, category with two label columns, and AI memory alongside the deferred task table">
   <p class="note">Canonical source:
   <a href="../context/foundation/data-model.md"><code>context/foundation/data-model.md</code></a>.
   Editable Draw.io sources live beside the exported SVGs.</p>
@@ -1899,8 +2171,8 @@ flowchart TB
   <h2>Roadmap / target state <span class="badge badge-planned">planned</span></h2>
   <p>What exists today is the account/auth slice, all three task layers on one <code>goal</code>
   aggregate, the complete proposal loop — on demand <em>and</em> on its own natural rhythm, by email
-  and in the app — and the AI memory and category foundations. The MVP roadmap builds vertical
-  slices on top:</p>
+  and in the app — the AI memory and category foundations, and, since DEV-49, both languages the
+  product speaks. The MVP roadmap builds vertical slices on top:</p>
   <div class="card"><strong>Category auto-tag</strong> <span class="badge badge-planned">planned</span><br>AI
   classification into the 11 life domains at capture time. All three layers already ship with a
   manual picker; the auto-tag replaces the picking, not the storage. It is also where Haiku's
@@ -1913,6 +2185,13 @@ flowchart TB
   right entry at a moment nobody set, not a fixed-time alarm: a per-account moment drawn 2–7 days
   out inside daytime hours, held in memory so an idle tick never wakes the database, delivered by
   email and waiting in the app either way. This was the slice the product existed to prove.</div>
+  <div class="card"><strong>Two languages, English-first</strong> <span class="badge badge-live">implemented</span><br>Polish
+  preserved as a language rather than as the default (DEV-49). The account carries the choice, the
+  request carries the transport, and every screen and every server-generated sentence on the
+  on-demand path follows it. <strong>One piece is deliberately increment 2:</strong> the
+  natural-rhythm e-mail (FR-009), so the protected loop was not touched inside the freeze window —
+  until it lands, a scheduled proposal reads Polish for every account, on the pending card as well as
+  in the inbox.</div>
   <div class="card"><strong>Onboarding memory seed</strong> <span class="badge badge-planned">planned</span><br>The
   durable profile facts that would let a proposal know who it is talking to. Memory currently fills
   from proposal answers alone, so early prompts carry an episodic log and no profile.</div>
@@ -1946,7 +2225,10 @@ flowchart TB
         <tr><th scope="row">AiMemory</th><td>Per-user aggregate the AI consults; created atomically with the <code>User</code> at registration ("every user has exactly one memory").</td></tr>
         <tr><th scope="row">Episode</th><td>One append-only AI-memory event; payload stored as <code>jsonb</code>.</td></tr>
         <tr><th scope="row">Profile fact</th><td>A durable statement about the user inside <code>AiMemory</code>, rendered into prompts by <code>AiMemoryRenderer</code>.</td></tr>
-        <tr><th scope="row">UserPrincipal</th><td>The authenticated identity (record: userId, email, passwordHash) carried by the session—lets <code>/me</code> and re-auth answer without a DB query.</td></tr>
+        <tr><th scope="row">UserPrincipal</th><td>The authenticated identity (record: userId, email, passwordHash, language) carried by the session—lets <code>/me</code> and re-auth answer without a DB query. The language is the one component that moves mid-session, which is why equality is the user id alone: a post-switch principal must still find its own <code>SessionRegistry</code> entry.</td></tr>
+        <tr><th scope="row">AppLanguage</th><td>The two languages the app writes to a person in, <code>PL</code> and <code>EN</code>. Persisted by <code>name()</code> in <code>app_user.preferred_language</code> and carried on the wire as the same two letters, not a BCP 47 tag. <code>DEFAULT = EN</code> is what a <em>request</em> naming nothing known resolves to; a null <em>account</em> column reads as Polish instead, and the two rules must stay separate.</td></tr>
+        <tr><th scope="row">Accept-Language</th><td>The transport half of localization: the SPA sends whatever it is currently rendering, <code>i18n/LocaleConfig</code>'s resolver negotiates it against the two supported locales, and handlers receive a plain <code>Locale</code>. The account column is the persistence half — the header cannot be asked at a moment when no request exists.</td></tr>
+        <tr><th scope="row">The FR-009 gap</th><td>The accepted exception to "no leaked word": <code>ProposalService.proposeScheduled</code> passes <code>AppLanguage.PL</code> literally, so a scheduled proposal is Polish for every account until increment 2. Because the text is stored, it reaches the pending card as well as the e-mail. Pinned by <code>ScheduledProposalTest</code> so it reads as a decision, not a defect.</td></tr>
         <tr><th scope="row">PerUserDataDeleter</th><td>Interface each module implements so FR-019 account deletion erases its per-user rows; the final user delete's plain FKs fail loudly if one is missing.</td></tr>
         <tr><th scope="row">Session model</th><td>Server-side session cookie (<code>HttpOnly; Secure; SameSite=Strict</code>), held in-memory on the single Fly machine. Not JWT; never DB-backed (Neon autosuspend).</td></tr>
         <tr><th scope="row">Pattern B / unified origin</th><td>Cloudflare serves the SPA and reverse-proxies <code>/api/*</code> to Fly—production is same-origin, no CORS.</td></tr>

@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import type { TFunction } from 'i18next'
+import { useTranslation } from 'react-i18next'
 import { ApiError, api } from '../api/client'
 import type { Goal, GoalDraft } from './GoalsPage'
 
@@ -40,28 +42,27 @@ export type Proposal = {
  */
 const TERMS = [7, 30, 90]
 
-/** What the user is told happened, per answer. STARTING's is the bullets, rendered below instead. */
-const CONFIRMATION: Record<UserAnswer, string> = {
-  STARTING: 'Pierwszy krok:',
-  NOT_NOW: 'Dobrze — wrócimy do tego za kilka dni.',
-  REMIND_LATER: 'Przypomnimy w wybranym terminie.',
-  // Withdrawal is reversible and the filter is the only way back to it, so the copy has to say
-  // where the entry went — otherwise NEVER reads as a delete the user just performed by accident.
-  NEVER: 'Wycofane — wpis znajdziesz pod filtrem „Pokaż wycofane”.',
-}
+/** The three calls the card makes, and the failure sentence each one has in the catalog. */
+type Attempt = 'propose' | 'answer' | 'saveStep'
 
-/** Copy per failure, in the shape `GoalsPage.messageFor` and `AuthPage.messageFor` established. */
-function messageFor(status: number, what: string): string {
+/**
+ * Copy per failure, in the shape `GoalsPage.messageFor` and `AuthPage.messageFor` established.
+ *
+ * The generic case is a whole sentence per call rather than one template holding a fragment: that
+ * shape composed its sentence out of grammar, and a fragment declined to fit one language does not
+ * fit the next one.
+ */
+function messageFor(t: TFunction, status: number, failed: Attempt): string {
   if (status === 0) {
     // Never reached the server: the CSRF priming response has not landed. A reload primes it.
-    return 'Odśwież stronę i spróbuj ponownie.'
+    return t('proposal.errors.refresh')
   }
   if (status === 409) {
     // A proposal can be answered exactly once, and a retry can only 409 again — asking for a new
     // proposal is the way forward, so say that rather than "try again".
-    return 'Ta propozycja została już rozstrzygnięta — poproś o nową.'
+    return t('proposal.errors.alreadyAnswered')
   }
-  return `Nie udało się ${what}. Spróbuj ponownie.`
+  return t(`proposal.errors.${failed}`)
 }
 
 /**
@@ -75,6 +76,7 @@ function messageFor(status: number, what: string): string {
  * never needs to read what is in the list.
  */
 export function ProposalCard({ onChange }: { onChange: () => void }) {
+  const { t } = useTranslation()
   const [proposal, setProposal] = useState<Proposal | null>(null)
   // Separate from `proposal === null`, which is also the state before the button is ever pressed:
   // only one of the two is worth a message, and rendering it in the other is a lie about an account
@@ -105,7 +107,7 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
       .then((waiting) => {
         if (waiting) setProposal(waiting)
       })
-      .catch((failure) => console.error('proposal: pobrać czekającej propozycji failed', failure))
+      .catch((failure) => console.error('proposal: reading the pending slot failed', failure))
   }, [])
 
   /**
@@ -113,7 +115,7 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
    * Returns the response rather than a bare boolean, so a caller narrows on `ok` instead of
    * smuggling the value out of a `.then` into a variable TypeScript cannot prove was assigned.
    */
-  async function attempt<T>(request: Promise<T>, what: string): Promise<{ ok: true; value: T } | { ok: false }> {
+  async function attempt<T>(request: Promise<T>, what: Attempt): Promise<{ ok: true; value: T } | { ok: false }> {
     setPending(true)
     setError(null)
     try {
@@ -122,7 +124,7 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
       // Bound and recorded because the copy is generic: without this a 500 and a parse bug are
       // indistinguishable from the outside and leave no trace.
       console.error(`proposal: ${what} failed`, failure)
-      setError(messageFor(failure instanceof ApiError ? failure.status : -1, what))
+      setError(messageFor(t, failure instanceof ApiError ? failure.status : -1, what))
       return { ok: false }
     } finally {
       setPending(false)
@@ -134,7 +136,7 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
     setAskingTerm(false)
     setSaved([])
     // 204 is a legitimate answer — nothing is gathering dust — and `api` returns undefined for it.
-    const asked = await attempt(api<Proposal | undefined>('/proposals', { method: 'POST' }), 'pobrać propozycji')
+    const asked = await attempt(api<Proposal | undefined>('/proposals', { method: 'POST' }), 'propose')
     if (!asked.ok) return
     setProposal(asked.value ?? null)
     setNothingWaiting(!asked.value)
@@ -147,7 +149,7 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
     const body = remindInDays === undefined ? { answer: value } : { answer: value, remind_in_days: remindInDays }
     const landed = await attempt(
       api<Proposal>(`/proposals/${proposal.id}/answer`, { method: 'POST', body }),
-      'zapisać odpowiedzi',
+      'answer',
     )
     if (!landed.ok) return
     // No `setAskingTerm(false)`: the answered proposal unmounts `Answers` outright, and `propose()`
@@ -170,24 +172,24 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
       // entry does, and the category is what decides which domain it shows up under.
       category_code: proposal?.entry.category_code ?? null,
     }
-    const landed = await attempt(api('/goals', { method: 'POST', body: draft }), 'zapisać zadania')
+    const landed = await attempt(api('/goals', { method: 'POST', body: draft }), 'saveStep')
     if (!landed.ok) return
     setSaved((all) => [...all, at])
     onChange()
   }
 
   return (
-    <section className="proposal" aria-label="Propozycja">
+    <section className="proposal" aria-label={t('proposal.label')}>
       {/* Disabled while in flight, and that is the whole double-fire guard: the model has a
           60-second budget, so the wait is long enough that a user will press again — and a second
           press would open a second proposal the first is about to hand back anyway. */}
       <button type="button" onClick={propose} disabled={pending}>
-        Daj mi coś teraz
+        {t('proposal.ask')}
       </button>
 
-      {pending && <p role="status">Szukam wpisu, do którego warto wrócić…</p>}
+      {pending && <p role="status">{t('proposal.searching')}</p>}
       {error && <p role="alert">{error}</p>}
-      {nothingWaiting && <p role="status">Nic teraz nie czeka — nic nie leży odłogiem.</p>}
+      {nothingWaiting && <p role="status">{t('proposal.nothingWaiting')}</p>}
 
       {proposal && (
         <article>
@@ -198,7 +200,7 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
 
           {proposal.answer ? (
             <>
-              <p role="status">{CONFIRMATION[proposal.answer]}</p>
+              <p role="status">{t(`proposal.confirmation.${proposal.answer}`)}</p>
               {proposal.first_step && (
                 <FirstStep steps={proposal.first_step} saved={saved} save={saveStep} pending={pending} />
               )}
@@ -233,12 +235,16 @@ function Answers({
   askTerm: () => void
   answer: (value: UserAnswer, remindInDays?: number) => void
 }) {
+  const { t } = useTranslation()
+
   if (askingTerm) {
     return (
       <p>
         {TERMS.map((days) => (
           <button key={days} type="button" disabled={pending} onClick={() => answer('REMIND_LATER', days)}>
-            Za {days} dni
+            {/* A plural key rather than a number dropped into a fixed phrase: 7, 30 and 90 happen
+                to share one Polish form, and a one-day preset would have broken it silently. */}
+            {t('proposal.remindIn', { count: days })}
           </button>
         ))}
       </p>
@@ -248,16 +254,16 @@ function Answers({
   return (
     <p>
       <button type="button" disabled={pending} onClick={() => answer('STARTING')}>
-        Zaczynam
+        {t('proposal.answers.STARTING')}
       </button>
       <button type="button" disabled={pending} onClick={() => answer('NOT_NOW')}>
-        Nie teraz
+        {t('proposal.answers.NOT_NOW')}
       </button>
       <button type="button" disabled={pending} onClick={askTerm}>
-        Przypomnij później
+        {t('proposal.answers.REMIND_LATER')}
       </button>
       <button type="button" disabled={pending} onClick={() => answer('NEVER')}>
-        Nigdy
+        {t('proposal.answers.NEVER')}
       </button>
     </p>
   )
@@ -279,10 +285,12 @@ function FirstStep({
   save: (step: string, at: number) => void
   pending: boolean
 }) {
+  const { t } = useTranslation()
+
   if (steps.length === 0) {
     // No "try again": the answer is recorded, so the button is gone and a second press would 409.
     // The bullets were the extra, and this is the one honest thing left to say about them.
-    return <p>Odpowiedź zapisana, ale nie udało się przygotować pierwszego kroku.</p>
+    return <p>{t('proposal.noFirstStep')}</p>
   }
 
   return (
@@ -293,10 +301,10 @@ function FirstStep({
           {/* Saved bullets stop offering to be saved: one enthusiastic click otherwise becomes
               three identical tasks, and the list they land in is a screen away. */}
           {saved.includes(at) ? (
-            <small>Zapisano</small>
+            <small>{t('proposal.stepSaved')}</small>
           ) : (
             <button type="button" disabled={pending} onClick={() => save(step, at)}>
-              Zapisz jako zadanie
+              {t('proposal.saveStep')}
             </button>
           )}
         </li>

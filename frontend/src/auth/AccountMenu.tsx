@@ -1,6 +1,9 @@
 import { useState, type FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { ApiError } from '../api/client'
+import type { Language } from '../i18n'
+import { LanguageSwitch } from '../i18n/LanguageSwitch'
 import { useAuth } from './auth-context'
 
 /**
@@ -11,13 +14,28 @@ import { useAuth } from './auth-context'
  */
 const RE_AUTH_FAILED = 'urn:2doai:problem:re-auth-failed'
 
-/** Header controls for the two session-ending actions. */
+/** Header controls: the account's language, and the two session-ending actions. */
 export function AccountMenu() {
-  const { user, logout, deleteAccount } = useAuth()
+  const { t } = useTranslation()
+  const { user, changeLanguage, logout, deleteAccount } = useAuth()
   const navigate = useNavigate()
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+
+  /**
+   * FR-002. The account owns the language and `AuthProvider.changeLanguage` owns the write — what
+   * belongs here is what the user is told when it fails.
+   */
+  async function chooseLanguage(next: Language) {
+    setError(null)
+    try {
+      await changeLanguage(next)
+    } catch {
+      // The switch reads the live i18next language, so a failed write leaves it where it was.
+      setError(t('account.errors.language'))
+    }
+  }
 
   async function onLogout() {
     setError(null)
@@ -25,7 +43,7 @@ export function AccountMenu() {
       await logout()
     } catch {
       // The session may have survived, so say so rather than route to /login as if it had not.
-      setError('Nie udało się wylogować. Spróbuj ponownie.')
+      setError(t('account.errors.logout'))
       return
     }
     navigate('/login', { replace: true })
@@ -47,10 +65,10 @@ export function AccountMenu() {
       // which has nothing to do with the password the user just typed.
       setError(
         failure instanceof ApiError && failure.type === RE_AUTH_FAILED
-          ? 'Nieprawidłowe hasło.'
+          ? t('account.errors.wrongPassword')
           : // The other 403 here is a stale CSRF token, which only a reload re-primes — so the
             // fallback names that remedy too, as openapi.yaml's 403 description says it should.
-            'Nie udało się usunąć konta. Odśwież stronę i spróbuj ponownie.',
+            t('account.errors.delete'),
       )
     } finally {
       setPending(false)
@@ -60,11 +78,12 @@ export function AccountMenu() {
   return (
     <div className="account">
       <span>{user?.email}</span>
+      <LanguageSwitch onSelect={chooseLanguage} />
       <button type="button" onClick={onLogout}>
-        Wyloguj
+        {t('account.logout')}
       </button>
       <button type="button" onClick={() => { setError(null); setConfirming(true) }}>
-        Usuń konto
+        {t('account.delete')}
       </button>
       {error && <p role="alert">{error}</p>}
 
@@ -72,16 +91,16 @@ export function AccountMenu() {
           the server re-verifies. Rendered only while confirming — nothing to mis-click. */}
       {confirming && (
         <form onSubmit={onDelete} className="confirm-delete">
-          <p>Usunięcie konta kasuje wszystkie Twoje dane. Tej operacji nie da się cofnąć.</p>
+          <p>{t('account.deleteWarning')}</p>
           <label>
-            Potwierdź hasłem
+            {t('account.confirmPassword')}
             <input name="password" type="password" required autoFocus autoComplete="current-password" />
           </label>
           <button type="submit" disabled={pending}>
-            Usuń konto na zawsze
+            {t('account.deleteForever')}
           </button>
           <button type="button" onClick={() => setConfirming(false)}>
-            Anuluj
+            {t('account.cancel')}
           </button>
         </form>
       )}

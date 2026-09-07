@@ -21,6 +21,10 @@ public class Category {
 	@Column(name = "name_pl", nullable = false)
 	private String namePl;
 
+	/** Added nullable by V11, which seeds all 11 rows; NOT NULL since V12 states that as a rule. */
+	@Column(name = "name_en", nullable = false)
+	private String nameEn;
+
 	@Column(name = "display_order", nullable = false)
 	private int displayOrder;
 
@@ -34,6 +38,10 @@ public class Category {
 
 	public String getNamePl() {
 		return namePl;
+	}
+
+	public String getNameEn() {
+		return nameEn;
 	}
 
 	public int getDisplayOrder() {

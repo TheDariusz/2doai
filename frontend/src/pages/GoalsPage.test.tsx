@@ -3,7 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Goal } from './GoalsPage'
+import type { Proposal } from './ProposalCard'
 import { AppRoutes } from '../App'
+import i18n from '../i18n'
 import { LOGGED_IN, renderWithAuth, response, stubAuth } from '../test/auth'
 import { DOMAINS } from '../test/domains'
 
@@ -131,12 +133,12 @@ function section(name: string) {
  * an unscoped `getByLabelText` becomes ambiguous the moment one is open.
  */
 async function createForm() {
-  return within(await screen.findByRole('form', { name: 'Nowy wpis' }))
+  return within(await screen.findByRole('form', { name: 'New entry' }))
 }
 
 /** The edit form, scoped the same way and for the same reason. */
 function editForm() {
-  return within(screen.getByRole('form', { name: 'Edytuj wpis' }))
+  return within(screen.getByRole('form', { name: 'Edit entry' }))
 }
 
 /**
@@ -164,13 +166,13 @@ describe('GoalsPage', () => {
 
     renderGoals()
 
-    const goals = section('Cele długoterminowe')
+    const goals = section('Long-term goals')
     expect(await goals.findByText('Przebiec półmaraton')).toBeInTheDocument()
-    // The category shows its Polish label, not the wire code the server sends.
-    expect(goals.getByText(/Zdrowie/)).toBeInTheDocument()
+    // The category shows its label, not the wire code the server sends.
+    expect(goals.getByText(/Health/)).toBeInTheDocument()
     expect(goals.queryByText('Pojechać do Japonii')).not.toBeInTheDocument()
 
-    expect(section('Marzenia').getByText('Pojechać do Japonii')).toBeInTheDocument()
+    expect(section('Dreams').getByText('Pojechać do Japonii')).toBeInTheDocument()
 
     const completed = screen.getByText('Nauczyć się gotować').closest('details')
     expect(completed).toBeInTheDocument()
@@ -182,11 +184,11 @@ describe('GoalsPage', () => {
 
     renderGoals()
 
-    const tasks = section('Zadania bieżące')
+    const tasks = section('Current tasks')
     expect(await tasks.findByText('Zapłacić za prąd')).toBeInTheDocument()
     expect(tasks.getByText(/2026-09-01/)).toBeInTheDocument()
     expect(tasks.queryByText('Przebiec półmaraton')).not.toBeInTheDocument()
-    expect(section('Cele długoterminowe').queryByText('Zapłacić za prąd')).not.toBeInTheDocument()
+    expect(section('Long-term goals').queryByText('Zapłacić za prąd')).not.toBeInTheDocument()
   })
 
   it('says so when the list cannot be loaded, rather than rendering as if it were empty', async () => {
@@ -196,11 +198,11 @@ describe('GoalsPage', () => {
 
     renderGoals()
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/nie udało się/i)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not/i)
   })
 })
 
-describe('GoalsPage — dodawanie', () => {
+describe('GoalsPage — adding an entry', () => {
   it('posts what the form was filled with and shows the entry after the refetch', async () => {
     const stored: Goal[] = []
     stubApi(stored)
@@ -208,13 +210,13 @@ describe('GoalsPage — dodawanie', () => {
 
     renderGoals()
     const form = await createForm()
-    await user.type(form.getByLabelText('Treść'), 'Przebiec półmaraton')
-    await user.selectOptions(form.getByLabelText('Rodzaj'), 'GOAL')
-    await user.selectOptions(form.getByLabelText('Horyzont'), 'THIS_YEAR')
-    await user.selectOptions(form.getByLabelText('Kategoria'), 'HEALTH')
+    await user.type(form.getByLabelText('Content'), 'Przebiec półmaraton')
+    await user.selectOptions(form.getByLabelText('Kind'), 'GOAL')
+    await user.selectOptions(form.getByLabelText('Horizon'), 'THIS_YEAR')
+    await user.selectOptions(form.getByLabelText('Category'), 'HEALTH')
     // What the refetch that follows the POST will find.
     stored.push(RUN)
-    await user.click(form.getByRole('button', { name: 'Dodaj' }))
+    await user.click(form.getByRole('button', { name: 'Add' }))
 
     const [url, init] = mutations()[0]
     expect(url).toBe('/api/goals')
@@ -235,14 +237,14 @@ describe('GoalsPage — dodawanie', () => {
 
     renderGoals()
     const form = await createForm()
-    expect(form.getByLabelText('Horyzont')).toBeInTheDocument()
+    expect(form.getByLabelText('Horizon')).toBeInTheDocument()
 
-    await user.selectOptions(form.getByLabelText('Rodzaj'), 'DREAM')
+    await user.selectOptions(form.getByLabelText('Kind'), 'DREAM')
     // A dream with a horizon is a 422 from the server — do not offer the field at all.
-    expect(form.queryByLabelText('Horyzont')).not.toBeInTheDocument()
+    expect(form.queryByLabelText('Horizon')).not.toBeInTheDocument()
 
-    await user.selectOptions(form.getByLabelText('Rodzaj'), 'GOAL')
-    expect(form.getByLabelText('Horyzont')).toBeInTheDocument()
+    await user.selectOptions(form.getByLabelText('Kind'), 'GOAL')
+    expect(form.getByLabelText('Horizon')).toBeInTheDocument()
   })
 
   /**
@@ -256,14 +258,14 @@ describe('GoalsPage — dodawanie', () => {
 
     renderGoals()
     const form = await createForm()
-    expect(form.queryByLabelText('Termin')).not.toBeInTheDocument()
+    expect(form.queryByLabelText('Due date')).not.toBeInTheDocument()
 
-    await user.selectOptions(form.getByLabelText('Rodzaj'), 'TASK')
-    expect(form.getByLabelText('Termin')).toBeInTheDocument()
-    expect(form.queryByLabelText('Horyzont')).not.toBeInTheDocument()
+    await user.selectOptions(form.getByLabelText('Kind'), 'TASK')
+    expect(form.getByLabelText('Due date')).toBeInTheDocument()
+    expect(form.queryByLabelText('Horizon')).not.toBeInTheDocument()
 
-    await user.selectOptions(form.getByLabelText('Rodzaj'), 'DREAM')
-    expect(form.queryByLabelText('Termin')).not.toBeInTheDocument()
+    await user.selectOptions(form.getByLabelText('Kind'), 'DREAM')
+    expect(form.queryByLabelText('Due date')).not.toBeInTheDocument()
   })
 
   it('posts a task with its term', async () => {
@@ -272,11 +274,11 @@ describe('GoalsPage — dodawanie', () => {
 
     renderGoals()
     const form = await createForm()
-    await user.type(form.getByLabelText('Treść'), 'Zapłacić za prąd')
-    await user.selectOptions(form.getByLabelText('Rodzaj'), 'TASK')
-    setDate(form.getByLabelText('Termin'), '2026-09-01')
-    await user.selectOptions(form.getByLabelText('Kategoria'), 'HOME')
-    await user.click(form.getByRole('button', { name: 'Dodaj' }))
+    await user.type(form.getByLabelText('Content'), 'Zapłacić za prąd')
+    await user.selectOptions(form.getByLabelText('Kind'), 'TASK')
+    setDate(form.getByLabelText('Due date'), '2026-09-01')
+    await user.selectOptions(form.getByLabelText('Category'), 'HOME')
+    await user.click(form.getByRole('button', { name: 'Add' }))
 
     expect(JSON.parse(mutations()[0][1].body)).toEqual({
       content: 'Zapłacić za prąd',
@@ -297,9 +299,9 @@ describe('GoalsPage — dodawanie', () => {
 
     renderGoals()
     const form = await createForm()
-    await user.type(form.getByLabelText('Treść'), 'Kupić chleb')
-    await user.selectOptions(form.getByLabelText('Rodzaj'), 'TASK')
-    await user.click(form.getByRole('button', { name: 'Dodaj' }))
+    await user.type(form.getByLabelText('Content'), 'Kupić chleb')
+    await user.selectOptions(form.getByLabelText('Kind'), 'TASK')
+    await user.click(form.getByRole('button', { name: 'Add' }))
 
     expect(JSON.parse(mutations()[0][1].body)).toEqual({
       content: 'Kupić chleb',
@@ -315,22 +317,22 @@ describe('GoalsPage — dodawanie', () => {
 
     renderGoals()
     const form = await createForm()
-    const options = within(form.getByLabelText('Kategoria')).getAllByRole('option')
+    const options = within(form.getByLabelText('Category')).getAllByRole('option')
 
     expect(options.map((option) => option.textContent)).toEqual([
-      'Bez kategorii',
+      'No category',
       ...DOMAINS.map((domain) => domain.name),
     ])
   })
 })
 
-describe('GoalsPage — zmiany na wpisie', () => {
+describe('GoalsPage — changing an entry', () => {
   it('completes an entry without dropping the rest of the full-replace payload', async () => {
     stubApi([RUN])
     const user = userEvent.setup()
 
     renderGoals()
-    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Ukończ' }))
+    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Complete' }))
 
     const [url, init] = mutations()[0]
     expect(url).toBe('/api/goals/g1')
@@ -352,7 +354,7 @@ describe('GoalsPage — zmiany na wpisie', () => {
     const user = userEvent.setup()
 
     renderGoals()
-    await user.click((await item('Nauczyć się gotować')).getByRole('button', { name: 'Przywróć' }))
+    await user.click((await item('Nauczyć się gotować')).getByRole('button', { name: 'Restore' }))
 
     expect(JSON.parse(mutations()[0][1].body)).toMatchObject({ completed: false })
   })
@@ -369,7 +371,7 @@ describe('GoalsPage — zmiany na wpisie', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
 
     renderGoals()
-    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Usuń' }))
+    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Delete' }))
 
     expect(confirm).toHaveBeenCalled()
     expect(mutations()).toHaveLength(0)
@@ -379,7 +381,7 @@ describe('GoalsPage — zmiany na wpisie', () => {
     // What the refetch that follows the DELETE will find — the list, not local state, is what
     // removes the row.
     stored.length = 0
-    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Usuń' }))
+    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Delete' }))
 
     const [url, init] = mutations()[0]
     expect(url).toBe('/api/goals/g1')
@@ -393,16 +395,16 @@ describe('GoalsPage — zmiany na wpisie', () => {
     const user = userEvent.setup()
 
     renderGoals()
-    await user.click((await item('Pojechać do Japonii')).getByRole('button', { name: 'Edytuj' }))
+    await user.click((await item('Pojechać do Japonii')).getByRole('button', { name: 'Edit' }))
 
     const form = editForm()
-    expect(form.getByLabelText('Treść')).toHaveValue('Pojechać do Japonii')
+    expect(form.getByLabelText('Content')).toHaveValue('Pojechać do Japonii')
     // A dream has no horizon to prefill — the field only appears once it becomes a goal.
-    expect(form.queryByLabelText('Horyzont')).not.toBeInTheDocument()
+    expect(form.queryByLabelText('Horizon')).not.toBeInTheDocument()
 
-    await user.selectOptions(form.getByLabelText('Rodzaj'), 'GOAL')
-    await user.selectOptions(form.getByLabelText('Horyzont'), 'FEW_MONTHS')
-    await user.click(form.getByRole('button', { name: 'Zapisz' }))
+    await user.selectOptions(form.getByLabelText('Kind'), 'GOAL')
+    await user.selectOptions(form.getByLabelText('Horizon'), 'FEW_MONTHS')
+    await user.click(form.getByRole('button', { name: 'Save' }))
 
     const [url, init] = mutations()[0]
     expect(url).toBe('/api/goals/g2')
@@ -415,7 +417,7 @@ describe('GoalsPage — zmiany na wpisie', () => {
       completed: false,
       withdrawn: false,
     })
-    expect(screen.queryByRole('form', { name: 'Edytuj wpis' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: 'Edit entry' })).not.toBeInTheDocument()
   })
 
   /**
@@ -429,12 +431,12 @@ describe('GoalsPage — zmiany na wpisie', () => {
     const user = userEvent.setup()
 
     renderGoals()
-    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Edytuj' }))
+    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Edit' }))
 
     const form = editForm()
-    await user.selectOptions(form.getByLabelText('Rodzaj'), 'TASK')
-    setDate(form.getByLabelText('Termin'), '2026-09-01')
-    await user.click(form.getByRole('button', { name: 'Zapisz' }))
+    await user.selectOptions(form.getByLabelText('Kind'), 'TASK')
+    setDate(form.getByLabelText('Due date'), '2026-09-01')
+    await user.click(form.getByRole('button', { name: 'Save' }))
 
     expect(JSON.parse(mutations()[0][1].body)).toEqual({
       content: 'Przebiec półmaraton',
@@ -452,14 +454,14 @@ describe('GoalsPage — zmiany na wpisie', () => {
     const user = userEvent.setup()
 
     renderGoals()
-    await user.click((await item('Zapłacić za prąd')).getByRole('button', { name: 'Edytuj' }))
+    await user.click((await item('Zapłacić za prąd')).getByRole('button', { name: 'Edit' }))
 
     const form = editForm()
-    expect(form.getByLabelText('Termin')).toHaveValue('2026-09-01')
+    expect(form.getByLabelText('Due date')).toHaveValue('2026-09-01')
 
-    await user.selectOptions(form.getByLabelText('Rodzaj'), 'GOAL')
-    await user.selectOptions(form.getByLabelText('Horyzont'), 'FEW_MONTHS')
-    await user.click(form.getByRole('button', { name: 'Zapisz' }))
+    await user.selectOptions(form.getByLabelText('Kind'), 'GOAL')
+    await user.selectOptions(form.getByLabelText('Horizon'), 'FEW_MONTHS')
+    await user.click(form.getByRole('button', { name: 'Save' }))
 
     expect(JSON.parse(mutations()[0][1].body)).toEqual({
       content: 'Zapłacić za prąd',
@@ -478,18 +480,18 @@ describe('GoalsPage — zmiany na wpisie', () => {
  * to carry along untouched — each one is invisible in the UI and silently destroyed if the payload
  * drops it, which no amount of clicking through the happy path would reveal.
  */
-describe('GoalsPage — edycja zachowuje resztę wpisu', () => {
+describe('GoalsPage — an edit keeps the rest of the entry', () => {
   it('keeps a completed entry completed when only its text is edited', async () => {
     stubApi([COOKING])
     const user = userEvent.setup()
 
     renderGoals()
-    await user.click((await item('Nauczyć się gotować')).getByRole('button', { name: 'Edytuj' }))
+    await user.click((await item('Nauczyć się gotować')).getByRole('button', { name: 'Edit' }))
 
     const form = editForm()
-    await user.clear(form.getByLabelText('Treść'))
-    await user.type(form.getByLabelText('Treść'), 'Nauczyć się gotować (poprawka)')
-    await user.click(form.getByRole('button', { name: 'Zapisz' }))
+    await user.clear(form.getByLabelText('Content'))
+    await user.type(form.getByLabelText('Content'), 'Nauczyć się gotować (poprawka)')
+    await user.click(form.getByRole('button', { name: 'Save' }))
 
     expect(JSON.parse(mutations()[0][1].body)).toMatchObject({
       content: 'Nauczyć się gotować (poprawka)',
@@ -503,15 +505,15 @@ describe('GoalsPage — edycja zachowuje resztę wpisu', () => {
     const user = userEvent.setup()
 
     renderGoals()
-    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Edytuj' }))
+    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Edit' }))
 
     const form = editForm()
-    expect(form.getByLabelText('Horyzont')).toHaveValue('THIS_YEAR')
-    expect(form.getByLabelText('Kategoria')).toHaveValue('HEALTH')
+    expect(form.getByLabelText('Horizon')).toHaveValue('THIS_YEAR')
+    expect(form.getByLabelText('Category')).toHaveValue('HEALTH')
 
-    await user.clear(form.getByLabelText('Treść'))
-    await user.type(form.getByLabelText('Treść'), 'Przebiec maraton')
-    await user.click(form.getByRole('button', { name: 'Zapisz' }))
+    await user.clear(form.getByLabelText('Content'))
+    await user.type(form.getByLabelText('Content'), 'Przebiec maraton')
+    await user.click(form.getByRole('button', { name: 'Save' }))
 
     expect(JSON.parse(mutations()[0][1].body)).toEqual({
       content: 'Przebiec maraton',
@@ -539,15 +541,15 @@ function goalFetches() {
   return fetchMock.mock.calls.filter(([url]) => url === '/api/goals')
 }
 
-describe('GoalsPage — nieudany zapis', () => {
+describe('GoalsPage — a failed save', () => {
   it('says what is wrong when the server rejects the entry, not just "try again"', async () => {
     stubFailingMutations([RUN], 422)
     const user = userEvent.setup()
 
     renderGoals()
-    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Ukończ' }))
+    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Complete' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/odrzuc/i)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/rejected/i)
   })
 
   it('refetches when the entry is already gone, so the stale row disappears', async () => {
@@ -558,9 +560,9 @@ describe('GoalsPage — nieudany zapis', () => {
     await screen.findByText('Przebiec półmaraton')
     const before = goalFetches().length
 
-    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Ukończ' }))
+    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Complete' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/już nie istnieje/i)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/no longer exists/i)
     expect(goalFetches().length).toBeGreaterThan(before)
   })
 
@@ -585,11 +587,11 @@ describe('GoalsPage — nieudany zapis', () => {
     const user = userEvent.setup()
 
     renderGoals()
-    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Usuń' }))
+    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Delete' }))
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(/nie udało się wczytać/i)
-    expect(alert).not.toHaveTextContent(/odświeżona/i)
+    expect(alert).toHaveTextContent(/could not load/i)
+    expect(alert).not.toHaveTextContent(/refreshed/i)
     expect(screen.getByText('Przebiec półmaraton')).toBeInTheDocument()
   })
 
@@ -599,12 +601,12 @@ describe('GoalsPage — nieudany zapis', () => {
 
     renderGoals()
     const form = await createForm()
-    await user.type(form.getByLabelText('Treść'), 'Przebiec półmaraton')
-    await user.selectOptions(form.getByLabelText('Rodzaj'), 'DREAM')
-    await user.click(form.getByRole('button', { name: 'Dodaj' }))
+    await user.type(form.getByLabelText('Content'), 'Przebiec półmaraton')
+    await user.selectOptions(form.getByLabelText('Kind'), 'DREAM')
+    await user.click(form.getByRole('button', { name: 'Add' }))
 
     expect(await screen.findByRole('alert')).toBeInTheDocument()
-    expect(form.getByLabelText('Treść')).toHaveValue('Przebiec półmaraton')
+    expect(form.getByLabelText('Content')).toHaveValue('Przebiec półmaraton')
   })
 
   it('records the failure, so a save that breaks in production is not invisible', async () => {
@@ -613,7 +615,7 @@ describe('GoalsPage — nieudany zapis', () => {
     const user = userEvent.setup()
 
     renderGoals()
-    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Ukończ' }))
+    await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Complete' }))
 
     await screen.findByRole('alert')
     expect(logged).toHaveBeenCalled()
@@ -627,22 +629,22 @@ describe('GoalsPage — nieudany zapis', () => {
  * anyway, so a future form field carrying the same name cannot silently capture them.
  */
 function filters() {
-  return within(screen.getByRole('region', { name: 'Filtry' }))
+  return within(screen.getByRole('region', { name: 'Filters' }))
 }
 
-describe('GoalsPage — filtry', () => {
-  it('shows one layer at a time, heading and all, when narrowed by rodzaj', async () => {
+describe('GoalsPage — filters', () => {
+  it('shows one layer at a time, heading and all, when narrowed by kind', async () => {
     stubApi([RUN, JAPAN, ELECTRICITY])
     const user = userEvent.setup()
 
     renderGoals()
     await screen.findByText('Przebiec półmaraton')
-    await user.selectOptions(filters().getByLabelText('Pokaż rodzaj'), 'TASK')
+    await user.selectOptions(filters().getByLabelText('Show kind'), 'TASK')
 
     expect(screen.getByText('Zapłacić za prąd')).toBeInTheDocument()
     expect(screen.queryByText('Przebiec półmaraton')).not.toBeInTheDocument()
     // The heading goes with its entries: an empty long-term section would read as "no goals".
-    expect(screen.queryByRole('heading', { name: 'Cele długoterminowe' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Long-term goals' })).not.toBeInTheDocument()
   })
 
   it('narrows by category across all three layers at once', async () => {
@@ -651,16 +653,16 @@ describe('GoalsPage — filtry', () => {
 
     renderGoals()
     await screen.findByText('Przebiec półmaraton')
-    await user.selectOptions(filters().getByLabelText('Pokaż kategorię'), 'HEALTH')
+    await user.selectOptions(filters().getByLabelText('Show category'), 'HEALTH')
 
     expect(screen.getByText('Przebiec półmaraton')).toBeInTheDocument()
     expect(screen.queryByText('Zapłacić za prąd')).not.toBeInTheDocument()
-    // An uncategorised entry is not a match for every category: picking one has to hide it, or
-    // "Bez kategorii" would be the only choice that ever changes what a null-category entry does.
+    // An uncategorised entry is not a match for every category: picking one has to hide it, or the
+    // NO_CATEGORY option would be the only choice that ever changes what a null-category entry does.
     expect(screen.queryByText('Pojechać do Japonii')).not.toBeInTheDocument()
     // Category narrows the list without touching the layer split — the sections all still render,
-    // empty ones included. That is the deliberate asymmetry with the `rodzaj` filter above.
-    expect(screen.getByRole('heading', { name: 'Marzenia' })).toBeInTheDocument()
+    // empty ones included. That is the deliberate asymmetry with the layer filter above.
+    expect(screen.getByRole('heading', { name: 'Dreams' })).toBeInTheDocument()
   })
 
   /**
@@ -675,12 +677,12 @@ describe('GoalsPage — filtry', () => {
 
     renderGoals()
     await screen.findByText('Przebiec półmaraton')
-    await user.selectOptions(filters().getByLabelText('Pokaż rodzaj'), 'TASK')
-    await user.selectOptions(filters().getByLabelText('Pokaż kategorię'), 'HOME')
+    await user.selectOptions(filters().getByLabelText('Show kind'), 'TASK')
+    await user.selectOptions(filters().getByLabelText('Show category'), 'HOME')
 
-    expect(filters().getByLabelText('Pokaż rodzaj')).toHaveValue('TASK')
+    expect(filters().getByLabelText('Show kind')).toHaveValue('TASK')
     expect(screen.getByText('Zapłacić za prąd')).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Marzenia' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Dreams' })).not.toBeInTheDocument()
     // Lowercase in the link, SCREAMING_CASE on the wire: a URL is read, typed and shared by a
     // person. Reading is case-insensitive, so only this assertion can catch a write that is not.
     expect(screen.getByTestId('location')).toHaveTextContent('/goals?layer=task&category=home')
@@ -697,7 +699,7 @@ describe('GoalsPage — filtry', () => {
 
     renderGoals()
     await screen.findByText('Przebiec półmaraton')
-    await user.selectOptions(filters().getByLabelText('Pokaż kategorię'), 'NONE')
+    await user.selectOptions(filters().getByLabelText('Show category'), 'NONE')
 
     expect(screen.getByText('Pojechać do Japonii')).toBeInTheDocument()
     expect(screen.queryByText('Przebiec półmaraton')).not.toBeInTheDocument()
@@ -714,16 +716,17 @@ describe('GoalsPage — filtry', () => {
     renderGoals('/goals?layer=task&category=home')
 
     expect(await screen.findByText('Zapłacić za prąd')).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Marzenia' })).not.toBeInTheDocument()
-    expect(filters().getByLabelText('Pokaż rodzaj')).toHaveValue('TASK')
-    expect(filters().getByLabelText('Pokaż kategorię')).toHaveValue('HOME')
+    expect(screen.queryByRole('heading', { name: 'Dreams' })).not.toBeInTheDocument()
+    expect(filters().getByLabelText('Show kind')).toHaveValue('TASK')
+    expect(filters().getByLabelText('Show category')).toHaveValue('HOME')
   })
 
   /**
    * A `layer` the app never wrote — a stale bookmark, a link from a later build — must not empty the
    * screen. A controlled `<select>` whose value matches no option falls back to its first option, so
-   * an un-normalised bogus value renders a control reading "Wszystkie" over nothing at all: the one
-   * state that says "you have no entries" while actively hiding them. Falling back to no filter is
+   * an un-normalised bogus value renders a control reading as the no-filter option over nothing
+   * at all: the one state that says "you have no entries" while actively hiding them. Falling
+   * back to no filter is
    * the only outcome the control can honestly display.
    */
   it('falls back to showing everything when the URL names a layer that does not exist', async () => {
@@ -734,21 +737,21 @@ describe('GoalsPage — filtry', () => {
     expect(await screen.findByText('Przebiec półmaraton')).toBeInTheDocument()
     expect(screen.getByText('Pojechać do Japonii')).toBeInTheDocument()
     expect(screen.getByText('Zapłacić za prąd')).toBeInTheDocument()
-    expect(filters().getByLabelText('Pokaż rodzaj')).toHaveValue('')
+    expect(filters().getByLabelText('Show kind')).toHaveValue('')
   })
 
   /**
    * `category` cannot be normalised the same way: its options come from the shell's fetched domains,
    * so an unresolved or failed `/api/categories` would throw away a perfectly valid `?category=home`
    * on every first paint. The message is what covers it — and it is the one signal that still tells
-   * the truth when a stale code leaves the select reading "Wszystkie".
+   * the truth when a stale code leaves the select reading as the no-filter option.
    */
   it('says nothing matched rather than showing an empty list as if there were no entries', async () => {
     stubApi([RUN, JAPAN, ELECTRICITY])
 
     renderGoals('/goals?layer=dream&category=home')
 
-    expect(await screen.findByText(/Żaden wpis nie pasuje do filtrów/)).toBeInTheDocument()
+    expect(await screen.findByText(/No entry matches the filters/)).toBeInTheDocument()
     expect(screen.queryByText('Pojechać do Japonii')).not.toBeInTheDocument()
   })
 
@@ -758,8 +761,8 @@ describe('GoalsPage — filtry', () => {
 
     renderGoals()
 
-    expect(await screen.findByRole('form', { name: 'Nowy wpis' })).toBeInTheDocument()
-    expect(screen.queryByText(/Żaden wpis nie pasuje do filtrów/)).not.toBeInTheDocument()
+    expect(await screen.findByRole('form', { name: 'New entry' })).toBeInTheDocument()
+    expect(screen.queryByText(/No entry matches the filters/)).not.toBeInTheDocument()
   })
 })
 
@@ -769,7 +772,7 @@ describe('GoalsPage — filtry', () => {
  * and reachable through the filter row, because a state you cannot get back out of is a delete with
  * extra steps.
  */
-describe('GoalsPage — wycofane', () => {
+describe('GoalsPage — withdrawn entries', () => {
   it('hides withdrawn entries until the filter asks for them', async () => {
     stubApi([JAPAN, GUITAR])
     const user = userEvent.setup()
@@ -778,7 +781,7 @@ describe('GoalsPage — wycofane', () => {
     await screen.findByText('Pojechać do Japonii')
     expect(screen.queryByText('Nauczyć się grać na gitarze')).not.toBeInTheDocument()
 
-    await user.click(filters().getByLabelText('Pokaż wycofane'))
+    await user.click(filters().getByLabelText('Show withdrawn'))
 
     expect(await screen.findByText('Nauczyć się grać na gitarze')).toBeInTheDocument()
     expect(screen.getByTestId('location')).toHaveTextContent('/goals?withdrawn=1')
@@ -791,7 +794,7 @@ describe('GoalsPage — wycofane', () => {
     renderGoals('/goals?withdrawn=1')
 
     expect(await screen.findByText('Nauczyć się grać na gitarze')).toBeInTheDocument()
-    expect(filters().getByLabelText('Pokaż wycofane')).toBeChecked()
+    expect(filters().getByLabelText('Show withdrawn')).toBeChecked()
   })
 
   /**
@@ -803,7 +806,7 @@ describe('GoalsPage — wycofane', () => {
     const user = userEvent.setup()
 
     renderGoals('/goals?withdrawn=1')
-    await user.click((await item('Nauczyć się grać na gitarze')).getByRole('button', { name: 'Przywróć' }))
+    await user.click((await item('Nauczyć się grać na gitarze')).getByRole('button', { name: 'Restore' }))
 
     const [url, init] = mutations()[0]
     expect(url).toBe('/api/goals/g5')
@@ -821,9 +824,9 @@ describe('GoalsPage — wycofane', () => {
 
   /**
    * A withdrawn entry offers restore and delete, nothing else. Completing or editing one is asking
-   * the user to act on an entry they have just said they will never act on — and "Przywróć" is
-   * already the complete toggle's own label, so offering both in one row would put two identically
-   * named buttons side by side meaning different things.
+   * the user to act on an entry they have just said they will never act on — and restore is
+   * already the complete toggle's own label for a completed entry, so offering both in one row
+   * would put two identically named buttons side by side meaning different things.
    */
   it('offers a withdrawn entry only the actions that make sense for it', async () => {
     stubApi([GUITAR])
@@ -831,10 +834,10 @@ describe('GoalsPage — wycofane', () => {
     renderGoals('/goals?withdrawn=1')
     const row = await item('Nauczyć się grać na gitarze')
 
-    expect(row.getByRole('button', { name: 'Przywróć' })).toBeInTheDocument()
-    expect(row.getByRole('button', { name: 'Usuń' })).toBeInTheDocument()
-    expect(row.queryByRole('button', { name: 'Ukończ' })).not.toBeInTheDocument()
-    expect(row.queryByRole('button', { name: 'Edytuj' })).not.toBeInTheDocument()
+    expect(row.getByRole('button', { name: 'Restore' })).toBeInTheDocument()
+    expect(row.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+    expect(row.queryByRole('button', { name: 'Complete' })).not.toBeInTheDocument()
+    expect(row.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
   })
 
   /**
@@ -848,7 +851,67 @@ describe('GoalsPage — wycofane', () => {
 
     renderGoals()
 
-    expect(await screen.findByText(/Żaden wpis nie pasuje do filtrów/)).toBeInTheDocument()
+    expect(await screen.findByText(/No entry matches the filters/)).toBeInTheDocument()
     expect(screen.queryByText('Nauczyć się grać na gitarze')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * US-01 is walked in English by every test above, because English is what the suite renders in.
+ * This walks the same path in the other locale — add a dream, ask for a proposal — so the second
+ * language is not left untested by the default having flipped. The entry text stays Polish either
+ * way: it is what a person typed, not copy.
+ */
+describe('GoalsPage — the same path in Polish', () => {
+  const WAITING = {
+    id: 'p1',
+    entry: JAPAN,
+    neglected_days: 90,
+    message: 'W sierpniu zapisałeś, że chcesz pojechać do Japonii. Minęły trzy miesiące.',
+    source: 'LLM',
+    answer: null,
+    answered_at: null,
+    first_step: null,
+  } satisfies Proposal
+
+  it('renders the shell, the form and the proposal in Polish, and asks the server for it too', async () => {
+    await i18n.changeLanguage('pl')
+    const stored: Goal[] = []
+    fetchMock.mockImplementation((url: string, init: { method?: string } = {}) => {
+      if (url === '/api/categories') return Promise.resolve(response(200, { items: DOMAINS }))
+      if (url === '/api/proposals/pending') return Promise.resolve(response(204))
+      if (url === '/api/proposals') return Promise.resolve(response(200, WAITING))
+      if (url === '/api/goals' && (init.method ?? 'GET') === 'GET') {
+        return Promise.resolve(response(200, { items: [...stored] }))
+      }
+      return Promise.resolve(response(200, {}))
+    })
+    const user = userEvent.setup()
+
+    renderGoals()
+    const form = within(await screen.findByRole('form', { name: 'Nowy wpis' }))
+    await user.type(form.getByLabelText('Treść'), 'Pojechać do Japonii')
+    await user.selectOptions(form.getByLabelText('Rodzaj'), 'DREAM')
+    stored.push(JAPAN)
+    await user.click(form.getByRole('button', { name: 'Dodaj' }))
+
+    expect(await section('Marzenia').findByText('Pojechać do Japonii')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Daj mi coś teraz' }))
+
+    // The engine's prose is rendered verbatim; the four answers are the app's own copy.
+    expect(await screen.findByText(WAITING.message)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Zaczynam' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Nigdy' })).toBeInTheDocument()
+    // The one place the Polish catalog has a plural table: 7, 30 and 90 all take the `many` form,
+    // and only rendering them in Polish proves that form exists — a misspelled key would fall
+    // through to `other` and read "Za 7 dnia" with every English test green.
+    await user.click(screen.getByRole('button', { name: 'Przypomnij później' }))
+    expect(screen.getByRole('button', { name: 'Za 7 dni' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Za 30 dni' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Za 90 dni' })).toBeInTheDocument()
+    // And the wire carries the same choice, which is what makes the server's half follow.
+    const headers = fetchMock.mock.calls.at(-1)?.[1].headers as Record<string, string>
+    expect(headers['Accept-Language']).toBe('pl')
   })
 })

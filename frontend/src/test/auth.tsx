@@ -11,6 +11,7 @@ export function stubAuth(overrides: Partial<Auth> = {}): Auth {
     status: 'anonymous',
     login: vi.fn().mockResolvedValue(undefined),
     register: vi.fn().mockResolvedValue(undefined),
+    changeLanguage: vi.fn().mockResolvedValue(undefined),
     logout: vi.fn().mockResolvedValue(undefined),
     deleteAccount: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -20,7 +21,7 @@ export function stubAuth(overrides: Partial<Auth> = {}): Auth {
 /** The signed-in overrides every shell test starts from. */
 export const LOGGED_IN: Partial<Auth> = {
   status: 'authenticated',
-  user: { id: 'u1', email: 'ala@example.pl' },
+  user: { id: 'u1', email: 'ala@example.pl', language: 'EN' },
 }
 
 /** Minimal stand-in for `Response` — the client only reads these four members. */

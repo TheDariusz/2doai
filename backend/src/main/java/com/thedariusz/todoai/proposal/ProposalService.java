@@ -16,6 +16,7 @@ import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.goal.GoalRepository;
 import com.thedariusz.todoai.proposal.ProposalSelector.Candidate;
 import com.thedariusz.todoai.security.CurrentUser;
+import com.thedariusz.todoai.user.AppLanguage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -130,8 +131,13 @@ class ProposalService {
 		return pending(currentUser.requireId());
 	}
 
-	/** @return the proposal to put in front of the user, or empty when nothing has been neglected */
-	Optional<ProposalResponse> propose() {
+	/**
+	 * @param language what to write in — the request's, not the account's: the SPA sends the header
+	 *        from whatever it is currently rendering, so a language switch takes effect on the next
+	 *        proposal rather than on the next login
+	 * @return the proposal to put in front of the user, or empty when nothing has been neglected
+	 */
+	Optional<ProposalResponse> propose(AppLanguage language) {
 		UUID userId = currentUser.requireId();
 
 		Optional<ProposalResponse> existing = pending(userId);
@@ -142,7 +148,8 @@ class ProposalService {
 		List<Goal> entries = goals.findByUserIdOrderByCreatedAtDesc(userId);
 		return ProposalSelector
 				.select(entries.stream().map(Candidate::of).toList(), OffsetDateTime.now(USER_ZONE))
-				.map(selection -> open(userId, pick(entries, selection.id()), selection.neglectedDays()));
+				.map(selection -> open(userId, pick(entries, selection.id()), selection.neglectedDays(),
+						language));
 	}
 
 	/**
@@ -150,12 +157,12 @@ class ProposalService {
 	 * rhythm's fire. {@link CurrentUser} is never consulted: a scheduler thread has no
 	 * {@code SecurityContext}, and inventing one would make the scoping decorative.
 	 *
-	 * <p><b>It is not {@link #propose()} with an argument, and the difference is the whole method.</b>
-	 * The manual trigger short-circuits on a pending proposal — a second press must return the same
-	 * card rather than pay for a second model call. Doing that here would mean the rhythm stops dead
-	 * the first time the user ignores a proposal, which is exactly the user this feature exists for.
-	 * So the scheduled path <em>replaces</em> instead: the unanswered proposal is closed as
-	 * {@code SUPERSEDED} and the new one takes the pending slot.
+	 * <p><b>It is not {@link #propose(AppLanguage)} with an argument, and the difference is the whole
+	 * method.</b> The manual trigger short-circuits on a pending proposal — a second press must return
+	 * the same card rather than pay for a second model call. Doing that here would mean the rhythm
+	 * stops dead the first time the user ignores a proposal, which is exactly the user this feature
+	 * exists for. So the scheduled path <em>replaces</em> instead: the unanswered proposal is closed
+	 * as {@code SUPERSEDED} and the new one takes the pending slot.
 	 *
 	 * <p><b>Selection runs first, with the ignored entry excluded, and superseding happens only if it
 	 * produced something.</b> Both halves of that are load-bearing. Superseding first would snooze the
@@ -182,7 +189,12 @@ class ProposalService {
 			// Before the insert, never after: the pending slot is a partial unique index, and the
 			// replacement cannot be written while the proposal it replaces still holds it.
 			ignored.ifPresent(proposal -> supersede(userId, proposal.getId(), now));
-			return open(userId, pick(entries, selection.id()), selection.neglectedDays());
+			// The accepted FR-009 exception, and the whole of it: this text is written once, here, and
+			// stored — it reaches both the e-mail and the pending card — so an account reading the
+			// other language gets this one until FR-009 lands. Named at this one seam so pulling it
+			// forward is a small change; see context/changes/pl-en-localization/change.md.
+			return open(userId, pick(entries, selection.id()), selection.neglectedDays(),
+					AppLanguage.PL);
 		});
 	}
 
@@ -234,9 +246,9 @@ class ProposalService {
 	 * service-level check would race with itself — so a rejected insert means the other press won,
 	 * and its proposal is the right answer to return rather than a 500.
 	 */
-	private ProposalResponse open(UUID userId, Goal entry, long neglectedDays) {
+	private ProposalResponse open(UUID userId, Goal entry, long neglectedDays, AppLanguage language) {
 		try {
-			return render(proposals.saveAndFlush(draft(userId, entry, neglectedDays)), entry);
+			return render(proposals.saveAndFlush(draft(userId, entry, neglectedDays, language)), entry);
 		}
 		catch (DataIntegrityViolationException ex) {
 			// Logged with the violation itself: this arm recovers from the pending-slot index, but it
@@ -248,18 +260,27 @@ class ProposalService {
 		}
 	}
 
-	/** Phrase the entry, recording on the row which arm actually wrote the sentence. */
-	private Proposal draft(UUID userId, Goal entry, long neglectedDays) {
+	/**
+	 * Phrase the entry, recording on the row which arm actually wrote the sentence. Both arms write
+	 * the same language: the model is <em>told</em> which one, while the fallback <em>is</em> the
+	 * sentence and so has one implementation per language to choose between.
+	 */
+	private Proposal draft(UUID userId, Goal entry, long neglectedDays, AppLanguage language) {
 		try {
-			String message = llm.complete(
-					ProposalPrompt.forProposal(model, memory.renderFor(userId), entry, neglectedDays));
+			String message = llm.complete(ProposalPrompt.forProposal(
+					model, memory.renderFor(userId), entry, neglectedDays, language));
 			return new Proposal(userId, entry.getId(), message, neglectedDays, Proposal.Source.LLM);
 		}
 		catch (LlmException ex) {
 			// The user gets a proposal either way — the roadmap's 08.09 gate, permanently wired in.
 			log.warn("Falling back to the template proposal: the model call failed", ex);
-			return new Proposal(userId, entry.getId(), ProposalTemplate.phrase(entry, neglectedDays),
-					neglectedDays, Proposal.Source.TEMPLATE);
+			// A switch rather than a ternary, so a third language has to be given a sentence of its
+			// own here rather than silently inheriting this one's.
+			String message = switch (language) {
+				case PL -> ProposalTemplatePl.phrase(entry, neglectedDays);
+				case EN -> ProposalTemplateEn.phrase(entry, neglectedDays);
+			};
+			return new Proposal(userId, entry.getId(), message, neglectedDays, Proposal.Source.TEMPLATE);
 		}
 	}
 
@@ -282,10 +303,12 @@ class ProposalService {
 	 * refusal fire against current state rather than a snapshot, so two answers in flight queue and
 	 * the loser gets the same 409 the pre-check hands a double-click.
 	 *
+	 * @param language what the first step is written in, when the answer asks for one — the
+	 *        request's, exactly as {@link #propose} reads it
 	 * @throws ProposalNotFoundException if no such proposal is owned by the caller
 	 * @throws ProposalAlreadyAnsweredException if it already carries an answer
 	 */
-	ProposalResponse answer(UUID id, ProposalAnswerRequest request) {
+	ProposalResponse answer(UUID id, ProposalAnswerRequest request, AppLanguage language) {
 		UUID userId = currentUser.requireId();
 
 		Proposal shown = proposals.findByIdAndUserId(id, userId)
@@ -296,7 +319,7 @@ class ProposalService {
 
 		// Before the transaction opens, never inside it — see the class javadoc.
 		List<String> steps = request.answer() == ProposalAnswer.STARTING
-				? firstStep(userId, entry(userId, shown.getGoalId())) : null;
+				? firstStep(userId, entry(userId, shown.getGoalId()), language) : null;
 
 		OffsetDateTime now = OffsetDateTime.now(USER_ZONE);
 		return transactions.execute(status -> {
@@ -351,10 +374,10 @@ class ProposalService {
 	 * answered, and the answer must land — so it degrades to an empty list, which the contract
 	 * publishes as "the answer landed but the model did not".
 	 */
-	private List<String> firstStep(UUID userId, Goal entry) {
+	private List<String> firstStep(UUID userId, Goal entry, AppLanguage language) {
 		try {
 			return llm.completeStructured(
-					ProposalPrompt.forFirstStep(model, memory.renderFor(userId), entry),
+					ProposalPrompt.forFirstStep(model, memory.renderFor(userId), entry, language),
 					FirstStep.class, FirstStep.SCHEMA).steps();
 		}
 		catch (LlmException ex) {

@@ -7,21 +7,21 @@
         <mxCell id="1" parent="0" />
 
         <!-- Title -->
-        <mxCell id="title" value="2do AI — Current Data Model (through S-05: the proactive loop and its rhythm)" style="text;html=1;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;fontColor=#333333;" vertex="1" parent="1">
+        <mxCell id="title" value="2do AI — Current Data Model (through DEV-49: the proactive loop, its rhythm, and two languages)" style="text;html=1;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;fontColor=#333333;" vertex="1" parent="1">
           <mxGeometry x="60" y="30" width="760" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="subtitle" value="Flyway V1–V9:  category (V1–V2) · ai_memory (V3) · app_user (V4–V5, V9) · goal (V6–V8) · proposal (V8–V9).&#xa;ddl-auto=validate." style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#777777;" vertex="1" parent="1">
+        <mxCell id="subtitle" value="Flyway V1–V11:  category (V1–V2, V11) · ai_memory (V3) · app_user (V4–V5, V9–V10)&#xa;goal (V6–V8) · proposal (V8–V9).   ddl-auto=validate." style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#777777;" vertex="1" parent="1">
           <mxGeometry x="60" y="58" width="600" height="34" as="geometry" />
         </mxCell>
 
         <!-- ============ Aggregate boundary (background) ============ -->
         <mxCell id="agg" value="AI-Memory aggregate  «F-02»  —  consistency boundary  (cascade ALL + orphanRemoval)" style="rounded=1;arcSize=3;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 6;strokeColor=#9673a6;strokeWidth=2;fillColor=none;fontStyle=2;fontColor=#6a4a8a;fontSize=13;verticalAlign=bottom;spacingBottom=8;" vertex="1" parent="1">
-          <mxGeometry x="440" y="268" width="700" height="590" as="geometry" />
+          <mxGeometry x="440" y="318" width="700" height="590" as="geometry" />
         </mxCell>
 
         <!-- ============ category (reference table) ============ -->
         <mxCell id="cat" value="category  «reference / static»" style="shape=table;startSize=30;container=1;collapsible=1;childLayout=tableLayout;fixedRows=1;rowLines=0;fontStyle=1;align=center;strokeColor=#666666;fillColor=#f5f5f5;html=1;" vertex="1" parent="1">
-          <mxGeometry x="90" y="500" width="300" height="108" as="geometry" />
+          <mxGeometry x="90" y="500" width="300" height="134" as="geometry" />
         </mxCell>
         <mxCell id="cat_r1" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="cat">
           <mxGeometry y="30" width="300" height="26" as="geometry" />
@@ -50,15 +50,24 @@
         <mxCell id="cat_r3v" value="display_order : INTEGER  «unique»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;" vertex="1" parent="cat_r3">
           <mxGeometry x="46" width="254" height="26" as="geometry" />
         </mxCell>
+        <mxCell id="cat_r4" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="cat">
+          <mxGeometry y="108" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="cat_r4k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="cat_r4">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="cat_r4v" value="name_en : VARCHAR(255)  «DEV-49»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;" vertex="1" parent="cat_r4">
+          <mxGeometry x="46" width="254" height="26" as="geometry" />
+        </mxCell>
 
         <!-- ============ LifeDomain enum (in-code mirror) ============ -->
         <mxCell id="enum" value="LifeDomain  «enum»  (FR-007)&#xa;&#xa;HEALTH · FINANCE · CAREER&#xa;EDUCATION · RELATIONSHIPS&#xa;HOME · LEISURE · ADMIN&#xa;SAFETY · TRANSPORT&#xa;INNER_GROWTH&#xa;&#xa;constant name  =  category.code&#xa;declaration order  =  display_order (1..11)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#4b2e63;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="90" y="650" width="240" height="210" as="geometry" />
+          <mxGeometry x="90" y="680" width="240" height="210" as="geometry" />
         </mxCell>
 
         <!-- ============ app_user (S-01, V4 — "user" is a reserved word in Postgres) ============ -->
         <mxCell id="usr" value="app_user  «identity»" style="shape=table;startSize=30;container=1;collapsible=1;childLayout=tableLayout;fixedRows=1;rowLines=0;fontStyle=1;align=center;strokeColor=#82b366;strokeWidth=2;fillColor=#d5e8d4;html=1;" vertex="1" parent="1">
-          <mxGeometry x="670" y="60" width="340" height="204" as="geometry" />
+          <mxGeometry x="670" y="60" width="340" height="248" as="geometry" />
         </mxCell>
         <mxCell id="usr_r1" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="usr">
           <mxGeometry y="30" width="340" height="26" as="geometry" />
@@ -96,8 +105,17 @@
         <mxCell id="usr_r35v" value="next_proposal_at : timestamptz  «S-05 · NULL = never scheduled»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;" vertex="1" parent="usr_r35">
           <mxGeometry x="46" width="294" height="44" as="geometry" />
         </mxCell>
+        <mxCell id="usr_r36" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="usr">
+          <mxGeometry y="152" width="340" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="usr_r36k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="usr_r36">
+          <mxGeometry width="46" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="usr_r36v" value="preferred_language : VARCHAR(2)  «DEV-49 · NULL = Polish»" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;align=left;spacingLeft=6;" vertex="1" parent="usr_r36">
+          <mxGeometry x="46" width="294" height="44" as="geometry" />
+        </mxCell>
         <mxCell id="usr_r4" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="usr">
-          <mxGeometry y="152" width="340" height="26" as="geometry" />
+          <mxGeometry y="196" width="340" height="26" as="geometry" />
         </mxCell>
         <mxCell id="usr_r4k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="usr_r4">
           <mxGeometry width="46" height="26" as="geometry" />
@@ -106,7 +124,7 @@
           <mxGeometry x="46" width="294" height="26" as="geometry" />
         </mxCell>
         <mxCell id="usr_r5" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="usr">
-          <mxGeometry y="178" width="340" height="26" as="geometry" />
+          <mxGeometry y="222" width="340" height="26" as="geometry" />
         </mxCell>
         <mxCell id="usr_r5k" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=inherit;overflow=hidden;fillColor=none;top=0;left=0;bottom=0;right=0;pointerEvents=1;" vertex="1" parent="usr_r5">
           <mxGeometry width="46" height="26" as="geometry" />
@@ -239,7 +257,7 @@
 
         <!-- ============ ai_memory (aggregate ROOT) ============ -->
         <mxCell id="am" value="ai_memory  «aggregate root»" style="shape=table;startSize=30;container=1;collapsible=1;childLayout=tableLayout;fixedRows=1;rowLines=0;fontStyle=1;align=center;strokeColor=#6c8ebf;strokeWidth=2;fillColor=#dae8fc;html=1;" vertex="1" parent="1">
-          <mxGeometry x="655" y="290" width="270" height="134" as="geometry" />
+          <mxGeometry x="655" y="340" width="270" height="134" as="geometry" />
         </mxCell>
         <mxCell id="am_r1" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="am">
           <mxGeometry y="30" width="270" height="26" as="geometry" />
@@ -280,7 +298,7 @@
 
         <!-- ============ ai_memory_profile_fact (aggregate child) ============ -->
         <mxCell id="pf" value="ai_memory_profile_fact  «child»" style="shape=table;startSize=30;container=1;collapsible=1;childLayout=tableLayout;fixedRows=1;rowLines=0;fontStyle=1;align=center;strokeColor=#6c8ebf;fillColor=#dae8fc;html=1;" vertex="1" parent="1">
-          <mxGeometry x="470" y="540" width="290" height="212" as="geometry" />
+          <mxGeometry x="470" y="590" width="290" height="212" as="geometry" />
         </mxCell>
         <mxCell id="pf_r1" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="pf">
           <mxGeometry y="30" width="290" height="26" as="geometry" />
@@ -348,7 +366,7 @@
 
         <!-- ============ ai_memory_episode (aggregate child, append-only) ============ -->
         <mxCell id="ep" value="ai_memory_episode  «child · append-only»" style="shape=table;startSize=30;container=1;collapsible=1;childLayout=tableLayout;fixedRows=1;rowLines=0;fontStyle=1;align=center;strokeColor=#6c8ebf;fillColor=#dae8fc;html=1;" vertex="1" parent="1">
-          <mxGeometry x="820" y="540" width="290" height="186" as="geometry" />
+          <mxGeometry x="820" y="590" width="290" height="186" as="geometry" />
         </mxCell>
         <mxCell id="ep_r1" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="ep">
           <mxGeometry y="30" width="290" height="26" as="geometry" />
@@ -434,7 +452,7 @@
 
         <!-- ============ proposal (S-04b) ============ -->
         <mxCell id="pr" value="proposal  «aggregate · what the user was shown»" style="shape=table;startSize=30;container=1;collapsible=1;childLayout=tableLayout;fixedRows=1;rowLines=0;fontStyle=1;align=center;strokeColor=#82b366;strokeWidth=2;fillColor=#d5e8d4;html=1;" vertex="1" parent="1">
-          <mxGeometry x="470" y="890" width="370" height="360" as="geometry" />
+          <mxGeometry x="470" y="940" width="370" height="360" as="geometry" />
         </mxCell>
         <mxCell id="pr_r1" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;right=0;bottom=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;" vertex="1" parent="pr">
           <mxGeometry y="30" width="370" height="26" as="geometry" />
@@ -565,7 +583,7 @@
 
         <!-- ============ Legend ============ -->
         <mxCell id="legend" value="Legend" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;verticalAlign=top;fontStyle=1;align=left;spacingLeft=8;spacingTop=4;" vertex="1" parent="1">
-          <mxGeometry x="90" y="886" width="300" height="180" as="geometry" />
+          <mxGeometry x="90" y="936" width="300" height="180" as="geometry" />
         </mxCell>
         <mxCell id="lg1" value="" style="rounded=0;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="legend">
           <mxGeometry x="12" y="34" width="30" height="16" as="geometry" />

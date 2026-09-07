@@ -1,0 +1,24 @@
+-- The contract half of V11 (DEV-49, FR-005). V11 added `name_en` nullable and seeded all eleven
+-- rows in the same migration; this states the rule that seed was always meant to satisfy, now that
+-- it has run.
+--
+-- Why the constraint is worth a second migration rather than a startup check: a category with no
+-- English name is an error nowhere. `CategoryResponse.name` is the column for the caller's language,
+-- so the row serializes as `"name": null` and arrives as a nav link with no text on it — which the
+-- frontend cannot tell apart from a domain genuinely called nothing. `CategorySyncCheck` would not
+-- notice either: it compares `code` against the LifeDomain enum and never looks at the labels. The
+-- table is reference data owned by migrations, so the earliest and loudest place to catch a missing
+-- label is the migration that would introduce it, and that is what NOT NULL does.
+--
+-- Safe here, unlike on V10's `app_user.preferred_language`, and the difference is who writes the
+-- table. `app_user` rows are inserted by the running application, so a NOT NULL column the deployed
+-- image does not know about would break registration the moment the migration landed. Nothing
+-- inserts a category but a migration, so there is no image — current or previous — that this can
+-- break: the old one only ever reads `name_pl`.
+--
+-- Separate from V11 rather than folded into it because V11 has already been applied to development
+-- databases; editing it now would change its checksum and Flyway would refuse to start against them.
+--
+-- `name_pl` has been NOT NULL since V1. This is the column catching up, not a new rule.
+
+ALTER TABLE category ALTER COLUMN name_en SET NOT NULL;
