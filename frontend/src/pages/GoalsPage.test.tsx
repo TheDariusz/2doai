@@ -142,6 +142,27 @@ function editForm() {
 }
 
 /**
+ * The layer a form is being filled for. The picker is a segmented control, so choosing one is a
+ * press rather than a select — and it is scoped to its own group, because the title row's layer
+ * tabs answer to the same three names.
+ */
+function kind(form: ReturnType<typeof within>, name: string) {
+  return within(form.getByLabelText('Kind')).getByRole('button', { name })
+}
+
+/** The title row's layer tabs, scoped by the group's accessible name. */
+function layerTabs() {
+  return within(screen.getByRole('group', { name: 'Show kind' }))
+}
+
+/** The tab that is on — the segmented control's answer to a `<select>`'s value. */
+function chosenLayer() {
+  return layerTabs()
+    .getAllByRole('button')
+    .find((tab) => tab.getAttribute('aria-pressed') === 'true')
+}
+
+/**
  * `<input type="date">` is set, not typed. `userEvent.type` enters one character at a time and
  * jsdom sanitizes every partial value ("2", "20", "202"…) back to the empty string, so the field
  * ends up blank — the assertion then fails for a reason that has nothing to do with the component.
@@ -203,6 +224,22 @@ describe('GoalsPage', () => {
 })
 
 describe('GoalsPage — adding an entry', () => {
+  /**
+   * The bar names all three layers, because it is the one control on the screen a user meets before
+   * they know the app has layers at all. The field keeps its accessible name behind the placeholder
+   * — a placeholder disappears the moment anything is typed, so it can never be the only label.
+   */
+  it('invites all three layers into one field, without dropping the field’s name', async () => {
+    stubApi([])
+
+    renderGoals()
+    const form = await createForm()
+
+    expect(form.getByPlaceholderText('Add a task, a goal or a dream…')).toBe(
+      form.getByLabelText('Content'),
+    )
+  })
+
   it('posts what the form was filled with and shows the entry after the refetch', async () => {
     const stored: Goal[] = []
     stubApi(stored)
@@ -211,7 +248,7 @@ describe('GoalsPage — adding an entry', () => {
     renderGoals()
     const form = await createForm()
     await user.type(form.getByLabelText('Content'), 'Przebiec półmaraton')
-    await user.selectOptions(form.getByLabelText('Kind'), 'GOAL')
+    await user.click(kind(form, 'Goal'))
     await user.selectOptions(form.getByLabelText('Horizon'), 'THIS_YEAR')
     await user.selectOptions(form.getByLabelText('Category'), 'HEALTH')
     // What the refetch that follows the POST will find.
@@ -239,11 +276,11 @@ describe('GoalsPage — adding an entry', () => {
     const form = await createForm()
     expect(form.getByLabelText('Horizon')).toBeInTheDocument()
 
-    await user.selectOptions(form.getByLabelText('Kind'), 'DREAM')
+    await user.click(kind(form, 'Dream'))
     // A dream with a horizon is a 422 from the server — do not offer the field at all.
     expect(form.queryByLabelText('Horizon')).not.toBeInTheDocument()
 
-    await user.selectOptions(form.getByLabelText('Kind'), 'GOAL')
+    await user.click(kind(form, 'Goal'))
     expect(form.getByLabelText('Horizon')).toBeInTheDocument()
   })
 
@@ -260,11 +297,11 @@ describe('GoalsPage — adding an entry', () => {
     const form = await createForm()
     expect(form.queryByLabelText('Due date')).not.toBeInTheDocument()
 
-    await user.selectOptions(form.getByLabelText('Kind'), 'TASK')
+    await user.click(kind(form, 'Task'))
     expect(form.getByLabelText('Due date')).toBeInTheDocument()
     expect(form.queryByLabelText('Horizon')).not.toBeInTheDocument()
 
-    await user.selectOptions(form.getByLabelText('Kind'), 'DREAM')
+    await user.click(kind(form, 'Dream'))
     expect(form.queryByLabelText('Due date')).not.toBeInTheDocument()
   })
 
@@ -275,7 +312,7 @@ describe('GoalsPage — adding an entry', () => {
     renderGoals()
     const form = await createForm()
     await user.type(form.getByLabelText('Content'), 'Zapłacić za prąd')
-    await user.selectOptions(form.getByLabelText('Kind'), 'TASK')
+    await user.click(kind(form, 'Task'))
     setDate(form.getByLabelText('Due date'), '2026-09-01')
     await user.selectOptions(form.getByLabelText('Category'), 'HOME')
     await user.click(form.getByRole('button', { name: 'Add' }))
@@ -300,7 +337,7 @@ describe('GoalsPage — adding an entry', () => {
     renderGoals()
     const form = await createForm()
     await user.type(form.getByLabelText('Content'), 'Kupić chleb')
-    await user.selectOptions(form.getByLabelText('Kind'), 'TASK')
+    await user.click(kind(form, 'Task'))
     await user.click(form.getByRole('button', { name: 'Add' }))
 
     expect(JSON.parse(mutations()[0][1].body)).toEqual({
@@ -402,7 +439,7 @@ describe('GoalsPage — changing an entry', () => {
     // A dream has no horizon to prefill — the field only appears once it becomes a goal.
     expect(form.queryByLabelText('Horizon')).not.toBeInTheDocument()
 
-    await user.selectOptions(form.getByLabelText('Kind'), 'GOAL')
+    await user.click(kind(form, 'Goal'))
     await user.selectOptions(form.getByLabelText('Horizon'), 'FEW_MONTHS')
     await user.click(form.getByRole('button', { name: 'Save' }))
 
@@ -434,7 +471,7 @@ describe('GoalsPage — changing an entry', () => {
     await user.click((await item('Przebiec półmaraton')).getByRole('button', { name: 'Edit' }))
 
     const form = editForm()
-    await user.selectOptions(form.getByLabelText('Kind'), 'TASK')
+    await user.click(kind(form, 'Task'))
     setDate(form.getByLabelText('Due date'), '2026-09-01')
     await user.click(form.getByRole('button', { name: 'Save' }))
 
@@ -459,7 +496,7 @@ describe('GoalsPage — changing an entry', () => {
     const form = editForm()
     expect(form.getByLabelText('Due date')).toHaveValue('2026-09-01')
 
-    await user.selectOptions(form.getByLabelText('Kind'), 'GOAL')
+    await user.click(kind(form, 'Goal'))
     await user.selectOptions(form.getByLabelText('Horizon'), 'FEW_MONTHS')
     await user.click(form.getByRole('button', { name: 'Save' }))
 
@@ -602,7 +639,7 @@ describe('GoalsPage — a failed save', () => {
     renderGoals()
     const form = await createForm()
     await user.type(form.getByLabelText('Content'), 'Przebiec półmaraton')
-    await user.selectOptions(form.getByLabelText('Kind'), 'DREAM')
+    await user.click(kind(form, 'Dream'))
     await user.click(form.getByRole('button', { name: 'Add' }))
 
     expect(await screen.findByRole('alert')).toBeInTheDocument()
@@ -622,16 +659,6 @@ describe('GoalsPage — a failed save', () => {
   })
 })
 
-/**
- * The filter controls, scoped by the region's accessible name. The labels are deliberately not the
- * forms' own field names — three controls sharing one name is what a screen-reader rotor would read
- * out — so these queries would resolve unscoped too; the region keeps them pinned to the filters
- * anyway, so a future form field carrying the same name cannot silently capture them.
- */
-function filters() {
-  return within(screen.getByRole('region', { name: 'Filters' }))
-}
-
 describe('GoalsPage — filters', () => {
   it('shows one layer at a time, heading and all, when narrowed by kind', async () => {
     stubApi([RUN, JAPAN, ELECTRICITY])
@@ -639,7 +666,7 @@ describe('GoalsPage — filters', () => {
 
     renderGoals()
     await screen.findByText('Przebiec półmaraton')
-    await user.selectOptions(filters().getByLabelText('Show kind'), 'TASK')
+    await user.click(layerTabs().getByRole('button', { name: 'Task' }))
 
     expect(screen.getByText('Zapłacić za prąd')).toBeInTheDocument()
     expect(screen.queryByText('Przebiec półmaraton')).not.toBeInTheDocument()
@@ -649,16 +676,13 @@ describe('GoalsPage — filters', () => {
 
   it('narrows by category across all three layers at once', async () => {
     stubApi([RUN, JAPAN, ELECTRICITY])
-    const user = userEvent.setup()
 
-    renderGoals()
-    await screen.findByText('Przebiec półmaraton')
-    await user.selectOptions(filters().getByLabelText('Show category'), 'HEALTH')
+    renderGoals('/goals?category=health')
 
-    expect(screen.getByText('Przebiec półmaraton')).toBeInTheDocument()
+    expect(await screen.findByText('Przebiec półmaraton')).toBeInTheDocument()
     expect(screen.queryByText('Zapłacić za prąd')).not.toBeInTheDocument()
     // An uncategorised entry is not a match for every category: picking one has to hide it, or the
-    // NO_CATEGORY option would be the only choice that ever changes what a null-category entry does.
+    // NO_CATEGORY choice would be the only one that ever changes what a null-category entry does.
     expect(screen.queryByText('Pojechać do Japonii')).not.toBeInTheDocument()
     // Category narrows the list without touching the layer split — the sections all still render,
     // empty ones included. That is the deliberate asymmetry with the layer filter above.
@@ -666,42 +690,69 @@ describe('GoalsPage — filters', () => {
   })
 
   /**
-   * Both selects write to one query string, so each has to merge rather than replace — `set()`
-   * copies `params` for exactly that. Nothing else in the suite picks a second filter, so without
-   * this the copy could become a fresh `URLSearchParams` and every test would stay green while the
-   * first filter silently cleared itself on the next pick.
+   * The category axis belongs to the rail and the withdrawn axis to its switch, so the page carries
+   * neither control — and still obeys both, because all three axes live in one query string that
+   * the page only ever reads.
    */
-  it('keeps the axis already chosen when the second filter is picked', async () => {
+  it('leaves the other two axes to the rail while still reading them off the URL', async () => {
+    stubApi([RUN, JAPAN, ELECTRICITY])
+
+    renderGoals('/goals?category=health')
+    const page = within(screen.getByRole('main'))
+
+    expect(await page.findByText('Przebiec półmaraton')).toBeInTheDocument()
+    expect(page.queryByLabelText('Show category')).not.toBeInTheDocument()
+    expect(page.queryByLabelText('Show withdrawn')).not.toBeInTheDocument()
+  })
+
+  /**
+   * The tabs write into one query string shared with the rail's two axes, so the write has to merge
+   * rather than replace. Nothing else in the suite writes a second filter, so without this the copy
+   * could become a fresh `URLSearchParams` and every test would stay green while a category picked
+   * in the rail silently cleared itself on the next layer press.
+   */
+  it('keeps the axes the rail owns when a layer is chosen', async () => {
     stubApi([RUN, JAPAN, ELECTRICITY])
     const user = userEvent.setup()
 
-    renderGoals()
-    await screen.findByText('Przebiec półmaraton')
-    await user.selectOptions(filters().getByLabelText('Show kind'), 'TASK')
-    await user.selectOptions(filters().getByLabelText('Show category'), 'HOME')
+    renderGoals('/goals?category=home')
+    await screen.findByText('Zapłacić za prąd')
+    await user.click(layerTabs().getByRole('button', { name: 'Task' }))
 
-    expect(filters().getByLabelText('Show kind')).toHaveValue('TASK')
+    expect(chosenLayer()).toHaveTextContent('Task')
     expect(screen.getByText('Zapłacić za prąd')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Dreams' })).not.toBeInTheDocument()
     // Lowercase in the link, SCREAMING_CASE on the wire: a URL is read, typed and shared by a
     // person. Reading is case-insensitive, so only this assertion can catch a write that is not.
-    expect(screen.getByTestId('location')).toHaveTextContent('/goals?layer=task&category=home')
+    expect(screen.getByTestId('location')).toHaveTextContent('/goals?category=home&layer=task')
+  })
+
+  /** Clearing the layer takes the parameter out again rather than writing an empty one. */
+  it('drops the layer from the URL when everything is asked for again', async () => {
+    stubApi([RUN, JAPAN, ELECTRICITY])
+    const user = userEvent.setup()
+
+    renderGoals('/goals?layer=task')
+    await screen.findByText('Zapłacić za prąd')
+    await user.click(layerTabs().getByRole('button', { name: 'All' }))
+
+    expect(screen.getByText('Przebiec półmaraton')).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('/goals')
+    expect(screen.getByTestId('location')).not.toHaveTextContent('layer')
   })
 
   /**
    * `category_code` is nullable and the proposal engine treats null as one shared bucket, not as
-   * eleven absences. Uncategorised entries therefore get a choice of their own: without it they are
-   * reachable only by clearing the filter, which is indistinguishable from "there are none".
+   * eleven absences. Uncategorised entries therefore stay reachable under a choice of their own:
+   * without it they are reachable only by clearing the filter, which is indistinguishable from
+   * "there are none".
    */
   it('keeps uncategorised entries reachable, under an explicit choice of their own', async () => {
     stubApi([RUN, JAPAN, ELECTRICITY])
-    const user = userEvent.setup()
 
-    renderGoals()
-    await screen.findByText('Przebiec półmaraton')
-    await user.selectOptions(filters().getByLabelText('Show category'), 'NONE')
+    renderGoals('/goals?category=none')
 
-    expect(screen.getByText('Pojechać do Japonii')).toBeInTheDocument()
+    expect(await screen.findByText('Pojechać do Japonii')).toBeInTheDocument()
     expect(screen.queryByText('Przebiec półmaraton')).not.toBeInTheDocument()
     expect(screen.queryByText('Zapłacić za prąd')).not.toBeInTheDocument()
   })
@@ -717,17 +768,14 @@ describe('GoalsPage — filters', () => {
 
     expect(await screen.findByText('Zapłacić za prąd')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Dreams' })).not.toBeInTheDocument()
-    expect(filters().getByLabelText('Show kind')).toHaveValue('TASK')
-    expect(filters().getByLabelText('Show category')).toHaveValue('HOME')
+    expect(chosenLayer()).toHaveTextContent('Task')
   })
 
   /**
    * A `layer` the app never wrote — a stale bookmark, a link from a later build — must not empty the
-   * screen. A controlled `<select>` whose value matches no option falls back to its first option, so
-   * an un-normalised bogus value renders a control reading as the no-filter option over nothing
-   * at all: the one state that says "you have no entries" while actively hiding them. Falling
-   * back to no filter is
-   * the only outcome the control can honestly display.
+   * screen, and must not leave every tab unpressed over a full list either: a control that claims no
+   * layer is chosen while one is being applied is the state that says "you have no entries" while
+   * actively hiding them. Falling back to no filter is the only outcome the tabs can honestly show.
    */
   it('falls back to showing everything when the URL names a layer that does not exist', async () => {
     stubApi([RUN, JAPAN, ELECTRICITY])
@@ -737,7 +785,7 @@ describe('GoalsPage — filters', () => {
     expect(await screen.findByText('Przebiec półmaraton')).toBeInTheDocument()
     expect(screen.getByText('Pojechać do Japonii')).toBeInTheDocument()
     expect(screen.getByText('Zapłacić za prąd')).toBeInTheDocument()
-    expect(filters().getByLabelText('Show kind')).toHaveValue('')
+    expect(chosenLayer()).toHaveTextContent('All')
   })
 
   /**
@@ -769,8 +817,8 @@ describe('GoalsPage — filters', () => {
 /**
  * FR-013's "never" is reversible, which is the only reason it is a state rather than a delete. The
  * entries are hidden by default because a withdrawn entry is one the user asked not to be shown —
- * and reachable through the filter row, because a state you cannot get back out of is a delete with
- * extra steps.
+ * and reachable through the rail's switch, because a state you cannot get back out of is a delete
+ * with extra steps.
  */
 describe('GoalsPage — withdrawn entries', () => {
   it('hides withdrawn entries until the filter asks for them', async () => {
@@ -781,7 +829,7 @@ describe('GoalsPage — withdrawn entries', () => {
     await screen.findByText('Pojechać do Japonii')
     expect(screen.queryByText('Nauczyć się grać na gitarze')).not.toBeInTheDocument()
 
-    await user.click(filters().getByLabelText('Show withdrawn'))
+    await user.click(screen.getByLabelText('Show withdrawn'))
 
     expect(await screen.findByText('Nauczyć się grać na gitarze')).toBeInTheDocument()
     expect(screen.getByTestId('location')).toHaveTextContent('/goals?withdrawn=1')
@@ -794,7 +842,7 @@ describe('GoalsPage — withdrawn entries', () => {
     renderGoals('/goals?withdrawn=1')
 
     expect(await screen.findByText('Nauczyć się grać na gitarze')).toBeInTheDocument()
-    expect(filters().getByLabelText('Show withdrawn')).toBeChecked()
+    expect(screen.getByLabelText('Show withdrawn')).toBeChecked()
   })
 
   /**
@@ -891,7 +939,7 @@ describe('GoalsPage — the same path in Polish', () => {
     renderGoals()
     const form = within(await screen.findByRole('form', { name: 'Nowy wpis' }))
     await user.type(form.getByLabelText('Treść'), 'Pojechać do Japonii')
-    await user.selectOptions(form.getByLabelText('Rodzaj'), 'DREAM')
+    await user.click(within(form.getByLabelText('Rodzaj')).getByRole('button', { name: 'Marzenie' }))
     stored.push(JAPAN)
     await user.click(form.getByRole('button', { name: 'Dodaj' }))
 

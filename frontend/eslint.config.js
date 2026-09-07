@@ -36,6 +36,10 @@ export default defineConfig([
     },
     rules: {
       'no-restricted-syntax': ['error', ...noStrayCopy],
+      // The domain palette is derived from the rail's own ordering, so it lives beside the rail and
+      // is imported from there by whatever draws a domain. Naming it here costs the shell module
+      // its fast-refresh boundary in dev and nothing else.
+      'react-refresh/only-export-components': ['error', { allowExportNames: ['domainColor'] }],
     },
   },
   {

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { ApiError, api } from '../api/client'
+import { SparkleIcon } from './icons'
+import { domainColor, type Domain } from '../layout/AppLayout'
 import type { Goal, GoalDraft } from './GoalsPage'
 
 /**
@@ -74,8 +76,12 @@ function messageFor(t: TFunction, status: number, failed: Attempt): string {
  * takes the page's refetch as `onChange` rather than the list itself: every answer changes an entry
  * (three write `remind_after`, the fourth `withdrawn_at`) and so does saving a bullet, but the card
  * never needs to read what is in the list.
+ *
+ * <p>`domains` is handed down for the same reason the rows get it: the entry carries a
+ * `category_code` and the user reads a name and a colour. Passed rather than read off the outlet, so
+ * the card stays renderable outside the shell's route.
  */
-export function ProposalCard({ onChange }: { onChange: () => void }) {
+export function ProposalCard({ domains, onChange }: { domains: Domain[]; onChange: () => void }) {
   const { t } = useTranslation()
   const [proposal, setProposal] = useState<Proposal | null>(null)
   // Separate from `proposal === null`, which is also the state before the button is ever pressed:
@@ -180,12 +186,20 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
 
   return (
     <section className="proposal" aria-label={t('proposal.label')}>
-      {/* Disabled while in flight, and that is the whole double-fire guard: the model has a
-          60-second budget, so the wait is long enough that a user will press again — and a second
-          press would open a second proposal the first is about to hand back anyway. */}
-      <button type="button" onClick={propose} disabled={pending}>
-        {t('proposal.ask')}
-      </button>
+      <div className="proposal-head">
+        {/* The card is the only thing on the screen the user did not write, so it says whose voice
+            it is before it says anything else. */}
+        <p className="eyebrow">
+          <SparkleIcon />
+          {t('proposal.label')}
+        </p>
+        {/* Disabled while in flight, and that is the whole double-fire guard: the model has a
+            60-second budget, so the wait is long enough that a user will press again — and a second
+            press would open a second proposal the first is about to hand back anyway. */}
+        <button className="soft" type="button" onClick={propose} disabled={pending}>
+          {t('proposal.ask')}
+        </button>
+      </div>
 
       {pending && <p role="status">{t('proposal.searching')}</p>}
       {error && <p role="alert">{error}</p>}
@@ -193,10 +207,11 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
 
       {proposal && (
         <article>
-          <p>{proposal.message}</p>
+          <p className="proposal-message">{proposal.message}</p>
           {/* The entry verbatim beside the prose that paraphrases it: the message is the engine
-              talking, this is which entry it means. */}
-          <small>{proposal.entry.content}</small>
+              talking, this is which entry it means — in the same chips the rows use, so the two
+              read as the same entry. */}
+          <Entry entry={proposal.entry} domains={domains} />
 
           {proposal.answer ? (
             <>
@@ -220,6 +235,26 @@ export function ProposalCard({ onChange }: { onChange: () => void }) {
 }
 
 /**
+ * Which entry the proposal is about: the domain's dot and name, and whichever time field the layer
+ * owns. The same chips a row carries, deliberately — the user has to recognise the entry they are
+ * being asked about from the list they already scrolled past.
+ */
+function Entry({ entry, domains }: { entry: Goal; domains: Domain[] }) {
+  const { t } = useTranslation()
+  const domain = domains.findIndex((known) => known.code === entry.category_code)
+
+  return (
+    <p className="proposal-entry">
+      {domain >= 0 && <span className="dot" style={{ background: domainColor(domain) }} />}
+      <span className="content">{entry.content}</span>
+      {domain >= 0 && <span className="chip">{domains[domain].name}</span>}
+      {entry.horizon && <span className="chip">{t(`goals.horizons.${entry.horizon}`)}</span>}
+      {entry.due_date && <span className="chip due">{t('goals.due', { date: entry.due_date })}</span>}
+    </p>
+  )
+}
+
+/**
  * The four responses, with the three terms as a second step rather than three more buttons in the
  * row — four answers plus three terms is seven controls to read before answering a question the app
  * asked, and six of them are the same answer.
@@ -239,7 +274,7 @@ function Answers({
 
   if (askingTerm) {
     return (
-      <p>
+      <div className="answers">
         {TERMS.map((days) => (
           <button key={days} type="button" disabled={pending} onClick={() => answer('REMIND_LATER', days)}>
             {/* A plural key rather than a number dropped into a fixed phrase: 7, 30 and 90 happen
@@ -247,13 +282,16 @@ function Answers({
             {t('proposal.remindIn', { count: days })}
           </button>
         ))}
-      </p>
+      </div>
     )
   }
 
   return (
-    <p>
-      <button type="button" disabled={pending} onClick={() => answer('STARTING')}>
+    // Drawn in three weights, in the order FR-013 asks them: starting is what the card is for and
+    // is the only accented one, the two "later" answers are ordinary, and withdrawing an entry is
+    // the quietest — it is reversible, but nothing should invite it.
+    <div className="answers">
+      <button className="primary" type="button" disabled={pending} onClick={() => answer('STARTING')}>
         {t('proposal.answers.STARTING')}
       </button>
       <button type="button" disabled={pending} onClick={() => answer('NOT_NOW')}>
@@ -262,10 +300,10 @@ function Answers({
       <button type="button" disabled={pending} onClick={askTerm}>
         {t('proposal.answers.REMIND_LATER')}
       </button>
-      <button type="button" disabled={pending} onClick={() => answer('NEVER')}>
+      <button className="ghost" type="button" disabled={pending} onClick={() => answer('NEVER')}>
         {t('proposal.answers.NEVER')}
       </button>
-    </p>
+    </div>
   )
 }
 

@@ -73,9 +73,17 @@ describe('AppRoutes', () => {
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
   })
 
-  it('points an authenticated user at the navigation from the index route', async () => {
+  /** There is one screen to be on, so the index route is a redirect rather than a page of advice. */
+  it('sends an authenticated user from the index route to the entries screen', async () => {
+    // Nothing to show for any read the screen makes — this is about where it lands, not what is
+    // on it. The proposal card's pending slot answers 204, the way an empty slot does.
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(url === '/api/proposals/pending' ? response(204) : response(200, { items: [] })),
+    )
+
     renderApp('/', 'authenticated')
 
-    expect(await screen.findByText('Pick a life domain from the navigation.')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Tasks, goals and dreams' })).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('/goals')
   })
 })

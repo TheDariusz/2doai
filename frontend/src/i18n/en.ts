@@ -12,7 +12,7 @@ export const en: typeof pl = {
   layout: {
     nav: 'Navigation',
     domainsFailed: 'Could not load your life domains — refresh the page.',
-    pickDomain: 'Pick a life domain from the navigation.',
+    domains: 'Life domains',
     domainComingSoon: 'This domain arrives in a later slice.',
     language: 'Language',
   },
@@ -55,6 +55,7 @@ export const en: typeof pl = {
     save: 'Save',
     cancel: 'Cancel',
     content: 'Content',
+    placeholder: 'Add a task, a goal or a dream…',
     layer: 'Kind',
     horizon: 'Horizon',
     dueDate: 'Due date',
@@ -70,9 +71,7 @@ export const en: typeof pl = {
     confirmDelete: 'Delete “{{content}}”? This cannot be undone.',
     noMatches: 'No entry matches the filters.',
     filters: {
-      label: 'Filters',
       layer: 'Show kind',
-      category: 'Show category',
       withdrawn: 'Show withdrawn',
       all: 'All',
     },

@@ -2,8 +2,6 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { ApiError } from '../api/client'
-import type { Language } from '../i18n'
-import { LanguageSwitch } from '../i18n/LanguageSwitch'
 import { useAuth } from './auth-context'
 
 /**
@@ -14,28 +12,16 @@ import { useAuth } from './auth-context'
  */
 const RE_AUTH_FAILED = 'urn:2doai:problem:re-auth-failed'
 
-/** Header controls: the account's language, and the two session-ending actions. */
-export function AccountMenu() {
+/**
+ * Ending the session, as its own header control. Split from the menu below because the two sit side
+ * by side in the header rather than one inside the other — and because a failure here must be
+ * readable without opening anything, which is why it carries its own message.
+ */
+export function LogoutButton() {
   const { t } = useTranslation()
-  const { user, changeLanguage, logout, deleteAccount } = useAuth()
+  const { logout } = useAuth()
   const navigate = useNavigate()
-  const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [pending, setPending] = useState(false)
-
-  /**
-   * FR-002. The account owns the language and `AuthProvider.changeLanguage` owns the write — what
-   * belongs here is what the user is told when it fails.
-   */
-  async function chooseLanguage(next: Language) {
-    setError(null)
-    try {
-      await changeLanguage(next)
-    } catch {
-      // The switch reads the live i18next language, so a failed write leaves it where it was.
-      setError(t('account.errors.language'))
-    }
-  }
 
   async function onLogout() {
     setError(null)
@@ -48,6 +34,35 @@ export function AccountMenu() {
     }
     navigate('/login', { replace: true })
   }
+
+  return (
+    <>
+      <button type="button" onClick={onLogout}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <path d="M16 17l5-5-5-5" />
+          <path d="M21 12H9" />
+        </svg>
+        <span className="logout-text">{t('account.logout')}</span>
+      </button>
+      {error && <p role="alert">{error}</p>}
+    </>
+  )
+}
+
+/**
+ * The account, as a chip that opens onto what can be done to it. Deletion is the only entry today,
+ * and it is the one action on the screen that cannot be undone — a step behind a closed menu is a
+ * step it cannot be reached by mistake.
+ */
+export function AccountMenu() {
+  const { t } = useTranslation()
+  const { user, deleteAccount } = useAuth()
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, setPending] = useState(false)
 
   async function onDelete(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -77,32 +92,49 @@ export function AccountMenu() {
 
   return (
     <div className="account">
-      <span>{user?.email}</span>
-      <LanguageSwitch onSelect={chooseLanguage} />
-      <button type="button" onClick={onLogout}>
-        {t('account.logout')}
+      <button
+        type="button"
+        className="account-chip"
+        aria-expanded={open}
+        // Closing drops the confirmation with the panel: reopening must land on the menu, never
+        // part-way into the one action that cannot be undone.
+        onClick={() => { setOpen(!open); setConfirming(false); setError(null) }}
+      >
+        {/* Decoration, not identity: the email beside it is the accessible name of the chip. */}
+        <span className="avatar" aria-hidden="true">{user?.email?.[0]?.toUpperCase()}</span>
+        {/* Wrapped so a phone-width header can drop the text off-screen and keep the name. */}
+        <span className="chip-email">{user?.email}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </button>
-      <button type="button" onClick={() => { setError(null); setConfirming(true) }}>
-        {t('account.delete')}
-      </button>
-      {error && <p role="alert">{error}</p>}
 
-      {/* Deletion is irreversible (FR-019), so it is double-gated: this step, then the password
-          the server re-verifies. Rendered only while confirming — nothing to mis-click. */}
-      {confirming && (
-        <form onSubmit={onDelete} className="confirm-delete">
-          <p>{t('account.deleteWarning')}</p>
-          <label>
-            {t('account.confirmPassword')}
-            <input name="password" type="password" required autoFocus autoComplete="current-password" />
-          </label>
-          <button type="submit" disabled={pending}>
-            {t('account.deleteForever')}
+      {open && (
+        <div className="account-panel">
+          <p className="account-email">{user?.email}</p>
+          <button type="button" onClick={() => { setError(null); setConfirming(true) }}>
+            {t('account.delete')}
           </button>
-          <button type="button" onClick={() => setConfirming(false)}>
-            {t('account.cancel')}
-          </button>
-        </form>
+          {error && <p role="alert">{error}</p>}
+
+          {/* Deletion is irreversible (FR-019), so it is double-gated: this step, then the password
+              the server re-verifies. Rendered only while confirming — nothing to mis-click. */}
+          {confirming && (
+            <form onSubmit={onDelete} className="confirm-delete">
+              <p>{t('account.deleteWarning')}</p>
+              <label>
+                {t('account.confirmPassword')}
+                <input name="password" type="password" required autoFocus autoComplete="current-password" />
+              </label>
+              <button type="submit" disabled={pending}>
+                {t('account.deleteForever')}
+              </button>
+              <button type="button" onClick={() => setConfirming(false)}>
+                {t('account.cancel')}
+              </button>
+            </form>
+          )}
+        </div>
       )}
     </div>
   )

@@ -211,7 +211,7 @@
         <tr><th scope="row">Account and session auth</th><td><span class="badge badge-live">implemented</span></td><td>Spring Security, server-side in-memory sessions, account erasure</td></tr>
         <tr><th scope="row">Categories</th><td><span class="badge badge-live">implemented</span></td><td>Seeded reference table, <code>LifeDomain</code>, startup drift check — and, since DEV-49, a Polish and an English name per row, picked per request</td></tr>
         <tr><th scope="row">Localization (PL + EN)</th><td><span class="badge badge-live">implemented</span></td><td>English-first with Polish preserved (DEV-49): <code>AppLanguage</code> stored on the account (<code>app_user.preferred_language</code>), <code>Accept-Language</code> as the per-request transport, i18next in the SPA, and every server-generated sentence on the on-demand path — the model's answer and the template fallback alike — written in the caller's language. One surface is deliberately excluded: the scheduled proposal stays Polish until FR-009 lands in increment 2</td></tr>
-        <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens, 11-domain shell, and the two-language catalog behind a switch on the auth screens and in the account menu; <code>/api</code> proxies in development and production</td></tr>
+        <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens, a sticky header over a rail of the 11 domains, and the two-language catalog behind a switch on the auth screens and in that header; <code>/api</code> proxies in development and production</td></tr>
         <tr><th scope="row">Goals and dreams</th><td><span class="badge badge-live">implemented</span></td><td>One <code>goal</code> aggregate for both layers, <code>/api/goals</code>, and the <code>/goals</code> screen (S-02)</td></tr>
         <tr><th scope="row">Current tasks</th><td><span class="badge badge-live">implemented</span></td><td>A third <code>GoalLayer</code> value plus an optional <code>due_date</code> on the same aggregate and screen (S-07)</td></tr>
         <tr><th scope="row">Unified three-layer view</th><td><span class="badge badge-live">implemented</span></td><td>All three layers on one <code>/goals</code> screen, narrowed by layer and by category from the query string — filtered in the browser, no API change (S-08)</td></tr>
@@ -224,12 +224,16 @@
   </div>
   <h3>Frontend status</h3>
   <p>A React 19 single-page application on react-router. Session bootstrap, login, registration,
-  logout, account deletion and the 11-domain navigation shell all consume the API through one
+  logout, account deletion and the 11-domain shell all consume the API through one
   CSRF-aware client; the <code>/api</code> development proxy and production reverse proxy are
-  implemented. Per-domain pages are still placeholders, and PWA behavior is planned.</p>
+  implemented. Since DEV-50 that shell is a sticky header — mark, language switch, account chip and
+  log out — over a rail of domain tags, and a domain is a link that filters the entries screen
+  rather than a place of its own: <code>/goals</code> is the only screen to be on, so the index
+  route redirects to it. PWA behavior is planned.</p>
   <p>The <code>/goals</code> screen adds the first data UI. Current tasks, goals and dreams are
   created, edited, converted between layers, completed, reopened and deleted against the live API,
-  and narrowed by layer and by category. Above that list sits the proposal card (S-04b): one button
+  and narrowed by layer from tabs above the list and by category from the rail beside it. Above
+  that list sits the proposal card (S-04b): one button
   asks the backend for something to come back to, the returned card carries the AI's sentence and
   the four answers, and <code>STARTING</code> renders the generated bullets, each saveable as a
   current task with one click.</p>
@@ -246,7 +250,7 @@
   screen; an ESLint rule then refuses non-ASCII literals outside the catalogs and the tests, which is
   what stops the next Polish sentence being typed straight into a component. The switch appears twice for two
   different reasons: on the auth screens it writes only <code>localStorage</code>, because there is no
-  account to write to yet, and in the account menu it moves the account itself — through the auth
+  account to write to yet, and in the app header it moves the account itself — through the auth
   context, which owns <code>user.language</code> and so is what has to perform the write, but only
   when the value actually changes, since a same-value write would wake the metered database for
   nothing.
@@ -263,13 +267,14 @@
     own filter choice rather than a gap, matching the selection engine's treatment of a null
     category as one shared bucket.</dd>
     <dt>Routes stay English and lowercase</dt>
-    <dd><code>/goals</code>, <code>/domain/inner_growth</code>, <code>?layer=task</code>. The
+    <dd><code>/goals</code>, <code>?category=inner_growth</code>, <code>?layer=task</code>. The
     interface is localised; the URL is not, and the SCREAMING_CASE stays on the wire where the enums
-    live.</dd>
+    live. A per-domain route survives at <code>/domain/:code</code>, but since DEV-50 nothing links
+    to it — a domain narrows the one screen rather than opening another.</dd>
     <dt>Withdrawal is a filter value, not a route</dt>
-    <dd>Withdrawn entries are hidden by default and reached through a third control in the same
-    filter row. Restore is the same <code>PUT</code> the edit form already uses, so
-    withdrawal is reversible rather than a delete.</dd>
+    <dd>Withdrawn entries are hidden by default and reached through a switch in the rail, under the
+    domain tags. Restore is the same <code>PUT</code> the edit form already uses, so withdrawal is
+    reversible rather than a delete.</dd>
     <dt>An empty list must say why</dt>
     <dd>A URL naming a layer that does not exist falls back to showing everything, and a combination
     matching nothing says so — an empty list must never read as &ldquo;you have no entries&rdquo;,
@@ -283,8 +288,17 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
-  <p class="note">Verified against DEV-49 on 2026-09-07, after the PR review pass on the
-  two-language slice. <strong>This stamp is weaker than the ones below it, and the difference is
+  <p class="note">Verified against DEV-50 on 2026-09-07, the Direction A shell. A frontend-only
+  slice: no backend package, table, endpoint or flow moved, so most of the nine surfaces were walked
+  and deliberately left alone — this stamp records the walk, not a change to them. What was stale
+  was the prose describing the SPA, and all of it was prose a green suite cannot see: the language
+  switch had moved from the account menu to the header, the withdrawn filter from a row above the
+  list to a switch in the rail, the category filter from a <code>&lt;select&gt;</code> to the rail's
+  tags, and <code>/domain/:code</code> had become a route nothing links to — the domains are links
+  that narrow <code>/goals</code> now, and the index route redirects there. <strong>This stamp
+  carries no production walk either, and the previous one's caveat below still stands.</strong>
+  The stamp before it was DEV-49 on 2026-09-07, after the PR review pass on the two-language slice.
+  <strong>That stamp is weaker than the ones below it, and the difference is
   deliberate.</strong> The nine surfaces were walked against the merged code, and the full gate is
   green; what has <em>not</em> happened is the walk on
   <a href="https://2doai.app">2doai.app</a> — US-01 in English on a fresh account, then the same path
@@ -420,9 +434,9 @@ flowchart LR
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/mail"><code>backend/…/mail</code></a></th><td>The <code>EmailSender</code> outbound port and its SMTP adapter — how the app reaches a user who is not looking at it</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai"><code>backend/…/ai</code></a></th><td>Provider-neutral LLM port, schema contract, and Spring AI adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai/memory"><code>backend/…/ai/memory</code></a></th><td>Personal AI-memory aggregate, rendering, persistence, erasure adapter, and the <code>AiMemoryService</code> seam other contexts read and write it through</td><td><span class="badge badge-foundation">foundation</span></td></tr>
-        <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, auth screens, the 11-domain shell, the filtered three-layer screen, and the proposal card</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, auth screens, the header-and-rail shell over the 11 domains, the filtered three-layer screen, and the proposal card</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/src/api"><code>frontend/src/api</code></a></th><td>The one backend boundary: same-origin fetch, CSRF double-submit, RFC 9457 errors, 401 session-expired signal, and the <code>Accept-Language</code> header every call carries</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../frontend/src/i18n"><code>frontend/src/i18n</code></a></th><td>The two catalogs, the i18next instance and its detection order, and the switch both screens share</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../frontend/src/i18n"><code>frontend/src/i18n</code></a></th><td>The two catalogs, the i18next instance and its detection order, and the switch the auth screens and the app header share</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/functions/api/[[path]].ts"><code>frontend/functions/api</code></a></th><td>Production same-origin reverse proxy to Fly.io</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../context/foundation"><code>context/foundation</code></a></th><td>Canonical product, data, security, deployment, and roadmap decisions</td><td>design source</td></tr>
       </tbody>
@@ -1690,7 +1704,7 @@ sequenceDiagram
     SPA->>SPA: i18next adopts it, and writes nothing back
     Note over SPA: an account that never chose reports PL —&lt;br/&gt;FR-004, and it was never asked anything
   end
-  V->>SPA: picks the other language in the account menu
+  V->>SPA: picks the other language in the app header
   alt the pick would not change the stored value
     SPA->>SPA: i18next only — no request, no write
   else it changes

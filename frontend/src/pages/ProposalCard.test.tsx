@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Goal } from './GoalsPage'
 import { ProposalCard, type Proposal } from './ProposalCard'
 import { response } from '../test/auth'
+import { DOMAINS } from '../test/domains'
 
 const GUITAR = {
   id: 'g1',
@@ -65,7 +66,7 @@ function calls() {
 }
 
 function renderCard() {
-  render(<ProposalCard onChange={onChange} />)
+  render(<ProposalCard domains={DOMAINS} onChange={onChange} />)
   return userEvent.setup()
 }
 
@@ -92,6 +93,23 @@ describe('ProposalCard — asking for a proposal', () => {
     // The prose is the proposal; the entry rides along so the user can see which one it means, and
     // the two are worth telling apart — the message paraphrases, the entry is verbatim.
     expect(screen.getByText(GUITAR.content)).toBeInTheDocument()
+  })
+
+  /**
+   * The card says whose voice it is before it says anything else — it is the app asking a question
+   * unprompted, and the eyebrow is what tells that apart from an entry the user wrote. The entry
+   * line carries the domain by name rather than by the `category_code` on the wire, which is why
+   * the card is handed the shell's domains at all.
+   */
+  it('names itself, and names the domain the entry belongs to', async () => {
+    stubApi(response(200, PROPOSAL))
+    const user = renderCard()
+
+    await propose(user)
+    const card = within(screen.getByRole('region', { name: 'Proposal' }))
+
+    expect(card.getByText('Proposal')).toBeInTheDocument()
+    expect(card.getByText('Leisure & hobbies')).toBeInTheDocument()
   })
 
   /**

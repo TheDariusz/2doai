@@ -1,133 +1,124 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
+  /* The page sits behind everything; a surface is what floats on it (header, rail, card, row). */
+  --page: #f8f7fa;
   --bg: #fff;
   --border: #e5e4e7;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
+  --muted: #9a94a3;
+  --text: #6b6375;
+  --text-h: #08060d;
+
+  --accent: #863bff;
+  --accent-bg: rgba(134, 59, 255, 0.1);
+  --accent-border: rgba(134, 59, 255, 0.5);
+  --accent-text: #6a1fe0;
+
+  --chip: #f3f1f7;
+  --track: #eeecf2;
+  /* The unset half of a switch — darker than the segmented track, because the knob on it is white. */
+  --track-off: #d9d6e0;
+  /* A border that has to be seen rather than merely felt: a hovered row, an empty check circle. */
+  --border-strong: #cfcbd6;
+  /* The one chip drawn away from the neutral palette — a term is the only part of an entry that
+     can be late, so it is the only one that reads as a state rather than a fact. */
+  --due-bg: #fff4e5;
+  --due-text: #8a4b00;
   --danger: #b3261e;
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --shadow: rgba(8, 6, 13, 0.06) 0 10px 24px -8px;
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --heading: 'Bricolage Grotesque', system-ui, sans-serif;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
+  font: 15px/1.45 var(--sans);
+  letter-spacing: 0.1px;
   color-scheme: light dark;
   color: var(--text);
-  background: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --page: #16171d;
+    --bg: #1e1f27;
+    --border: #2e303a;
+    --muted: #7c7887;
     --text: #9ca3af;
     --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
+
     --accent-bg: rgba(192, 132, 252, 0.15);
     --accent-border: rgba(192, 132, 252, 0.5);
-    --danger: #f2b8b5;
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-}
+    --accent-text: #c084fc;
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  min-height: 100svh;
-  box-sizing: border-box;
-  padding: 0 24px;
+    --chip: #262730;
+    --track: #262730;
+    --track-off: #3a3c47;
+    --border-strong: #494c59;
+    --due-bg: rgba(255, 176, 46, 0.14);
+    --due-text: #f0b76e;
+    --danger: #f2b8b5;
+    --shadow: rgba(0, 0, 0, 0.4) 0 10px 24px -8px;
+  }
 }
 
 body {
   margin: 0;
+  background: var(--page);
 }
 
-/* Shell */
-
-.shell > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--border);
+#root {
+  min-height: 100svh;
 }
 
-.shell nav ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  list-style: none;
-  margin: 16px 0;
-  padding: 0;
-}
-
-.shell nav a {
-  color: var(--text);
-  text-decoration: none;
-  padding: 4px 10px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-}
-
-.shell nav a:hover,
-.shell nav a.active {
-  color: var(--text-h);
-  border-color: var(--accent-border);
-  background: var(--accent-bg);
-}
-
-/* Auth screens */
-
-.auth {
-  max-width: 24rem;
-  margin: 15vh auto 0;
-}
-
-.auth form,
-.confirm-delete {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 15px;
-}
-
-input,
-select {
-  font: inherit;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
+h1,
+h2 {
+  font-family: var(--heading);
+  font-weight: 600;
   color: var(--text-h);
 }
+
+h1 {
+  font-size: 34px;
+  line-height: 1.1;
+  letter-spacing: -0.9px;
+  margin: 0 0 8px;
+  @media (max-width: 1024px) {
+    font-size: 26px;
+  }
+}
+
+h2 {
+  font-size: 18px;
+  letter-spacing: -0.2px;
+  margin: 0 0 10px;
+}
+
+p {
+  margin: 0;
+}
+
+/* Controls */
 
 button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
   font: inherit;
-  padding: 8px 14px;
-  border: 1px solid var(--accent-border);
-  border-radius: 6px;
-  background: var(--accent-bg);
+  font-size: 14px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
   color: var(--text-h);
   cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--accent-border);
 }
 
 button:disabled {
@@ -135,151 +126,801 @@ button:disabled {
   cursor: progress;
 }
 
+/* Three weights over the one button: the thing a screen is for, the same thing offered more
+   quietly on a wash that already carries the accent, and an action nothing should invite. */
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+button.soft {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+button.ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text);
+}
+
+button.ghost:hover {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--text-h);
+}
+
+/* A square button whose icon is the label — the accessible name is on the button itself. */
+button.icon-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+button.icon-btn:hover {
+  background: var(--chip);
+  border-color: transparent;
+  color: var(--text-h);
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+
+input,
+select {
+  font: inherit;
+  font-size: 14px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
 [role='alert'] {
   color: var(--danger);
-  font-size: 15px;
+  font-size: 14px;
+}
+
+/* Off the screen, still in the accessibility tree — a field whose name is carried by a placeholder
+   would otherwise lose it the moment anything is typed. */
+.vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The segmented control: the options are the control, and the pressed one is the state. */
+.seg {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--track);
+  border-radius: 9px;
+}
+
+.seg button {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.seg button:hover {
+  color: var(--text-h);
+}
+
+.seg button[aria-pressed='true'] {
+  background: var(--bg);
+  color: var(--text-h);
+  box-shadow: rgba(8, 6, 13, 0.08) 0 1px 2px;
+}
+
+/* Shell */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 60px;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  /* Not opaque: the rail and the entries scroll *under* the header rather than up to it. */
+  background: color-mix(in srgb, var(--page) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  @media (max-width: 1024px) {
+    padding: 0 16px;
+  }
+}
+
+.wordmark {
+  display: flex;
+  /* The name is two words and one line; wrapping it is what breaks the 60px header. */
+  white-space: nowrap;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--heading);
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: -0.2px;
+  color: var(--text-h);
+}
+
+.topbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .account {
-  /* Containing block for the delete panel below — without it the panel anchors to the viewport. */
+  /* Containing block for the panel below — without it the panel anchors to the viewport. */
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 15px;
 }
 
-.confirm-delete {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 8px;
-  padding: 16px;
-  max-width: 22rem;
+.account-chip {
+  gap: 10px;
+  padding-left: 6px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text);
+  font-weight: 400;
+}
+
+.account-chip:hover {
   background: var(--bg);
-  border: 1px solid var(--accent-border);
+  border-color: var(--border);
+  color: var(--text-h);
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent-bg);
+  color: var(--accent-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.account-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  width: max-content;
+  /* Anchored to the right edge of the header, so anything wider than the viewport hangs off it. */
+  max-width: min(22rem, calc(100vw - 32px));
+  padding: 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: var(--shadow);
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
+.account-email {
+  color: var(--text-h);
+  font-size: 14px;
+}
+
+.confirm-delete {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* The body: the floating rail, and the column it filters. */
+
+.app-body {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  align-items: start;
+  gap: 40px;
+  width: 1120px;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+  box-sizing: border-box;
+  @media (max-width: 1024px) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding: 16px 16px 48px;
+  }
+}
+
+/* A message about the shell, not about the rail it would otherwise share a column with. */
+.app-body > [role='alert'] {
+  grid-column: 1 / -1;
+}
+
+.app-body main {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  min-width: 0;
+}
+
+.rail {
+  position: sticky;
+  top: 84px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+.rail nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rail hr {
+  height: 1px;
+  margin: 8px 4px;
+  border: 0;
+  background: var(--border);
+}
+
+.eyebrow {
+  padding: 4px 10px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.rail-notice {
+  padding: 0 10px 8px;
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.tag {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 6px 12px 6px 10px;
+  box-sizing: border-box;
+  line-height: 1.2;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.tag:hover {
+  background: var(--chip);
   color: var(--text-h);
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+.tag[aria-current='page'] {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--text-h);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* A switch, not a checkbox: two states side by side in a rail of round tags. */
+.rail-switch {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.rail-switch input {
+  appearance: none;
+  position: relative;
+  width: 30px;
+  height: 18px;
+  /* The `input, select` padding above is meant for fields; this one is a track, and there is no
+     global border-box, so 10px either side would stretch it to 50px. */
+  padding: 0;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--track-off);
+  cursor: pointer;
+}
+
+.rail-switch input::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.15s;
+}
+
+.rail-switch input:checked {
+  background: var(--accent);
+}
+
+.rail-switch input:checked::after {
+  left: 14px;
+}
+
+@media (max-width: 1024px) {
+  /* The rail stops floating and becomes the strip of tags above the entries. */
+  .rail {
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+  }
+
+  .rail nav {
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .rail .eyebrow,
+  .rail hr {
+    display: none;
+  }
+
+  .tag {
+    border-color: var(--border);
+    white-space: nowrap;
+  }
+
+  .rail-switch {
+    white-space: nowrap;
   }
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
+
+/* Auth screens */
+
+.auth {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+  max-width: 24rem;
+  margin: 12vh auto 0;
+  padding: 24px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
 }
-p {
+
+/* The switch is a control, not a block: it keeps its own width at the top of the card. */
+.auth .seg {
+  align-self: flex-start;
+}
+
+.auth h1 {
+  font-size: 28px;
   margin: 0;
+}
+
+.auth form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* The one thing the screen is for, so it is the one control drawn in the accent. */
+.auth form button[type='submit'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 
 /* Goals */
 
-.goals section {
-  margin: 24px 0;
+.goals {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
 }
 
-/* Overrides the column layout `.auth form` uses — these fields are short and belong on one line.
-   The filter row is the same shape (short labelled controls), so it shares the rule rather than
-   restating it; without this the global `label { flex-direction: column }` stacks the two selects
-   full-width, which reads nothing like the create form directly above them. */
-.goals form,
-.goals .filters {
+/* The heading and the layer tabs share one line, the tabs sitting on the heading's baseline. */
+.title-row {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-/* The proposal card's bullet list is the same row shape, so it shares these three rules rather
-   than restating them; the handful of declarations that differ live beside `.proposal` below. */
+.title-row h1 {
+  margin: 0;
+}
+
+.goals section {
+  display: flex;
+  flex-direction: column;
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 10px;
+}
+
+.section-head h2 {
+  margin: 0;
+}
+
+/* The proposal card's bullets are the same stack of rows, so they share this rule. */
 .goals ul,
 .proposal ul {
   display: flex;
   flex-direction: column;
   gap: 8px;
   list-style: none;
-  margin: 12px 0;
+  margin: 0;
   padding: 0;
 }
 
-.goals li,
+/* No `display` of our own: that is what keeps the native disclosure marker, which already turns
+   as the section opens. */
+.goals summary {
+  padding: 0 4px;
+  cursor: pointer;
+}
+
+.goals details {
+  margin-top: 10px;
+}
+
+.goals details ul {
+  margin-top: 8px;
+}
+
+.goals summary,
+.section-head small {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* An entry */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.row:hover {
+  border-color: var(--border-strong);
+  box-shadow: rgba(8, 6, 13, 0.06) 0 4px 12px -4px;
+}
+
+/* A withdrawn entry: still there, no longer one of the live ones. */
+.row.dim {
+  background: transparent;
+  border-style: dashed;
+}
+
+.row.dim .content {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--border-strong);
+}
+
+.row .content {
+  flex: 1 1 12rem;
+  color: var(--text-h);
+}
+
+/* The complete toggle: a circle that fills once the entry is done. */
+button.check {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  flex-shrink: 0;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 50%;
+  color: #fff;
+}
+
+button.check:hover {
+  border-color: var(--accent);
+}
+
+button.check.done {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.chip.due {
+  background: var(--due-bg);
+  color: var(--due-text);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* An open edit form takes the row it was opened in. */
+.row.editing {
+  flex-wrap: wrap;
+  padding: 8px;
+}
+
+.row.editing .entry-form {
+  flex: 1 1 20rem;
+}
+
+/* Adding an entry */
+
+.entry-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The create form is one bar rather than a stack of labelled fields: the fastest thing on the
+   screen should look like the fastest thing on the screen. */
+.quick-add {
+  padding: 8px 8px 8px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  /* The plus mark draws itself in `currentColor`, and so does the placeholder beside it. */
+  color: var(--muted);
+}
+
+.quick-content {
+  flex: 1 1 12rem;
+}
+
+.quick-content input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Inside the bar the field is the bar: its own border would draw a box within a box. */
+.quick-add .quick-content input {
+  padding-left: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+/* A control with its name beside it rather than above — the bar is one line, not a form. */
+.field {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding-left: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  white-space: nowrap;
+}
+
+.field > span {
+  color: var(--muted);
+}
+
+.field input,
+.field select {
+  height: 34px;
+  padding-left: 4px;
+  border: 0;
+  background: transparent;
+}
+
+/* The proposal card (S-04b) — the one gradient on the screen, which is the point: FR-015 is the app
+   asking a question, and it has to look unlike the rows below it. */
+.proposal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 22px;
+  border: 1px solid var(--accent-border);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(134, 59, 255, 0.1), rgba(71, 191, 255, 0.08));
+}
+
+.proposal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* The rail's eyebrow, in the accent: this one names a voice rather than a group of links. */
+.proposal .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  color: var(--accent-text);
+  font-size: 12px;
+}
+
+.proposal article {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* The prose, not the entry: the message is what the user reads first. */
+.proposal-message {
+  max-width: 44rem;
+  color: var(--text-h);
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+.proposal-entry {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.proposal-entry .content {
+  color: var(--text-h);
+}
+
+.answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* A bullet reads as the task it is about to become, so it is a row — tighter than one in the list,
+   because it sits on the card's wash rather than on the page. */
 .proposal li {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
-  padding: 12px 16px;
+  padding: 8px 12px;
+  background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
-/* The entry takes the row and pushes its buttons to the end; below ~12rem everything wraps. */
-.goals li > p,
 .proposal li > p {
   flex: 1 1 12rem;
   color: var(--text-h);
 }
 
-/* An open edit form owns the whole row rather than squeezing in beside the buttons. */
-.goals li > form {
-  flex: 1 1 100%;
+.proposal small {
+  font-size: 13px;
+  color: var(--muted);
 }
 
-.goals small {
-  font-size: 14px;
+@media (max-width: 640px) {
+  /* No room in a 375px header for either label, and no reason to lose them: this is the `.vh`
+     treatment, spelled out because plain CSS cannot fold a media query into that selector list.
+     The text stays in the DOM, so both controls keep the accessible name it gives them. */
+  .chip-email,
+  .logout-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* With the email gone the chip is an avatar and a caret, and wants no padding around them. */
+  .account-chip {
+    gap: 4px;
+    padding: 0 6px;
+  }
+
+  /* Only the chips drop under the entry: the circle, the text and the actions keep the first
+     line, as they do on a wider screen. */
+  .row {
+    flex-wrap: wrap;
+  }
+
+  .row .content {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .meta {
+    flex: 1 1 100%;
+    /* Last on the line, so it is the only thing that wraps under it. */
+    order: 1;
+    /* Lines the chips up with the content above: the 22px circle plus the row's 14px gap. */
+    padding-left: 36px;
+  }
+
+  /* A withdrawn entry has no circle, so there is nothing to clear. */
+  .row.dim .meta {
+    padding-left: 0;
+  }
+
+  /* The bar becomes three lines, and the button that finishes the job keeps one to itself. */
+  .quick-add .seg,
+  .quick-add button[type='submit'] {
+    flex: 1 1 100%;
+  }
+
+  .quick-add .field {
+    flex: 1 1 auto;
+  }
 }
 
-.goals summary {
-  cursor: pointer;
-}
-
-/* The proposal card (S-04b) — the accent border is the one place on the screen that gets it, which
-   is the point: FR-015 is the app asking a question, and it has to look unlike the rows below it. */
-.proposal {
-  margin: 24px 0;
-  padding: 16px 20px;
-  border: 1px solid var(--accent-border);
-  border-radius: 8px;
-  background: var(--accent-bg);
-}
-
-/* The prose, not the entry: the message is what the user reads first. */
-.proposal article > p:first-child {
-  color: var(--text-h);
-  margin: 16px 0 4px;
-}
-
-/* Answers and terms share the row `<p>` they sit in; the bullets' save buttons do not wrap. */
-.proposal p > button {
-  margin: 12px 8px 0 0;
-}
-
-.proposal ul {
-  margin: 12px 0 0;
-}
-
-/* Tighter than an entry row, and opaque: a bullet reads as the task it is about to become, but it
-   sits on the card's accent wash rather than the page. */
-.proposal li {
-  padding: 8px 12px;
-  background: var(--bg);
-}
