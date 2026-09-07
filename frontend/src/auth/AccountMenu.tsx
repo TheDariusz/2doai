@@ -43,7 +43,7 @@ export function LogoutButton() {
           <path d="M16 17l5-5-5-5" />
           <path d="M21 12H9" />
         </svg>
-        {t('account.logout')}
+        <span className="logout-text">{t('account.logout')}</span>
       </button>
       {error && <p role="alert">{error}</p>}
     </>
@@ -92,10 +92,18 @@ export function AccountMenu() {
 
   return (
     <div className="account">
-      <button type="button" className="account-chip" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <button
+        type="button"
+        className="account-chip"
+        aria-expanded={open}
+        // Closing drops the confirmation with the panel: reopening must land on the menu, never
+        // part-way into the one action that cannot be undone.
+        onClick={() => { setOpen(!open); setConfirming(false); setError(null) }}
+      >
         {/* Decoration, not identity: the email beside it is the accessible name of the chip. */}
         <span className="avatar" aria-hidden="true">{user?.email?.[0]?.toUpperCase()}</span>
-        {user?.email}
+        {/* Wrapped so a phone-width header can drop the text off-screen and keep the name. */}
+        <span className="chip-email">{user?.email}</span>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="m6 9 6 6 6-6" />
         </svg>

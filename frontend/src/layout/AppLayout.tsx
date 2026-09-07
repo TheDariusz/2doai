@@ -121,13 +121,16 @@ export function AppLayout() {
 
         <div className="topbar-controls">
           <LanguageSwitch onSelect={chooseLanguage} />
-          {languageError && <p role="alert">{languageError}</p>}
           <AccountMenu />
           <LogoutButton />
         </div>
       </header>
 
       <div className="app-body">
+        {/* Below the header, not inside it: a message in the controls row grows the header and
+            shoves the controls off a phone-width screen. */}
+        {languageError && <p role="alert">{languageError}</p>}
+
         <aside className="rail">
           <p className="eyebrow">{t('layout.domains')}</p>
           {failed && <p className="rail-notice">{t('layout.domainsFailed')}</p>}

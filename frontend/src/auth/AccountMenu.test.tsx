@@ -62,6 +62,22 @@ describe('AccountMenu', () => {
     expect(await screen.findByText('login screen')).toBeInTheDocument()
   })
 
+  it('forgets the confirm step when the chip is closed', async () => {
+    renderControl(<AccountMenu />, stubAuth(loggedIn))
+    const user = userEvent.setup()
+    await openMenu(user)
+
+    await user.click(screen.getByRole('button', { name: 'Delete account' }))
+    expect(screen.getByLabelText('Confirm with your password')).toBeInTheDocument()
+
+    // Closing and reopening the chip must land on the menu, never mid-way through the one action
+    // that cannot be undone.
+    await openMenu(user)
+    await openMenu(user)
+
+    expect(screen.queryByLabelText('Confirm with your password')).not.toBeInTheDocument()
+  })
+
   it('does not fire a second deletion while the first is in flight', async () => {
     const deleteAccount = vi.fn().mockReturnValue(new Promise<void>(() => {}))
     renderControl(<AccountMenu />, stubAuth({ ...loggedIn, deleteAccount }))

@@ -186,14 +186,6 @@ select {
   color: var(--text-h);
 }
 
-/* A box, not a field: the rules above would stretch it into one. */
-input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  accent-color: var(--accent);
-}
-
 [role='alert'] {
   color: var(--danger);
   font-size: 14px;
@@ -268,6 +260,8 @@ input[type='checkbox'] {
 
 .wordmark {
   display: flex;
+  /* The name is two words and one line; wrapping it is what breaks the 60px header. */
+  white-space: nowrap;
   align-items: center;
   gap: 10px;
   font-family: var(--heading);
@@ -326,7 +320,8 @@ input[type='checkbox'] {
   align-items: stretch;
   gap: 12px;
   width: max-content;
-  max-width: 22rem;
+  /* Anchored to the right edge of the header, so anything wider than the viewport hangs off it. */
+  max-width: min(22rem, calc(100vw - 32px));
   padding: 16px;
   background: var(--bg);
   border: 1px solid var(--border);
@@ -362,6 +357,11 @@ input[type='checkbox'] {
     gap: 16px;
     padding: 16px 16px 48px;
   }
+}
+
+/* A message about the shell, not about the rail it would otherwise share a column with. */
+.app-body > [role='alert'] {
+  grid-column: 1 / -1;
 }
 
 .app-body main {
@@ -461,6 +461,9 @@ input[type='checkbox'] {
   position: relative;
   width: 30px;
   height: 18px;
+  /* The `input, select` padding above is meant for fields; this one is a track, and there is no
+     global border-box, so 10px either side would stretch it to 50px. */
+  padding: 0;
   flex-shrink: 0;
   border: 0;
   border-radius: 999px;
@@ -867,14 +870,47 @@ button.check.done {
 }
 
 @media (max-width: 640px) {
-  /* The meta drops under the content rather than squeezing in beside it. */
+  /* No room in a 375px header for either label, and no reason to lose them: this is the `.vh`
+     treatment, spelled out because plain CSS cannot fold a media query into that selector list.
+     The text stays in the DOM, so both controls keep the accessible name it gives them. */
+  .chip-email,
+  .logout-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* With the email gone the chip is an avatar and a caret, and wants no padding around them. */
+  .account-chip {
+    gap: 4px;
+    padding: 0 6px;
+  }
+
+  /* Only the chips drop under the entry: the circle, the text and the actions keep the first
+     line, as they do on a wider screen. */
   .row {
     flex-wrap: wrap;
-    align-items: flex-start;
   }
 
   .row .content {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .meta {
     flex: 1 1 100%;
+    /* Last on the line, so it is the only thing that wraps under it. */
+    order: 1;
+    /* Lines the chips up with the content above: the 22px circle plus the row's 14px gap. */
+    padding-left: 36px;
+  }
+
+  /* A withdrawn entry has no circle, so there is nothing to clear. */
+  .row.dim .meta {
+    padding-left: 0;
   }
 
   /* The bar becomes three lines, and the button that finishes the job keeps one to itself. */
