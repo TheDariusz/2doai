@@ -55,8 +55,10 @@ describe('AppLayout', () => {
     renderShell()
 
     await tag('Health')
-    // The unfiltered tag links to the bare screen, so every other link is a domain.
-    const tags = screen.getAllByRole('link').filter((link) => link.getAttribute('href') !== '/goals')
+    // The unfiltered and uncategorised tags bracket the domains; every other link is one of them.
+    const tags = screen
+      .getAllByRole('link')
+      .filter((link) => !['/goals', '/goals?category=none'].includes(link.getAttribute('href') ?? ''))
 
     expect(tags).toHaveLength(11)
     expect(tags.map((link) => link.textContent)).toEqual(DOMAINS.map((domain) => domain.name))
@@ -73,6 +75,38 @@ describe('AppLayout', () => {
 
     expect(await tag('Health')).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: 'All' })).not.toHaveAttribute('aria-current')
+  })
+
+  /**
+   * The third thing the category axis can be: neither every domain nor one of them, but the entries
+   * that carry none. The list has always filtered on it — `NO_CATEGORY` — and the proposal engine
+   * treats those entries as one shared bucket, so it is a group to ask for rather than an absence.
+   */
+  it('offers the entries that carry no domain, after the domains themselves', async () => {
+    renderShell()
+    await tag('Health')
+
+    const uncategorised = await tag('No category')
+    const links = screen.getAllByRole('link')
+
+    expect(uncategorised).toHaveAttribute('href', '/goals?category=none')
+    expect(links[links.length - 1]).toBe(uncategorised)
+  })
+
+  it('marks the uncategorised tag when the URL asks for it, whatever case it is written in', async () => {
+    renderShell('/goals?category=NONE')
+
+    expect(await tag('No category')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'All' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('keeps the other filters when the uncategorised tag is the one being followed', async () => {
+    renderShell('/goals?layer=task&withdrawn=1')
+
+    expect(await tag('No category')).toHaveAttribute(
+      'href',
+      '/goals?layer=task&withdrawn=1&category=none',
+    )
   })
 
   it('marks the unfiltered tag when the URL names no category', async () => {

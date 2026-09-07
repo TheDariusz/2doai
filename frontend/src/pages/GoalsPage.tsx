@@ -5,6 +5,7 @@ import { ApiError, api } from '../api/client'
 import { ProposalCard } from './ProposalCard'
 import { CheckIcon, PencilIcon, PlusIcon, TrashIcon } from './icons'
 import { domainColor, type Domain } from '../layout/AppLayout'
+import { NO_CATEGORY } from '../filters'
 
 /**
  * A task, a goal or a dream — one representation for all three layers, exactly as the `Goal` schema
@@ -64,14 +65,6 @@ function layerIn(params: URLSearchParams): '' | Goal['layer'] {
   const requested = (params.get('layer') ?? '').toUpperCase()
   return LAYERS.find((known) => known === requested) ?? ''
 }
-
-/**
- * The `?category=` value that asks for `category_code: null`. Not the empty string, because that is
- * already taken by "no filter at all" — and the distinction is the point: the proposal engine
- * treats null as one shared bucket, so uncategorised entries are a group a user can ask for, not
- * an absence to be hidden.
- */
-const NO_CATEGORY = 'NONE'
 
 /** What both forms send: `GoalCreation` in the spec, and `GoalUpdate` once `completed` is added. */
 export type GoalDraft = Pick<Goal, 'content' | 'layer' | 'horizon' | 'due_date' | 'category_code'>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { api } from '../api/client'
+import { NO_CATEGORY } from '../filters'
 import { AccountMenu, LogoutButton } from '../auth/AccountMenu'
 import { useAuth } from '../auth/auth-context'
 import type { Language } from '../i18n'
@@ -155,6 +156,18 @@ export function AppLayout() {
                 {domain.name}
               </Link>
             ))}
+
+            {/* The entries that carry no domain — the one bucket the rail could not reach once the
+                screen's own category picker went away. Its dot is the muted text colour: it stands
+                for the absence of a domain, so it must not read as a twelfth one. */}
+            <Link
+              className="tag"
+              to={filteredUrl('category', NO_CATEGORY)}
+              aria-current={category === NO_CATEGORY ? 'page' : undefined}
+            >
+              <span className="dot" style={{ background: 'var(--muted)' }} />
+              {t('goals.noCategory')}
+            </Link>
           </nav>
 
           <hr />
