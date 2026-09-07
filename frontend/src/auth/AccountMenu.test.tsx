@@ -1,8 +1,9 @@
+import type { ReactNode } from 'react'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AccountMenu } from './AccountMenu'
+import { AccountMenu, LogoutButton } from './AccountMenu'
 import { ApiError } from '../api/client'
 import { LOGGED_IN as loggedIn, renderWithAuth, stubAuth } from '../test/auth'
 import { type Auth } from './auth-context'
@@ -14,72 +15,41 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock)
 })
 
-function renderMenu(auth: Auth) {
+function renderControl(control: ReactNode, auth: Auth) {
   renderWithAuth(
     <Routes>
-      <Route path="/" element={<AccountMenu />} />
+      <Route path="/" element={control} />
       <Route path="/login" element={<p>login screen</p>} />
     </Routes>,
     { auth },
   )
 }
 
-describe('AccountMenu — the account language (FR-002)', () => {
-  /**
-   * The menu offers the pick and hands it to the context; what a pick *costs* — the PATCH, the
-   * no-op guard, the account the answer moves — belongs to whatever owns `user.language`, and is
-   * pinned in `AuthProvider.test.tsx` against real fetches.
-   */
-  it('hands the pick to the context that owns the account language', async () => {
-    const auth = stubAuth(loggedIn)
-    renderMenu(auth)
-
-    await userEvent.setup().selectOptions(screen.getByLabelText('Language'), 'pl')
-
-    expect(auth.changeLanguage).toHaveBeenCalledWith('pl')
-  })
-
-  it('says so when the language cannot be stored, and stays in the language it was in', async () => {
-    const changeLanguage = vi.fn().mockRejectedValue(new ApiError(500, 'boom'))
-    renderMenu(stubAuth({ ...loggedIn, changeLanguage }))
-
-    await userEvent.setup().selectOptions(screen.getByLabelText('Language'), 'pl')
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Could not change the language. Try again.')
-    // The switch reads the live i18next language, so a failed write leaves the screen where it was.
-    expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument()
-  })
-})
+/**
+ * Everything the menu owns sits behind the account chip, which is named by the email it shows —
+ * nothing below is reachable until it is opened, which is the point of the first test here.
+ */
+async function openMenu(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: loggedIn.user!.email }))
+}
 
 describe('AccountMenu', () => {
-  it('logs out and returns to the login screen', async () => {
-    const auth = stubAuth(loggedIn)
-    renderMenu(auth)
+  it('keeps the account actions behind the chip until it is opened', async () => {
+    renderControl(<AccountMenu />, stubAuth(loggedIn))
+    const user = userEvent.setup()
 
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Log out' }))
+    expect(screen.queryByRole('button', { name: 'Delete account' })).not.toBeInTheDocument()
 
-    expect(auth.logout).toHaveBeenCalled()
-    expect(await screen.findByText('login screen')).toBeInTheDocument()
-  })
+    await openMenu(user)
 
-  it('reports a failed logout instead of pretending the session ended', async () => {
-    const auth = stubAuth({
-      ...loggedIn,
-      logout: async () => { throw new ApiError(503, 'Service unavailable') },
-    })
-    renderMenu(auth)
-
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Log out' }))
-
-    // The server may still hold the session, so the user must not be told they are out.
-    expect(await screen.findByRole('alert')).toHaveTextContent(/could not log you out/i)
-    expect(screen.queryByText('login screen')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete account' })).toBeInTheDocument()
   })
 
   it('double-gates deletion: a confirm step plus password re-entry', async () => {
     const auth = stubAuth(loggedIn)
-    renderMenu(auth)
+    renderControl(<AccountMenu />, auth)
     const user = userEvent.setup()
+    await openMenu(user)
 
     // Nothing is deletable before the confirmation is opened.
     expect(screen.queryByLabelText('Confirm with your password')).not.toBeInTheDocument()
@@ -94,8 +64,9 @@ describe('AccountMenu', () => {
 
   it('does not fire a second deletion while the first is in flight', async () => {
     const deleteAccount = vi.fn().mockReturnValue(new Promise<void>(() => {}))
-    renderMenu(stubAuth({ ...loggedIn, deleteAccount }))
+    renderControl(<AccountMenu />, stubAuth({ ...loggedIn, deleteAccount }))
     const user = userEvent.setup()
+    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Delete account' }))
     await user.type(screen.getByLabelText('Confirm with your password'), 'tajnehaslo')
@@ -107,8 +78,9 @@ describe('AccountMenu', () => {
   })
 
   async function submitDeletion(failure: ApiError) {
-    renderMenu(stubAuth({ ...loggedIn, deleteAccount: async () => { throw failure } }))
+    renderControl(<AccountMenu />, stubAuth({ ...loggedIn, deleteAccount: async () => { throw failure } }))
     const user = userEvent.setup()
+    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Delete account' }))
     await user.type(screen.getByLabelText('Confirm with your password'), 'zlehaslo')
@@ -133,6 +105,33 @@ describe('AccountMenu', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Could not delete the account. Refresh the page and try again.',
     )
+    expect(screen.queryByText('login screen')).not.toBeInTheDocument()
+  })
+})
+
+/** Ending the session is its own header control, so it is reached without opening the menu. */
+describe('LogoutButton', () => {
+  it('logs out and returns to the login screen', async () => {
+    const auth = stubAuth(loggedIn)
+    renderControl(<LogoutButton />, auth)
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Log out' }))
+
+    expect(auth.logout).toHaveBeenCalled()
+    expect(await screen.findByText('login screen')).toBeInTheDocument()
+  })
+
+  it('reports a failed logout instead of pretending the session ended', async () => {
+    const auth = stubAuth({
+      ...loggedIn,
+      logout: async () => { throw new ApiError(503, 'Service unavailable') },
+    })
+    renderControl(<LogoutButton />, auth)
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Log out' }))
+
+    // The server may still hold the session, so the user must not be told they are out.
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not log you out/i)
     expect(screen.queryByText('login screen')).not.toBeInTheDocument()
   })
 })

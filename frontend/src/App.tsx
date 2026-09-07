@@ -1,4 +1,3 @@
-import { useTranslation } from 'react-i18next'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { AuthProvider } from './auth/AuthProvider'
 import { ProtectedRoute } from './auth/ProtectedRoute'
@@ -9,8 +8,6 @@ import { GoalsPage } from './pages/GoalsPage'
 
 /** The route tree, router-free so tests can mount it inside a `MemoryRouter`. */
 export function AppRoutes() {
-  const { t } = useTranslation()
-
   return (
     <Routes>
       <Route path="/login" element={<AuthPage mode="login" />} />
@@ -18,7 +15,9 @@ export function AppRoutes() {
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
-          <Route index element={<p>{t('layout.pickDomain')}</p>} />
+          {/* There is one screen to be on, so the index route is a redirect rather than a page
+              of advice about a rail the user is already looking at. */}
+          <Route index element={<Navigate to="/goals" replace />} />
           <Route path="goals" element={<GoalsPage />} />
           <Route path="domain/:code" element={<DomainPlaceholder />} />
         </Route>

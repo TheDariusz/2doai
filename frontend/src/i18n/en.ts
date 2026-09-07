@@ -12,7 +12,7 @@ export const en: typeof pl = {
   layout: {
     nav: 'Navigation',
     domainsFailed: 'Could not load your life domains — refresh the page.',
-    pickDomain: 'Pick a life domain from the navigation.',
+    domains: 'Life domains',
     domainComingSoon: 'This domain arrives in a later slice.',
     language: 'Language',
   },

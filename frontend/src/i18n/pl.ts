@@ -13,7 +13,7 @@ export const pl = {
   layout: {
     nav: 'Nawigacja',
     domainsFailed: 'Nie udało się wczytać domen — odśwież stronę.',
-    pickDomain: 'Wybierz domenę z nawigacji.',
+    domains: 'Obszary życia',
     domainComingSoon: 'Ta domena pojawi się w kolejnym wycinku.',
     language: 'Język',
   },
