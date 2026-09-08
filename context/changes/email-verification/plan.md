@@ -561,8 +561,8 @@ draw.io export writes `color-scheme: light dark`).
 
 #### Automated
 
-- [x] 4.1 `/check` green (backend tests, frontend test + lint + build)
-- [x] 4.2 `node --test docs/index.test.mjs` green
+- [x] 4.1 `/check` green (backend tests, frontend test + lint + build) — 8a8ad1e
+- [x] 4.2 `node --test docs/index.test.mjs` green — 8a8ad1e
 
 #### Manual
 
