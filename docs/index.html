@@ -1762,7 +1762,7 @@ sequenceDiagram
   alt too many codes for this address
     EVS-->>SPA: 429 + Retry-After
   else the provider would not take the message
-    EVS-->>SPA: 503 — the unverified row stays;&lt;br/&gt;the next sign-up or resend overwrites its code
+    EVS-->>SPA: 503 — the unverified row stays,&lt;br/&gt;the next sign-up or resend overwrites its code
   else sent
     UC-->>SPA: 201 Created, Location: /api/users/me
   end
@@ -1796,7 +1796,7 @@ sequenceDiagram
     EVS->>UR: markEmailVerified — the hash and its expiry are cleared, so no replay
     EVS->>SCH: UserVerified, published inside the same transaction
     Note over SCH: the rhythm draws this account's first moment here.&lt;br/&gt;A rolled-back verification takes it with it
-    EVS-->>SPA: 204 — no session; POST /api/sessions is still the only one
+    EVS-->>SPA: 204 — no session, and POST /api/sessions is still the only one
   end
   SPA->>VC: POST /api/verification-codes {email} — "send again"
   VC->>EVS: resendCode(email)
