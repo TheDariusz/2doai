@@ -530,17 +530,17 @@ draw.io export writes `color-scheme: light dark`).
 
 #### Automated
 
-- [x] 1.1 `mvn test -Dtest=UserVerificationPersistenceTest` passes (Flyway applies V13 on a fresh container)
-- [x] 1.2 `mvn test -Dtest=ProposalSchedulerTest` passes with the `UserVerified` listener and the boot filter
-- [x] 1.3 `mvn test` green — `UserOwnedConventionTest`, `AccountDeletionIntegrationTest` unaffected
+- [x] 1.1 `mvn test -Dtest=UserVerificationPersistenceTest` passes (Flyway applies V13 on a fresh container) — b1fea03
+- [x] 1.2 `mvn test -Dtest=ProposalSchedulerTest` passes with the `UserVerified` listener and the boot filter — b1fea03
+- [x] 1.3 `mvn test` green — `UserOwnedConventionTest`, `AccountDeletionIntegrationTest` unaffected — b1fea03
 
 ### Phase 2: API — issue, verify, resend, gate login
 
 #### Automated
 
-- [ ] 2.1 `mvn test -Dtest=AuthApiTest,VerificationApiTest` passes every case above
-- [ ] 2.2 `mvn test` green (the fake replaces SMTP everywhere; no suite reaches smtp.resend.com)
-- [ ] 2.3 `node --test docs/index.test.mjs` still green (touched only in Phase 4)
+- [x] 2.1 `mvn test -Dtest=AuthApiTest,VerificationApiTest` passes every case above
+- [x] 2.2 `mvn test` green (the fake replaces SMTP everywhere; no suite reaches smtp.resend.com)
+- [x] 2.3 `node --test docs/index.test.mjs` still green (touched only in Phase 4)
 
 #### Manual
 

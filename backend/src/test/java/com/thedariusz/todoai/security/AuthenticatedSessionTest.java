@@ -36,7 +36,7 @@ class AuthenticatedSessionTest {
 	@Test
 	void refusesToReAuthenticateASessionThatWasNeverAuthenticated() {
 		UserPrincipal principal = new UserPrincipal(
-				UUID.randomUUID(), "ala@example.pl", "{bcrypt}$2a$10$hash", AppLanguage.EN);
+				UUID.randomUUID(), "ala@example.pl", "{bcrypt}$2a$10$hash", AppLanguage.EN, true);
 
 		assertThatThrownBy(() -> session.replacePrincipal(
 				principal, new MockHttpServletRequest(), new MockHttpServletResponse()))

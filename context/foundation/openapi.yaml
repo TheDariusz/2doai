@@ -1,8 +1,8 @@
 openapi: 3.1.0
 
 # API-first contract (Zalando #100/#101): the users + sessions + categories resources (S-01),
-# the goals resource (S-02, widened to current tasks by S-07), the proposals resource (S-04a) and
-# the operational /ping probe. Every path the server publishes is here — an endpoint the deployment
+# the goals resource (S-02, widened to current tasks by S-07), the proposals resource (S-04a), the
+# address-verification resources (DEV-51) and the operational /ping probe. Every path the server publishes is here — an endpoint the deployment
 # depends on but the spec omits is the drift this file exists to prevent.
 # Authoritative over any older path prose in plan.md.
 #
@@ -32,7 +32,8 @@ info:
   # the persistence for (DEV-49) → 1.6.0, +the category labels answering in that language (DEV-49)
   # → 1.7.0, +the two proposal operations declaring the `Accept-Language` they already honoured
   # (DEV-49) → 1.7.1 — a PATCH, because it documents behaviour the server already had rather than
-  # changing any.
+  # changing any, +the two address-verification resources and the login gate they exist for
+  # (DEV-51) → 1.8.0.
   #
   # 1.4.0 carries one genuinely *incompatible* change and is not pretending otherwise:
   # `GoalUpdate.withdrawn` is a required boolean (Jackson rejects a null for a primitive), so a
@@ -40,7 +41,7 @@ info:
   # versioning — deliberately not done, because x-audience is component-internal: the only client is
   # the SPA in this repository, and it gained the field in the same commit the server did. The day a
   # second consumer exists, that exemption expires and this is the paragraph that says so.
-  version: 1.7.1
+  version: 1.8.0
   contact:
     name: 2do AI
     email: thedariusz@gmail.com
@@ -59,6 +60,8 @@ tags:
     description: The user identity resource.
   - name: sessions
     description: Authentication sessions (login / logout).
+  - name: verifications
+    description: Proving that somebody reads the address an account was signed up with.
   - name: categories
     description: The 11 fixed life-domain reference records.
   - name: goals
@@ -76,9 +79,18 @@ paths:
       description: >
         Creates a user from an email + password. Does not log the user in (session creation is the
         sole responsibility of POST /sessions). The email is normalized (trimmed + lowercased) and
-        must be unique; a taken email returns 409. The new account's `language` is the one this
+        must be unique. The new account's `language` is the one this
         request negotiated (FR-003) — the sign-up screen's language IS the Accept-Language the
         sign-up request carried, so there is deliberately no field for it on the payload.
+
+
+        The account is created **unverified** and a six-digit code is emailed to the address, in the
+        account's language and valid for 15 minutes: it cannot log in and the natural rhythm never
+        writes to it until POST /verifications has been answered. An address whose account exists but
+        was never verified is **taken over** — its password and language are replaced and a fresh code
+        is sent, so an abandoned or mistyped sign-up never blocks the real owner — so only a *verified*
+        duplicate is 409. The code is mailed after the account is committed, which is why a mail
+        outage is 503 on an account that nevertheless exists; retry, or ask for a code again.
       operationId: createUser
       security: []                                          # public (#104 exception: registration)
       parameters:
@@ -109,11 +121,20 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'          # missing / invalid CSRF token
         '409':
-          $ref: '#/components/responses/Conflict'           # email already in use
+          $ref: '#/components/responses/Conflict'           # a *verified* account already has this email
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'    # too many codes to this address already
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '503':
+          # 3.1 lets a Reference Object override the target's description.
+          $ref: '#/components/responses/ServiceUnavailable'
+          description: >
+            The account was created but the code could not be mailed. Not a failed registration: the
+            row exists and is unverified, so the remedy is POST /verification-codes (or signing up
+            again with the same address), not a different email.
 
   /users/me:
     get:
@@ -252,7 +273,18 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'       # generic bad-credentials
         '403':
-          $ref: '#/components/responses/Forbidden'          # missing / invalid CSRF token
+          # Same pattern as DELETE /users/me: a Reference Object overriding the shared description.
+          $ref: '#/components/responses/Forbidden'
+          description: >
+            Two distinct causes, told apart by the Problem `type` (never by parsing `detail`):
+            `urn:2doai:problem:email-not-verified` means the password was right but the address has
+            never been confirmed — the remedy is POST /verifications, and a client should send the
+            user to the code screen rather than reporting a credentials failure. Any other `type`,
+            **including its absence**, is a missing or invalid CSRF token, which only a page reload
+            re-primes.
+            A *wrong* password on an unverified account is deliberately the generic 401 above and not
+            this: the server checks the password before the account status precisely so this response
+            cannot be used to find out which addresses have unconfirmed accounts.
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
         '500':
@@ -276,6 +308,95 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
+
+  /verifications:
+    post:
+      tags: [verifications]
+      summary: Prove an email address with the code that was mailed to it
+      description: >
+        Spends the six-digit code POST /users (or POST /verification-codes) emailed to the address.
+        On success the account becomes one that can log in and that the proactive engine may write
+        to; the code is cleared in the same write, so it cannot be spent twice.
+
+
+        Does NOT open a session — POST /sessions remains the sole session-creation path, so the
+        client logs in afterwards.
+
+
+        Every failure is one 403 with `type: urn:2doai:problem:verification-failed` and one fixed
+        `detail`: unknown address, already verified, no outstanding code, expired, out of attempts,
+        and simply wrong are deliberately indistinguishable. Telling them apart would say which
+        addresses have unconfirmed accounts, and none of the six leaves the user anything different
+        to do — ask for another code. A code is worth five wrong guesses; a fresh one restores the
+        budget.
+      operationId: createVerification
+      security: []                                          # public (the account cannot log in yet)
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'         # public, but still a mutation — CSRF applies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailVerification'
+      responses:
+        '204':
+          description: The address is confirmed; the account may now log in.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          description: >
+            `urn:2doai:problem:verification-failed` — the code is wrong or no longer valid (see the
+            operation description; the causes are deliberately conflated). Any other `type`,
+            including its absence, is a missing or invalid CSRF token.
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity' # `code` is not six digits
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /verification-codes:
+    post:
+      tags: [verifications]
+      summary: Send another verification code to an address
+      description: >
+        Issues a fresh code for an unverified account, in that account's language, and invalidates
+        the outstanding one — so a resend never widens the window a guesser is working in. The new
+        code also restores the five attempts the old one may have spent.
+
+
+        **202 for every address**, including one with no account and one already verified, neither of
+        which is sent anything. "Accepted" is the honest word: the server has taken the request, and
+        whether a message follows is exactly what it declines to disclose. The throttle is consulted
+        before the address is looked up for the same reason — a 429 that only ever happened to real
+        accounts would answer the question the 202 refuses to.
+      operationId: createVerificationCode
+      security: []                                          # public (the account cannot log in yet)
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationCodeRequest'
+      responses:
+        '202':
+          description: >
+            The request was accepted. Says nothing about whether the address has an account, whether
+            it was already verified, or whether a message was sent.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'          # missing / invalid CSRF token
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable' # the provider would not take the message
 
   /categories:
     get:
@@ -806,6 +927,39 @@ components:
           description: At most 72 UTF-8 bytes (the BCrypt input limit).
           writeOnly: true
 
+    EmailVerification:
+      type: object
+      description: The code a user typed, for POST /verifications.
+      required: [email, code]
+      properties:
+        email:
+          type: string
+          maxLength: 320
+          description: >
+            Validated as loosely as `Credentials.email`, and for the same reason: this operation
+            answers identically for every address it does not recognise, and a stricter constraint
+            would start answering 422 for some of them and 403 for others.
+        code:
+          type: string
+          pattern: '^\\d{6}$'
+          description: >
+            Exactly six digits. A malformed code is 422 and never spends one of the five guesses the
+            real code is worth.
+          example: '042317'
+
+    VerificationCodeRequest:
+      type: object
+      description: >
+        The address to send another code to, for POST /verification-codes. Address only — which
+        account it belongs to, and whether it has one at all, is deliberately not something the
+        answer reveals.
+      required: [email]
+      properties:
+        email:
+          type: string
+          maxLength: 320
+          example: alice@example.com
+
     AccountDeletion:
       type: object
       description: Re-authentication for the irreversible FR-019 account deletion.
@@ -1238,6 +1392,24 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+    TooManyRequests:
+      description: >
+        Too many verification codes have been asked for this address — one per minute and five per
+        hour. `Retry-After` carries the number of seconds to wait; it is the only part of this
+        response a client can act on, so a screen must read it rather than guess. The limit is per
+        address and held in the server's memory, so it resets on a restart.
+      headers:
+        Retry-After:
+          description: Seconds to wait before asking again.
+          required: true
+          schema:
+            type: integer
+            format: int32
+            example: 42
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     InternalServerError:
       description: >
         An unhandled server fault. Reachable on every operation — `ApiExceptionHandler` and
@@ -1249,10 +1421,12 @@ components:
             $ref: '#/components/schemas/Problem'
     ServiceUnavailable:
       description: >
-        Authentication could not be completed for an infrastructure reason (a connection-pool
+        A dependency would not answer, and nothing the caller sent is wrong. On POST /sessions:
+        authentication could not be completed for an infrastructure reason (a connection-pool
         timeout, a database cold start that overran) — deliberately NOT reported as 401, which would
-        tell every user their password is wrong during an outage. Retry; the credentials were never
-        judged.
+        tell every user their password is wrong during an outage; the credentials were never judged.
+        On the operations that email a code: the provider would not take the message. Retry in both
+        cases.
       content:
         application/problem+json:
           schema:

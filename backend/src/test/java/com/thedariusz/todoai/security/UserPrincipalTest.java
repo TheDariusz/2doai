@@ -21,7 +21,7 @@ class UserPrincipalTest {
 	 */
 	@Test
 	void refusesToExistWithoutTheIdEverythingIsAuthorizedAgainst() {
-		assertThatThrownBy(() -> new UserPrincipal(null, "ala@example.pl", "{bcrypt}$2a$10$hash", AppLanguage.PL))
+		assertThatThrownBy(() -> new UserPrincipal(null, "ala@example.pl", "{bcrypt}$2a$10$hash", AppLanguage.PL, true))
 				.isInstanceOf(NullPointerException.class)
 				.hasMessage("userId");
 	}
@@ -29,7 +29,7 @@ class UserPrincipalTest {
 	/** FR-002 moves this one mid-session, which is the reason it is worth stating it cannot be dropped. */
 	@Test
 	void refusesToExistWithoutALanguage() {
-		assertThatThrownBy(() -> new UserPrincipal(UUID.randomUUID(), "ala@example.pl", "{bcrypt}$2a$10$hash", null))
+		assertThatThrownBy(() -> new UserPrincipal(UUID.randomUUID(), "ala@example.pl", "{bcrypt}$2a$10$hash", null, true))
 				.isInstanceOf(NullPointerException.class)
 				.hasMessage("language");
 	}

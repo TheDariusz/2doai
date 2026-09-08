@@ -619,6 +619,9 @@ class AuthApiTest extends ApiTestBase {
 				.post("/api/users")
 				.then()
 				.statusCode(201);
+		// Registered by hand rather than through `register`, because the header is the subject here —
+		// so the verification step it would have done has to be done explicitly (DEV-51).
+		confirmAddress(email);
 
 		login(email, "correct-horse").statusCode(201).body("language", equalTo("PL"));
 	}

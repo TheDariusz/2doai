@@ -24,11 +24,14 @@ import org.springframework.security.core.userdetails.UserDetails;
  * for.
  *
  * <p>No authorities: the MVP is a flat multi-user model with no roles (see the plan's
- * <em>What We're NOT Doing</em>). All account-status flags are {@code true} — the account lifecycle
- * has no lock/expiry/disable states yet; FR-019 deletion removes the row outright.
+ * <em>What We're NOT Doing</em>). Every account-status flag but one is {@code true} — there are no
+ * lock or expiry states, and FR-019 deletion removes the row outright. The exception is
+ * {@link #isEnabled()}, which since DEV-51 means <b>the address has been proved</b>: an account
+ * nobody has confirmed cannot hold a session. When that check runs is as load-bearing as the flag —
+ * see the {@code daoAuthenticationProvider} bean in {@code SecurityConfig}.
  */
-public record UserPrincipal(UUID userId, String email, String passwordHash, AppLanguage language)
-		implements UserDetails {
+public record UserPrincipal(UUID userId, String email, String passwordHash, AppLanguage language,
+		boolean verified) implements UserDetails {
 
 	/**
 	 * Every component is required, and {@link #userId} is the one that would fail quietly without
@@ -45,12 +48,13 @@ public record UserPrincipal(UUID userId, String email, String passwordHash, AppL
 	}
 
 	public static UserPrincipal from(User user) {
-		return new UserPrincipal(user.getId(), user.getEmail(), user.getPasswordHash(), user.getLanguage());
+		return new UserPrincipal(user.getId(), user.getEmail(), user.getPasswordHash(), user.getLanguage(),
+				user.isEmailVerified());
 	}
 
 	/** The principal the language switch (FR-002) puts back into the session's security context. */
 	public UserPrincipal withLanguage(AppLanguage newLanguage) {
-		return new UserPrincipal(userId, email, passwordHash, newLanguage);
+		return new UserPrincipal(userId, email, passwordHash, newLanguage, verified);
 	}
 
 	/**
@@ -113,8 +117,14 @@ public record UserPrincipal(UUID userId, String email, String passwordHash, AppL
 		return true;
 	}
 
+	/**
+	 * <b>"The owner of this address confirmed it"</b> (DEV-51), which is what Spring Security's
+	 * enabled/disabled flag has always meant here in everything but name. A false makes login fail with
+	 * {@code DisabledException} — but only after the password matched, because {@code SecurityConfig}
+	 * moves the check that reads this to post-authentication.
+	 */
 	@Override
 	public boolean isEnabled() {
-		return true;
+		return verified;
 	}
 }

@@ -1,6 +1,7 @@
 package com.thedariusz.todoai.auth;
 
 import java.sql.SQLException;
+import java.util.Optional;
 
 import com.thedariusz.todoai.ai.memory.AiMemoryRepository;
 import com.thedariusz.todoai.user.AppLanguage;
@@ -28,9 +29,16 @@ class RegistrationServiceTest {
 	private final RegistrationService service =
 			new RegistrationService(users, memories, passwordEncoder);
 
+	/**
+	 * The race the pre-check cannot win, and does not have to: two sign-ups for a brand-new address
+	 * both find nothing, both insert, and the UNIQUE index decides. The loser is a duplicate of a row
+	 * that did not exist a moment ago, so 409 is the only honest answer — taking over an account
+	 * created microseconds earlier by somebody else is not.
+	 */
 	@Test
 	void translatesTheDatabaseUniqueConstraintRaceToDuplicateEmail() {
 		when(passwordEncoder.encode("correct-horse")).thenReturn("{bcrypt}$2a$10$hash");
+		when(users.findByEmail("alice@example.com")).thenReturn(Optional.empty());
 		when(users.saveAndFlush(any(User.class))).thenThrow(violationOf("app_user_email_key"));
 
 		assertThatThrownBy(() -> service.register("alice@example.com", "correct-horse", AppLanguage.EN))
@@ -47,6 +55,7 @@ class RegistrationServiceTest {
 	@Test
 	void doesNotDisguiseAnUnrelatedIntegrityViolationAsADuplicateEmail() {
 		when(passwordEncoder.encode("correct-horse")).thenReturn("{bcrypt}$2a$10$hash");
+		when(users.findByEmail("alice@example.com")).thenReturn(Optional.empty());
 		when(users.saveAndFlush(any(User.class))).thenThrow(violationOf("app_user_password_hash_check"));
 
 		assertThatThrownBy(() -> service.register("alice@example.com", "correct-horse", AppLanguage.EN))

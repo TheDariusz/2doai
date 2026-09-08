@@ -16,6 +16,7 @@ import io.restassured.response.ValidatableResponse;
 import io.restassured.specification.RequestSpecification;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.yaml.snakeyaml.Yaml;
 
@@ -35,6 +36,10 @@ abstract class ApiTestBase {
 
 	@LocalServerPort
 	private int port;
+
+	/** The fake SMTP adapter from {@link TestcontainersConfiguration} — where the codes come from. */
+	@Autowired
+	protected TestcontainersConfiguration.RecordingEmailSender mail;
 
 	/**
 	 * A {@link CookieFilter}, not a {@code SessionFilter}: the latter carries only {@code JSESSIONID},
@@ -103,6 +108,12 @@ abstract class ApiTestBase {
 		return csrfToken;
 	}
 
+	/**
+	 * Registers <em>and verifies</em> — the whole of what it takes to end up with an account that can
+	 * log in (DEV-51). Every suite calls it and none of them had to change: the code is read out of the
+	 * message the fake adapter captured and posted back through the real endpoint, so what these tests
+	 * get is an account produced exactly the way a user's is, not one nudged into shape from the side.
+	 */
 	protected void register(String email, String password) {
 		csrfAware()
 				.body(Map.of("email", email, "password", password))
@@ -110,6 +121,24 @@ abstract class ApiTestBase {
 				.post("/api/users")
 				.then()
 				.statusCode(201);
+		confirmAddress(email);
+	}
+
+	/**
+	 * Types the code this address was last sent. Fails loudly if it was never sent one.
+	 *
+	 * <p>Not {@code verify} — several suites statically import Mockito's, and a same-named method on
+	 * a superclass shadows a static import rather than overloading it.
+	 */
+	protected void confirmAddress(String email) {
+		String code = mail.codeFor(email)
+				.orElseThrow(() -> new AssertionError("No verification code was mailed to " + email));
+		csrfAware()
+				.body(Map.of("email", email, "code", code))
+				.when()
+				.post("/api/verifications")
+				.then()
+				.statusCode(204);
 	}
 
 	/**

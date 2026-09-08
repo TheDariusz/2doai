@@ -7,12 +7,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.configurers.RequestCacheConfigurer;
+import org.springframework.security.authentication.AccountStatusUserDetailsChecker;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.CredentialsExpiredException;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.logout.CompositeLogoutHandler;
@@ -49,7 +52,8 @@ import org.springframework.security.web.context.SecurityContextRepository;
  * <p>Key choices:
  * <ul>
  *   <li><b>Authorization</b> — public: {@code POST /api/users} (register), {@code POST /api/sessions}
- *       (login), the {@code /api/ping} smoke path, and {@code /actuator/health/**} (Fly's liveness
+ *       (login), the two DEV-51 verification paths, the {@code /api/ping} smoke path, and
+ *       {@code /actuator/health/**} (Fly's liveness
  *       probe hits {@code /actuator/health/liveness} <em>through</em> this filter chain, so it must
  *       stay public). The matchers are method-specific so that {@code GET/DELETE /api/users/me} and
  *       {@code DELETE /api/sessions/current} still require authentication. Everything else is
@@ -93,6 +97,8 @@ public class SecurityConfig {
 						.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/users").permitAll()      // register
 						.requestMatchers(HttpMethod.POST, "/api/sessions").permitAll()   // login
+						.requestMatchers(HttpMethod.POST, "/api/verifications").permitAll()      // prove an address
+						.requestMatchers(HttpMethod.POST, "/api/verification-codes").permitAll() // send it again
 						.requestMatchers("/api/ping").permitAll()
 						.requestMatchers("/actuator/health/**").permitAll()
 						.anyRequest().authenticated())
@@ -194,8 +200,34 @@ public class SecurityConfig {
 	}
 
 	/**
+	 * The login provider, defined explicitly for one reason: <b>to move the account-status check to
+	 * <em>after</em> the password check</b> (DEV-51).
+	 *
+	 * <p>By default {@code DaoAuthenticationProvider} runs {@code AccountStatusUserDetailsChecker}
+	 * <em>before</em> comparing hashes, so an unverified account would answer "email not verified" to
+	 * <em>any</em> password — turning the login form into an oracle for which addresses are registered
+	 * but unproved. Emptying the pre-check and installing the same checker as the post-check means the
+	 * {@code DisabledException} that {@link UserPrincipal#isEnabled()} triggers can only be raised once
+	 * BCrypt has already agreed, so a wrong password on an unverified account is the same generic 401
+	 * as a wrong password anywhere else. Pinned by {@code VerificationApiTest}.
+	 *
+	 * <p>Spring Security adopts a single {@code AuthenticationProvider} bean into the global
+	 * {@link AuthenticationManager} below; a second one would silently make it adopt neither.
+	 */
+	@Bean
+	DaoAuthenticationProvider daoAuthenticationProvider(UserDetailsService userDetailsService,
+			PasswordEncoder passwordEncoder) {
+		DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
+		provider.setPasswordEncoder(passwordEncoder);
+		provider.setPreAuthenticationChecks(user -> {
+		});
+		provider.setPostAuthenticationChecks(new AccountStatusUserDetailsChecker());
+		return provider;
+	}
+
+	/**
 	 * Exposes the {@link AuthenticationManager} (backed by {@code AppUserDetailsService} +
-	 * {@link #passwordEncoder()} via the auto-configured {@code DaoAuthenticationProvider}) so
+	 * {@link #passwordEncoder()} via the {@link #daoAuthenticationProvider} bean above) so
 	 * {@link com.thedariusz.todoai.session.SessionController} can authenticate credentials explicitly.
 	 */
 	@Bean
