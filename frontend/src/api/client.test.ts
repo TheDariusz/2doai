@@ -110,12 +110,20 @@ describe('api client', () => {
   })
 
   it('resolves without parsing a body on 204', async () => {
-    const noContent = response(204)
-    noContent.json = async () => {
-      throw new Error('204 has no body to parse')
-    }
-    fetchMock.mockResolvedValue(noContent)
+    fetchMock.mockResolvedValue(response(204))
 
     await expect(api('/sessions/current', { method: 'DELETE' })).resolves.toBeUndefined()
+  })
+
+  /**
+   * The rule is "was there a body", not "was the status 204": `POST /verification-codes` answers
+   * 202 with nothing in it, and calling `.json()` on a bodyless `Response` throws.
+   */
+  it('resolves without parsing a body on any empty answer, 202 included', async () => {
+    fetchMock.mockResolvedValue(response(202))
+
+    await expect(
+      api('/verification-codes', { method: 'POST', body: { email: 'a@b.pl' } }),
+    ).resolves.toBeUndefined()
   })
 })

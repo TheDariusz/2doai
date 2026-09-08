@@ -5,13 +5,11 @@ import com.thedariusz.todoai.ai.memory.AiMemoryRepository;
 import com.thedariusz.todoai.user.AppLanguage;
 import com.thedariusz.todoai.user.Email;
 import com.thedariusz.todoai.user.User;
-import com.thedariusz.todoai.user.UserRegistered;
 import com.thedariusz.todoai.user.UserRepository;
 import org.apache.commons.lang3.StringUtils;
 import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -24,6 +22,16 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Registration deliberately does <b>not</b> log the user in — {@code POST /api/sessions} is the
  * single session-creation path, so there is one place where a session can come into being.
+ *
+ * <p>It announces nothing, either. The account it creates is <b>inert</b> until the address is
+ * proved (DEV-51): {@code UserVerified} is what the rest of the app listens for, and it is published
+ * by verification, not from here. Anything started at sign-up would be started for an address nobody
+ * has consented with.
+ *
+ * <p>It does not send the code either — {@link EmailVerificationService#issue} does, once this
+ * transaction has committed. SMTP inside it would pin a database connection across three ten-second
+ * timeouts — connection, read and write — and a provider outage would roll back an account that was
+ * otherwise perfectly created.
  */
 @Service
 public class RegistrationService {
@@ -39,14 +47,11 @@ public class RegistrationService {
 
 	private final PasswordEncoder passwordEncoder;
 
-	private final ApplicationEventPublisher events;
-
-	public RegistrationService(UserRepository users, AiMemoryRepository memories, PasswordEncoder passwordEncoder,
-			ApplicationEventPublisher events) {
+	public RegistrationService(UserRepository users, AiMemoryRepository memories,
+			PasswordEncoder passwordEncoder) {
 		this.users = users;
 		this.memories = memories;
 		this.passwordEncoder = passwordEncoder;
-		this.events = events;
 	}
 
 	/**
@@ -55,14 +60,17 @@ public class RegistrationService {
 	 *         rendering on every call: the sign-up screen's language <em>is</em> the
 	 *         {@code Accept-Language} the sign-up request carried, so asking for it twice would create
 	 *         a second answer that can disagree with the first.
+	 * @return the account to send a code to
+	 * @throws EmailAlreadyRegisteredException when the address is already in the table, whether or not
+	 *         the account behind it was ever proved
 	 */
 	@Transactional
 	public User register(String rawEmail, String rawPassword, AppLanguage language) {
-		User user = new User(Email.of(rawEmail), passwordEncoder.encode(rawPassword), language);
+		Email email = Email.of(rawEmail);
+		String passwordHash = passwordEncoder.encode(rawPassword);
+
+		User user = new User(email, passwordHash, language);
 		try {
-			// Flush while still inside this service so the UNIQUE(email) constraint is translated to
-			// the API's 409. The constraint is the *only* duplicate check: an application-level
-			// pre-check would cost a SELECT on every registration and still lose a concurrent race.
 			user = users.saveAndFlush(user);
 		}
 		catch (DataIntegrityViolationException ex) {
@@ -74,11 +82,6 @@ public class RegistrationService {
 			throw new EmailAlreadyRegisteredException(ex);
 		}
 		memories.save(new AiMemory(user.getId()));
-		// Announced rather than acted on: what has to start happening for a brand-new account is not
-		// registration's business, and the natural rhythm (S-05) is only the first thing that needs to
-		// know. Published inside the transaction on purpose — a listener's write lands or rolls back
-		// with the account, and no signup can leave behind state for a user who was never created.
-		events.publishEvent(new UserRegistered(user.getId()));
 		return user;
 	}
 

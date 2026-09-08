@@ -3,6 +3,7 @@ package com.thedariusz.todoai.auth;
 import java.net.URI;
 
 import com.thedariusz.todoai.goal.GoalNotFoundException;
+import com.thedariusz.todoai.mail.MailDeliveryException;
 import com.thedariusz.todoai.proposal.ProposalAlreadyAnsweredException;
 import com.thedariusz.todoai.proposal.ProposalNotFoundException;
 import org.springframework.http.HttpHeaders;
@@ -32,6 +33,9 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
 	/** Documented in openapi.yaml; this class is its only producer. */
 	private static final URI RE_AUTH_FAILED = URI.create("urn:2doai:problem:re-auth-failed");
+
+	/** Likewise. The SPA branches on it to send the user to the code screen instead of the login one. */
+	private static final URI VERIFICATION_FAILED = URI.create("urn:2doai:problem:verification-failed");
 
 	/**
 	 * Validation → <b>422</b>, not Spring's default 400: the request parsed fine, its content failed
@@ -113,6 +117,59 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 		body.setType(RE_AUTH_FAILED);
 		body.setTitle("Re-authentication failed");
 		return body;
+	}
+
+	/**
+	 * A code that does not prove the address → <b>403</b>, and the URN is the whole point of the
+	 * status: the SPA has to tell "that code is not right, try again" from the CSRF 403 that shares it
+	 * and can only be fixed by reloading the page. The detail is fixed and says nothing about which of
+	 * the six causes it was — see {@link VerificationFailedException}.
+	 */
+	@ExceptionHandler(VerificationFailedException.class)
+	ProblemDetail handleVerificationFailed(VerificationFailedException ex, WebRequest request) {
+		logger.warn("Request to " + request.getDescription(false) + " rejected with 403: "
+				+ ex.getClass().getSimpleName());
+		ProblemDetail body = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+		body.setType(VERIFICATION_FAILED);
+		body.setTitle("Verification failed");
+		return body;
+	}
+
+	/**
+	 * Too many codes for one address → <b>429</b> with {@code Retry-After}. The header is the only part
+	 * of this response a client can act on: a screen that just says "try later" makes the user guess,
+	 * and a client that retries on its own would otherwise poll straight into the next refusal.
+	 *
+	 * <p>Returned as a {@link ResponseEntity} rather than a bare {@link ProblemDetail} solely because a
+	 * bare one carries no headers; the body is rendered as {@code application/problem+json} either way.
+	 */
+	@ExceptionHandler(VerificationThrottledException.class)
+	ResponseEntity<ProblemDetail> handleVerificationThrottled(VerificationThrottledException ex,
+			WebRequest request) {
+
+		logger.warn("Request to " + request.getDescription(false) + " rejected with 429: retry in "
+				+ ex.retryAfterSeconds() + "s");
+		ProblemDetail body = ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+		body.setTitle("Too Many Requests");
+		return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+				.header(HttpHeaders.RETRY_AFTER, Long.toString(ex.retryAfterSeconds()))
+				.body(body);
+	}
+
+	/**
+	 * The provider would not take the message → <b>503</b>, not 500: nothing the caller sent is wrong
+	 * and retrying is exactly the right thing to do. The account is already created and unverified, and
+	 * "send again" overwrites its code, so there is nothing to clean up — and the send that never
+	 * happened is refunded to {@code VerificationThrottle}, so the retry is not met with a 429.
+	 *
+	 * <p>The cause goes to the log and never to the body — the exception's message is written to be
+	 * logged and carries the recipient's domain (see {@link MailDeliveryException}).
+	 */
+	@ExceptionHandler(MailDeliveryException.class)
+	ProblemDetail handleMailDelivery(MailDeliveryException ex, WebRequest request) {
+		logger.error("Request to " + request.getDescription(false) + " could not send its email", ex);
+		return ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE,
+				"The confirmation email could not be sent");
 	}
 
 	/**

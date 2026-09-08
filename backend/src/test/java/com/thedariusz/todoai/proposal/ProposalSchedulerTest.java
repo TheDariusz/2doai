@@ -18,7 +18,7 @@ import com.thedariusz.todoai.mail.MailboxProperties;
 import com.thedariusz.todoai.user.Email;
 import com.thedariusz.todoai.user.AppLanguage;
 import com.thedariusz.todoai.user.User;
-import com.thedariusz.todoai.user.UserRegistered;
+import com.thedariusz.todoai.user.UserVerified;
 import com.thedariusz.todoai.user.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -283,12 +283,31 @@ class ProposalSchedulerTest {
 	}
 
 	@Test
-	void schedulesAFreshAccountWithoutWaitingForARestart() {
+	void schedulesAnAccountTheMomentItsAddressIsProvedWithoutWaitingForARestart() {
 		User account = account(null);
 
-		scheduler.scheduleNewAccount(new UserRegistered(account.getId()));
+		scheduler.scheduleNewAccount(new UserVerified(account.getId()));
 
 		assertThat(drawnFor(account)).isNotNull();
+	}
+
+	/**
+	 * The rhythm is the one thing in the app that writes to an address nobody asked it to, so it may
+	 * only ever hold addresses somebody has proved. An account that registered and never confirmed is
+	 * a delivery the owner of that mailbox never consented to — and at boot it is the only place an
+	 * unverified row could still slip into the map, since every other entry arrives on
+	 * {@link UserVerified}.
+	 */
+	@Test
+	void leavesAnUnverifiedAccountOutOfTheRhythmAtBoot() {
+		User account = unverifiedAccount();
+		when(users.findAll()).thenReturn(List.of(account));
+
+		scheduler.loadSchedule();
+		scheduler.fireDue(MIDDAY);
+
+		verify(users, never()).scheduleNextProposalAt(any(), any(), any());
+		verifyNoInteractions(proposals, mail);
 	}
 
 	@Test
@@ -367,19 +386,31 @@ class ProposalSchedulerTest {
 		return account;
 	}
 
-	/** The id is normally Hibernate's; the schedule is keyed by it, so the test has to supply one. */
+	/**
+	 * An account the rhythm is allowed to serve — verified, because that is the only kind it ever
+	 * sees. The verification moment is set the way the id is, and for the same reason: both are
+	 * Hibernate's to write, and the aggregate has no setters.
+	 */
 	private User account(OffsetDateTime next) {
+		User account = unverifiedAccount();
+		ReflectionTestUtils.setField(account, "emailVerifiedAt", OffsetDateTime.now());
+		// One row updated: the account exists. The tests about a row that is gone say so by overriding
+		// this with 0, which is what the update itself reports. Only verified accounts are ever
+		// scheduled, so an unverified one must not carry the stub — the test of that asserts never().
+		when(users.scheduleNextProposalAt(eq(account.getId()), any(), any())).thenReturn(1);
+		if (next != null) {
+			// Same reasoning again: the rhythm reaches this column by a targeted update rather than
+			// through the aggregate.
+			ReflectionTestUtils.setField(account, "nextProposalAt", next);
+		}
+		return account;
+	}
+
+	/** The id is normally Hibernate's; the schedule is keyed by it, so the test has to supply one. */
+	private User unverifiedAccount() {
 		User account = new User(Email.of("owner-" + UUID.randomUUID() + "@example.com"),
 				"{bcrypt}$2a$10$hash", AppLanguage.PL);
 		ReflectionTestUtils.setField(account, "id", UUID.randomUUID());
-		if (next != null) {
-			// Set the way the id is, and for the same reason: both are Hibernate's to write, and the
-			// rhythm reaches this column by a targeted update rather than through the aggregate.
-			ReflectionTestUtils.setField(account, "nextProposalAt", next);
-		}
-		// One row updated: the account exists. The tests about a row that is gone say so by overriding
-		// this with 0, which is what the update itself reports.
-		when(users.scheduleNextProposalAt(eq(account.getId()), any(), any())).thenReturn(1);
 		return account;
 	}
 

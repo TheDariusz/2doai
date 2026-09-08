@@ -26,8 +26,18 @@ export type Auth = {
   user: User | null
   status: 'loading' | 'authenticated' | 'anonymous'
   login: (email: string, password: string) => Promise<void>
-  /** Registration does not open a session — the server returns 201 and the user then logs in. */
+  /**
+   * Registration does not open a session — the server returns 201, mails a six-digit code to the
+   * address and the account stays inert until `verify` spends it.
+   */
   register: (email: string, password: string) => Promise<void>
+  /** Spends the mailed code. Opens no session either: the user signs in once the address is theirs. */
+  verify: (email: string, code: string) => Promise<void>
+  /**
+   * Asks for a fresh code. Accepted for every address — whether one was actually sent is exactly
+   * what the server declines to disclose — so a resolved promise is not evidence of an account.
+   */
+  resendCode: (email: string) => Promise<void>
   /**
    * FR-002 — moves the account's language, and the app with it. Here rather than in the menu that
    * offers it: `user.language` is the account's language, so whatever writes it has to be whatever

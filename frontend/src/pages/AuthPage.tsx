@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate, type Path } from 'react-router'
 import { ApiError } from '../api/client'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
 import { useAuth } from '../auth/auth-context'
+import { EMAIL_NOT_VERIFIED, isProblem } from '../auth/problems'
 
 type Mode = 'login' | 'register'
 
@@ -24,7 +25,9 @@ export function AuthPage({ mode }: { mode: Mode }) {
   const other = mode === 'login' ? 'register' : 'login'
   const { login, register } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
+  // Both things a route can hand this screen: where a bounced visitor was going, and the fact that
+  // the address they just confirmed is now theirs.
+  const state = useLocation().state as { from?: Partial<Path>; verified?: boolean } | null
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
@@ -40,14 +43,29 @@ export function AuthPage({ mode }: { mode: Mode }) {
       if (mode === 'login') {
         await login(email, password)
         // The whole location, not just its pathname — a bounced deep link keeps its query and hash.
-        const from = (location.state as { from?: Partial<Path> } | null)?.from
-        navigate(from ?? '/', { replace: true })
+        navigate(state?.from ?? '/', { replace: true })
       } else {
         await register(email, password)
-        navigate('/login', { replace: true })
+        navigate('/verify', { replace: true, state: { email } })
       }
     } catch (failure) {
-      setError(messageFor(t, failure, mode))
+      // Two failures are not this screen's to report, because the account is fine and the remedy is
+      // the code. One is a correct password on an address nobody has confirmed yet. The other is a
+      // sign-up past the point of no return: `register` commits the account and *then* asks for a
+      // code, so any failure the server raised after that — the provider refusing (503), a timeout
+      // on the code write escaping as a bare 500 — leaves an account that exists and a screen that
+      // can do nothing for it. The predicate is the whole 5xx range rather than a list of statuses,
+      // because the list is what left the 500 stranding a committed account here. Both continue to
+      // the screen that can act: the code was not sent, whatever the server called it.
+      const problem = failure instanceof ApiError ? failure : null
+      const unconfirmed = isProblem(failure, EMAIL_NOT_VERIFIED)
+      const codeNotSent = mode === 'register' && (problem?.status ?? 0) >= 500
+      if (unconfirmed || codeNotSent) {
+        const reason = unconfirmed ? 'verify.errors.notVerified' : 'verify.errors.unavailable'
+        navigate('/verify', { replace: true, state: { email, error: reason } })
+      } else {
+        setError(messageFor(t, failure, mode))
+      }
     } finally {
       setPending(false)
     }
@@ -59,6 +77,7 @@ export function AuthPage({ mode }: { mode: Mode }) {
           store it on yet — and it re-renders both screens in place rather than reloading. */}
       <LanguageSwitch onSelect={(language) => void i18n.changeLanguage(language)} />
       <h1>{t(`auth.${mode}.heading`)}</h1>
+      {state?.verified && <p role="status">{t('verify.confirmed')}</p>}
       <form onSubmit={submit}>
         <label>
           {t('auth.email')}

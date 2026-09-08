@@ -15,8 +15,9 @@ import org.springframework.stereotype.Component;
  *
  * <p>The adapter's whole job is the translation at the boundary: a {@link SimpleMailMessage} going
  * out, a {@link MailDeliveryException} coming back. Retries and timeouts belong to the transport, and
- * the one caller — the natural rhythm's fire — is deliberately not built to retry: the in-app card is
- * the guaranteed channel, so an email that does not arrive costs the user a nudge, not the proposal.
+ * no caller is built to retry: the natural rhythm's fire has the in-app card as its guaranteed
+ * channel, so an email that does not arrive costs the user a nudge rather than the proposal, and the
+ * verification service answers 503 and leaves the retry to the "send again" the user already has.
  *
  * <p><b>Nothing it logs identifies anybody.</b> The proposal is the app's most personal sentence —
  * the user's own goal, quoted back — and the address is the account itself, so both lines below carry

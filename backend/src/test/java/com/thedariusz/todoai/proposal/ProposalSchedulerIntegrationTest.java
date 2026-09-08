@@ -6,12 +6,12 @@ import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 import com.thedariusz.todoai.TestcontainersConfiguration;
+import com.thedariusz.todoai.TestcontainersConfiguration.RecordingEmailSender;
 import com.thedariusz.todoai.ai.LlmClient;
 import com.thedariusz.todoai.category.LifeDomain;
 import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.goal.GoalLayer;
 import com.thedariusz.todoai.goal.GoalRepository;
-import com.thedariusz.todoai.mail.EmailSender;
 import com.thedariusz.todoai.user.Email;
 import com.thedariusz.todoai.user.AppLanguage;
 import com.thedariusz.todoai.user.User;
@@ -26,8 +26,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.contains;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -50,13 +48,13 @@ class ProposalSchedulerIntegrationTest {
 	private LlmClient llm;
 
 	/**
-	 * Mocked for the same reason {@link LlmClient} is, and one more: this is the only test in the
-	 * suite that drives a real fire, so the live adapter would open an SMTP connection to the
-	 * provider on every CI run. The suite's hermeticism is not a property of the empty
-	 * {@code RESEND_API_KEY} default alone — it is this line as well.
+	 * The recording fake from {@link TestcontainersConfiguration}, not a {@code @MockitoBean}: since
+	 * DEV-51 the fake is {@code @Primary} for every context, and a mock override on top would leave
+	 * two candidates for the same injection point. The suite's hermeticism is not a property of the
+	 * empty {@code RESEND_API_KEY} default alone — it is that bean as well.
 	 */
-	@MockitoBean
-	private EmailSender mail;
+	@Autowired
+	private RecordingEmailSender mail;
 
 	@Autowired
 	private ProposalScheduler scheduler;
@@ -73,6 +71,7 @@ class ProposalSchedulerIntegrationTest {
 	@BeforeEach
 	void phraseEveryProposal() {
 		when(llm.complete(any())).thenReturn(PHRASED);
+		mail.clear();
 	}
 
 	@Test
@@ -101,13 +100,22 @@ class ProposalSchedulerIntegrationTest {
 				.isPresent();
 		assertThat(users.findById(account).orElseThrow().getNextProposalAt()).isAfter(midday);
 		// And the whole point of coming back on its own: the user is told, without opening the app.
-		verify(mail).send(contains("@example.com"), contains("Oddać książkę"), contains(PHRASED));
+		assertThat(mail.sent()).singleElement().satisfies(message -> {
+			assertThat(message.to()).endsWith("@example.com");
+			assertThat(message.subject()).contains("Oddać książkę");
+			assertThat(message.text()).contains(PHRASED);
+		});
 	}
 
-	/** A user with one overdue task — the only neglect signal a freshly written row can carry. */
+	/**
+	 * A user with one overdue task — the only neglect signal a freshly written row can carry. Verified
+	 * through the write production uses, because the rhythm serves no other kind of account (DEV-51):
+	 * a row straight out of the constructor is unverified and boot would skip it.
+	 */
 	private UUID accountWithAnOverdueEntry(String content) {
 		UUID account = users.saveAndFlush(new User(Email.of("owner-" + UUID.randomUUID() + "@example.com"),
 				"{bcrypt}$2a$10$hash", AppLanguage.PL)).getId();
+		users.markEmailVerified(account, OffsetDateTime.now());
 		goals.saveAndFlush(new Goal(account, content, GoalLayer.TASK, null,
 				LocalDate.now(ProposalRhythm.USER_ZONE).minusDays(2), LifeDomain.EDUCATION));
 		return account;

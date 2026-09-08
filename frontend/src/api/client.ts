@@ -58,6 +58,7 @@ export async function api<T = void>(
       // Fail here rather than spend a round-trip on a request the server is bound to reject —
       // without a token there is nothing for the double-submit check to match. Status 0 marks a
       // failure that never reached the server; screens map it to their generic copy.
+      console.error(`No XSRF-TOKEN cookie: ${method} /api${path} was not sent`)
       throw new ApiError(0, 'No XSRF-TOKEN cookie: the priming response has not landed yet')
     }
     headers['X-XSRF-TOKEN'] = token
@@ -80,7 +81,15 @@ export async function api<T = void>(
     // RFC 9457 Problem JSON. The fallback is the status, not `statusText`: the latter is always
     // empty over HTTP/2, which is what both Cloudflare and Fly serve.
     const problem = await response.json().catch(() => null)
+    if (!problem) {
+      // An HTML error page from Cloudflare or Fly, or anything else that never reached the app.
+      // The user gets one generic sentence either way; without this line so does the operator.
+      console.error(`No Problem JSON on ${response.status} from ${method} /api${path}`)
+    }
     throw new ApiError(response.status, problem?.detail ?? `HTTP ${response.status}`, problem?.type)
   }
-  return response.status === 204 ? (undefined as T) : ((await response.json()) as T)
+  // Keyed on whether there is a body, not on the status: 202 from `/verification-codes` carries
+  // none either, and `.json()` on an empty `Response` throws rather than resolving to `undefined`.
+  const body = await response.text()
+  return (body ? JSON.parse(body) : undefined) as T
 }

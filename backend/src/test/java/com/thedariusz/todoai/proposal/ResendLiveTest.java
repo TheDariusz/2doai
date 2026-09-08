@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 
@@ -40,7 +41,13 @@ class ResendLiveTest {
 
 	private static final Logger log = LoggerFactory.getLogger(ResendLiveTest.class);
 
+	/**
+	 * By name: {@code TestcontainersConfiguration} publishes a {@code @Primary} recording fake so the
+	 * rest of the suite never reaches a provider, and this is the one test whose whole point is that it
+	 * does.
+	 */
 	@Autowired
+	@Qualifier("smtpEmailSender")
 	EmailSender mail;
 
 	@Autowired

@@ -40,6 +40,13 @@ public class User {
 	/** Mirrors the {@code app_user.email VARCHAR(320)} column width (RFC 5321 max address length). */
 	static final int MAX_EMAIL_LENGTH = 320;
 
+	/**
+	 * Guesses one verification code is worth (DEV-51). A six-digit secret is 10^6 wide, so the cap is
+	 * what keeps it from being enumerable — and {@code UserRepository.issueVerificationCode} resets the
+	 * count, so a locked address is one "send again" away from a fresh budget rather than dead.
+	 */
+	public static final int MAX_VERIFICATION_ATTEMPTS = 5;
+
 	@Id
 	@UuidGenerator(style = UuidGenerator.Style.VERSION_7)
 	@Column(nullable = false, updatable = false)
@@ -60,7 +67,7 @@ public class User {
 	/**
 	 * When the natural rhythm next returns to this user (S-05, FR-011) — the only piece of the
 	 * schedule that outlives the JVM, so a restart resumes the rhythm instead of bunching proposals
-	 * around deploys. Null until the scheduler has drawn a first moment (at boot, or on registration).
+	 * around deploys. Null until the scheduler has drawn a first moment (at boot, or on verification).
 	 *
 	 * <p>Timing rather than identity, on the identity aggregate: the cheapest thing that works while
 	 * the rhythm is the only foreign timing state here — a proposal-owned table is the upgrade the
@@ -93,6 +100,50 @@ public class User {
 	@Enumerated(EnumType.STRING)
 	@Column(name = "preferred_language", length = 2)
 	private AppLanguage preferredLanguage;
+
+	/**
+	 * When the owner of this address proved they read it (DEV-51), and null until they do — so this
+	 * one column is the whole answer to "may the app act on this account at all". An unverified
+	 * account cannot log in, and the natural rhythm never writes to it: registration is open, but a
+	 * stranger's mailbox is not a place the app is entitled to send anything but the code itself.
+	 *
+	 * <p>A moment rather than a flag because "when" answers "whether" as well, and additionally says
+	 * how long an account sat unproved — which is what a cleanup of dead sign-ups would key on if one
+	 * is ever wanted. {@code V13} backfills every account that predates the question, so they read as
+	 * verified and were never asked anything.
+	 *
+	 * <p><b>Read here, never written here</b> — the rule the whole class follows, and here it is not
+	 * only about resurrection: this is the column that decides whether the account is real, so it
+	 * moves exclusively through {@code UserRepository.markEmailVerified}, one write with one caller.
+	 */
+	@Column(name = "email_verified_at")
+	private OffsetDateTime emailVerifiedAt;
+
+	/**
+	 * The outstanding verification code, encoded with the same {@code PasswordEncoder} the password
+	 * is — a 6-digit secret e-mailed in the clear is still a credential, and it is never stored in a
+	 * form that could be read back out of a database dump. Cleared, together with
+	 * {@link #verificationExpiresAt}, the moment the code is spent, so it cannot be replayed.
+	 */
+	@Column(name = "verification_code_hash")
+	private String verificationCodeHash;
+
+	/**
+	 * When the outstanding code stops being accepted. Null exactly when there is no code — a pairing
+	 * {@code V14}'s {@code CHECK} enforces, which is what lets {@link #hasCodeAwaiting} dereference this
+	 * after a null check on the hash alone.
+	 */
+	@Column(name = "verification_expires_at")
+	private OffsetDateTime verificationExpiresAt;
+
+	/**
+	 * Wrong guesses spent on the outstanding code — the cap that keeps a six-digit secret from being
+	 * enumerable ({@link #MAX_VERIFICATION_ATTEMPTS}). Reset to zero whenever a new code is issued or
+	 * spent, so a locked-out address is one "send again" away from a fresh budget rather than dead
+	 * forever, and a proved account carries no count for a code it no longer has.
+	 */
+	@Column(name = "verification_attempts", nullable = false)
+	private int verificationAttempts;
 
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
@@ -139,6 +190,38 @@ public class User {
 
 	public OffsetDateTime getNextProposalAt() {
 		return nextProposalAt;
+	}
+
+	/** Whether the owner of this address has proved they read it — see {@link #emailVerifiedAt}. */
+	public boolean isEmailVerified() {
+		return emailVerifiedAt != null;
+	}
+
+	public String getVerificationCodeHash() {
+		return verificationCodeHash;
+	}
+
+	public OffsetDateTime getVerificationExpiresAt() {
+		return verificationExpiresAt;
+	}
+
+	public int getVerificationAttempts() {
+		return verificationAttempts;
+	}
+
+	/**
+	 * Whether a code submitted right now is even worth checking: the address is still unproved, a code
+	 * is outstanding, it has not expired, and the guesses it is worth are not spent.
+	 *
+	 * <p>The rule lives here rather than in the service because it is the aggregate's own — four fields
+	 * that only mean anything together, and a caller reading them one at a time is a caller who can get
+	 * the conjunction wrong. What the service still owns is what a failure <em>costs</em>: the write
+	 * that charges a wrong guess, and the {@code where} clauses that hold under a race.
+	 */
+	public boolean hasCodeAwaiting(OffsetDateTime now) {
+		return emailVerifiedAt == null && verificationCodeHash != null
+				&& verificationExpiresAt.isAfter(now)
+				&& verificationAttempts < MAX_VERIFICATION_ATTEMPTS;
 	}
 
 	public OffsetDateTime getCreatedAt() {

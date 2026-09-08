@@ -38,10 +38,25 @@ public record Email(String value) {
 	 */
 	public Email {
 		Objects.requireNonNull(value, "email");
-		value = value.strip().toLowerCase(Locale.ROOT);
+		value = normalize(value);
 		if (!VALIDATOR.validate(new Candidate(value)).isEmpty()) {
 			throw new IllegalArgumentException("Malformed email address");
 		}
+	}
+
+	/**
+	 * The account key for an address, <b>without</b> the validation — strip and lowercase
+	 * ({@code Locale.ROOT}, so the Turkish-I trap cannot bite), which is what makes the
+	 * {@code app_user.email} UNIQUE index behave as a case-insensitive account key.
+	 *
+	 * <p>Separable from validation because the lookup paths deliberately accept addresses this record
+	 * would reject: login and verification answer identically for every address they do not recognise,
+	 * so a malformed one has to reach the query and miss rather than throw. They still have to key on
+	 * <em>exactly</em> what registration stored, which is why this half is shared rather than re-typed
+	 * per call site — a change here has to move every lookup with it, and a comment cannot make it.
+	 */
+	public static String normalize(String raw) {
+		return raw.strip().toLowerCase(Locale.ROOT);
 	}
 
 	/** Preferred factory — reads as {@code Email.of("a@b.com")} at call sites. */

@@ -5,6 +5,7 @@ import java.util.Locale;
 
 import com.thedariusz.todoai.account.AccountDeletionService;
 import com.thedariusz.todoai.auth.DeleteAccountRequest;
+import com.thedariusz.todoai.auth.EmailVerificationService;
 import com.thedariusz.todoai.auth.ReAuthenticationFailedException;
 import com.thedariusz.todoai.auth.RegisterRequest;
 import com.thedariusz.todoai.auth.RegistrationService;
@@ -45,6 +46,8 @@ public class UserController {
 
 	private final RegistrationService registrationService;
 
+	private final EmailVerificationService verification;
+
 	private final AccountDeletionService accountDeletionService;
 
 	private final PasswordEncoder passwordEncoder;
@@ -57,11 +60,12 @@ public class UserController {
 
 	private final AuthenticatedSession session;
 
-	public UserController(RegistrationService registrationService,
+	public UserController(RegistrationService registrationService, EmailVerificationService verification,
 			AccountDeletionService accountDeletionService, PasswordEncoder passwordEncoder,
 			LogoutHandler logoutHandler, SessionRegistry sessionRegistry, UserSettingsService settings,
 			AuthenticatedSession session) {
 		this.registrationService = registrationService;
+		this.verification = verification;
 		this.accountDeletionService = accountDeletionService;
 		this.passwordEncoder = passwordEncoder;
 		this.logoutHandler = logoutHandler;
@@ -74,14 +78,28 @@ public class UserController {
 	 * Registers a user. {@code Location} points at {@code /api/users/me} rather than a per-id URL:
 	 * the created user is only ever readable as "the current user", and there is no
 	 * {@code /users/{id}} endpoint to point at (nor should there be, in a flat single-tenant model).
+	 *
+	 * <p><b>The two steps are two transactions on purpose</b> (DEV-51). The account is committed first
+	 * and the code is issued and mailed afterwards, because SMTP has a ten-second timeout on each of its
+	 * three legs and a database connection may not be held across them. What that costs is a window
+	 * where the row exists and no code was sent — answered as <b>503</b>, with one way out of it:
+	 * "send again" on the verify screen issues a code for the row that is already there. A second
+	 * sign-up with the same address is a 409 and always was.
+	 *
+	 * <p>The only other failure here is the 409 itself. Issuing the first code is deliberately outside
+	 * the throttle — one row per address means registration cannot flood a mailbox — so this operation
+	 * never answers 429.
 	 */
 	@PostMapping
 	ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request, Locale locale) {
 		// FR-003 — the account starts in the language of the screen it was created from, which is the
 		// language this very request advertised. `locale` is resolved by the LocaleResolver in
 		// `i18n/LocaleConfig`, so quality ordering and unsupported tags are already handled.
-		User user = registrationService.register(request.email(), request.password(), AppLanguage.of(locale));
-		return ResponseEntity.created(URI.create("/api/users/me")).body(UserResponse.from(user));
+		AppLanguage language = AppLanguage.of(locale);
+		User user = registrationService.register(request.email(), request.password(), language);
+		verification.issue(user.getId(), user.getEmail(), language);
+		return ResponseEntity.created(URI.create("/api/users/me"))
+				.body(new UserResponse(user.getId(), user.getEmail(), language));
 	}
 
 	/**
@@ -137,6 +155,8 @@ public class UserController {
 			log.warn("Re-authentication failed for account deletion of user {}", principal.userId());
 			throw new ReAuthenticationFailedException();
 		}
+		// Erases the verification throttle's entry for this address too, through the same
+		// PerUserDataDeleter seam as every other per-user record (DEV-51).
 		accountDeletionService.deleteAccount(principal.userId());
 		expireOtherSessionsOf(principal);
 

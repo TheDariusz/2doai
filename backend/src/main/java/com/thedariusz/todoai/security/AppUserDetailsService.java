@@ -1,7 +1,6 @@
 package com.thedariusz.todoai.security;
 
-import java.util.Locale;
-
+import com.thedariusz.todoai.user.Email;
 import com.thedariusz.todoai.user.UserRepository;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -14,8 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
  * {@link UserPrincipal} by email so the {@code DaoAuthenticationProvider} can compare the
  * submitted password against the stored hash.
  *
- * <p>The submitted username is normalized (strip + lowercase, {@code Locale.ROOT}) before lookup —
- * the same normalization the {@code Email} VO applied at registration — so login is
+ * <p>The submitted username is normalized through {@link Email#normalize} before lookup — the very
+ * method the {@code Email} VO normalizes with at registration, not a copy of it — so login is
  * case- and whitespace-insensitive and matches the stored value. A missing user
  * raises {@link UsernameNotFoundException}, which the provider turns into a generic
  * {@code BadCredentialsException} (no user-enumeration on login).
@@ -32,7 +31,7 @@ public class AppUserDetailsService implements UserDetailsService {
 	@Override
 	@Transactional(readOnly = true)
 	public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-		return users.findByEmail(username.strip().toLowerCase(Locale.ROOT))
+		return users.findByEmail(Email.normalize(username))
 				.map(UserPrincipal::from)
 				.orElseThrow(() -> new UsernameNotFoundException("No user for the supplied credentials"));
 	}

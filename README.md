@@ -26,6 +26,8 @@ The repository contains two independent projects. There is no root workspace or 
   `REMIND_LATER` with a term the user names; or `NEVER`. At most one proposal is ever pending — an
   unanswered one is superseded by the next rather than piling up.
 - **Accounts** with email and password, server-side sessions, and every row scoped to its owner.
+  Sign-up mails a six-digit code and the account stays inert until it comes back: an address
+  nobody confirmed can neither log in nor be written to by the rhythm.
 
 Not built yet: seeding the AI memory profile, AI category auto-tagging, priority categories, and
 offline read-only. Status per slice lives in the [roadmap](context/foundation/roadmap.md).

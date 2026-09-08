@@ -29,7 +29,7 @@ class CurrentUserTest {
 	@Test
 	void returnsAuthenticatedUserId() {
 		UUID userId = UUID.randomUUID();
-		UserPrincipal principal = new UserPrincipal(userId, "alice@example.com", "{bcrypt}$2a$10$hash", AppLanguage.PL);
+		UserPrincipal principal = new UserPrincipal(userId, "alice@example.com", "{bcrypt}$2a$10$hash", AppLanguage.PL, true);
 		SecurityContextHolder.getContext().setAuthentication(
 				new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
 
