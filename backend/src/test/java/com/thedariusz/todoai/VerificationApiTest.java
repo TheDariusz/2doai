@@ -175,31 +175,35 @@ class VerificationApiTest extends ApiTestBase {
 	}
 
 	/**
-	 * An unverified account holds nothing worth protecting and nobody is known to be behind it, so a
-	 * second sign-up takes it over rather than answering 409 — otherwise a typo'd or abandoned attempt
-	 * blocks the address for its real owner, who has no way to resolve it.
+	 * <b>C1.</b> A second sign-up for an address whose owner is at that moment reading the code that
+	 * proves it changes nothing at all: not the password, not the code, not the language. An earlier
+	 * draft took such an account over — nobody is known to be behind an unproved one, so it looked
+	 * free — but the code proves the <em>address</em> and was never bound to the sign-up attempt that
+	 * issued it, so the victim's own code would go on to verify the attacker's password onto the
+	 * account. One row per address, decided by the UNIQUE index, is what closes it.
 	 */
 	@Test
-	void aSecondSignUpTakesOverAnAccountNobodyEverVerified() {
+	void refusesASecondSignUpForAnAddressNobodyHasVerifiedYet() {
 		String email = uniqueEmail();
 		signUp(email, "first-password").statusCode(201);
+		String code = mail.codeFor(email).orElseThrow();
 
-		throttle.forget(email);
-		signUp(email, "second-password").statusCode(201);
-		submitCode(email, mail.codeFor(email).orElseThrow()).statusCode(204);
+		signUp(email, "second-password").statusCode(409).contentType("application/problem+json");
 
-		login(email, "first-password").statusCode(401);
+		// The code the first sign-up mailed is still the one that works, and it proves the first
+		// password onto the account — the second sign-up left no trace of itself anywhere.
+		submitCode(email, code).statusCode(204);
+		login(email, "second-password").statusCode(401);
 		newBrowser();
-		login(email, "second-password").statusCode(201);
+		login(email, "first-password").statusCode(201);
 	}
 
-	/** A verified account is somebody's, and handing it a new password would hand it to whoever asked. */
+	/** And the same answer once the address is proved: an account is somebody's, and it stays theirs. */
 	@Test
-	void refusesToTakeOverAVerifiedAccount() {
+	void refusesASecondSignUpForAVerifiedAddress() {
 		String email = uniqueEmail();
 		register(email, PASSWORD);
 
-		throttle.forget(email);
 		signUp(email, "second-password").statusCode(409).contentType("application/problem+json");
 
 		login(email, PASSWORD).statusCode(201);

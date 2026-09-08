@@ -1,8 +1,5 @@
 package com.thedariusz.todoai.auth;
 
-import java.time.OffsetDateTime;
-import java.util.Optional;
-
 import com.thedariusz.todoai.ai.memory.AiMemory;
 import com.thedariusz.todoai.ai.memory.AiMemoryRepository;
 import com.thedariusz.todoai.user.AppLanguage;
@@ -32,8 +29,9 @@ import org.springframework.transaction.annotation.Transactional;
  * has consented with.
  *
  * <p>It does not send the code either — {@link EmailVerificationService#issue} does, once this
- * transaction has committed. SMTP inside it would pin a database connection across two ten-second
- * timeouts, and a provider outage would roll back an account that was otherwise perfectly created.
+ * transaction has committed. SMTP inside it would pin a database connection across three ten-second
+ * timeouts — connection, read and write — and a provider outage would roll back an account that was
+ * otherwise perfectly created.
  */
 @Service
 public class RegistrationService {
@@ -62,23 +60,14 @@ public class RegistrationService {
 	 *         rendering on every call: the sign-up screen's language <em>is</em> the
 	 *         {@code Accept-Language} the sign-up request carried, so asking for it twice would create
 	 *         a second answer that can disagree with the first.
-	 * @return the account to send a code to — freshly created, or the unverified one just taken over
-	 * @throws EmailAlreadyRegisteredException only when the address belongs to a <em>verified</em>
-	 *         account
+	 * @return the account to send a code to
+	 * @throws EmailAlreadyRegisteredException when the address is already in the table, whether or not
+	 *         the account behind it was ever proved
 	 */
 	@Transactional
 	public User register(String rawEmail, String rawPassword, AppLanguage language) {
 		Email email = Email.of(rawEmail);
 		String passwordHash = passwordEncoder.encode(rawPassword);
-
-		// One SELECT per registration, which the constraint alone used to save (DEV-51 spends it): a
-		// duplicate is no longer simply a 409, so the row behind it has to be in hand to decide. The
-		// UNIQUE index is still the authority — the lookup can lose a concurrent race, the insert below
-		// cannot, and it reports the loss as the same 409.
-		Optional<User> existing = users.findByEmail(email.value());
-		if (existing.isPresent()) {
-			return takeOver(existing.get(), passwordHash, language);
-		}
 
 		User user = new User(email, passwordHash, language);
 		try {
@@ -94,26 +83,6 @@ public class RegistrationService {
 		}
 		memories.save(new AiMemory(user.getId()));
 		return user;
-	}
-
-	/**
-	 * Signing up again with an address whose owner never proved it (DEV-51). Nobody is known to be
-	 * behind such an account and it holds nothing worth protecting, so the second sign-up takes it
-	 * over — which is what keeps a typo'd or abandoned attempt from blocking the real owner with a
-	 * 409 they have no way to resolve. The memory root is not re-created: the first sign-up made it,
-	 * and this is the same account.
-	 *
-	 * <p>The verified guard lives in {@code replaceUnverifiedAccount}'s {@code where} clause, not
-	 * here — see its javadoc for why a caller must not be the one holding it.
-	 */
-	private User takeOver(User account, String passwordHash, AppLanguage language) {
-		if (users.replaceUnverifiedAccount(account.getId(), passwordHash, language,
-				OffsetDateTime.now()) == 0) {
-			log.info("Registration rejected: email already taken");
-			throw new EmailAlreadyRegisteredException();
-		}
-		log.info("Account {} was signed up for again before it was ever verified", account.getId());
-		return account;
 	}
 
 	/**

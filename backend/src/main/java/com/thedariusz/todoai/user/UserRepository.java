@@ -33,7 +33,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 	 * which is also how the scheduler learns to drop the entry from its map.
 	 *
 	 * <p><b>{@code email_verified_at IS NOT NULL} is in the where clause, not in the caller</b>
-	 * (DEV-51) — the same move as {@link #replaceUnverifiedAccount}, and for a stronger reason. The
+	 * (DEV-51) — the same move as {@link #issueVerificationCode}, and for a stronger reason. The
 	 * rhythm is the app's only unprompted outbound mail, so "only an address somebody has proved" is
 	 * an invariant that must not rest on three entry points each remembering it; the fourth one
 	 * somebody adds will not know. A caller can forget the check, a {@code where} clause cannot, and
@@ -89,9 +89,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 	 * it is issued after the registration transaction has committed, so the account it writes to is
 	 * detached by construction.
 	 *
-	 * <p>{@code email_verified_at IS NULL} is in the where clause for the reason
-	 * {@link #replaceUnverifiedAccount} gives: a proved account has no code outstanding and must not be
-	 * handed one, and the callers that check it first are then a fast path rather than the guarantee.
+	 * <p><b>{@code email_verified_at IS NULL} is in the where clause, not in the caller.</b> A proved
+	 * account has no code outstanding and must not be handed one — a caller can forget that check, a
+	 * {@code where} clause cannot — so the callers that check it first are a fast path rather than the
+	 * guarantee.
 	 *
 	 * @param id the account the code was drawn for
 	 * @param codeHash the code, encoded with the same {@code PasswordEncoder} as a password
@@ -115,22 +116,27 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 	 * <p>The write has to land even though the request it happens on answers a failure — a counter
 	 * that rolls back with the response it belongs to is not a cap on anything.
 	 *
+	 * <p>{@code email_verified_at IS NULL} for the reason every other write here carries it: a proved
+	 * account has no outstanding code to guess at, so a guess racing the verification that proved it
+	 * must not leave a count behind on an account that is done with codes.
+	 *
 	 * @param id the account whose code was guessed at
 	 * @param now the moment of the guess, for the audit column
-	 * @return 1 when the row was there, 0 when the account no longer exists
+	 * @return 1 when an unverified row was there, 0 when it is gone <em>or already proved</em>
 	 */
 	@Modifying(flushAutomatically = true)
 	@Transactional
 	@Query("""
 			update User u set u.verificationAttempts = u.verificationAttempts + 1, u.updatedAt = :now
-			where u.id = :id
+			where u.id = :id and u.emailVerifiedAt is null
 			""")
 	int recordFailedVerificationAttempt(UUID id, OffsetDateTime now);
 
 	/**
 	 * The address is proved (DEV-51): the account becomes one that can log in and that the natural
 	 * rhythm may write to. The code is cleared in the same statement, so a code that has been spent
-	 * cannot be spent again.
+	 * cannot be spent again — and the attempts spent on it go with it, because they count guesses
+	 * against an outstanding code and there is none any more.
 	 *
 	 * <p>{@code email_verified_at IS NULL} makes it the <b>one</b> write that can prove an address:
 	 * two requests racing with the same correct code both pass the read above it, and only one can pass
@@ -146,33 +152,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 	@Transactional
 	@Query("""
 			update User u set u.emailVerifiedAt = :now, u.verificationCodeHash = null,
-			u.verificationExpiresAt = null, u.updatedAt = :now
+			u.verificationExpiresAt = null, u.verificationAttempts = 0, u.updatedAt = :now
 			where u.id = :id and u.emailVerifiedAt is null
 			""")
 	int markEmailVerified(UUID id, OffsetDateTime now);
-
-	/**
-	 * Signing up again with an address whose owner never proved it (DEV-51). An unverified account
-	 * holds nothing worth protecting and nobody is known to be behind it, so the second sign-up
-	 * simply takes it over — which is what keeps a typo'd or abandoned attempt from blocking the real
-	 * owner with a 409 they cannot resolve.
-	 *
-	 * <p><b>{@code email_verified_at IS NULL} is in the where clause, not in the caller.</b> On a
-	 * verified account this same write would hand somebody else's live credential to whoever typed
-	 * the address into the sign-up form. A caller can forget the check; a {@code where} clause
-	 * cannot, and it reports the refusal the same way it reports a missing row — 0.
-	 *
-	 * @param id the unverified account being taken over
-	 * @param passwordHash the new credential, already encoded
-	 * @param language the language the second sign-up screen was shown in
-	 * @param now the moment of the takeover, for the audit column
-	 * @return 1 when an unverified row was replaced, 0 when it is gone <em>or already verified</em>
-	 */
-	@Modifying(flushAutomatically = true)
-	@Transactional
-	@Query("""
-			update User u set u.passwordHash = :passwordHash, u.preferredLanguage = :language,
-			u.updatedAt = :now where u.id = :id and u.emailVerifiedAt is null
-			""")
-	int replaceUnverifiedAccount(UUID id, String passwordHash, AppLanguage language, OffsetDateTime now);
 }
