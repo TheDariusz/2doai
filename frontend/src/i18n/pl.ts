@@ -25,6 +25,7 @@ export const pl = {
     password: 'Hasło',
     errors: {
       emailTaken: 'Ten adres email jest już zajęty — zaloguj się.',
+      emailTakenUnconfirmed: 'Konto założone, ale kod nie dotarł? Potwierdź adres.',
       // Only registration carries the 8-character minimum, so only its message may quote it.
       invalidRegistration: 'Sprawdź adres email i hasło (min. 8 znaków).',
       invalidCredentials: 'Sprawdź adres email i hasło.',

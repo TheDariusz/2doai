@@ -167,6 +167,25 @@ describe('AuthPage — registering', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/already registered/i)
   })
 
+  /**
+   * A 409 on an address whose code never arrived used to be a dead end: "sign in instead" only
+   * reaches /verify with the password the *first* sign-up used, and any other one is a plain 401.
+   * The link is offered on every 409, proved or not — the server does not say which, and a link
+   * that appeared only for unproved accounts would say it for them.
+   */
+  it('offers the verify screen after a 409, carrying the address', async () => {
+    const auth = stubAuth({ register: async () => { throw new ApiError(409, 'Email already registered') } })
+    renderAt('/register', auth)
+
+    await fillIn('zajety@example.pl', 'tajnehaslo')
+
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('link', { name: /confirm your address/i }))
+
+    expect(await screen.findByRole('heading', { name: /confirm/i })).toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).toHaveValue('zajety@example.pl')
+  })
+
   it('mirrors the server contract client-side: email format and an 8-character minimum', () => {
     renderAt('/register', stubAuth())
 

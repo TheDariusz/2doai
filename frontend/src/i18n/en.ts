@@ -23,6 +23,7 @@ export const en: typeof pl = {
     password: 'Password',
     errors: {
       emailTaken: 'That email is already registered — sign in instead.',
+      emailTakenUnconfirmed: 'Signed up but never got the code? Confirm your address.',
       invalidRegistration: 'Check the email and the password (at least 8 characters).',
       invalidCredentials: 'Check the email and the password.',
       wrongCredentials: 'Incorrect email or password.',
