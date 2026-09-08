@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { MemoryRouter } from 'react-router'
 import { vi } from 'vitest'
 import { AuthContext, type Auth } from '../auth/auth-context'
@@ -11,6 +11,8 @@ export function stubAuth(overrides: Partial<Auth> = {}): Auth {
     status: 'anonymous',
     login: vi.fn().mockResolvedValue(undefined),
     register: vi.fn().mockResolvedValue(undefined),
+    verify: vi.fn().mockResolvedValue(undefined),
+    resendCode: vi.fn().mockResolvedValue(undefined),
     changeLanguage: vi.fn().mockResolvedValue(undefined),
     logout: vi.fn().mockResolvedValue(undefined),
     deleteAccount: vi.fn().mockResolvedValue(undefined),
@@ -29,10 +31,13 @@ export function response(status: number, body?: unknown) {
   return { ok: status < 400, status, statusText: '', json: async () => body }
 }
 
+/** Where a screen is mounted: a path, or a whole entry when the test needs route state with it. */
+type Entry = NonNullable<ComponentProps<typeof MemoryRouter>['initialEntries']>[number]
+
 /** Mounts a screen at `path` with `auth` in context — the shape every screen test needs. */
 export function renderWithAuth(
   ui: ReactNode,
-  { path = '/', auth = stubAuth() }: { path?: string; auth?: Auth } = {},
+  { path = '/', auth = stubAuth() }: { path?: Entry; auth?: Auth } = {},
 ) {
   return render(
     <MemoryRouter initialEntries={[path]}>

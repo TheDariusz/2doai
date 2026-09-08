@@ -30,6 +30,21 @@ export const en: typeof pl = {
       generic: 'Something went wrong. Try again.',
     },
   },
+  verify: {
+    heading: 'Confirm your address',
+    hint: 'We sent a six-digit code to {{email}}. It is valid for 15 minutes.',
+    code: 'Code from the email',
+    submit: 'Confirm address',
+    sendAgain: 'Send the code again',
+    sent: 'A new code is on its way — check your inbox.',
+    confirmed: 'Address confirmed — you can sign in now.',
+    errors: {
+      code: 'That code is wrong or no longer valid. Ask for a new one.',
+      notVerified: 'Confirm your address first — enter the code we emailed you.',
+      tooMany: 'Too many code requests. Wait a minute and try again.',
+      unavailable: 'The code could not be sent. Try again in a moment.',
+    },
+  },
   account: {
     logout: 'Log out',
     delete: 'Delete account',

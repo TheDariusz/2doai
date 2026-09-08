@@ -3,7 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { AuthPage } from './AuthPage'
+import { VerifyPage } from './VerifyPage'
 import { ApiError } from '../api/client'
+import { EMAIL_NOT_VERIFIED } from '../auth/problems'
 import { renderWithAuth, stubAuth } from '../test/auth'
 import { type Auth } from '../auth/auth-context'
 
@@ -12,6 +14,7 @@ function renderAt(path: '/login' | '/register', auth: Auth) {
     <Routes>
       <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/register" element={<AuthPage mode="register" />} />
+      <Route path="/verify" element={<VerifyPage />} />
       <Route path="/" element={<p>the app</p>} />
     </Routes>,
     { path, auth },
@@ -73,6 +76,23 @@ describe('AuthPage — signing in', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Incorrect email or password.')
   })
 
+  /**
+   * The password was right; only the address was never confirmed. Reporting that as a credentials
+   * failure would send the user back to a form that can never succeed.
+   */
+  it('sends an unconfirmed account to the code screen instead of reporting bad credentials', async () => {
+    const auth = stubAuth({
+      login: async () => { throw new ApiError(403, 'Email not verified', EMAIL_NOT_VERIFIED) },
+    })
+    renderAt('/login', auth)
+
+    await fillIn('ala@example.pl', 'tajnehaslo')
+
+    expect(await screen.findByRole('heading', { name: 'Confirm your address' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(/confirm your address first/i)
+    expect(screen.getByLabelText('Email')).toHaveValue('ala@example.pl')
+  })
+
   it('does not quote the registration password rule when login is rejected (422)', async () => {
     const auth = stubAuth({ login: async () => { throw new ApiError(422, 'Validation failed') } })
     renderAt('/login', auth)
@@ -85,14 +105,39 @@ describe('AuthPage — signing in', () => {
 })
 
 describe('AuthPage — registering', () => {
-  it('registers and sends the user to the login screen', async () => {
+  it('registers and sends the user on to the code the server just mailed', async () => {
     const auth = stubAuth()
     renderAt('/register', auth)
 
     await fillIn('nowa@example.pl', 'tajnehaslo')
 
     expect(auth.register).toHaveBeenCalledWith('nowa@example.pl', 'tajnehaslo')
-    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Confirm your address' })).toBeInTheDocument()
+    // Carried over, so the address only has to be typed once — and the resend has something to send to.
+    expect(screen.getByLabelText('Email')).toHaveValue('nowa@example.pl')
+  })
+
+  /**
+   * The account exists, only the code never left — so the remedy is the resend on the next screen,
+   * not a retry of a sign-up that would now answer 409.
+   */
+  it('still goes to the code screen when the code could not be mailed (503)', async () => {
+    const auth = stubAuth({ register: async () => { throw new ApiError(503, 'Mail provider refused') } })
+    renderAt('/register', auth)
+
+    await fillIn('nowa@example.pl', 'tajnehaslo')
+
+    expect(await screen.findByRole('heading', { name: 'Confirm your address' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not be sent/i)
+  })
+
+  it('reports the per-address code limit (429) as a wait rather than as a rejection', async () => {
+    const auth = stubAuth({ register: async () => { throw new ApiError(429, 'Too many verification codes requested') } })
+    renderAt('/register', auth)
+
+    await fillIn('nowa@example.pl', 'tajnehaslo')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/wait a minute/i)
   })
 
   it('maps 409 to "email already in use, log in instead"', async () => {

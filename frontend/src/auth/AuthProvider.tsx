@@ -55,6 +55,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register: async (email, password) => {
           await api('/users', { method: 'POST', body: { email, password } })
         },
+        // Neither of these touches the session: both are public, both answer with no body, and the
+        // account they move cannot log in until the first of them has succeeded.
+        verify: async (email, code) => {
+          await api('/verifications', { method: 'POST', body: { email, code } })
+        },
+        resendCode: async (email) => {
+          await api('/verification-codes', { method: 'POST', body: { email } })
+        },
         changeLanguage: async (language) => {
           const chosen = ACCOUNT_LANGUAGE[language]
           if (chosen === user?.language) {

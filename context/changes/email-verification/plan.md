@@ -538,9 +538,9 @@ draw.io export writes `color-scheme: light dark`).
 
 #### Automated
 
-- [x] 2.1 `mvn test -Dtest=AuthApiTest,VerificationApiTest` passes every case above
-- [x] 2.2 `mvn test` green (the fake replaces SMTP everywhere; no suite reaches smtp.resend.com)
-- [x] 2.3 `node --test docs/index.test.mjs` still green (touched only in Phase 4)
+- [x] 2.1 `mvn test -Dtest=AuthApiTest,VerificationApiTest` passes every case above — 23ee27c
+- [x] 2.2 `mvn test` green (the fake replaces SMTP everywhere; no suite reaches smtp.resend.com) — 23ee27c
+- [x] 2.3 `node --test docs/index.test.mjs` still green (touched only in Phase 4) — 23ee27c
 
 #### Manual
 
@@ -550,8 +550,8 @@ draw.io export writes `color-scheme: light dark`).
 
 #### Automated
 
-- [ ] 3.1 `npm test` green including the new file
-- [ ] 3.2 `npm run lint` clean; `npm run build` passes `tsc`
+- [x] 3.1 `npm test` green including the new file
+- [x] 3.2 `npm run lint` clean; `npm run build` passes `tsc`
 
 #### Manual
 

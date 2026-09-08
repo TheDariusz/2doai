@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate, type Path } from 'react-router'
 import { ApiError } from '../api/client'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
 import { useAuth } from '../auth/auth-context'
+import { EMAIL_NOT_VERIFIED } from '../auth/problems'
 
 type Mode = 'login' | 'register'
 
@@ -24,7 +25,9 @@ export function AuthPage({ mode }: { mode: Mode }) {
   const other = mode === 'login' ? 'register' : 'login'
   const { login, register } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
+  // Both things a route can hand this screen: where a bounced visitor was going, and the fact that
+  // the address they just confirmed is now theirs.
+  const state = useLocation().state as { from?: Partial<Path>; verified?: boolean } | null
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
@@ -40,14 +43,23 @@ export function AuthPage({ mode }: { mode: Mode }) {
       if (mode === 'login') {
         await login(email, password)
         // The whole location, not just its pathname — a bounced deep link keeps its query and hash.
-        const from = (location.state as { from?: Partial<Path> } | null)?.from
-        navigate(from ?? '/', { replace: true })
+        navigate(state?.from ?? '/', { replace: true })
       } else {
         await register(email, password)
-        navigate('/login', { replace: true })
+        navigate('/verify', { replace: true, state: { email } })
       }
     } catch (failure) {
-      setError(messageFor(t, failure, mode))
+      // Two failures are not this screen's to report, because the account is fine and the remedy is
+      // the code: a correct password on an address nobody has confirmed yet, and a sign-up whose
+      // account was created but whose code never left. Both continue to the screen that can help.
+      const unconfirmed = failure instanceof ApiError && failure.type === EMAIL_NOT_VERIFIED
+      const codeNotSent = mode === 'register' && failure instanceof ApiError && failure.status === 503
+      if (unconfirmed || codeNotSent) {
+        const reason = unconfirmed ? 'verify.errors.notVerified' : 'verify.errors.unavailable'
+        navigate('/verify', { replace: true, state: { email, error: reason } })
+      } else {
+        setError(messageFor(t, failure, mode))
+      }
     } finally {
       setPending(false)
     }
@@ -59,6 +71,7 @@ export function AuthPage({ mode }: { mode: Mode }) {
           store it on yet — and it re-renders both screens in place rather than reloading. */}
       <LanguageSwitch onSelect={(language) => void i18n.changeLanguage(language)} />
       <h1>{t(`auth.${mode}.heading`)}</h1>
+      {state?.verified && <p role="status">{t('verify.confirmed')}</p>}
       <form onSubmit={submit}>
         <label>
           {t('auth.email')}
@@ -104,6 +117,10 @@ function messageFor(t: TFunction, failure: unknown, mode: Mode): string {
   if (status === 401) {
     // Identical for an unknown email and a wrong password, exactly as the server answers.
     return t('auth.errors.wrongCredentials')
+  }
+  if (status === 429) {
+    // Only registration can be throttled today — it is the path that mails a code.
+    return t('verify.errors.tooMany')
   }
   if (status === 503) {
     return t('auth.errors.unavailable')

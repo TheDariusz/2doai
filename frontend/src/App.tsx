@@ -5,6 +5,7 @@ import { AppLayout } from './layout/AppLayout'
 import { AuthPage } from './pages/AuthPage'
 import { DomainPlaceholder } from './pages/DomainPlaceholder'
 import { GoalsPage } from './pages/GoalsPage'
+import { VerifyPage } from './pages/VerifyPage'
 
 /** The route tree, router-free so tests can mount it inside a `MemoryRouter`. */
 export function AppRoutes() {
@@ -12,6 +13,8 @@ export function AppRoutes() {
     <Routes>
       <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/register" element={<AuthPage mode="register" />} />
+      {/* Public beside the other two: the account it acts on exists but cannot log in yet. */}
+      <Route path="/verify" element={<VerifyPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>

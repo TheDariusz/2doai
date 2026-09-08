@@ -33,6 +33,27 @@ export const pl = {
       generic: 'Coś poszło nie tak. Spróbuj ponownie.',
     },
   },
+  verify: {
+    heading: 'Potwierdź swój adres',
+    // Names the address the code went to, because the sign-up screen is the last place it was
+    // typed in full, and the 15 minutes, because that is the only thing that makes a code stale.
+    hint: 'Wysłaliśmy sześciocyfrowy kod na {{email}}. Jest ważny 15 minut.',
+    code: 'Kod z wiadomości',
+    submit: 'Potwierdź adres',
+    sendAgain: 'Wyślij kod jeszcze raz',
+    sent: 'Nowy kod jest w drodze — sprawdź skrzynkę.',
+    // Read on the sign-in screen, right after the address was confirmed.
+    confirmed: 'Adres potwierdzony — możesz się zalogować.',
+    errors: {
+      // The server conflates wrong, expired, spent and unknown on purpose, so this is
+      // the one sentence that fits all four - and it names the only remedy there is.
+      code: 'Ten kod jest nieprawidłowy albo stracił ważność. Poproś o nowy.',
+      notVerified: 'Najpierw potwierdź adres — wpisz kod, który do Ciebie wysłaliśmy.',
+      // The cooldown is 60 s and dominates the hourly cap, so the wait is named rather than counted.
+      tooMany: 'Za dużo próśb o kod. Odczekaj minutę i spróbuj ponownie.',
+      unavailable: 'Nie udało się wysłać kodu. Spróbuj ponownie za chwilę.',
+    },
+  },
   account: {
     logout: 'Wyloguj',
     delete: 'Usuń konto',
