@@ -132,22 +132,22 @@ describe('AuthPage — registering', () => {
   })
 
   /**
-   * The 503's twin, and the reason the handover keys on the mode rather than on the status: sign-up
-   * commits the account before it asks for a code, so a throttled second attempt leaves exactly the
-   * same account-exists-no-code-arrived state — and leaving the user on /register would strand them
-   * on a screen whose only button now answers 429 for the rest of the cooldown.
+   * The 503's twin, and the reason the handover keys on the shape of the failure rather than on a
+   * list of statuses: sign-up commits the account before it asks for a code, so *any* server-side
+   * failure after that point — a database timeout on the code write escaping as a bare 500 —
+   * leaves the same account-exists-no-code-arrived state that only the code screen can act on.
    */
-  it('still goes to the code screen when the code was throttled (429)', async () => {
-    const auth = stubAuth({ register: async () => { throw new ApiError(429, 'Too many verification codes requested') } })
+  it('still goes to the code screen when the code write failed outright (500)', async () => {
+    const auth = stubAuth({ register: async () => { throw new ApiError(500, 'Internal Server Error') } })
     renderAt('/register', auth)
 
     await fillIn('nowa@example.pl', 'tajnehaslo')
 
     expect(await screen.findByRole('heading', { name: 'Confirm your address' })).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent(/wait a minute/i)
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not be sent/i)
   })
 
-  /** Login is not that: nothing throttles it, and a 429 there is not about verification codes. */
+  /** Login is not that: it commits nothing, so its failures belong on the screen that raised them. */
   it('keeps a failed sign-in on the sign-in screen', async () => {
     const auth = stubAuth({ login: async () => { throw new ApiError(429, 'Slow down') } })
     renderAt('/login', auth)

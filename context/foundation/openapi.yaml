@@ -86,11 +86,13 @@ paths:
 
         The account is created **unverified** and a six-digit code is emailed to the address, in the
         account's language and valid for 15 minutes: it cannot log in and the natural rhythm never
-        writes to it until POST /verifications has been answered. An address whose account exists but
-        was never verified is **taken over** — its password and language are replaced and a fresh code
-        is sent, so an abandoned or mistyped sign-up never blocks the real owner — so only a *verified*
-        duplicate is 409. The code is mailed after the account is committed, which is why a mail
-        outage is 503 on an account that nevertheless exists; retry, or ask for a code again.
+        writes to it until POST /verifications has been answered. Any address already in the table is
+        409, **whether or not the account behind it was ever verified**: a second sign-up must never be
+        able to move the password on a row whose outstanding code is already in somebody else's
+        mailbox. The recovery for an unverified account whose code was lost is POST
+        /verification-codes, not a second registration. The code is mailed after the account is
+        committed, which is why a mail outage is 503 on an account that nevertheless exists; ask for a
+        code again.
       operationId: createUser
       security: []                                          # public (#104 exception: registration)
       parameters:
@@ -121,11 +123,9 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'          # missing / invalid CSRF token
         '409':
-          $ref: '#/components/responses/Conflict'           # a *verified* account already has this email
+          $ref: '#/components/responses/Conflict'           # the email is taken, verified or not
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'    # too many codes to this address already
         '500':
           $ref: '#/components/responses/InternalServerError'
         '503':
@@ -133,8 +133,8 @@ paths:
           $ref: '#/components/responses/ServiceUnavailable'
           description: >
             The account was created but the code could not be mailed. Not a failed registration: the
-            row exists and is unverified, so the remedy is POST /verification-codes (or signing up
-            again with the same address), not a different email.
+            row exists and is unverified, so the remedy is POST /verification-codes — signing up again
+            with the same address is a 409, not a second chance.
 
   /users/me:
     get:
@@ -325,10 +325,11 @@ paths:
 
         Every failure is one 403 with `type: urn:2doai:problem:verification-failed` and one fixed
         `detail`: unknown address, already verified, no outstanding code, expired, out of attempts,
-        and simply wrong are deliberately indistinguishable. Telling them apart would say which
-        addresses have unconfirmed accounts, and none of the six leaves the user anything different
-        to do — ask for another code. A code is worth five wrong guesses; a fresh one restores the
-        budget.
+        and simply wrong are deliberately indistinguishable — in the clock as well as the body, since
+        the one expensive comparison runs on every path, against a hash of nothing when there is no
+        real one to check. Telling them apart would say which addresses have unconfirmed accounts, and
+        none of the six leaves the user anything different to do — ask for another code. A code is
+        worth five wrong guesses; a fresh one restores the budget.
       operationId: createVerification
       security: []                                          # public (the account cannot log in yet)
       parameters:
@@ -941,7 +942,7 @@ components:
             would start answering 422 for some of them and 403 for others.
         code:
           type: string
-          pattern: '^\\d{6}$'
+          pattern: '^\d{6}$'
           description: >
             Exactly six digits. A malformed code is 422 and never spends one of the five guesses the
             real code is worth.

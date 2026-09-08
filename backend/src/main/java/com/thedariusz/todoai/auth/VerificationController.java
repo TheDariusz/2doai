@@ -29,7 +29,7 @@ class VerificationController {
 	 * session is opened — the user logs in next, through the one path that creates sessions.
 	 */
 	@PostMapping("/api/verifications")
-	ResponseEntity<Void> verify(@Valid @RequestBody EmailVerification request) {
+	ResponseEntity<Void> verify(@Valid @RequestBody EmailVerificationRequest request) {
 		verification.verify(request.email(), request.code());
 		return ResponseEntity.noContent().build();
 	}

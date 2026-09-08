@@ -466,12 +466,14 @@ Merge to `master` touching `backend/**` → `backend.yml` redeploys Fly. The sch
 on boot; that line is the cheapest confirmation it is wired:
 
 ```bash
-fly logs | grep "Natural rhythm loaded"     # → "Natural rhythm loaded: N account(s) scheduled"
+fly logs | grep "Natural rhythm loaded"     # → "…: N account(s) scheduled, M unverified skipped"
 curl https://2doai.fly.dev/actuator/health  # → UP, and the proposalScheduler indicator with it
 ```
 
-`0 account(s)` means the table is empty — the rhythm has nobody to return to, so register on
-https://2doai.app before anything below.
+`0 account(s) scheduled` with `0 unverified skipped` means the table is empty — the rhythm has nobody
+to return to, so register on https://2doai.app before anything below. `0 scheduled` with a non-zero
+skip count is the other case entirely: the accounts are there and none of them has proved its
+address.
 
 To force one cycle rather than waiting days for it, move the account's moment into the past **and
 restart the machine**:
@@ -501,7 +503,8 @@ Two more things that make a forced fire look like a silent failure, both correct
 - **Outside 9:00–21:00 Warsaw the tick returns immediately**, before it looks at a single account. A
   restart at 21:05 produces no fire and no log line until 9:00 the next morning.
 
-Expect, within a minute of the restart: `Natural rhythm loaded: 1 account(s) scheduled`, then
+Expect, within a minute of the restart: `Natural rhythm loaded: 1 account(s) scheduled, 0 unverified
+skipped`, then
 `Delivered: a NN-char subject to a @… address`, the email itself, and the same proposal already on
 `https://2doai.app/goals` without pressing anything.
 
@@ -522,8 +525,11 @@ Run it after any deploy that touched registration, login or the verification end
 
 Existing accounts are unaffected — `V13` backfills `email_verified_at = created_at`, so the first
 thing to check after this deploy is that an account created before it still logs in. And
-`Natural rhythm loaded: N account(s) scheduled` counts **verified accounts only**: an account still
-holding a code is skipped at boot, which is the other half of the same rule.
+`Natural rhythm loaded: N account(s) scheduled, M unverified skipped` counts **verified accounts
+only** in the first number: an account still holding a code is skipped at boot and lands in the
+second, which is the other half of the same rule. The counts are what separates a healthy empty
+database from a botched `email_verified_at` backfill — both used to log the same line, with the
+health indicator UP either way.
 
 > **The proposal survives a mail failure.** It is stored before the message is attempted and the send
 > sits inside the fire's `catch`, so a provider outage costs the nudge, not the proposal — the card is
@@ -542,7 +548,7 @@ holding a code is skipped at boot, which is the other half of the same rule.
 | Proxy via custom domain | `curl https://2doai.app/api/ping` | `{"status":"ok"}` |
 | SPA served | `curl -I https://2doai.app/` | `200` |
 | One machine, always-on | `fly status` | 1 machine, `started`, not auto-stopping |
-| Rhythm loaded at boot | `fly logs \| grep "Natural rhythm loaded"` | `Natural rhythm loaded: N account(s) scheduled` |
+| Rhythm loaded at boot | `fly logs \| grep "Natural rhythm loaded"` | `Natural rhythm loaded: N account(s) scheduled, M unverified skipped` |
 | Scheduler alive | `curl https://2doai.fly.dev/actuator/health` | `UP` — the `proposalScheduler` indicator reports the tick's own pulse |
 | Sender domain verified | Resend dashboard → Domains | `2doai.app` **Verified** (an unverified domain drops mail silently) |
 | Mail secrets present | `fly secrets list` | `RESEND_API_KEY` and `APP_BASE_URL` both listed |

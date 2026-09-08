@@ -159,7 +159,8 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	/**
 	 * The provider would not take the message → <b>503</b>, not 500: nothing the caller sent is wrong
 	 * and retrying is exactly the right thing to do. The account is already created and unverified, and
-	 * the next sign-up or "send again" simply overwrites its code, so there is nothing to clean up.
+	 * "send again" overwrites its code, so there is nothing to clean up — and the send that never
+	 * happened is refunded to {@code VerificationThrottle}, so the retry is not met with a 429.
 	 *
 	 * <p>The cause goes to the log and never to the body — the exception's message is written to be
 	 * logged and carries the recipient's domain (see {@link MailDeliveryException}).

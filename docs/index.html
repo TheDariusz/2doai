@@ -208,7 +208,7 @@
         <tr><th scope="row">Persistence baseline</th><td><span class="badge badge-live">implemented</span></td><td>PostgreSQL 18, Flyway migrations, JPA/Hibernate validation</td></tr>
         <tr><th scope="row">AI provider port</th><td><span class="badge badge-live">implemented</span></td><td><code>LlmClient</code>, Spring AI adapter, structured output support — and, since S-04b, a production caller on both operations</td></tr>
         <tr><th scope="row">AI memory aggregate</th><td><span class="badge badge-foundation">implemented foundation</span></td><td>Per-user root, profile facts, append-only episodes. Proposal answers are its first writer (S-04b); the onboarding profile seed is still S-03</td></tr>
-        <tr><th scope="row">Account and session auth</th><td><span class="badge badge-live">implemented</span></td><td>Spring Security, server-side in-memory sessions, account erasure — and, since DEV-51, a confirmed address as the price of a session at all: sign-up mails a six-digit code, and until it comes back the account exists and can do nothing</td></tr>
+        <tr><th scope="row">Account and session auth</th><td><span class="badge badge-live">implemented</span></td><td>Spring Security, server-side in-memory sessions, account erasure — and, since DEV-51, a confirmed address as the price of a session at all: sign-up mails a six-digit code, until it comes back the account exists and can do nothing, and an address already in the table is 409 whether or not it was ever proved</td></tr>
         <tr><th scope="row">Categories</th><td><span class="badge badge-live">implemented</span></td><td>Seeded reference table, <code>LifeDomain</code>, startup drift check — and, since DEV-49, a Polish and an English name per row, picked per request</td></tr>
         <tr><th scope="row">Localization (PL + EN)</th><td><span class="badge badge-live">implemented</span></td><td>English-first with Polish preserved (DEV-49): <code>AppLanguage</code> stored on the account (<code>app_user.preferred_language</code>), <code>Accept-Language</code> as the per-request transport, i18next in the SPA, and every server-generated sentence on the on-demand path — the model's answer and the template fallback alike — written in the caller's language. One surface is deliberately excluded: the scheduled proposal stays Polish until FR-009 lands in increment 2</td></tr>
         <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens, a sticky header over a rail of the 11 domains, and the two-language catalog behind a switch on the auth screens and in that header; <code>/api</code> proxies in development and production</td></tr>
@@ -293,21 +293,41 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
-  <p class="note">Verified against DEV-51 on 2026-09-08, address verification at sign-up. All nine
-  surfaces moved, which is unusual and is the point: the capability row for accounts, the
-  <code>auth</code> and <code>user</code> rows in the code map, the <code>User</code>,
-  <code>UserRepository</code>, <code>UserPrincipal</code> and <code>ProposalScheduler</code> class
-  diagrams plus the two new services, the two new adapters and the event beside them, a
-  &ldquo;verification code&rdquo; term, one new
-  flow and two amended ones, the four <code>V13</code> columns and a re-export of the current ER
-  diagram, the two new endpoints, and the roadmap's opening sentence. <strong>Two sentences here were
-  false the moment <code>b1fea03</code> merged, and the docs suite stayed green over both</strong>:
-  the scheduler diagram still read <code>scheduleNewAccount(UserRegistered)</code> for an event that
-  no longer exists, and the paragraph above it still said the map is pushed at registration — which is
-  now the one thing the slice exists to prevent. <strong>This stamp carries no production walk
-  either</strong>: the sign-up round trip on <a href="https://2doai.app">2doai.app</a> is the
-  runbook's phase 8.4 and has not been performed, so nothing here is evidence that a real mailbox
-  receives a real code. The stamp before it was
+  <p class="note">Verified against DEV-51 on 2026-09-08, <strong>review round 2</strong> — the PR
+  review of address verification, and its docs half. This is not a re-read of the same page: the
+  slice changed shape under the review. <strong>Takeover is gone.</strong> An address already in
+  <code>app_user</code> is 409 whether or not it was ever proved, because a code proves the address
+  while the row's password is whoever wrote last — a second sign-up inside the window put an
+  attacker's credential under a code already sitting in the victim's mailbox, and the one-line
+  <code>where</code>-clause version of the fix was tried and did not close it.
+  <code>POST /api/users</code> therefore no longer answers 429 either — the throttle now
+  <em>records</em> registration's send and cannot refuse it — the attempt cap moved onto the aggregate
+  as <code>User.MAX_VERIFICATION_ATTEMPTS</code> beside <code>hasCodeAwaiting</code>, the throttle
+  gained <code>record</code> and <code>refund</code>, <code>verify()</code> runs one BCrypt on every
+  path so the clock says no more than the body does, and <code>V14</code> pairs the code hash with
+  its expiry. All nine surfaces were walked again for those; two did not move and are recorded as
+  walked rather than changed — the code map (no package appeared) and the endpoint list (no path did).
+  <strong>Three claims round 1 left behind were false, and not one of them was a diagram</strong>:
+  <code>openapi.yaml</code>'s <code>code</code> pattern was written <code>'^\\d{6}$'</code>, which in
+  YAML single quotes is a literal backslash and six <code>d</code>s and so matched its own example
+  never; <code>data-model.md</code> still said <code>next_proposal_at</code> is written &ldquo;at
+  registration&rdquo; where the page beside it had already been corrected to verification; and the
+  throttle's allowance was written &ldquo;six in an hour&rdquo; where the code allows five and six is
+  the trip point. The first of those shipped in a spec no CI job validates, which is exactly why a
+  green gate never saw it. <strong>This stamp still carries no production walk</strong>: the sign-up
+  round trip on <a href="https://2doai.app">2doai.app</a> is the runbook's phase 8.4 and has not been
+  performed, so nothing here is evidence that a real mailbox receives a real code.
+  Round 1, earlier the same day, is what this one corrects. It walked all nine surfaces for the slice
+  as merged — the capability row for accounts, the <code>auth</code> and <code>user</code> rows in the
+  code map, the <code>User</code>, <code>UserRepository</code>, <code>UserPrincipal</code> and
+  <code>ProposalScheduler</code> class diagrams plus the two new services, the two new adapters and
+  the event beside them, a &ldquo;verification code&rdquo; term, one new flow and two amended ones,
+  the four <code>V13</code> columns and a re-export of the current ER diagram, the two new endpoints,
+  and the roadmap's opening sentence — and <strong>two sentences in it were false the moment
+  <code>b1fea03</code> merged, with the docs suite green over both</strong>: the scheduler diagram
+  still read <code>scheduleNewAccount(UserRegistered)</code> for an event that no longer exists, and
+  the paragraph above it still said the map is pushed at registration, which is the one thing the
+  slice exists to prevent. The stamp before it was
   DEV-50 on 2026-09-07, the Direction A shell. A frontend-only
   slice: no backend package, table, endpoint or flow moved, so most of the nine surfaces were walked
   and deliberately left alone — that stamp records the walk, not a change to them. What was stale
@@ -490,6 +510,7 @@ flowchart LR
         <tr><th scope="row">Prompts are written in English and <em>name</em> the answer's language</th><td>Text addressed to a model is code, not copy. Writing the persona in the language the answer must come back in makes a second locale a second copy of every instruction, free to drift the first time either is tightened</td><td>One indirection between the instruction and the language it asks for</td><td>Never for the instructions. The parameter this row predicted arrived in DEV-49: <code>ProposalPrompt</code> takes an <code>AppLanguage</code> and interpolates <code>englishName()</code>, and the constant is gone. The template fallback was the named exception and behaved like one — a second language meant a second class, <code>ProposalTemplateEn</code>, because its output <em>is</em> what the user reads</td></tr>
         <tr><th scope="row">At most one pending proposal is an index, not a check</th><td>A service-level "does this user already have one?" races with itself on a double-click and stores both; a partial unique index cannot</td><td>The lost race surfaces as a constraint violation the service must translate into "return the winner"</td><td>Proposals stop being per-user singletons. S-05 was the case this row anticipated — a cycle that must replace an ignored proposal — and the index held: superseding closes the old row <em>before</em> the new insert, so the slot is freed rather than shared</td></tr>
         <tr><th scope="row">Verification codes are throttled per address, in memory</th><td>The abuse this slice closes is the app mailing a stranger, and the quota it protects is the provider's 100 e-mails a day that real proposals depend on. A map in the JVM costs no dependency and no database touch — the same reasoning as the row below</td><td>It counts addresses, not callers: a bot working through a list is slowed only by the provider, and the map must be capped, not merely expired, because it is keyed on strings an attacker chooses</td><td>The next issue, and it is configuration rather than code — a per-IP rule at Cloudflare and a shared secret between Pages and Fly, so the origin cannot be reached around the proxy at all. Also when the backend stops being one machine: neither the map nor the count survives a second one</td></tr>
+        <tr><th scope="row">A duplicate address is 409, verified or not</th><td>An earlier cut let a second sign-up take an <em>unverified</em> row over so a typo could not block the real owner. The PR review showed the hole: the code proves the address, but the row's password is whoever wrote last, so a sign-up inside the window put an attacker's credential under a code already in the victim's mailbox. Adding an expiry guard to the takeover write was tried and did not close it</td><td>The case the takeover was written for comes back — a mistyped or abandoned sign-up holds an address nobody can re-register, and there is no password-reset endpoint yet. The recovery is "send again" on <code>/verify</code>, which only helps whoever can read the address</td><td>Password reset lands (then the address is recoverable by its owner), or the code is bound to the sign-up attempt — carry the candidate password hash on <code>issueVerificationCode</code> and promote it in <code>markEmailVerified</code>, one column, and the takeover becomes safe</td></tr>
         <tr><th scope="row">The rhythm's schedule lives in memory, not in a query</th><td>Neon bills metered compute and suspends after ~5 idle minutes, while the Fly machine hosting the tick is always-on. A tick asking the database "is anyone due?" would hold that compute awake 24/7 for roughly one fire per 2–7 days — about 183 CU-h a month to send a handful of emails</td><td>The schedule is authoritative only while the JVM lives; <code>app_user.next_proposal_at</code> is its only backup, reloaded at boot</td><td>The backend runs on more than one machine. Two schedulers over one column would each fire for every account, and the column is a backup rather than a lease</td></tr>
       </tbody>
     </table>
@@ -663,44 +684,71 @@ flowchart LR
   natural rhythm never writes to it, because the one thing that loop does is send mail to an address
   nobody asked it to. Registration stays open; what it stops being is a way to make the app mail a
   stranger.</p>
-  <p>The writes follow the rule the language setting already set — four targeted
+  <p>The writes follow the rule the language setting already set — three targeted
   <code>@Modifying</code> updates on <code>UserRepository</code>, no setters, each reporting the rows
-  it moved. Most of them carry a guard rather than only an id, and always in the
+  it moved. Every one of them carries a guard rather than only an id, and always in the
   <code>where</code> clause rather than in the service, so that no later caller can forget it.
-  <code>replaceUnverifiedAccount</code> takes an account over only while
-  <code>u.emailVerifiedAt is null</code> — signing up again with an address whose owner never proved
-  it <em>takes it over</em> instead of answering 409, which is what stops a typo'd or abandoned
-  attempt blocking the real owner with a conflict they have no way to resolve, while the same clause
-  makes handing somebody's live credential to whoever typed their address impossible.
-  <code>markEmailVerified</code> and <code>issueVerificationCode</code> carry it too, which makes
-  proving an address a single winning write: two requests racing with the same correct code both pass
-  the read, only one passes the update, and <code>UserVerified</code> is published only by that one.
-  <code>scheduleNextProposalAt</code> carries its mirror — <code>and u.emailVerifiedAt is not
-  null</code> — so "the rhythm only ever holds proved addresses" is enforced by the single write all
-  three of its entry points funnel through, not by each of them remembering.</p>
-  <p><code>EmailVerificationService</code> owns the numbers — six digits, fifteen minutes, five
-  attempts — and stores the code the way the password is stored, through the same
-  <code>PasswordEncoder</code>: a secret mailed in the clear is still a credential. Every way
-  verification can fail is one <code>VerificationFailedException</code> with one fixed detail, so the
-  endpoint cannot be read as "that address exists, and only the code was wrong"; the failed-attempt
-  write is annotated <code>noRollbackFor</code>, because a counter that rolls back with the 403 it
-  belongs to is not a cap on anything. The subject and body are a class per language
-  (<code>VerificationEmailPl</code> / <code>En</code>) for the reason <code>ProposalTemplatePl</code>
-  has a sibling: this is text a user reads, so it cannot be told which language to be in.</p>
+  <code>issueVerificationCode</code>, <code>recordFailedVerificationAttempt</code> and
+  <code>markEmailVerified</code> all carry <code>and u.emailVerifiedAt is null</code>: a proved
+  account may not be handed a code, may not be charged a guess, and may not be proved twice. The last
+  of those is what makes proving an address a <em>single winning write</em> — two requests racing with
+  the same correct code both pass the read, only one passes the update, and <code>UserVerified</code>
+  is published only by that one. <code>scheduleNextProposalAt</code> carries the mirror —
+  <code>and u.emailVerifiedAt is not null</code> — so "the rhythm only ever holds proved addresses" is
+  enforced by the single write all three of its entry points funnel through, not by each of them
+  remembering. Since every one of them can refuse, <em>0 rows</em> stopped meaning only "the account is
+  gone": it means the guard said no as well, and each method's javadoc says which.</p>
+  <p><strong>An address already in <code>app_user</code> is 409, verified or not.</strong> An earlier
+  cut of this slice let a second sign-up take an <em>unverified</em> row over — replacing its password
+  and language, so a typo'd or abandoned attempt could not block the real owner — and the PR review
+  showed why that cannot stand: the code proves the address, but the row's password is whoever wrote
+  last, so a second sign-up inside the window put an attacker's credential under a code already in the
+  victim's mailbox. Binding the code to the sign-up attempt would close it too; 409 closes it with no
+  column and no state. What it costs is the case the takeover was written for, and the answer is the
+  same button that answers every other lost code: <em>send again</em> on <code>/verify</code> issues a
+  fresh one for the row that is already there.</p>
+  <p><code>EmailVerificationService</code> owns two of the three numbers —
+  <code>CODE_LENGTH</code> six and <code>CODE_VALIDITY</code> fifteen minutes — and stores the code
+  the way the password is stored, through the same <code>PasswordEncoder</code>: a secret mailed in
+  the clear is still a credential. The third number belongs to the aggregate:
+  <code>User.MAX_VERIFICATION_ATTEMPTS</code> is five, and <code>User.hasCodeAwaiting(now)</code> is
+  the conjunction of all four verification fields — unproved, a code outstanding, unexpired, guesses
+  left — so a caller cannot get one clause of it wrong. Every way verification can fail is one
+  <code>VerificationFailedException</code> with one fixed detail, so the endpoint cannot be read as
+  "that address exists, and only the code was wrong" — and the <em>clock</em> cannot be read that way
+  either, because exactly one BCrypt runs per request whatever the answer is, against a hash of
+  nothing when there is no real one to check. That is
+  <code>mitigateAgainstTimingAttack</code>'s move on the login path, made here. The causes are
+  distinguishable in one place only, the log, which is where an account spending every guess its code
+  was worth is recorded. The failed-attempt write is annotated <code>noRollbackFor</code>, because a
+  counter that rolls back with the 403 it belongs to is not a cap on anything. The subject and body
+  are a class per language (<code>VerificationEmailPl</code> / <code>En</code>) for the reason
+  <code>ProposalTemplatePl</code> has a sibling: this is text a user reads, so it cannot be told which
+  language to be in.</p>
   <p><code>VerificationThrottle</code> is the other half — one code per address per minute, five per
   hour, held in a map in the JVM like the scheduler's schedule. That map is keyed on strings an
   attacker chooses and reached from a public endpoint, so it is <em>capped</em>, not merely expired:
   an access-ordered <code>LinkedHashMap</code> evicts past ten thousand addresses, and sends age out
   of the one deque a call already has in hand. Expiry alone would have been no bound at all — an hour
   of distinct addresses is exactly what a flood supplies — and sweeping every deque per call would
-  have made that flood quadratic while holding the lock. It is
+  have made that flood quadratic while holding the lock. Every key goes through
+  <code>Email.normalize</code> on the way in, so the limit is not bypassable by capitalization; it is
   deliberately per <em>address</em>: a caller with a list of them is slowed only by the provider's own
   quota, and the per-IP rule that would fix that is a Cloudflare rule rather than code — the next
-  issue, together with a shared secret between Pages and Fly. The code is mailed <em>after</em> the
-  registration transaction commits: SMTP inside it would pin a database connection across two
-  ten-second timeouts, and a provider outage would roll back an account that was otherwise perfectly
-  created. A send that fails answers 503 and leaves the unverified row, which the next sign-up or
-  "send again" simply overwrites.</p>
+  issue, together with a shared secret between Pages and Fly.</p>
+  <p>Only <em>"send again"</em> is ever refused. Registration <code>record</code>s its send instead of
+  asking to make it: one row per address means a sign-up cannot be replayed to flood a mailbox, so
+  refusing it would only strand a committed account with no code — but the send still starts the
+  cooldown the button is measured against, which is why it is written down. And a send the provider
+  would not take is <code>refund</code>ed, because an outage that burned the hourly budget would turn
+  the 503's advice to retry into a 429. Recording on success only would have been the obvious
+  alternative and is the wrong one: the address is recorded before the row behind it is looked up, and
+  moving that after the send is what would make the endpoint the enumeration oracle the class exists
+  to prevent. The code is mailed <em>after</em> the registration transaction commits: SMTP inside it
+  would pin a database connection across three ten-second timeouts — connection, read and write — and
+  a provider outage would roll back an account that was otherwise perfectly created. A send that fails
+  answers 503 and leaves the unverified row, which "send again" issues a fresh code for; a second
+  sign-up with the same address is a 409 and no longer a way back in.</p>
   <pre class="mermaid">
 classDiagram
   class User {
@@ -713,8 +761,10 @@ classDiagram
     OffsetDateTime emailVerifiedAt — null until the address is proved; the whole account gate
     String verificationCodeHash — the outstanding code, PasswordEncoder-hashed, cleared when spent
     OffsetDateTime verificationExpiresAt — null exactly when there is no code
-    int verificationAttempts — wrong guesses spent on it; reset by every new code
+    int verificationAttempts — wrong guesses spent on it; reset by every new code and when one is spent
+    MAX_VERIFICATION_ATTEMPTS = 5 — what a six-digit secret is worth guessing at
     +isEmailVerified() boolean
+    +hasCodeAwaiting(now) boolean — the four fields above only mean anything together
   }
   class AppLanguage {
     &lt;&lt;domain enumeration&gt;&gt;
@@ -730,12 +780,13 @@ classDiagram
   }
   class UserRepository {
     &lt;&lt;persistence adapter / Spring Data&gt;&gt;
+    findByEmail(email) Optional~User~
     updateLanguage(userId, language, now) int
     issueVerificationCode(id, codeHash, expiresAt, now) int — resets the attempt count with it
     recordFailedVerificationAttempt(id, now) int
-    markEmailVerified(id, now) int — clears the hash and its expiry
-    replaceUnverifiedAccount(id, passwordHash, language, now) int — guarded by emailVerifiedAt is null
-    every one of them targeted: 0 rows means the account is gone, and none can re-create it
+    markEmailVerified(id, now) int — clears the hash, its expiry and the attempt count
+    the three above are guarded by emailVerifiedAt is null; scheduleNextProposalAt by is not null
+    every one of them targeted: 0 rows means the account is gone or the guard refused, never an insert
   }
   class UserController {
     &lt;&lt;inbound adapter / REST&gt;&gt;
@@ -747,7 +798,7 @@ classDiagram
   class RegistrationService {
     &lt;&lt;application service&gt;&gt;
     +register(email, password, AppLanguage) User
-    takes over an unverified duplicate; only a verified one is 409
+    any address already in app_user is 409, verified or not — the UNIQUE index is the authority
   }
   class EmailVerificationService {
     &lt;&lt;application service&gt;&gt;
@@ -755,16 +806,21 @@ classDiagram
     +resendCode(email) — the same answer for unknown, verified and waiting
     +verify(email, code) — markEmailVerified and UserVerified, in one transaction
     +deleteAllForUser(userId) — FR-019: the address owes the throttle nothing once its account is gone
-    6 digits, 15 minutes, 5 attempts; one exception type for all six failures
+    CODE_LENGTH 6, CODE_VALIDITY 15 min; the attempt cap lives on User
+    one exception type for all six failures, and one BCrypt per request whatever the answer
   }
   class VerificationThrottle {
     &lt;&lt;in-memory guard&gt;&gt;
-    admit(email, now) long — 0, or the seconds left to wait
-    60s cooldown, 5 per hour, per address; LRU-capped at 10k addresses, sends expired per key
+    admit(email, now) long — 0, or the seconds left to wait: only "send again" asks
+    record(email, now) — registration's send is written down, never refused
+    refund(email) — the provider would not take it, so nothing is owed
+    +forget(email) — FR-019, through PerUserDataDeleter
+    tracked() int — the only way eviction is observable
+    60s cooldown, 5 per hour, per address, keys normalized; LRU-capped at 10k, sends expired per key
   }
   class VerificationController {
     &lt;&lt;inbound adapter / REST&gt;&gt;
-    +verify(EmailVerification) POST /api/verifications — 204
+    +verify(EmailVerificationRequest) POST /api/verifications — 204, the EmailVerification wire schema
     +sendCode(VerificationCodeRequest) POST /api/verification-codes — 202, always
     public and CSRF-protected, exactly like registration
   }
@@ -1762,28 +1818,24 @@ sequenceDiagram
   SPA->>UC: POST /api/users {email, password} + Accept-Language
   UC->>UC: AppLanguage.of(locale) — the language the sign-up screen was shown in (FR-003)
   UC->>RS: register(email, password, language)
-  RS->>UR: findByEmail — one SELECT the constraint alone used to save,&lt;br/&gt;because a duplicate is no longer simply a 409
-  alt the address belongs to a verified account
-    RS-->>SPA: 409 Problem JSON (EmailAlreadyRegistered)
-  else it belongs to one nobody ever proved
-    RS->>UR: replaceUnverifiedAccount — guarded by emailVerifiedAt is null
-    Note over RS,UR: the second sign-up takes it over,&lt;br/&gt;so a typo cannot block the real owner
+  Note over RS: BCrypt-encode password,&lt;br/&gt;new User(Email.of(email), hash, language)
+  RS->>UR: saveAndFlush(user) — the UNIQUE index is the authority, and no read precedes it
+  alt the address is already in app_user
+    RS-->>SPA: 409 Problem JSON (EmailAlreadyRegistered) — verified or not
+    Note over RS,UR: a second sign-up must not move the password&lt;br/&gt;on a row whose code is in somebody else's mailbox
   else it is new
-    Note over RS: BCrypt-encode password,&lt;br/&gt;new User(Email.of(email), hash, language)
-    RS->>UR: saveAndFlush(user) — the UNIQUE index is still the authority
     RS->>MR: save(new AiMemory(userId))
     Note over RS,MR: one @Transactional — user + memory atomic
+    RS-->>UC: the account a code is owed to
+    UC->>EVS: issue(userId, email, language) — after that transaction committed
+    Note over UC,EVS: SMTP inside it would pin a database connection&lt;br/&gt;across three ten-second timeouts
+    alt the provider would not take the message
+      EVS-->>SPA: 503 — the unverified row stays,&lt;br/&gt;and "send again" issues a fresh code for it
+    else sent
+      UC-->>SPA: 201 Created, Location: /api/users/me
+    end
   end
-  RS-->>UC: the account a code is owed to
-  UC->>EVS: issue(userId, email, language) — after that transaction committed
-  Note over UC,EVS: SMTP inside it would pin a database connection&lt;br/&gt;across two ten-second timeouts
-  alt too many codes for this address
-    EVS-->>SPA: 429 + Retry-After
-  else the provider would not take the message
-    EVS-->>SPA: 503 — the unverified row stays,&lt;br/&gt;the next sign-up or resend overwrites its code
-  else sent
-    UC-->>SPA: 201 Created, Location: /api/users/me
-  end
+  Note over SPA: the throttle records this send and cannot refuse it —&lt;br/&gt;one row per address means a sign-up cannot flood a mailbox
   Note over SPA: registration does NOT log in, and the account is inert —&lt;br/&gt;/verify comes next, then POST /api/sessions
   </pre>
 
@@ -1804,8 +1856,9 @@ sequenceDiagram
   SPA->>VC: POST /api/verifications {email, code}
   VC->>EVS: verify(email, code)
   EVS->>UR: findByEmail
+  Note over EVS: User.hasCodeAwaiting(now) decides, then exactly one BCrypt runs&lt;br/&gt;— against a hash of nothing when there is nothing to check
   alt unknown, already verified, expired, or five guesses spent
-    EVS-->>SPA: 403 urn:2doai:problem:verification-failed
+    EVS-->>SPA: 403 urn:2doai:problem:verification-failed, logged with the cause it does not disclose
   else the code does not match
     EVS->>UR: recordFailedVerificationAttempt
     Note over EVS,UR: noRollbackFor — a counter that rolls back&lt;br/&gt;with its own 403 caps nothing
@@ -1820,10 +1873,11 @@ sequenceDiagram
   SPA->>VC: POST /api/verification-codes {email} — "send again"
   VC->>EVS: resendCode(email)
   EVS->>TH: admit(email, now) — consulted before the lookup, on purpose
-  alt inside the 60s cooldown, or six in an hour
+  alt inside the 60s cooldown, or the sixth code this hour
     EVS-->>SPA: 429 + Retry-After — the only part of it a client can act on
   else allowed
     Note over EVS,UR: an unknown or already-verified address&lt;br/&gt;is looked up and quietly sent nothing
+    Note over EVS,TH: a send the provider refuses is refunded,&lt;br/&gt;so an outage cannot turn the 503's "retry" into a 429
     EVS-->>SPA: 202 Accepted, always — whether a message follows is what it declines to disclose
   end
   </pre>
@@ -2123,7 +2177,8 @@ sequenceDiagram
   shown and what they answered. S-05 added the last missing piece as a single column rather than a
   table: <code>app_user.next_proposal_at</code>, and DEV-49 added two more of the same kind —
   <code>app_user.preferred_language</code> and <code>category.name_en</code>. DEV-51 added four,
-  all on <code>app_user</code> again, for address verification. Nothing in the data
+  all on <code>app_user</code> again, for address verification, plus one <code>CHECK</code> holding
+  two of them together. Nothing in the data
   model still belongs only to the target diagram, and no slice has yet needed a table for a change
   that columns on an existing one could carry.</p>
   <div class="card-grid">
@@ -2202,7 +2257,7 @@ sequenceDiagram
   <code>code</code> against the enum and never looks at a label. The identity did not move:
   <code>code</code> is still what every domain and AI path keys off, which is why the wire field
   <code>name</code> could change meaning without any client changing at all.</p>
-  <p>DEV-51 (<code>V13</code>) adds four columns to <code>app_user</code> and, again, no table of its own.
+  <p>DEV-51 (<code>V13</code>, <code>V14</code>) adds four columns to <code>app_user</code> and, again, no table of its own.
   There is at most one code outstanding per account, it dies with the account, and it is read on
   exactly the paths that already load the row — login, verify, resend — so a
   <code>pending_verification</code> table would buy a join and a second lifetime to keep in step for a
@@ -2228,6 +2283,17 @@ sequenceDiagram
   than only in the runbook: an account created under the new image and never verified becomes a
   <em>live</em> account under a rolled-back one, so a rollback means deleting unverified rows by hand
   first.</p>
+  <p><code>V14</code> adds the one constraint <code>V13</code> left to convention:
+  <code>CHECK ((verification_code_hash IS NULL) = (verification_expires_at IS NULL))</code>, named
+  <code>verification_code_pairing</code>. The two columns are one fact — written together by
+  <code>issueVerificationCode</code>, cleared together by <code>markEmailVerified</code> — but they
+  were independently nullable, so a half-written pair was a latent <code>NullPointerException</code>
+  on the read that null-checks the hash and then dereferences the expiry. It is the same kind of
+  backstop <code>proposal</code>'s answer-pair <code>CHECK</code> is, and it validates without
+  rewriting a row: every row today holds both or neither, and a rolled-back image writes the same
+  pairs this one does. Hibernate's <code>ddl-auto=validate</code> does not look at <code>CHECK</code>
+  constraints, so no mapping moved with it — the schema is a column wider than the entity knows, on
+  purpose.</p>
   <img class="diagram" src="../context/foundation/data-model-current.svg" width="1082" height="1422" loading="lazy" alt="Current entity relationship model: app user with its next_proposal_at scheduling column, preferred_language setting and four address-verification columns, goal with its three layers, proposal, category with its two label columns, AI memory, profile facts, and episodes">
   <h3>Target model <span class="badge badge-planned">planned</span></h3>
   <p>The target diagram shows the whole shape, migrated and not: solid tables exist today, ghosted
@@ -2236,7 +2302,7 @@ sequenceDiagram
   is <code>task</code>, and it marks a deferred split rather than planned work: current tasks shipped
   as a third <code>goal</code> layer, so that table is the escape hatch for the day tasks earn a
   lifecycle of their own.</p>
-  <img class="diagram" src="../context/foundation/data-model-target.svg" width="2003" height="1268" loading="lazy" alt="Target entity relationship model: migrated app user with its language setting, goal, proposal, category with two label columns, and AI memory alongside the deferred task table">
+  <img class="diagram" src="../context/foundation/data-model-target.svg" width="2003" height="1268" loading="lazy" alt="Target entity relationship model: migrated app user with its language setting and four address-verification columns, goal, proposal, category with two label columns, and AI memory alongside the deferred task table">
   <p class="note">Canonical source:
   <a href="../context/foundation/data-model.md"><code>context/foundation/data-model.md</code></a>.
   Editable Draw.io sources live beside the exported SVGs.</p>
@@ -2474,7 +2540,7 @@ flowchart TB
         <tr><th scope="row">AiMemory</th><td>Per-user aggregate the AI consults; created atomically with the <code>User</code> at registration ("every user has exactly one memory").</td></tr>
         <tr><th scope="row">Episode</th><td>One append-only AI-memory event; payload stored as <code>jsonb</code>.</td></tr>
         <tr><th scope="row">Profile fact</th><td>A durable statement about the user inside <code>AiMemory</code>, rendered into prompts by <code>AiMemoryRenderer</code>.</td></tr>
-        <tr><th scope="row">Verification code</th><td>The six digits mailed at sign-up, and the only thing an unconfirmed account is ever sent (DEV-51): valid 15 minutes, five wrong guesses, stored as a <code>PasswordEncoder</code> hash and cleared when spent. An account that has not spent one is <em>unverified</em> — it cannot hold a session and the natural rhythm does not know it exists. One code per address per minute and five per hour, from an in-memory throttle; a per-IP limit is a Cloudflare rule and the next issue.</td></tr>
+        <tr><th scope="row">Verification code</th><td>The six digits mailed at sign-up, and the only thing an unconfirmed account is ever sent (DEV-51): valid 15 minutes, five wrong guesses, stored as a <code>PasswordEncoder</code> hash and cleared when spent. An account that has not spent one is <em>unverified</em> — it cannot hold a session and the natural rhythm does not know it exists. One code per address per minute and five per hour, from an in-memory throttle — but only "send again" is ever refused: registration records its send without asking, because one row per address means a sign-up cannot flood a mailbox. A per-IP limit is a Cloudflare rule and the next issue.</td></tr>
         <tr><th scope="row">UserPrincipal</th><td>The authenticated identity (record: userId, email, passwordHash, language, verified) carried by the session—lets <code>/me</code> and re-auth answer without a DB query. The language is the one component that moves mid-session, which is why equality is the user id alone: a post-switch principal must still find its own <code>SessionRegistry</code> entry. <code>verified</code> is what <code>isEnabled()</code> reports, and the account-status check that reads it runs after the password, never before.</td></tr>
         <tr><th scope="row">AppLanguage</th><td>The two languages the app writes to a person in, <code>PL</code> and <code>EN</code>. Persisted by <code>name()</code> in <code>app_user.preferred_language</code> and carried on the wire as the same two letters, not a BCP 47 tag. <code>DEFAULT = EN</code> is what a <em>request</em> naming nothing known resolves to; a null <em>account</em> column reads as Polish instead, and the two rules must stay separate.</td></tr>
         <tr><th scope="row">Accept-Language</th><td>The transport half of localization: the SPA sends whatever it is currently rendering, <code>i18n/LocaleConfig</code>'s resolver negotiates it against the two supported locales, and handlers receive a plain <code>Locale</code>. The account column is the persistence half — the header cannot be asked at a moment when no request exists.</td></tr>

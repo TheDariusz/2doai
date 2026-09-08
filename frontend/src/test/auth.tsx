@@ -26,9 +26,20 @@ export const LOGGED_IN: Partial<Auth> = {
   user: { id: 'u1', email: 'ala@example.pl', language: 'EN' },
 }
 
-/** Minimal stand-in for `Response` — the client only reads these four members. */
+/**
+ * Minimal stand-in for `Response`, honest about the one thing that used to hide a bug: an answer
+ * with no body has an empty `text()` and a `json()` that throws `SyntaxError`, exactly as the
+ * platform does — a stub that resolved to `undefined` there let a broken 202 path pass.
+ */
 export function response(status: number, body?: unknown) {
-  return { ok: status < 400, status, statusText: '', json: async () => body }
+  const text = body === undefined ? '' : JSON.stringify(body)
+  return {
+    ok: status < 400,
+    status,
+    statusText: '',
+    text: async () => text,
+    json: async () => JSON.parse(text) as unknown,
+  }
 }
 
 /** Mounts a screen at `path` with `auth` in context — the shape every screen test needs. */

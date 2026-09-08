@@ -80,10 +80,15 @@ public class UserController {
 	 * {@code /users/{id}} endpoint to point at (nor should there be, in a flat single-tenant model).
 	 *
 	 * <p><b>The two steps are two transactions on purpose</b> (DEV-51). The account is committed first
-	 * and the code is issued and mailed afterwards, because SMTP has a ten-second timeout on each leg
-	 * and a database connection may not be held across it. What that costs is a window where the row
-	 * exists and no code was sent — answered as 503, and self-healing: the next sign-up with this
-	 * address takes the unverified row over, and "send again" issues a code for it.
+	 * and the code is issued and mailed afterwards, because SMTP has a ten-second timeout on each of its
+	 * three legs and a database connection may not be held across them. What that costs is a window
+	 * where the row exists and no code was sent — answered as <b>503</b>, with one way out of it:
+	 * "send again" on the verify screen issues a code for the row that is already there. A second
+	 * sign-up with the same address is a 409 and always was.
+	 *
+	 * <p>The only other failure here is the 409 itself. Issuing the first code is deliberately outside
+	 * the throttle — one row per address means registration cannot flood a mailbox — so this operation
+	 * never answers 429.
 	 */
 	@PostMapping
 	ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request, Locale locale) {
@@ -93,10 +98,6 @@ public class UserController {
 		AppLanguage language = AppLanguage.of(locale);
 		User user = registrationService.register(request.email(), request.password(), language);
 		verification.issue(user.getId(), user.getEmail(), language);
-		// Named outright rather than read back off `user`: taking an unverified account over writes the
-		// new language with a targeted update, which the row loaded before it cannot see. `UserResponse`
-		// has no factory taking a `User` for exactly this reason. The language this request asked for is
-		// the one that was stored, on both paths.
 		return ResponseEntity.created(URI.create("/api/users/me"))
 				.body(new UserResponse(user.getId(), user.getEmail(), language));
 	}

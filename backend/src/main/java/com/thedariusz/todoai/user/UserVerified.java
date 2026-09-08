@@ -1,5 +1,6 @@
 package com.thedariusz.todoai.user;
 
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -19,4 +20,8 @@ import java.util.UUID;
  * detached one, and its listeners start reasoning about the publisher's persistence context.
  */
 public record UserVerified(UUID userId) {
+
+	public UserVerified {
+		Objects.requireNonNull(userId, "userId");
+	}
 }

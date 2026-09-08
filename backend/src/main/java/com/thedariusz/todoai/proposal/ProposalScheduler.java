@@ -65,7 +65,7 @@ class ProposalScheduler implements HealthIndicator, PerUserDataDeleter {
 	/** A few tick periods: long enough that a slow fire is not a restart, short enough to matter. */
 	private static final Duration STALLED_AFTER = Duration.ofMinutes(5);
 
-	/** When each account is next returned to. Written by the fire, by boot, and by registration. */
+	/** When each account is next returned to. Written by the fire, by boot, and by verification. */
 	private final Map<UUID, OffsetDateTime> schedule = new ConcurrentHashMap<>();
 
 	/** Unseeded and shared: the unpredictability is a product feel, not a secret (ProposalRhythm). */
@@ -117,8 +117,10 @@ class ProposalScheduler implements HealthIndicator, PerUserDataDeleter {
 		OffsetDateTime now = OffsetDateTime.now(ProposalRhythm.USER_ZONE);
 		// ponytail: one write per never-scheduled account, in a loop. At MVP scale that is a handful
 		// of rows once per boot; a batch update is the upgrade if the account list ever grows.
+		int unverified = 0;
 		for (User account : users.findAll()) {
 			if (!account.isEmailVerified()) {
+				unverified++;
 				continue;
 			}
 			if (account.getNextProposalAt() == null) {
@@ -128,7 +130,10 @@ class ProposalScheduler implements HealthIndicator, PerUserDataDeleter {
 				schedule.put(account.getId(), account.getNextProposalAt());
 			}
 		}
-		log.info("Natural rhythm loaded: {} account(s) scheduled", schedule.size());
+		// The skipped count is the difference between a healthy empty database and a botched
+		// email_verified_at backfill, which otherwise log the same line and leave the probe UP.
+		log.info("Natural rhythm loaded: {} account(s) scheduled, {} unverified skipped", schedule.size(),
+				unverified);
 	}
 
 	/** The pulse. Reads the map, and only the map, unless something is due. */

@@ -49,14 +49,18 @@ public class EmailVerificationService implements PerUserDataDeleter {
 	public static final Duration CODE_VALIDITY = Duration.ofMinutes(15);
 
 	/**
-	 * Guesses one code is worth. A six-digit secret is 10^6 wide, so the cap is what keeps it from
-	 * being enumerable — and it is reset by every fresh code, so a locked address is one "send again"
-	 * away from a new budget rather than dead.
+	 * How wide the code is. Named because three layers hardcode it — the generator below, the
+	 * {@code @Pattern} on {@link EmailVerificationRequest}, and the SPA's input — and widening it
+	 * without moving all three would have the validator reject every code the generator draws. Both
+	 * numbers under it are derived, so this is the only place the width is decided.
 	 */
-	private static final int MAX_ATTEMPTS = 5;
+	public static final int CODE_LENGTH = 6;
 
-	/** Exclusive upper bound of the drawn number; the format pads it to the six digits the API takes. */
-	private static final int CODE_BOUND = 1_000_000;
+	/** Zero-pads the drawn number to {@link #CODE_LENGTH}. */
+	private static final String CODE_FORMAT = "%0" + CODE_LENGTH + "d";
+
+	/** Exclusive upper bound of the drawn number — every value the width can hold. */
+	private static final int CODE_BOUND = (int) Math.pow(10, CODE_LENGTH);
 
 	private static final Logger log = LoggerFactory.getLogger(EmailVerificationService.class);
 
@@ -72,8 +76,18 @@ public class EmailVerificationService implements PerUserDataDeleter {
 
 	private final ApplicationEventPublisher events;
 
+	/**
+	 * A hash of nothing, matched against on every refusal so the clock cannot tell one apart from a
+	 * wrong code. BCrypt is the only expensive thing {@link #verify} does, and without this it runs
+	 * exclusively for addresses that have an account, are unproved, and still hold a live code — which
+	 * is a timing oracle for precisely the set the fixed 403 body exists to hide. {@code AbstractUser
+	 * DetailsAuthenticationProvider.mitigateAgainstTimingAttack} is the same move on the login path.
+	 */
+	private final String dummyCodeHash;
+
 	public EmailVerificationService(UserRepository users, PasswordEncoder passwordEncoder, EmailSender mail,
 			VerificationThrottle throttle, ApplicationEventPublisher events) {
+		this.dummyCodeHash = passwordEncoder.encode(CODE_FORMAT.formatted(0));
 		this.users = users;
 		this.passwordEncoder = passwordEncoder;
 		this.mail = mail;
@@ -82,19 +96,29 @@ public class EmailVerificationService implements PerUserDataDeleter {
 	}
 
 	/**
-	 * Send a first code to an account that has just been created or taken over.
+	 * Send a first code to an account that has just been created.
 	 *
 	 * <p>Called <em>after</em> the registration transaction has committed, which is why it takes an
 	 * id rather than a {@link User}: the account it writes to is detached by construction, and the
 	 * language is the one this request asked for rather than the one a row read before the write
 	 * would report.
 	 *
-	 * @throws VerificationThrottledException if this address has had too many codes already
+	 * <p><b>The throttle is recorded, not consulted.</b> One row per address means a sign-up can no
+	 * longer be replayed to flood a mailbox, so refusing this call would only be a way to strand a
+	 * committed account with no code — but the send still starts the cooldown "send again" is measured
+	 * against, which is why it is written down.
+	 *
 	 * @throws MailDeliveryException if the provider would not take the message
+	 * @throws IllegalStateException if the row would not take the code — impossible on this path, where
+	 *         the account was committed a moment ago and nothing can have proved or deleted it yet, and
+	 *         a great deal better than a 201 saying a code was sent
 	 */
 	public void issue(UUID userId, String email, AppLanguage language) {
-		admit(email);
-		send(userId, email, language);
+		Instant sentAt = Instant.now();
+		throttle.record(email, sentAt);
+		if (!send(userId, email, language, sentAt)) {
+			throw new IllegalStateException("Account " + userId + " would not take the code drawn for it");
+		}
 	}
 
 	/**
@@ -104,10 +128,24 @@ public class EmailVerificationService implements PerUserDataDeleter {
 	 */
 	public void resendCode(String rawEmail) {
 		String email = Email.normalize(rawEmail);
-		admit(email);
+		Instant sentAt = Instant.now();
+		admit(email, sentAt);
 		users.findByEmail(email)
 				.filter(account -> !account.isEmailVerified())
-				.ifPresent(account -> send(account.getId(), email, account.getLanguage()));
+				.ifPresentOrElse(
+						account -> {
+							if (!send(account.getId(), email, account.getLanguage(), sentAt)) {
+								// The row was proved or deleted between the read and the write. Real here, unlike
+								// on the register path: this address has been sitting on a screen with a button.
+								log.info("Dropped a code for a @{} address: the row is gone or already proved",
+										domainOf(email));
+							}
+						},
+						// An enumeration sweep names each address once and passes the throttle every time, so
+						// this is the only line it ever writes. Which of the two it was stays unsaid here for
+						// the same reason the response does not say it.
+						() -> log.info("Asked for a code for a @{} address with no unverified account",
+								domainOf(email)));
 	}
 
 	/**
@@ -124,17 +162,28 @@ public class EmailVerificationService implements PerUserDataDeleter {
 	@Transactional(noRollbackFor = VerificationFailedException.class)
 	public void verify(String rawEmail, String submittedCode) {
 		OffsetDateTime now = OffsetDateTime.now();
-		User account = users.findByEmail(Email.normalize(rawEmail))
-				.orElseThrow(VerificationFailedException::new);
+		String email = Email.normalize(rawEmail);
+		User account = users.findByEmail(email).orElse(null);
+		boolean tryable = account != null && account.hasCodeAwaiting(now);
 
-		if (account.isEmailVerified() || account.getVerificationCodeHash() == null
-				|| account.getVerificationExpiresAt().isBefore(now)
-				|| account.getVerificationAttempts() >= MAX_ATTEMPTS) {
-			throw new VerificationFailedException();
+		// Exactly one BCrypt per request, whatever the answer turns out to be — against the real hash
+		// when there is one to check, against a hash of nothing when there is not. See dummyCodeHash.
+		boolean matches = passwordEncoder.matches(submittedCode,
+				tryable ? account.getVerificationCodeHash() : this.dummyCodeHash);
+
+		if (account == null) {
+			throw refuse("no such account", email);
 		}
-		if (!passwordEncoder.matches(submittedCode, account.getVerificationCodeHash())) {
+		if (!tryable) {
+			throw refuse(whyNotTryable(account, now), email);
+		}
+		if (!matches) {
 			users.recordFailedVerificationAttempt(account.getId(), now);
-			throw new VerificationFailedException();
+			if (account.getVerificationAttempts() + 1 >= User.MAX_VERIFICATION_ATTEMPTS) {
+				log.warn("Account {} has spent every guess its code was worth — somebody is guessing",
+						account.getId());
+			}
+			throw refuse("wrong code", email);
 		}
 		if (users.markEmailVerified(account.getId(), now) == 0) {
 			// A request racing this one got there first, or the account went away. Either way the caller
@@ -165,44 +214,89 @@ public class EmailVerificationService implements PerUserDataDeleter {
 		users.findById(userId).map(User::getEmail).ifPresent(throttle::forget);
 	}
 
-	private void admit(String email) {
-		long wait = throttle.admit(email, Instant.now());
+	/**
+	 * One refusal, logged with the cause the caller is deliberately not told. The 403 body is fixed for
+	 * all six causes — see {@link VerificationFailedException} — and the log is the only place they are
+	 * distinguishable at all; without it every failed verification in production is the same line.
+	 */
+	private VerificationFailedException refuse(String cause, String email) {
+		log.info("Refused a verification for a @{} address: {}", domainOf(email), cause);
+		return new VerificationFailedException();
+	}
+
+	/**
+	 * Which part of {@link User#hasCodeAwaiting} said no. A diagnostic mirror of the predicate rather
+	 * than a second copy of the rule: the predicate decides, and this only names the answer for the log.
+	 */
+	private static String whyNotTryable(User account, OffsetDateTime now) {
+		if (account.isEmailVerified()) {
+			return "already verified";
+		}
+		if (account.getVerificationCodeHash() == null) {
+			return "no code outstanding";
+		}
+		if (!account.getVerificationExpiresAt().isAfter(now)) {
+			return "the code expired";
+		}
+		return "out of attempts";
+	}
+
+	private void admit(String email, Instant now) {
+		long wait = throttle.admit(email, now);
 		if (wait > 0) {
 			log.info("Refused a code to a @{} address for another {}s", domainOf(email), wait);
 			throw new VerificationThrottledException(wait);
 		}
 	}
 
-	private void send(UUID userId, String email, AppLanguage language) {
-		String code = "%06d".formatted(RANDOM.nextInt(CODE_BOUND));
+	/**
+	 * Draw a code, write it, mail it.
+	 *
+	 * @param sentAt the moment the throttle was told about this send, so a refusal by the provider gives
+	 *         back that entry and not whichever one happens to be newest
+	 * @return whether the row took the code. {@code false} means the account went away between the
+	 *         write that created it and this one, or was proved by a request racing it — the update
+	 *         cannot re-create it, which is why it is not a save. What that <em>means</em> differs per
+	 *         caller, so each one says so itself.
+	 */
+	private boolean send(UUID userId, String email, AppLanguage language, Instant sentAt) {
+		String code = CODE_FORMAT.formatted(RANDOM.nextInt(CODE_BOUND));
 		OffsetDateTime now = OffsetDateTime.now();
 		if (users.issueVerificationCode(userId, passwordEncoder.encode(code),
 				now.plus(CODE_VALIDITY), now) == 0) {
-			// The account went away between the write that created it and this one, or was proved by a
-			// request racing it. Either way there is nobody left to send a code to, and the update cannot
-			// re-create them — that is why it is not a save.
-			log.info("Dropped a code for account {}: the row is gone or already proved", userId);
-			return;
+			return false;
 		}
-		mail.send(email, subject(language, code), body(language, code));
+		VerificationEmail message = message(language, code);
+		try {
+			mail.send(email, message.subject(), message.body());
+		}
+		catch (MailDeliveryException ex) {
+			// Nothing was delivered, so nothing is owed: a provider outage must not spend the address's
+			// hourly budget and turn the 503's "retry" advice into a 429.
+			throttle.refund(email, sentAt);
+			throw ex;
+		}
 		log.info("Issued a verification code to a @{} address", domainOf(email));
+		return true;
 	}
 
 	private static String domainOf(String email) {
 		return StringUtils.substringAfterLast(email, '@');
 	}
 
-	private static String subject(AppLanguage language, String code) {
+	/**
+	 * One switch, not two. The compiler guarantees a switch over {@link AppLanguage} covers every
+	 * locale; nothing guarantees that two of them pick the same class, and {@code case PL ->
+	 * VerificationEmailEn.body(code)} compiles perfectly well.
+	 */
+	private static VerificationEmail message(AppLanguage language, String code) {
 		return switch (language) {
-			case PL -> VerificationEmailPl.subject(code);
-			case EN -> VerificationEmailEn.subject(code);
+			case PL -> new VerificationEmail(VerificationEmailPl.subject(code), VerificationEmailPl.body(code));
+			case EN -> new VerificationEmail(VerificationEmailEn.subject(code), VerificationEmailEn.body(code));
 		};
 	}
 
-	private static String body(AppLanguage language, String code) {
-		return switch (language) {
-			case PL -> VerificationEmailPl.body(code);
-			case EN -> VerificationEmailEn.body(code);
-		};
+	/** The two halves of one message, so they cannot be drawn from two different locales. */
+	private record VerificationEmail(String subject, String body) {
 	}
 }

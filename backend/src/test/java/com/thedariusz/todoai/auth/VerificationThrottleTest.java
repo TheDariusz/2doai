@@ -32,6 +32,62 @@ class VerificationThrottleTest {
 		assertThat(throttle.admit(ADDRESS, NOON.plusSeconds(60))).isZero();
 	}
 
+	/**
+	 * The final sub-second of the cooldown, where an integer division is one rounding away from
+	 * admitting: {@code Duration.toSeconds()} truncates, so half a second left reads as zero, and a zero
+	 * falls straight through {@code admit}'s {@code if (cooldown > 0)} into an allowed send. Every other
+	 * case here lands on a whole second and would never see it.
+	 */
+	@Test
+	void roundsTheLastFractionOfTheCooldownUpRatherThanAdmitting() {
+		throttle.admit(ADDRESS, NOON);
+
+		assertThat(throttle.admit(ADDRESS, NOON.plus(VerificationThrottle.COOLDOWN).minusMillis(500)))
+				.isEqualTo(1);
+	}
+
+	/** The key is the address registration stored, not the characters typed. */
+	@Test
+	void readsAPaddedMixedCaseAddressAsTheSameOne() {
+		throttle.admit("  Ala@Example.PL ", NOON);
+
+		assertThat(throttle.admit(ADDRESS, NOON.plusSeconds(1))).isEqualTo(59);
+	}
+
+	/** A send the provider would not take is owed nothing: the outage must not spend the budget. */
+	@Test
+	void refundsASendThatNeverHappened() {
+		throttle.admit(ADDRESS, NOON);
+
+		throttle.refund(ADDRESS, NOON);
+
+		assertThat(throttle.admit(ADDRESS, NOON.plusSeconds(1))).isZero();
+	}
+
+	/**
+	 * And it gives back <em>its own</em> send. Two can be in flight for one address at once — a sign-up
+	 * and a "send again" from a second tab — so a refund that popped the tail would have the failing one
+	 * cancel the send that actually arrived, leaving the address owed a cooldown nobody serves.
+	 */
+	@Test
+	void refundsTheSendItWasGivenRatherThanTheNewestOne() {
+		throttle.record(ADDRESS, NOON);
+		throttle.record(ADDRESS, NOON.plusSeconds(1));
+
+		throttle.refund(ADDRESS, NOON);
+
+		// The cooldown still runs from the second send, not the first.
+		assertThat(throttle.admit(ADDRESS, NOON.plusSeconds(2))).isEqualTo(59);
+	}
+
+	/** The registration path cannot be refused, but the code it sends still starts the cooldown. */
+	@Test
+	void recordsASendWithoutAskingFirst() {
+		throttle.record(ADDRESS, NOON);
+
+		assertThat(throttle.admit(ADDRESS, NOON.plusSeconds(20))).isEqualTo(40);
+	}
+
 	/** The cooldown is per address: one person pressing "send again" cannot slow anybody else down. */
 	@Test
 	void keepsOneAddressesCooldownToItself() {

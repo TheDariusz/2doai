@@ -1,6 +1,7 @@
 package com.thedariusz.todoai;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 
 import com.thedariusz.todoai.auth.EmailVerificationService;
@@ -134,6 +135,24 @@ class VerificationApiTest extends ApiTestBase {
 		login(email, PASSWORD).statusCode(403);
 	}
 
+	/**
+	 * The other side of the cap, and the one the case above cannot see: four wrong guesses leave the
+	 * fifth working. A wrong code is 403 for <em>any</em> cap, so without this a cap of one would keep
+	 * the suite green while locking out every user who mistypes once.
+	 */
+	@Test
+	void stillAcceptsTheRightCodeAfterFourWrongOnes() {
+		String email = uniqueEmail();
+		signUp(email, PASSWORD).statusCode(201);
+		String code = mail.codeFor(email).orElseThrow();
+
+		for (int attempt = 0; attempt < 4; attempt++) {
+			submitCode(email, wrongCodeFor(email)).statusCode(403);
+		}
+
+		submitCode(email, code).statusCode(204);
+	}
+
 	/** And the way out of it: a fresh code comes with a fresh budget of guesses. */
 	@Test
 	void aFreshCodeRestoresTheGuessesTheOldOneSpent() {
@@ -262,6 +281,93 @@ class VerificationApiTest extends ApiTestBase {
 		assertThat(mail.sentAnythingTo(email)).isFalse();
 	}
 
+	/**
+	 * The enumeration defence itself: the throttle is consulted <em>before</em> the address is looked
+	 * up, so an address with no account is refused a second code exactly as a real one is. Move
+	 * {@code admit} inside the lookup and every other case here stays green while this endpoint becomes
+	 * a clean "does this address have an account" oracle — 202 forever for a stranger, 429 for a user.
+	 */
+	@Test
+	void throttlesASecondCodeRequestForAnAddressWithNoAccountJustLikeARealOne() {
+		String stranger = uniqueEmail();
+		requestCode(stranger).statusCode(202);
+
+		String unknown = requestCode(stranger).statusCode(429).extract().asString();
+
+		String verified = uniqueEmail();
+		register(verified, PASSWORD);
+		String proved = requestCode(verified).statusCode(429).extract().asString();
+
+		assertThat(unknown)
+				.as("the 429 for an address with no account is byte-identical to the one for a real one")
+				.isEqualTo(proved);
+	}
+
+	/**
+	 * Both new endpoints key on the address registration stored, not on the characters typed — the
+	 * {@code Email} value object lowercases and strips, and the throttle now does the same, so
+	 * capitalizing an address is not a way around either the account lookup or the cooldown.
+	 */
+	@Test
+	void readsAPaddedMixedCaseAddressAsTheSameAccount() {
+		String email = uniqueEmail();
+		signUp(email, PASSWORD).statusCode(201);
+		String shouted = "  " + email.toUpperCase(Locale.ROOT) + " ";
+
+		requestCode(shouted).statusCode(429);
+
+		submitCode(shouted, mail.codeFor(email).orElseThrow()).statusCode(204);
+		login(email, PASSWORD).statusCode(201);
+	}
+
+	/**
+	 * The one response with a committed account behind it. The row is created in its own transaction
+	 * and the code is mailed after it, so a provider outage is a 503 over an account that exists — and
+	 * the way out is "send again", which must work <em>immediately</em>: the send that never happened is
+	 * refunded to the throttle rather than charged against the address's hourly budget.
+	 */
+	@Test
+	void commitsTheAccountWhenTheProviderRefusesTheCodeAndLetsTheUserAskAgain() {
+		String email = uniqueEmail();
+		mail.failNextSend();
+
+		signUp(email, PASSWORD).statusCode(503).contentType("application/problem+json");
+
+		// No throttle.forget here: the refund is what makes this 202 rather than 429.
+		requestCode(email).statusCode(202);
+		submitCode(email, mail.codeFor(email).orElseThrow()).statusCode(204);
+		login(email, PASSWORD).statusCode(201);
+
+		newBrowser();
+		signUp(email, PASSWORD).statusCode(409);
+	}
+
+	/**
+	 * FR-019 — erasing the account erases what the throttle remembers about its address, through the
+	 * same {@code PerUserDataDeleter} seam as every other per-user record. Without it the very next
+	 * person to type that address waits out a cooldown earned by somebody who no longer exists: the
+	 * request below would answer 429 instead of 202, and no {@code throttle.forget} is helping it.
+	 */
+	@Test
+	void forgetsTheThrottlesEntryWhenTheAccountIsDeleted() {
+		String email = uniqueEmail();
+		register(email, PASSWORD);
+		login(email, PASSWORD).statusCode(201);
+		csrfAware()
+				.body(Map.of("password", PASSWORD))
+				.when()
+				.delete("/api/users/me")
+				.then()
+				.statusCode(204);
+
+		newBrowser();
+		requestCode(email).statusCode(202);
+
+		// And the address is registerable again, code and all — a fresh one, which works.
+		signUp(email, PASSWORD).statusCode(201);
+		submitCode(email, mail.codeFor(email).orElseThrow()).statusCode(204);
+	}
+
 	@Test
 	void rejectsACodeThatIsNotSixDigits() {
 		submitCode(uniqueEmail(), "12345")
@@ -324,8 +430,34 @@ class VerificationApiTest extends ApiTestBase {
 		for (String catalog : new String[] { "../frontend/src/i18n/pl.ts", "../frontend/src/i18n/en.ts" }) {
 			assertThat(read(catalog))
 					.as("%s tells the user how long the code lasts, and CODE_VALIDITY decides", catalog)
-					.contains(validity);
+					// Whole number, not substring: "15 minut" contains "5", so a shortened window would slip
+					// straight through the guard that exists to catch exactly that.
+					.containsPattern("\\b" + validity + "\\b");
 		}
+	}
+
+	/**
+	 * The slice's other cross-boundary literal, and the one with no runtime symptom at all: how wide a
+	 * code is. Four places hold it — the generator, the {@code @Pattern} on
+	 * {@code EmailVerificationRequest}, the spec, and the SPA's input, which spends it twice. The first
+	 * two now derive from {@link EmailVerificationService#CODE_LENGTH}; these two cannot, so widening
+	 * the code would otherwise leave a validator and a form rejecting every code the generator draws,
+	 * with nothing red to say so.
+	 *
+	 * <p>Files only, no request: what is being pinned is a number three files agree on, and the wire
+	 * already has {@code rejectsACodeThatIsNotSixDigits} standing over it.
+	 */
+	@Test
+	void usesTheSameCodeWidthTheContractAndTheSpaBothHardcode() throws IOException {
+		String digits = "\\d{" + EmailVerificationService.CODE_LENGTH + "}";
+
+		assertThat(read(OPENAPI))
+				.as("openapi.yaml is the anchor for the code's shape as much as for the URNs")
+				.contains(digits);
+		assertThat(read("../frontend/src/pages/VerifyPage.tsx"))
+				.as("the SPA constrains its own input to the same width, twice over")
+				.contains("pattern=\"" + digits + "\"")
+				.contains("maxLength={" + EmailVerificationService.CODE_LENGTH + "}");
 	}
 
 	/** Registration without the verification step {@code register} adds — several cases need the gap. */

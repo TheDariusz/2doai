@@ -163,14 +163,18 @@ S-05 (`V9`) adds **one nullable column and one enum value**, and the restraint i
 `next_proposal_at` is deliberately **not** the schedule. `ProposalScheduler` holds that in memory and
 compares it against the clock every 60 seconds; a column read on a timer is precisely the metered-idle
 cost Neon punishes — the compute would stay awake permanently for roughly one fire per 2-7 days (see
-`lessons.md`). The column is the map's *backup*: written once per fire and once at registration, read once per
-boot, so a deploy resumes each account's own moment instead of redrawing every one of them into a
-single bunch. It is written by a targeted `update ... where id = ?` rather than by saving a loaded
+`lessons.md`). The column is the map's *backup*: written once per fire and once when an account's
+address is proved, read once per boot, so a deploy resumes each account's own moment instead of
+redrawing every one of them into a single bunch. It is written by a targeted `update ... where id = ?` rather than by saving a loaded
 `User`, because a fire holds its account detached across the model call — merging one back would
 re-insert an account deleted while the fire was in flight, undoing an FR-019 erasure. The update
 matching no row is also how the scheduler learns to drop the entry from its map.
-The database is therefore touched three times in the whole cycle — boot, registration, and an actual
-fire — and never by the tick itself.
+The database is therefore touched three times in the whole cycle — boot, verification, and an actual
+fire — and never by the tick itself. **Verification, not registration** (DEV-51):
+`ProposalScheduler.scheduleNewAccount` listens for `UserVerified`, the boot pass skips rows whose
+`email_verified_at` is null, and `scheduleNextProposalAt` carries `and u.emailVerifiedAt is not null`
+in its `where` clause — so a registration writes this column never, and the one loop that mails
+without being asked only ever holds addresses somebody has proved.
 
 Two consequences follow from that and are worth stating, because both are the kind of thing a later
 reader would otherwise assume the other way:
@@ -197,7 +201,7 @@ shows up in the diagram at the top of this file: `app_user` has never been drawn
 `V4`, after this diagram, and the other tables reference it in column comments), so its columns live
 in the prose here and in `data-model-current.drawio`, the same way `next_proposal_at` does.
 
-DEV-51 (`V13`) adds **four columns and no table**, all on `app_user`, and they are the whole of
+DEV-51 (`V13`, `V14`) adds **four columns, one `CHECK` and no table**, all on `app_user`, and they are the whole of
 address verification: `email_verified_at` (`timestamptz`), `verification_code_hash` (`VARCHAR(255)`),
 `verification_expires_at` (`timestamptz`) and `verification_attempts` (`INTEGER NOT NULL DEFAULT 0`).
 Like `app_user`'s other columns they are not in the diagram at the top of this file — they live in
@@ -212,8 +216,10 @@ cleanup of dead sign-ups would key on if one is ever wanted. `verification_code_
 characters because it holds the same `PasswordEncoder` output `password_hash` does — the code itself
 is never stored — and it is cleared together with `verification_expires_at` when a code is spent, so
 no code can be replayed. All four move only through targeted `@Modifying` updates on
-`UserRepository` (`issueVerificationCode`, `recordFailedVerificationAttempt`, `markEmailVerified`,
-`replaceUnverifiedAccount`), the same rule `next_proposal_at` and `preferred_language` follow.
+`UserRepository` (`issueVerificationCode`, `recordFailedVerificationAttempt`, `markEmailVerified`),
+the same rule `next_proposal_at` and `preferred_language` follow — and all three carry
+`and u.emailVerifiedAt is null` in the `where` clause rather than in the caller, so a proved account
+can neither be handed a code nor charged a guess by a request racing the write that proved it.
 
 Two things about this migration are different from the nullable columns above, and both are
 load-bearing:
@@ -232,6 +238,16 @@ image sends no codes either. The one asymmetry is worth recording, because it is
 change can bite an operator — an account created under the new image and never verified becomes a
 *live* account under a rolled-back one, so a rollback means deleting unverified rows by hand first
 (deployment runbook, phase 8).
+
+`V14` follows it with the pairing `V13` left to convention: `CHECK ((verification_code_hash IS NULL)
+= (verification_expires_at IS NULL))`, named `verification_code_pairing`. The two columns are one
+fact — written together by `issueVerificationCode` and cleared together by `markEmailVerified` — but
+they were independently nullable, so a half-written pair was a latent NPE on the read that null-checks
+the hash and then dereferences the expiry (`User.hasCodeAwaiting`). It is the same backstop
+`proposal`'s `CHECK ((answer IS NULL) = (answered_at IS NULL))` is, and safe for a reason worth
+repeating: every row today has both columns null or both set, so the constraint validates without
+rewriting anything, and a rolled-back image writes the same pairs this one does. Hibernate's
+`ddl-auto=validate` ignores `CHECK` constraints, so no mapping moved with it.
 
 ### Internationalization
 

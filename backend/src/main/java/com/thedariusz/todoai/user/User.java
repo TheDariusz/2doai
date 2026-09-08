@@ -40,6 +40,13 @@ public class User {
 	/** Mirrors the {@code app_user.email VARCHAR(320)} column width (RFC 5321 max address length). */
 	static final int MAX_EMAIL_LENGTH = 320;
 
+	/**
+	 * Guesses one verification code is worth (DEV-51). A six-digit secret is 10^6 wide, so the cap is
+	 * what keeps it from being enumerable — and {@code UserRepository.issueVerificationCode} resets the
+	 * count, so a locked address is one "send again" away from a fresh budget rather than dead.
+	 */
+	public static final int MAX_VERIFICATION_ATTEMPTS = 5;
+
 	@Id
 	@UuidGenerator(style = UuidGenerator.Style.VERSION_7)
 	@Column(nullable = false, updatable = false)
@@ -121,14 +128,19 @@ public class User {
 	@Column(name = "verification_code_hash")
 	private String verificationCodeHash;
 
-	/** When the outstanding code stops being accepted. Null exactly when there is no code. */
+	/**
+	 * When the outstanding code stops being accepted. Null exactly when there is no code — a pairing
+	 * {@code V14}'s {@code CHECK} enforces, which is what lets {@link #hasCodeAwaiting} dereference this
+	 * after a null check on the hash alone.
+	 */
 	@Column(name = "verification_expires_at")
 	private OffsetDateTime verificationExpiresAt;
 
 	/**
 	 * Wrong guesses spent on the outstanding code — the cap that keeps a six-digit secret from being
-	 * enumerable. Reset to zero whenever a new code is issued, so a locked-out address is one
-	 * "send again" away from a fresh budget rather than dead forever.
+	 * enumerable ({@link #MAX_VERIFICATION_ATTEMPTS}). Reset to zero whenever a new code is issued or
+	 * spent, so a locked-out address is one "send again" away from a fresh budget rather than dead
+	 * forever, and a proved account carries no count for a code it no longer has.
 	 */
 	@Column(name = "verification_attempts", nullable = false)
 	private int verificationAttempts;
@@ -195,6 +207,21 @@ public class User {
 
 	public int getVerificationAttempts() {
 		return verificationAttempts;
+	}
+
+	/**
+	 * Whether a code submitted right now is even worth checking: the address is still unproved, a code
+	 * is outstanding, it has not expired, and the guesses it is worth are not spent.
+	 *
+	 * <p>The rule lives here rather than in the service because it is the aggregate's own — four fields
+	 * that only mean anything together, and a caller reading them one at a time is a caller who can get
+	 * the conjunction wrong. What the service still owns is what a failure <em>costs</em>: the write
+	 * that charges a wrong guess, and the {@code where} clauses that hold under a race.
+	 */
+	public boolean hasCodeAwaiting(OffsetDateTime now) {
+		return emailVerifiedAt == null && verificationCodeHash != null
+				&& verificationExpiresAt.isAfter(now)
+				&& verificationAttempts < MAX_VERIFICATION_ATTEMPTS;
 	}
 
 	public OffsetDateTime getCreatedAt() {

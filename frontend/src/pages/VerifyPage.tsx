@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router'
 import { ApiError } from '../api/client'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
 import { useAuth } from '../auth/auth-context'
-import { VERIFICATION_FAILED } from '../auth/problems'
+import { isProblem, VERIFICATION_FAILED } from '../auth/problems'
 
 /**
  * The catalog keys this screen can put in front of the user. Held as keys rather than as resolved
@@ -127,7 +127,7 @@ function messageFor(failure: unknown): MessageKey {
   if (!(failure instanceof ApiError)) {
     return 'auth.errors.generic'
   }
-  if (failure.type === VERIFICATION_FAILED || failure.status === 422) {
+  if (isProblem(failure, VERIFICATION_FAILED) || failure.status === 422) {
     return 'verify.errors.code'
   }
   if (failure.status === 429) {

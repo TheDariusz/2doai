@@ -5,7 +5,7 @@ import { Link, useLocation, useNavigate, type Path } from 'react-router'
 import { ApiError } from '../api/client'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
 import { useAuth } from '../auth/auth-context'
-import { EMAIL_NOT_VERIFIED } from '../auth/problems'
+import { EMAIL_NOT_VERIFIED, isProblem } from '../auth/problems'
 
 type Mode = 'login' | 'register'
 
@@ -52,18 +52,16 @@ export function AuthPage({ mode }: { mode: Mode }) {
       // Two failures are not this screen's to report, because the account is fine and the remedy is
       // the code. One is a correct password on an address nobody has confirmed yet. The other is a
       // sign-up past the point of no return: `register` commits the account and *then* asks for a
-      // code, so every failure after it — the provider refusing (503) and the throttle refusing a
-      // second code within the minute (429) — leaves an account that exists and a screen that can do
-      // nothing for it. Both continue to the one that can.
+      // code, so any failure the server raised after that — the provider refusing (503), a timeout
+      // on the code write escaping as a bare 500 — leaves an account that exists and a screen that
+      // can do nothing for it. The predicate is the whole 5xx range rather than a list of statuses,
+      // because the list is what left the 500 stranding a committed account here. Both continue to
+      // the screen that can act: the code was not sent, whatever the server called it.
       const problem = failure instanceof ApiError ? failure : null
-      const unconfirmed = problem?.type === EMAIL_NOT_VERIFIED
-      const codeNotSent = mode === 'register' && (problem?.status === 429 || problem?.status === 503)
+      const unconfirmed = isProblem(failure, EMAIL_NOT_VERIFIED)
+      const codeNotSent = mode === 'register' && (problem?.status ?? 0) >= 500
       if (unconfirmed || codeNotSent) {
-        const reason = unconfirmed
-          ? 'verify.errors.notVerified'
-          : problem?.status === 429
-            ? 'verify.errors.tooMany'
-            : 'verify.errors.unavailable'
+        const reason = unconfirmed ? 'verify.errors.notVerified' : 'verify.errors.unavailable'
         navigate('/verify', { replace: true, state: { email, error: reason } })
       } else {
         setError(messageFor(t, failure, mode))

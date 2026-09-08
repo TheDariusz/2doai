@@ -1,12 +1,13 @@
-import { screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Route, Routes } from 'react-router'
-import { describe, expect, it } from 'vitest'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import { describe, expect, it, vi } from 'vitest'
 import { AuthPage } from './AuthPage'
 import { VerifyPage } from './VerifyPage'
 import { ApiError } from '../api/client'
+import { AuthProvider } from '../auth/AuthProvider'
 import { VERIFICATION_FAILED } from '../auth/problems'
-import { renderWithAuth, stubAuth } from '../test/auth'
+import { renderWithAuth, response, stubAuth } from '../test/auth'
 import { type Auth } from '../auth/auth-context'
 
 /** The screen, plus the one it hands over to — the sign-in notice is half of what success means. */
@@ -77,6 +78,34 @@ describe('VerifyPage', () => {
     await user.click(screen.getByRole('button', { name: 'Send the code again' }))
 
     expect(auth.resendCode).toHaveBeenCalledWith('ala@example.pl')
+    expect(await screen.findByRole('status')).toHaveTextContent(/on its way/i)
+  })
+
+  /**
+   * The same click through the real client, because a stubbed `resendCode` cannot see what broke
+   * this button in production: the server answers 202 with no body, and reading a body that is not
+   * there throws. Resend is the only recovery path on this screen, so it is worth the provider.
+   */
+  it('confirms a resend the server accepted with 202 and no body', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(response(401, { detail: 'Authentication is required' }))
+        .mockResolvedValueOnce(response(202)),
+    )
+    render(
+      <MemoryRouter initialEntries={['/verify']}>
+        <AuthProvider>
+          <VerifyPage />
+        </AuthProvider>
+      </MemoryRouter>,
+    )
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Email'), 'ala@example.pl')
+    await user.click(screen.getByRole('button', { name: 'Send the code again' }))
+
     expect(await screen.findByRole('status')).toHaveTextContent(/on its way/i)
   })
 })

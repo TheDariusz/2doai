@@ -3,10 +3,13 @@ package com.thedariusz.todoai;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.thedariusz.todoai.mail.EmailSender;
+import com.thedariusz.todoai.mail.MailDeliveryException;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
@@ -60,9 +63,23 @@ public class TestcontainersConfiguration {
 
 		private final List<Sent> sent = new CopyOnWriteArrayList<>();
 
+		private final AtomicBoolean failNext = new AtomicBoolean();
+
 		@Override
 		public void send(String to, String subject, String text) {
+			if (this.failNext.compareAndSet(true, false)) {
+				throw new MailDeliveryException("a forced failure to a @"
+						+ StringUtils.substringAfterLast(to, '@') + " address", new IllegalStateException("forced"));
+			}
 			this.sent.add(new Sent(to, subject, text));
+		}
+
+		/**
+		 * Make the next send fail the way a provider outage does, once. The 503 it produces is the one
+		 * response with a committed account behind it, and nothing else in the suite can reach it.
+		 */
+		public void failNextSend() {
+			this.failNext.set(true);
 		}
 
 		public List<Sent> sent() {

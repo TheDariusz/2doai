@@ -1,9 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
-import { ApiError } from '../api/client'
 import { useAuth } from './auth-context'
-import { RE_AUTH_FAILED } from './problems'
+import { isProblem, RE_AUTH_FAILED } from './problems'
 
 /**
  * Ending the session, as its own header control. Split from the menu below because the two sit side
@@ -72,7 +71,7 @@ export function AccountMenu() {
       // across every 403. Branching on the status alone would put this copy on a CSRF denial too,
       // which has nothing to do with the password the user just typed.
       setError(
-        failure instanceof ApiError && failure.type === RE_AUTH_FAILED
+        isProblem(failure, RE_AUTH_FAILED)
           ? t('account.errors.wrongPassword')
           : // The other 403 here is a stale CSRF token, which only a reload re-primes — so the
             // fallback names that remedy too, as openapi.yaml's 403 description says it should.
