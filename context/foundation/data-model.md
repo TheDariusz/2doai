@@ -197,6 +197,42 @@ shows up in the diagram at the top of this file: `app_user` has never been drawn
 `V4`, after this diagram, and the other tables reference it in column comments), so its columns live
 in the prose here and in `data-model-current.drawio`, the same way `next_proposal_at` does.
 
+DEV-51 (`V13`) adds **four columns and no table**, all on `app_user`, and they are the whole of
+address verification: `email_verified_at` (`timestamptz`), `verification_code_hash` (`VARCHAR(255)`),
+`verification_expires_at` (`timestamptz`) and `verification_attempts` (`INTEGER NOT NULL DEFAULT 0`).
+Like `app_user`'s other columns they are not in the diagram at the top of this file — they live in
+this prose and in `data-model-current.drawio`.
+
+There is at most one code outstanding per account, it dies with the account, and it is read on
+exactly the paths that already load the row (login, verify, resend), so a `pending_verification`
+table would buy a join and a second lifetime to keep in step for a value that never outlives the row
+it belongs to. `email_verified_at` is a moment rather than a boolean for the reason `completed_at`
+is: "when" answers "whether" and additionally says how long an account sat unproved, which is what a
+cleanup of dead sign-ups would key on if one is ever wanted. `verification_code_hash` is 255
+characters because it holds the same `PasswordEncoder` output `password_hash` does — the code itself
+is never stored — and it is cleared together with `verification_expires_at` when a code is spent, so
+no code can be replayed. All four move only through targeted `@Modifying` updates on
+`UserRepository` (`issueVerificationCode`, `recordFailedVerificationAttempt`, `markEmailVerified`,
+`replaceUnverifiedAccount`), the same rule `next_proposal_at` and `preferred_language` follow.
+
+Two things about this migration are different from the nullable columns above, and both are
+load-bearing:
+
+- **`verification_attempts` is `NOT NULL`, and is only safe because of its `DEFAULT 0`.** The
+  currently deployed image inserts `app_user` rows without naming the column — exactly the
+  distinction `V12` drew when it argued the same move was safe on `category` (written by migrations
+  alone) and would not have been on a table the running application writes.
+- **The backfill is not optional.** `NULL` here means "never proved", so shipping the columns without
+  `UPDATE app_user SET email_verified_at = created_at WHERE email_verified_at IS NULL` would lock
+  every existing account out of its own app on the deploy that applied it. With it, existing accounts
+  are verified as of the moment they were created and notice nothing.
+
+Expand-only otherwise: under an image rollback the columns are simply never read, and the previous
+image sends no codes either. The one asymmetry is worth recording, because it is the only way this
+change can bite an operator — an account created under the new image and never verified becomes a
+*live* account under a rolled-back one, so a rollback means deleting unverified rows by hand first
+(deployment runbook, phase 8).
+
 ### Internationalization
 
 The **language-neutral identity is `code`**, never the label. All domain and AI logic

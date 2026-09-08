@@ -344,6 +344,28 @@ Added for **S-05 (`natural-rhythm-return`)**: the natural-rhythm scheduler email
 opened, which is the only way this app reaches a user who is, by definition, not looking at it.
 Everything below is configuration — the code shipped with DEV-24 and needs no change.
 
+**DEV-51 gave this phase a second sender and no second secret.** Registration now mails a six-digit
+verification code through the same `EmailSender` port, the same `RESEND_API_KEY` and the same sender
+domain, so nothing in 8.1 or 8.2 changes. Two consequences do. The free plan's **100 messages a day
+now carries sign-ups as well as proposals**, and a provider outage is no longer only a missing nudge —
+`POST /api/users` answers `503` and the SPA says so, because the code *is* the request. The suite
+stays hermetic all the same: `TestcontainersConfiguration` publishes a `@Primary` recording
+`EmailSender` fake that keeps the last code per address, `ApiTestBase.register` confirms every test
+account through the real `/api/verifications` endpoint, and `ProposalSchedulerIntegrationTest` now
+reads that fake instead of its old `@MockitoBean` (two candidates for the port would have made the
+override ambiguous). No suite reaches `smtp.resend.com`.
+
+**Rollback gained one manual step.** `V13` is expand-only and a rolled-back image simply never reads
+its columns — but an account created under the *new* image and never verified becomes a **live**
+account under the old one, which asks nobody for a code. If a rollback ever happens, delete the
+unverified rows first (`ai_memory` has a `NO ACTION` FK, so its root goes first; an unverified account
+can own nothing else, because it can never log in):
+
+```sql
+delete from ai_memory where user_id in (select id from app_user where email_verified_at is null);
+delete from app_user where email_verified_at is null;
+```
+
 **Two things fail silently if you skip them**, which is why they lead this phase: an unverified
 sender domain means the provider accepts nothing (or accepts and never delivers), and a missing
 `APP_BASE_URL` means every email links to `http://localhost:5173`. Neither raises an error the app
@@ -408,7 +430,8 @@ fly secrets list                                      # names + digests, never v
 trick Phase 7 uses: boot and the hermetic suite stay green without it, so **the test suite never
 needs this secret**. It is not the whole story for hermeticism, though —
 `ProposalSchedulerIntegrationTest` drives a real fire, so it mocks `EmailSender` outright rather than
-relying on a key-less client to fail politely.
+relying on a key-less client to fail politely — since DEV-51 it reads the shared recording fake
+described in the phase intro instead.
 
 > `fly secrets set` restarts the machine. Setting both in one command
 > (`fly secrets set RESEND_API_KEY=… APP_BASE_URL=…`) costs one restart instead of two.
@@ -481,6 +504,26 @@ Two more things that make a forced fire look like a silent failure, both correct
 Expect, within a minute of the restart: `Natural rhythm loaded: 1 account(s) scheduled`, then
 `Delivered: a NN-char subject to a @… address`, the email itself, and the same proposal already on
 `https://2doai.app/goals` without pressing anything.
+
+#### The sign-up round trip (DEV-51)
+
+The other thing this phase's mail path carries, and the one smoke test that needs a real mailbox.
+Run it after any deploy that touched registration, login or the verification endpoints:
+
+1. Register on <https://2doai.app> with an address you can read. The screen goes to `/verify`.
+2. The code arrives within seconds. `fly logs | grep "verification code"` shows
+   `Issued a verification code to a @… address` — the domain, and deliberately nothing else.
+3. Enter it → `/login` reports the address is confirmed. Log in.
+4. Two guards are worth provoking *before* verifying a second throwaway account: logging in with the
+   **right** password answers `403 urn:2doai:problem:email-not-verified` and lands back on `/verify`
+   (a **wrong** password still answers the generic 401), and pressing "send again" twice inside a
+   minute answers `429` with `Retry-After`.
+5. Delete the account from the UI afterwards, so the next walk starts clean.
+
+Existing accounts are unaffected — `V13` backfills `email_verified_at = created_at`, so the first
+thing to check after this deploy is that an account created before it still logs in. And
+`Natural rhythm loaded: N account(s) scheduled` counts **verified accounts only**: an account still
+holding a code is skipped at boot, which is the other half of the same rule.
 
 > **The proposal survives a mail failure.** It is stored before the message is attempted and the send
 > sits inside the fire's `catch`, so a provider outage costs the nudge, not the proposal — the card is

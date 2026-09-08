@@ -550,8 +550,8 @@ draw.io export writes `color-scheme: light dark`).
 
 #### Automated
 
-- [x] 3.1 `npm test` green including the new file
-- [x] 3.2 `npm run lint` clean; `npm run build` passes `tsc`
+- [x] 3.1 `npm test` green including the new file — e4a4195
+- [x] 3.2 `npm run lint` clean; `npm run build` passes `tsc` — e4a4195
 
 #### Manual
 
@@ -561,8 +561,8 @@ draw.io export writes `color-scheme: light dark`).
 
 #### Automated
 
-- [ ] 4.1 `/check` green (backend tests, frontend test + lint + build)
-- [ ] 4.2 `node --test docs/index.test.mjs` green
+- [x] 4.1 `/check` green (backend tests, frontend test + lint + build)
+- [x] 4.2 `node --test docs/index.test.mjs` green
 
 #### Manual
 
