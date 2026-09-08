@@ -298,7 +298,7 @@ class AuthApiTest extends ApiTestBase {
 		assertThat(read(OPENAPI))
 				.as("openapi.yaml is the anchor for every wire literal both sides hardcode")
 				.contains(onTheWire);
-		assertThat(read("../frontend/src/auth/AccountMenu.tsx"))
+		assertThat(read("../frontend/src/auth/problems.ts"))
 				.as("the SPA discriminates the two 403s on this exact string")
 				.contains(onTheWire);
 	}

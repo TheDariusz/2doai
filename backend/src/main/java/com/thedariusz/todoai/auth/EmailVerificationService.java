@@ -4,12 +4,13 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.util.Locale;
 import java.util.UUID;
 
+import com.thedariusz.todoai.account.PerUserDataDeleter;
 import com.thedariusz.todoai.mail.EmailSender;
 import com.thedariusz.todoai.mail.MailDeliveryException;
 import com.thedariusz.todoai.user.AppLanguage;
+import com.thedariusz.todoai.user.Email;
 import com.thedariusz.todoai.user.User;
 import com.thedariusz.todoai.user.UserRepository;
 import com.thedariusz.todoai.user.UserVerified;
@@ -23,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Proving that somebody actually reads the address an account was signed up with (DEV-51). It issues
- * codes, checks them, and owns the three numbers that make a six-digit secret safe: how long it
+ * codes, checks them, and owns the two numbers that make a six-digit secret safe: how long it
  * lives, and how many guesses it is worth.
  *
  * <p><b>Nothing here logs a code or a full address.</b> The code is a credential for the minutes it
@@ -37,10 +38,15 @@ import org.springframework.transaction.annotation.Transactional;
  * leaves an unverified row that the next sign-up or resend simply overwrites.
  */
 @Service
-public class EmailVerificationService {
+public class EmailVerificationService implements PerUserDataDeleter {
 
-	/** How long a code is worth typing. Named here because the message that carries it says so. */
-	static final Duration CODE_VALIDITY = Duration.ofMinutes(15);
+	/**
+	 * How long a code is worth typing. Named here because the message that carries it says so — and
+	 * so does the SPA's verify screen, which spells the number out rather than interpolating it; the
+	 * guard in {@code VerificationApiTest} is what stops the two from drifting apart, and is why this
+	 * is visible outside the package at all.
+	 */
+	public static final Duration CODE_VALIDITY = Duration.ofMinutes(15);
 
 	/**
 	 * Guesses one code is worth. A six-digit secret is 10^6 wide, so the cap is what keeps it from
@@ -97,7 +103,7 @@ public class EmailVerificationService {
 	 * consulted before the lookup for that same reason.
 	 */
 	public void resendCode(String rawEmail) {
-		String email = normalize(rawEmail);
+		String email = Email.normalize(rawEmail);
 		admit(email);
 		users.findByEmail(email)
 				.filter(account -> !account.isEmailVerified())
@@ -118,7 +124,7 @@ public class EmailVerificationService {
 	@Transactional(noRollbackFor = VerificationFailedException.class)
 	public void verify(String rawEmail, String submittedCode) {
 		OffsetDateTime now = OffsetDateTime.now();
-		User account = users.findByEmail(normalize(rawEmail))
+		User account = users.findByEmail(Email.normalize(rawEmail))
 				.orElseThrow(VerificationFailedException::new);
 
 		if (account.isEmailVerified() || account.getVerificationCodeHash() == null
@@ -130,14 +136,33 @@ public class EmailVerificationService {
 			users.recordFailedVerificationAttempt(account.getId(), now);
 			throw new VerificationFailedException();
 		}
-		users.markEmailVerified(account.getId(), now);
+		if (users.markEmailVerified(account.getId(), now) == 0) {
+			// A request racing this one got there first, or the account went away. Either way the caller
+			// asked for the address to be proved and it is: 204, and no second UserVerified.
+			return;
+		}
 		events.publishEvent(new UserVerified(account.getId()));
 		log.info("Account {} proved its address", account.getId());
 	}
 
-	/** The account is erased, so the address owes nothing to the throttle any more — see there. */
-	public void forget(String email) {
-		throttle.forget(normalize(email));
+	/**
+	 * The account is erased (FR-019), so the address owes nothing to the throttle any more — otherwise
+	 * the next sign-up with it, by anyone, waits out a cooldown earned by somebody who no longer exists.
+	 *
+	 * <p>Through {@link PerUserDataDeleter} rather than a call from the delete endpoint, because the
+	 * throttle's entry is per-user state like the scheduler's map, and that interface is the one place
+	 * a reader can see all of it. A second erasure path — the cleanup of dead unverified sign-ups
+	 * {@code User.emailVerifiedAt} invites, say — then cannot forget this one.
+	 *
+	 * <p>The row is still there: {@link com.thedariusz.todoai.account.AccountDeletionService} loads it
+	 * before running the deleters and removes it after, so this is a first-level-cache hit rather than a
+	 * query. Running inside that transaction means a rollback leaves the throttle short an entry — the
+	 * same trade {@code ProposalScheduler.deleteAllForUser} already takes, and harmless for the same
+	 * reason: the entry only ever refuses to send, never allows.
+	 */
+	@Override
+	public void deleteAllForUser(UUID userId) {
+		users.findById(userId).map(User::getEmail).ifPresent(throttle::forget);
 	}
 
 	private void admit(String email) {
@@ -153,18 +178,14 @@ public class EmailVerificationService {
 		OffsetDateTime now = OffsetDateTime.now();
 		if (users.issueVerificationCode(userId, passwordEncoder.encode(code),
 				now.plus(CODE_VALIDITY), now) == 0) {
-			// The account went away between the write that created it and this one. There is nobody
-			// left to prove anything, and the update cannot re-create them — that is why it is not a save.
-			log.info("Dropped a code for account {}: the row is gone", userId);
+			// The account went away between the write that created it and this one, or was proved by a
+			// request racing it. Either way there is nobody left to send a code to, and the update cannot
+			// re-create them — that is why it is not a save.
+			log.info("Dropped a code for account {}: the row is gone or already proved", userId);
 			return;
 		}
 		mail.send(email, subject(language, code), body(language, code));
 		log.info("Issued a verification code to a @{} address", domainOf(email));
-	}
-
-	/** The same normalization the {@code Email} VO applied at sign-up, so a login-shaped address matches. */
-	private static String normalize(String rawEmail) {
-		return rawEmail.strip().toLowerCase(Locale.ROOT);
 	}
 
 	private static String domainOf(String email) {

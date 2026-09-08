@@ -131,13 +131,31 @@ describe('AuthPage — registering', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/could not be sent/i)
   })
 
-  it('reports the per-address code limit (429) as a wait rather than as a rejection', async () => {
+  /**
+   * The 503's twin, and the reason the handover keys on the mode rather than on the status: sign-up
+   * commits the account before it asks for a code, so a throttled second attempt leaves exactly the
+   * same account-exists-no-code-arrived state — and leaving the user on /register would strand them
+   * on a screen whose only button now answers 429 for the rest of the cooldown.
+   */
+  it('still goes to the code screen when the code was throttled (429)', async () => {
     const auth = stubAuth({ register: async () => { throw new ApiError(429, 'Too many verification codes requested') } })
     renderAt('/register', auth)
 
     await fillIn('nowa@example.pl', 'tajnehaslo')
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/wait a minute/i)
+    expect(await screen.findByRole('heading', { name: 'Confirm your address' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(/wait a minute/i)
+  })
+
+  /** Login is not that: nothing throttles it, and a 429 there is not about verification codes. */
+  it('keeps a failed sign-in on the sign-in screen', async () => {
+    const auth = stubAuth({ login: async () => { throw new ApiError(429, 'Slow down') } })
+    renderAt('/login', auth)
+
+    await fillIn('nowa@example.pl', 'tajnehaslo')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/something went wrong/i)
+    expect(screen.getByRole('heading', { name: /sign in/i })).toBeInTheDocument()
   })
 
   it('maps 409 to "email already in use, log in instead"', async () => {

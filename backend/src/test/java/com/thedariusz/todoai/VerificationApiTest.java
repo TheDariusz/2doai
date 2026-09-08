@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import com.thedariusz.todoai.auth.EmailVerificationService;
+import com.thedariusz.todoai.auth.VerificationThrottle;
 import io.restassured.response.ValidatableResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,7 +39,7 @@ class VerificationApiTest extends ApiTestBase {
 	 * rule has its own case below and its own unit test.
 	 */
 	@Autowired
-	EmailVerificationService verification;
+	VerificationThrottle throttle;
 
 	@Test
 	void mailsACodeWhenAnAccountIsRegistered() {
@@ -142,7 +143,7 @@ class VerificationApiTest extends ApiTestBase {
 			submitCode(email, wrongCodeFor(email)).statusCode(403);
 		}
 
-		verification.forget(email);
+		throttle.forget(email);
 		requestCode(email).statusCode(202);
 
 		submitCode(email, mail.codeFor(email).orElseThrow()).statusCode(204);
@@ -183,7 +184,7 @@ class VerificationApiTest extends ApiTestBase {
 		String email = uniqueEmail();
 		signUp(email, "first-password").statusCode(201);
 
-		verification.forget(email);
+		throttle.forget(email);
 		signUp(email, "second-password").statusCode(201);
 		submitCode(email, mail.codeFor(email).orElseThrow()).statusCode(204);
 
@@ -198,7 +199,7 @@ class VerificationApiTest extends ApiTestBase {
 		String email = uniqueEmail();
 		register(email, PASSWORD);
 
-		verification.forget(email);
+		throttle.forget(email);
 		signUp(email, "second-password").statusCode(409).contentType("application/problem+json");
 
 		login(email, PASSWORD).statusCode(201);
@@ -210,7 +211,7 @@ class VerificationApiTest extends ApiTestBase {
 		signUp(email, PASSWORD).statusCode(201);
 		String first = mail.codeFor(email).orElseThrow();
 
-		verification.forget(email);
+		throttle.forget(email);
 		requestCode(email).statusCode(202);
 
 		// The old code is dead the moment a new one is issued — otherwise every resend would widen
@@ -249,7 +250,7 @@ class VerificationApiTest extends ApiTestBase {
 	void acceptsACodeRequestForAnAlreadyVerifiedAddressAndMailsNothing() {
 		String email = uniqueEmail();
 		register(email, PASSWORD);
-		verification.forget(email);
+		throttle.forget(email);
 		mail.clear();
 
 		requestCode(email).statusCode(202);
@@ -281,11 +282,16 @@ class VerificationApiTest extends ApiTestBase {
 	}
 
 	/**
-	 * The guard that spans the backend/frontend boundary (lessons.md), for the two URNs this slice
+	 * The guard that spans the backend/frontend boundary (lessons.md), for the literals this slice
 	 * adds — the same shape as {@code AuthApiTest.emitsTheReAuthUrnTheContractAndTheSpaBothHardcode}.
-	 * Both values are taken off a <em>real</em> response and held against {@code openapi.yaml} and
+	 * The two URNs are taken off a <em>real</em> response and held against {@code openapi.yaml} and
 	 * against the one TypeScript file that branches on them, so a rename anywhere goes red. Asserting
 	 * each side against its own copy would leave both suites green while the two disagree.
+	 *
+	 * <p>{@link EmailVerificationService#CODE_VALIDITY} is the third such literal and the easiest to
+	 * miss, because nothing breaks when it drifts: the email interpolates it, while the screen that
+	 * says the same thing to the same user spells the number out. Without this the day somebody
+	 * shortens the window is the day the SPA starts quietly lying, in both languages.
 	 */
 	@Test
 	void emitsTheVerificationUrnsTheContractAndTheSpaBothHardcode() throws IOException {
@@ -309,6 +315,13 @@ class VerificationApiTest extends ApiTestBase {
 				.as("the SPA branches the verification screens on these exact strings")
 				.contains(verificationFailed)
 				.contains(emailNotVerified);
+
+		String validity = String.valueOf(EmailVerificationService.CODE_VALIDITY.toMinutes());
+		for (String catalog : new String[] { "../frontend/src/i18n/pl.ts", "../frontend/src/i18n/en.ts" }) {
+			assertThat(read(catalog))
+					.as("%s tells the user how long the code lasts, and CODE_VALIDITY decides", catalog)
+					.contains(validity);
+		}
 	}
 
 	/** Registration without the verification step {@code register} adds — several cases need the gap. */

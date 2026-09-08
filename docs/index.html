@@ -489,7 +489,7 @@ flowchart LR
         <tr><th scope="row"><a href="../context/foundation/data-model.md">Category labels are columns, not a translation table</a></th><td>The set is eleven rows fixed by a Flyway seed and cannot grow at runtime, so a <code>category_translation</code> table would buy a join and a migration per locale to model a list that has none</td><td>A third language is a third column and a migration, not data</td><td>This row's own trigger — "the UI supports a second language" — fired in DEV-49, and the answer was <code>name_en</code> beside <code>name_pl</code> (<code>V11</code>). It fires again only if locales stop being two: a translator workflow or a growing set is what the table was reserved for, and <code>code</code> being the identity keeps it reachable without a destructive migration</td></tr>
         <tr><th scope="row">Prompts are written in English and <em>name</em> the answer's language</th><td>Text addressed to a model is code, not copy. Writing the persona in the language the answer must come back in makes a second locale a second copy of every instruction, free to drift the first time either is tightened</td><td>One indirection between the instruction and the language it asks for</td><td>Never for the instructions. The parameter this row predicted arrived in DEV-49: <code>ProposalPrompt</code> takes an <code>AppLanguage</code> and interpolates <code>englishName()</code>, and the constant is gone. The template fallback was the named exception and behaved like one — a second language meant a second class, <code>ProposalTemplateEn</code>, because its output <em>is</em> what the user reads</td></tr>
         <tr><th scope="row">At most one pending proposal is an index, not a check</th><td>A service-level "does this user already have one?" races with itself on a double-click and stores both; a partial unique index cannot</td><td>The lost race surfaces as a constraint violation the service must translate into "return the winner"</td><td>Proposals stop being per-user singletons. S-05 was the case this row anticipated — a cycle that must replace an ignored proposal — and the index held: superseding closes the old row <em>before</em> the new insert, so the slot is freed rather than shared</td></tr>
-        <tr><th scope="row">Verification codes are throttled per address, in memory</th><td>The abuse this slice closes is the app mailing a stranger, and the quota it protects is the provider's 100 e-mails a day that real proposals depend on. A map in the JVM costs no dependency and no database touch — the same reasoning as the row below</td><td>It counts addresses, not callers: a bot working through a list is slowed only by the provider, and the map must be pruned on every call because it is keyed on strings an attacker chooses</td><td>The next issue, and it is configuration rather than code — a per-IP rule at Cloudflare and a shared secret between Pages and Fly, so the origin cannot be reached around the proxy at all. Also when the backend stops being one machine: neither the map nor the count survives a second one</td></tr>
+        <tr><th scope="row">Verification codes are throttled per address, in memory</th><td>The abuse this slice closes is the app mailing a stranger, and the quota it protects is the provider's 100 e-mails a day that real proposals depend on. A map in the JVM costs no dependency and no database touch — the same reasoning as the row below</td><td>It counts addresses, not callers: a bot working through a list is slowed only by the provider, and the map must be capped, not merely expired, because it is keyed on strings an attacker chooses</td><td>The next issue, and it is configuration rather than code — a per-IP rule at Cloudflare and a shared secret between Pages and Fly, so the origin cannot be reached around the proxy at all. Also when the backend stops being one machine: neither the map nor the count survives a second one</td></tr>
         <tr><th scope="row">The rhythm's schedule lives in memory, not in a query</th><td>Neon bills metered compute and suspends after ~5 idle minutes, while the Fly machine hosting the tick is always-on. A tick asking the database "is anyone due?" would hold that compute awake 24/7 for roughly one fire per 2–7 days — about 183 CU-h a month to send a handful of emails</td><td>The schedule is authoritative only while the JVM lives; <code>app_user.next_proposal_at</code> is its only backup, reloaded at boot</td><td>The backend runs on more than one machine. Two schedulers over one column would each fire for every account, and the column is a backup rather than a lease</td></tr>
       </tbody>
     </table>
@@ -665,11 +665,19 @@ flowchart LR
   stranger.</p>
   <p>The writes follow the rule the language setting already set — four targeted
   <code>@Modifying</code> updates on <code>UserRepository</code>, no setters, each reporting the rows
-  it moved. <code>replaceUnverifiedAccount</code> is the one carrying a guard rather than only an id
-  (<code>and u.emailVerifiedAt is null</code>), because signing up again with an address whose owner
-  never proved it <em>takes the account over</em> instead of answering 409 — which is what stops a
-  typo'd or abandoned attempt blocking the real owner with a conflict they have no way to resolve.
-  The guard lives in the query rather than in the service so that no later caller can forget it.</p>
+  it moved. Most of them carry a guard rather than only an id, and always in the
+  <code>where</code> clause rather than in the service, so that no later caller can forget it.
+  <code>replaceUnverifiedAccount</code> takes an account over only while
+  <code>u.emailVerifiedAt is null</code> — signing up again with an address whose owner never proved
+  it <em>takes it over</em> instead of answering 409, which is what stops a typo'd or abandoned
+  attempt blocking the real owner with a conflict they have no way to resolve, while the same clause
+  makes handing somebody's live credential to whoever typed their address impossible.
+  <code>markEmailVerified</code> and <code>issueVerificationCode</code> carry it too, which makes
+  proving an address a single winning write: two requests racing with the same correct code both pass
+  the read, only one passes the update, and <code>UserVerified</code> is published only by that one.
+  <code>scheduleNextProposalAt</code> carries its mirror — <code>and u.emailVerifiedAt is not
+  null</code> — so "the rhythm only ever holds proved addresses" is enforced by the single write all
+  three of its entry points funnel through, not by each of them remembering.</p>
   <p><code>EmailVerificationService</code> owns the numbers — six digits, fifteen minutes, five
   attempts — and stores the code the way the password is stored, through the same
   <code>PasswordEncoder</code>: a secret mailed in the clear is still a credential. Every way
@@ -680,8 +688,12 @@ flowchart LR
   (<code>VerificationEmailPl</code> / <code>En</code>) for the reason <code>ProposalTemplatePl</code>
   has a sibling: this is text a user reads, so it cannot be told which language to be in.</p>
   <p><code>VerificationThrottle</code> is the other half — one code per address per minute, five per
-  hour, held in a map in the JVM like the scheduler's schedule, and pruned on every call because a map
-  keyed on strings an attacker chooses is the memory lever on a 512&nbsp;MB machine. It is
+  hour, held in a map in the JVM like the scheduler's schedule. That map is keyed on strings an
+  attacker chooses and reached from a public endpoint, so it is <em>capped</em>, not merely expired:
+  an access-ordered <code>LinkedHashMap</code> evicts past ten thousand addresses, and sends age out
+  of the one deque a call already has in hand. Expiry alone would have been no bound at all — an hour
+  of distinct addresses is exactly what a flood supplies — and sweeping every deque per call would
+  have made that flood quadratic while holding the lock. It is
   deliberately per <em>address</em>: a caller with a list of them is slowed only by the provider's own
   quota, and the per-IP rule that would fix that is a Cloudflare rule rather than code — the next
   issue, together with a shared secret between Pages and Fly. The code is mailed <em>after</em> the
@@ -742,13 +754,13 @@ classDiagram
     +issue(userId, email, AppLanguage) — called once the registration transaction has committed
     +resendCode(email) — the same answer for unknown, verified and waiting
     +verify(email, code) — markEmailVerified and UserVerified, in one transaction
-    +forget(email) — FR-019: the address owes the throttle nothing once its account is gone
+    +deleteAllForUser(userId) — FR-019: the address owes the throttle nothing once its account is gone
     6 digits, 15 minutes, 5 attempts; one exception type for all six failures
   }
   class VerificationThrottle {
     &lt;&lt;in-memory guard&gt;&gt;
     admit(email, now) long — 0, or the seconds left to wait
-    60s cooldown, 5 per hour, per address, pruned on every call
+    60s cooldown, 5 per hour, per address; LRU-capped at 10k addresses, sends expired per key
   }
   class VerificationController {
     &lt;&lt;inbound adapter / REST&gt;&gt;
@@ -785,7 +797,7 @@ classDiagram
   UserController --> UserSettingsService : the write
   UserController --> AuthenticatedSession : and the principal it replaces
   UserController --> AccountDeletionService
-  UserController --> EmailVerificationService : issues the code, and forgets the address on delete
+  UserController --> EmailVerificationService : issues the code once the account is committed
   VerificationController --> EmailVerificationService
   EmailVerificationService --> VerificationThrottle
   EmailVerificationService --> UserRepository : targeted updates, never save(User)
@@ -912,11 +924,16 @@ classDiagram
   class GoalDataDeleter {
     &lt;&lt;module adapter&gt;&gt;
   }
+  class EmailVerificationService {
+    &lt;&lt;application service&gt;&gt;
+    also a deleter — the throttle's entry for the address is per-user state like the rhythm's map
+  }
   class UserRepository {
     &lt;&lt;persistence adapter / Spring Data&gt;&gt;
   }
   AccountDeletionService o-- PerUserDataDeleter : all registered beans
   AccountDeletionService --> UserRepository : delete(user) last — FK fails loudly if a deleter is missing
+  PerUserDataDeleter &lt;|.. EmailVerificationService
   PerUserDataDeleter &lt;|.. AiMemoryDataDeleter
   PerUserDataDeleter &lt;|.. GoalDataDeleter
   </pre>
@@ -1124,10 +1141,11 @@ classDiagram
   its address, and once per actual fire. The liveness probe reads a field and nothing else, for the
   same reason — and the map is pushed at both ends of an account's life rather than polled:
   verification adds an entry through <code>UserVerified</code> — never registration, since DEV-51,
-  because this loop's whole job is to write to a mailbox nobody prompted it to, and boot skips
-  unverified rows for the same reason — deletion removes one through the
-  <code>PerUserDataDeleter</code> seam FR-019 already fans out over, so no deleted account is ever
-  discovered by spending a query on it.</p>
+  because this loop's whole job is to write to a mailbox nobody prompted it to — deletion removes one
+  through the <code>PerUserDataDeleter</code> seam FR-019 already fans out over, so no deleted
+  account is ever discovered by spending a query on it. That "only proved addresses" rule is not left
+  to the two entry points to remember: <code>scheduleNextProposalAt</code> itself refuses an
+  unverified row, and boot's skip is then an optimization rather than the guard.</p>
   <p>The health endpoint is the other door into that bill, and it is the one that opens by accident.
   The liveness group is careful — it holds the scheduler's own pulse and nothing that touches the
   database — but plain <code>/actuator/health</code> is exposed, unauthenticated (Fly's probe reaches
@@ -1794,7 +1812,8 @@ sequenceDiagram
     EVS-->>SPA: 403, the same body — nothing says which of the six causes it was
   else it matches
     EVS->>UR: markEmailVerified — the hash and its expiry are cleared, so no replay
-    EVS->>SCH: UserVerified, published inside the same transaction
+    Note over EVS,UR: the update carries "and emailVerifiedAt is null" too,&lt;br/&gt;so of two requests racing the same code only one wins
+    EVS->>SCH: UserVerified, published only by the winner, inside the same transaction
     Note over SCH: the rhythm draws this account's first moment here.&lt;br/&gt;A rolled-back verification takes it with it
     EVS-->>SPA: 204 — no session, and POST /api/sessions is still the only one
   end

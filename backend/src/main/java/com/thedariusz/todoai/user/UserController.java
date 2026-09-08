@@ -93,9 +93,10 @@ public class UserController {
 		AppLanguage language = AppLanguage.of(locale);
 		User user = registrationService.register(request.email(), request.password(), language);
 		verification.issue(user.getId(), user.getEmail(), language);
-		// Not `UserResponse.from(user)`: taking an unverified account over writes the new language with a
-		// targeted update, which the row loaded before it cannot see. The language this request asked for
-		// is the one that was stored, on both paths.
+		// Named outright rather than read back off `user`: taking an unverified account over writes the
+		// new language with a targeted update, which the row loaded before it cannot see. `UserResponse`
+		// has no factory taking a `User` for exactly this reason. The language this request asked for is
+		// the one that was stored, on both paths.
 		return ResponseEntity.created(URI.create("/api/users/me"))
 				.body(new UserResponse(user.getId(), user.getEmail(), language));
 	}
@@ -153,10 +154,9 @@ public class UserController {
 			log.warn("Re-authentication failed for account deletion of user {}", principal.userId());
 			throw new ReAuthenticationFailedException();
 		}
+		// Erases the verification throttle's entry for this address too, through the same
+		// PerUserDataDeleter seam as every other per-user record (DEV-51).
 		accountDeletionService.deleteAccount(principal.userId());
-		// The address belongs to nobody now, cooldown included — otherwise the next sign-up with it, by
-		// anyone, would wait for a code that was sent to an account that no longer exists (DEV-51).
-		verification.forget(principal.email());
 		expireOtherSessionsOf(principal);
 
 		try {

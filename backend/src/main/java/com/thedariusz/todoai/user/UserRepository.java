@@ -32,17 +32,28 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 	 * asked to erase. An {@code update} cannot insert. It matches nothing and says so by returning 0,
 	 * which is also how the scheduler learns to drop the entry from its map.
 	 *
+	 * <p><b>{@code email_verified_at IS NOT NULL} is in the where clause, not in the caller</b>
+	 * (DEV-51) — the same move as {@link #replaceUnverifiedAccount}, and for a stronger reason. The
+	 * rhythm is the app's only unprompted outbound mail, so "only an address somebody has proved" is
+	 * an invariant that must not rest on three entry points each remembering it; the fourth one
+	 * somebody adds will not know. A caller can forget the check, a {@code where} clause cannot, and
+	 * it reports the refusal exactly as it reports a missing row — 0, which the scheduler already
+	 * treats as "drop the map entry".
+	 *
 	 * <p>{@code updated_at} is set here because a bulk update bypasses Hibernate's
 	 * {@code @UpdateTimestamp}, and this row did change.
 	 *
 	 * @param id the account whose rhythm is moving on
 	 * @param next the drawn moment, from {@code ProposalRhythm}
 	 * @param now the moment the draw happened, for the audit column
-	 * @return 1 when the row was there, 0 when the account no longer exists
+	 * @return 1 when the row was there and proved, 0 when it is gone <em>or unverified</em>
 	 */
 	@Modifying(flushAutomatically = true)
 	@Transactional
-	@Query("update User u set u.nextProposalAt = :next, u.updatedAt = :now where u.id = :id")
+	@Query("""
+			update User u set u.nextProposalAt = :next, u.updatedAt = :now
+			where u.id = :id and u.emailVerifiedAt is not null
+			""")
 	int scheduleNextProposalAt(UUID id, OffsetDateTime next, OffsetDateTime now);
 
 	/**
@@ -78,17 +89,22 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 	 * it is issued after the registration transaction has committed, so the account it writes to is
 	 * detached by construction.
 	 *
+	 * <p>{@code email_verified_at IS NULL} is in the where clause for the reason
+	 * {@link #replaceUnverifiedAccount} gives: a proved account has no code outstanding and must not be
+	 * handed one, and the callers that check it first are then a fast path rather than the guarantee.
+	 *
 	 * @param id the account the code was drawn for
 	 * @param codeHash the code, encoded with the same {@code PasswordEncoder} as a password
 	 * @param expiresAt when the code stops being accepted
 	 * @param now the moment it was issued, for the audit column
-	 * @return 1 when the row was there, 0 when the account no longer exists
+	 * @return 1 when an unverified row was there, 0 when it is gone <em>or already proved</em>
 	 */
 	@Modifying(flushAutomatically = true)
 	@Transactional
 	@Query("""
 			update User u set u.verificationCodeHash = :codeHash, u.verificationExpiresAt = :expiresAt,
-			u.verificationAttempts = 0, u.updatedAt = :now where u.id = :id
+			u.verificationAttempts = 0, u.updatedAt = :now
+			where u.id = :id and u.emailVerifiedAt is null
 			""")
 	int issueVerificationCode(UUID id, String codeHash, OffsetDateTime expiresAt, OffsetDateTime now);
 
@@ -116,15 +132,22 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 	 * rhythm may write to. The code is cleared in the same statement, so a code that has been spent
 	 * cannot be spent again.
 	 *
+	 * <p>{@code email_verified_at IS NULL} makes it the <b>one</b> write that can prove an address:
+	 * two requests racing with the same correct code both pass the read above it, and only one can pass
+	 * this. The 0 the loser gets is what keeps {@code UserVerified} — and so the rhythm's first drawn
+	 * moment — from being published twice for one account.
+	 *
 	 * @param id the account whose address was proved
 	 * @param now the moment it was proved — the state itself, and the audit column
-	 * @return 1 when the row was there, 0 when the account no longer exists
+	 * @return 1 when this call is the one that proved it, 0 when the row is gone <em>or already
+	 *         proved by a request racing this one</em>
 	 */
 	@Modifying(flushAutomatically = true)
 	@Transactional
 	@Query("""
 			update User u set u.emailVerifiedAt = :now, u.verificationCodeHash = null,
-			u.verificationExpiresAt = null, u.updatedAt = :now where u.id = :id
+			u.verificationExpiresAt = null, u.updatedAt = :now
+			where u.id = :id and u.emailVerifiedAt is null
 			""")
 	int markEmailVerified(UUID id, OffsetDateTime now);
 

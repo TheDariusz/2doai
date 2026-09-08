@@ -185,10 +185,6 @@ public class User {
 		return emailVerifiedAt != null;
 	}
 
-	public OffsetDateTime getEmailVerifiedAt() {
-		return emailVerifiedAt;
-	}
-
 	public String getVerificationCodeHash() {
 		return verificationCodeHash;
 	}

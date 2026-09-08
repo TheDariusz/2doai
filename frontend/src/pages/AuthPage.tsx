@@ -50,12 +50,20 @@ export function AuthPage({ mode }: { mode: Mode }) {
       }
     } catch (failure) {
       // Two failures are not this screen's to report, because the account is fine and the remedy is
-      // the code: a correct password on an address nobody has confirmed yet, and a sign-up whose
-      // account was created but whose code never left. Both continue to the screen that can help.
-      const unconfirmed = failure instanceof ApiError && failure.type === EMAIL_NOT_VERIFIED
-      const codeNotSent = mode === 'register' && failure instanceof ApiError && failure.status === 503
+      // the code. One is a correct password on an address nobody has confirmed yet. The other is a
+      // sign-up past the point of no return: `register` commits the account and *then* asks for a
+      // code, so every failure after it — the provider refusing (503) and the throttle refusing a
+      // second code within the minute (429) — leaves an account that exists and a screen that can do
+      // nothing for it. Both continue to the one that can.
+      const problem = failure instanceof ApiError ? failure : null
+      const unconfirmed = problem?.type === EMAIL_NOT_VERIFIED
+      const codeNotSent = mode === 'register' && (problem?.status === 429 || problem?.status === 503)
       if (unconfirmed || codeNotSent) {
-        const reason = unconfirmed ? 'verify.errors.notVerified' : 'verify.errors.unavailable'
+        const reason = unconfirmed
+          ? 'verify.errors.notVerified'
+          : problem?.status === 429
+            ? 'verify.errors.tooMany'
+            : 'verify.errors.unavailable'
         navigate('/verify', { replace: true, state: { email, error: reason } })
       } else {
         setError(messageFor(t, failure, mode))
@@ -117,10 +125,6 @@ function messageFor(t: TFunction, failure: unknown, mode: Mode): string {
   if (status === 401) {
     // Identical for an unknown email and a wrong password, exactly as the server answers.
     return t('auth.errors.wrongCredentials')
-  }
-  if (status === 429) {
-    // Only registration can be throttled today — it is the path that mails a code.
-    return t('verify.errors.tooMany')
   }
   if (status === 503) {
     return t('auth.errors.unavailable')

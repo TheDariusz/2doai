@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The two rules that decide how often one address may be mailed a code, and the pruning that keeps
+ * The two rules that decide how often one address may be mailed a code, and the ceiling that keeps
  * the map from being a memory lever. The clock is a parameter precisely so these can be stated
  * without waiting for any of it.
  */
@@ -53,18 +53,39 @@ class VerificationThrottleTest {
 	}
 
 	/**
-	 * The map is keyed on whatever address a caller typed, so an unbounded one is a memory-exhaustion
-	 * lever on a 512 MB machine. Nothing sweeps it on a timer — a scheduled task would be one more
-	 * thing running for the sake of a handful of entries — so every call prunes.
+	 * The map is keyed on whatever address a caller typed, on an endpoint anybody can post to, so an
+	 * unbounded one is a memory-exhaustion lever on a 512 MB machine. Expiring entries is not a bound —
+	 * it only says an address leaves an hour after its last send, and an hour of distinct addresses is
+	 * exactly what a flood supplies — so the map has a hard ceiling and evicts to stay under it.
 	 */
 	@Test
-	void forgetsAddressesWhoseSendsHaveRolledOffTheWindow() {
+	void neverRemembersMoreAddressesThanItsCeiling() {
+		for (int address = 0; address <= VerificationThrottle.MAX_TRACKED; address++) {
+			throttle.admit(address + "@example.pl", NOON);
+		}
+
+		assertThat(throttle.tracked()).isEqualTo(VerificationThrottle.MAX_TRACKED);
+	}
+
+	/**
+	 * <em>Which</em> address is dropped is the safety property, not only how many. Eviction costs an
+	 * address its cooldown, so it must fall on the one quiet longest — which, to be evicted, has been
+	 * quiet while {@code MAX_TRACKED} others were not, far longer than the window it would have aged
+	 * out of anyway. The address still being pressed keeps its limit, and that is the one that matters.
+	 */
+	@Test
+	void evictsTheAddressQuietLongestAndKeepsTheBusyOne() {
 		throttle.admit(ADDRESS, NOON);
-		assertThat(throttle.tracked()).isEqualTo(1);
+		for (int address = 0; address < VerificationThrottle.MAX_TRACKED; address++) {
+			throttle.admit(address + "@example.pl", NOON);
+		}
 
-		throttle.admit("ola@example.pl", NOON.plus(VerificationThrottle.WINDOW).plusSeconds(1));
-
-		assertThat(throttle.tracked()).isEqualTo(1);
+		// The most recent address of the flood still owes its cooldown — asked first, because asking
+		// about an evicted address re-admits it, and that is itself the eviction of the next one.
+		assertThat(throttle.admit((VerificationThrottle.MAX_TRACKED - 1) + "@example.pl", NOON.plusSeconds(1)))
+				.isEqualTo(59);
+		// The one quiet longest was dropped, so it starts again from nothing.
+		assertThat(throttle.admit(ADDRESS, NOON.plusSeconds(1))).isZero();
 	}
 
 	/** FR-019 — the account is erased, so the address starts again from nothing. */

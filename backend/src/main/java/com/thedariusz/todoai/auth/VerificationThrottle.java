@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.springframework.stereotype.Component;
@@ -25,12 +25,20 @@ import org.springframework.stereotype.Component;
  *
  * <p>ponytail: in memory and per address, like the scheduler's map — there is one machine, so there
  * is nothing to share it with. It buys nothing against an attacker willing to use a fresh address
- * each time; a per-IP limit at the Cloudflare edge is the next issue. The map is pruned on every
- * call rather than on a timer: unbounded and keyed on attacker-chosen strings, it is the
- * memory-exhaustion lever on a 512 MB machine.
+ * each time; a per-IP limit at the Cloudflare edge is the next issue, and the real answer.
+ *
+ * <p><b>The map is capped, not merely expired.</b> Its keys are attacker-chosen strings arriving on a
+ * public endpoint, so "entries leave an hour after their last send" is not a bound — the bound is
+ * however many distinct addresses a flood can name in an hour, which on a 512 MB machine is the
+ * memory-exhaustion lever. An access-ordered {@link LinkedHashMap} evicting past {@link #MAX_TRACKED}
+ * gives a real ceiling, and evicting the least recently used address is safe by construction: to be
+ * evicted it must have been quiet while {@value #MAX_TRACKED} others were not, which under any load
+ * that can reach the cap is far longer than {@link #WINDOW}. Expiry is per-key, on the deque the call
+ * already has in hand, so {@link #admit} stays O(1) — a scan of every deque per call is what turns a
+ * flood into an O(n²) one holding this class's monitor.
  */
 @Component
-class VerificationThrottle {
+public class VerificationThrottle {
 
 	/** Long enough that a second press is a second press, short enough to read as "in a minute". */
 	static final Duration COOLDOWN = Duration.ofSeconds(60);
@@ -39,8 +47,16 @@ class VerificationThrottle {
 
 	static final int MAX_PER_WINDOW = 5;
 
+	/** The ceiling on addresses remembered at once — see the class javadoc on why there has to be one. */
+	static final int MAX_TRACKED = 10_000;
+
 	/** Address → the moments a code was sent to it inside the window, oldest first. */
-	private final Map<String, Deque<Instant>> sends = new HashMap<>();
+	private final Map<String, Deque<Instant>> sends = new LinkedHashMap<>(64, 0.75f, true) {
+		@Override
+		protected boolean removeEldestEntry(Map.Entry<String, Deque<Instant>> eldest) {
+			return size() > MAX_TRACKED;
+		}
+	};
 
 	/**
 	 * Ask to send a code to this address, and record it when the answer is yes.
@@ -50,8 +66,8 @@ class VerificationThrottle {
 	 * @return {@code 0} when the code may be sent, otherwise the seconds the caller must wait
 	 */
 	synchronized long admit(String email, Instant now) {
-		prune(now);
 		Deque<Instant> recent = sends.computeIfAbsent(email, address -> new ArrayDeque<>());
+		expire(recent, now);
 		if (!recent.isEmpty()) {
 			long cooldown = secondsUntil(recent.peekLast().plus(COOLDOWN), now);
 			if (cooldown > 0) {
@@ -70,20 +86,25 @@ class VerificationThrottle {
 	 * (FR-019): the address belongs to nobody again, and a cooldown outliving its owner would make
 	 * the very next sign-up — by anyone — wait for a message that was sent to somebody else.
 	 */
-	synchronized void forget(String email) {
+	public synchronized void forget(String email) {
 		sends.remove(email);
 	}
 
-	/** How many addresses are still remembered — the pruning above is only observable through  */
+	/**
+	 * How many addresses are still remembered — expiry and eviction are only observable through it.
+	 * An address whose sends have all aged out keeps an empty entry until it is evicted, so this is
+	 * an upper bound on the addresses actually under a limit, never a lower one.
+	 */
 	synchronized int tracked() {
 		return sends.size();
 	}
 
-	private void prune(Instant now) {
+	/** Drop the sends that have aged out of the window. Inclusive: one exactly a window old is done. */
+	private static void expire(Deque<Instant> recent, Instant now) {
 		Instant cutoff = now.minus(WINDOW);
-		// Inclusive: a send exactly one window old has served its whole sentence.
-		sends.values().forEach(recent -> recent.removeIf(sent -> !sent.isAfter(cutoff)));
-		sends.values().removeIf(Deque::isEmpty);
+		while (!recent.isEmpty() && !recent.peekFirst().isAfter(cutoff)) {
+			recent.removeFirst();
+		}
 	}
 
 	/** Never fractional-rounds down to "allowed": a moment still ahead is always at least one second. */

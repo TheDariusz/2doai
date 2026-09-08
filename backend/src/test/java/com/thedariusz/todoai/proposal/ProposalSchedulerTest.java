@@ -394,6 +394,10 @@ class ProposalSchedulerTest {
 	private User account(OffsetDateTime next) {
 		User account = unverifiedAccount();
 		ReflectionTestUtils.setField(account, "emailVerifiedAt", OffsetDateTime.now());
+		// One row updated: the account exists. The tests about a row that is gone say so by overriding
+		// this with 0, which is what the update itself reports. Only verified accounts are ever
+		// scheduled, so an unverified one must not carry the stub — the test of that asserts never().
+		when(users.scheduleNextProposalAt(eq(account.getId()), any(), any())).thenReturn(1);
 		if (next != null) {
 			// Same reasoning again: the rhythm reaches this column by a targeted update rather than
 			// through the aggregate.
@@ -407,9 +411,6 @@ class ProposalSchedulerTest {
 		User account = new User(Email.of("owner-" + UUID.randomUUID() + "@example.com"),
 				"{bcrypt}$2a$10$hash", AppLanguage.PL);
 		ReflectionTestUtils.setField(account, "id", UUID.randomUUID());
-		// One row updated: the account exists. The tests about a row that is gone say so by overriding
-		// this with 0, which is what the update itself reports.
-		when(users.scheduleNextProposalAt(eq(account.getId()), any(), any())).thenReturn(1);
 		return account;
 	}
 

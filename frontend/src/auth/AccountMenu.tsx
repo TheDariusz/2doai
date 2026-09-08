@@ -3,14 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { ApiError } from '../api/client'
 import { useAuth } from './auth-context'
-
-/**
- * The Problem `type` the backend puts on a failed re-authentication. `openapi.yaml` is the anchor
- * for this literal, not this file: `AuthApiTest.emitsTheReAuthUrnTheContractAndTheSpaBothHardcode`
- * holds the spec, this line and the server's value together, so a rename on any one side goes red
- * (lessons.md). Nothing else may hardcode it.
- */
-const RE_AUTH_FAILED = 'urn:2doai:problem:re-auth-failed'
+import { RE_AUTH_FAILED } from './problems'
 
 /**
  * Ending the session, as its own header control. Split from the menu below because the two sit side

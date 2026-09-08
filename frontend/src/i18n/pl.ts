@@ -35,8 +35,10 @@ export const pl = {
   },
   verify: {
     heading: 'Potwierdź swój adres',
-    // Names the address the code went to, because the sign-up screen is the last place it was
-    // typed in full, and the 15 minutes, because that is the only thing that makes a code stale.
+    // Names the address the code went to, because the sign-up screen is the last place it was typed
+    // in full, and the window, because staleness is the only thing that kills a code. The number is
+    // `EmailVerificationService.CODE_VALIDITY`; both catalogs are held against it by
+    // `VerificationApiTest.emitsTheVerificationUrnsTheContractAndTheSpaBothHardcode`.
     hint: 'Wysłaliśmy sześciocyfrowy kod na {{email}}. Jest ważny 15 minut.',
     code: 'Kod z wiadomości',
     submit: 'Potwierdź adres',

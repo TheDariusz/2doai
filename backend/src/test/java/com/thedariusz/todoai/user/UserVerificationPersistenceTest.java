@@ -36,7 +36,6 @@ class UserVerificationPersistenceTest {
 		User account = reload(persisted());
 
 		assertThat(account.isEmailVerified()).isFalse();
-		assertThat(account.getEmailVerifiedAt()).isNull();
 		assertThat(account.getVerificationCodeHash()).isNull();
 		assertThat(account.getVerificationExpiresAt()).isNull();
 		assertThat(account.getVerificationAttempts()).isZero();
@@ -87,7 +86,6 @@ class UserVerificationPersistenceTest {
 
 		User account = reload(id);
 		assertThat(account.isEmailVerified()).isTrue();
-		assertThat(account.getEmailVerifiedAt()).isNotNull();
 		assertThat(account.getVerificationCodeHash()).isNull();
 		assertThat(account.getVerificationExpiresAt()).isNull();
 	}
@@ -127,7 +125,7 @@ class UserVerificationPersistenceTest {
 
 	/** An account deleted between the read and the write matches nothing, on every one of the four. */
 	@Test
-	void reportsNoRowUpdatedForAnAccountThatNoLongerExists() {
+	void reportsNoRowUpdatedWhenTheVerificationWritesMissTheirAccount() {
 		UUID gone = UUID.randomUUID();
 		OffsetDateTime now = OffsetDateTime.now();
 
