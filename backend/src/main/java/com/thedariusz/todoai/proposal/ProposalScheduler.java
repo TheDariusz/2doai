@@ -12,7 +12,7 @@ import com.thedariusz.todoai.account.PerUserDataDeleter;
 import com.thedariusz.todoai.mail.EmailSender;
 import com.thedariusz.todoai.mail.MailboxProperties;
 import com.thedariusz.todoai.user.User;
-import com.thedariusz.todoai.user.UserRegistered;
+import com.thedariusz.todoai.user.UserVerified;
 import com.thedariusz.todoai.user.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +36,7 @@ import org.springframework.stereotype.Component;
  * would hold the compute awake 24/7 for the roughly one fire per 2-7 days it exists to perform:
  * ~183 CU-h a month to send a handful of emails (see {@code context/foundation/lessons.md}). The map
  * below is what lets the tick answer that question for free. The database is touched exactly three
- * times: once at boot, once when an account registers, and once per actual fire.
+ * times: once at boot, once when an account proves its address, and once per actual fire.
  *
  * <p><b>{@code next_proposal_at} is the map's only backup, and it is enough.</b> A restart reloads
  * it rather than redrawing, so the rhythm survives a deploy instead of bunching around one. The map
@@ -100,8 +100,13 @@ class ProposalScheduler implements HealthIndicator, PerUserDataDeleter {
 
 	/**
 	 * The one query per boot. Accounts that already carry a moment resume it; accounts that have never
-	 * been scheduled — every account that existed before this slice, and any created while the app was
+	 * been scheduled — every account that existed before this slice, and any verified while the app was
 	 * down — get their first draw here.
+	 *
+	 * <p>Unverified accounts are skipped, and that is the same rule {@link #scheduleNewAccount} states
+	 * at the other entry: the rhythm writes to an address without being asked, so it may only ever
+	 * hold addresses somebody has proved (DEV-51). Boot is the only place such a row could otherwise
+	 * still reach the map.
 	 *
 	 * <p>On {@code ApplicationReadyEvent} rather than {@code @PostConstruct}: Flyway and the entity
 	 * manager are only guaranteed to be up once the context is, and this is the first thing in the app
@@ -113,6 +118,9 @@ class ProposalScheduler implements HealthIndicator, PerUserDataDeleter {
 		// ponytail: one write per never-scheduled account, in a loop. At MVP scale that is a handful
 		// of rows once per boot; a batch update is the upgrade if the account list ever grows.
 		for (User account : users.findAll()) {
+			if (!account.isEmailVerified()) {
+				continue;
+			}
 			if (account.getNextProposalAt() == null) {
 				reschedule(account.getId(), now);
 			}
@@ -146,19 +154,24 @@ class ProposalScheduler implements HealthIndicator, PerUserDataDeleter {
 	}
 
 	/**
-	 * A new account enters the rhythm immediately, rather than at the next restart — which on a
-	 * one-machine deploy cadence could be weeks, and would make the app's first act of coming back
-	 * depend on when we happened to ship.
+	 * A newly verified account enters the rhythm immediately, rather than at the next restart — which
+	 * on a one-machine deploy cadence could be weeks, and would make the app's first act of coming
+	 * back depend on when we happened to ship.
+	 *
+	 * <p><b>On verification, not on registration</b> (DEV-51): this loop's whole job is to write to an
+	 * address nobody prompted it to, which is only defensible once somebody has proved they read that
+	 * address. Adopting an account at sign-up would make the scheduler a delayed spam relay to any
+	 * mailbox typed into the form.
 	 *
 	 * <p>Deliberately a plain {@link EventListener}, so the first drawn moment is written inside the
-	 * registration transaction and can no more survive a rolled-back signup than the account itself
+	 * verifying transaction and can no more survive a rolled-back verification than the state itself
 	 * can. The map entry can outlive such a rollback; the first fire finds no row and prunes it.
 	 *
 	 * <p>The account is not read back first: {@link #reschedule} writes by id and reports whether the
 	 * row was there, so a lookup would only be asking a question the write already answers.
 	 */
 	@EventListener
-	void scheduleNewAccount(UserRegistered event) {
+	void scheduleNewAccount(UserVerified event) {
 		reschedule(event.userId(), OffsetDateTime.now(ProposalRhythm.USER_ZONE));
 	}
 
@@ -233,7 +246,7 @@ class ProposalScheduler implements HealthIndicator, PerUserDataDeleter {
 		schedule.put(accountId, next);
 		try {
 			if (users.scheduleNextProposalAt(accountId, next, from) == 0) {
-				// No row to move on: either a registration that rolled back under a map entry drawn
+				// No row to move on: either a verification that rolled back under a map entry drawn
 				// inside it, or an account deleted while this very fire was in flight. The update can
 				// re-create neither, which is precisely why it is not a save.
 				schedule.remove(accountId);

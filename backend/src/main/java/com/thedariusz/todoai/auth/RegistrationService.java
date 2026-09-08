@@ -5,13 +5,11 @@ import com.thedariusz.todoai.ai.memory.AiMemoryRepository;
 import com.thedariusz.todoai.user.AppLanguage;
 import com.thedariusz.todoai.user.Email;
 import com.thedariusz.todoai.user.User;
-import com.thedariusz.todoai.user.UserRegistered;
 import com.thedariusz.todoai.user.UserRepository;
 import org.apache.commons.lang3.StringUtils;
 import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -24,6 +22,11 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Registration deliberately does <b>not</b> log the user in — {@code POST /api/sessions} is the
  * single session-creation path, so there is one place where a session can come into being.
+ *
+ * <p>It announces nothing, either. The account it creates is <b>inert</b> until the address is
+ * proved (DEV-51): {@code UserVerified} is what the rest of the app listens for, and it is published
+ * by verification, not from here. Anything started at sign-up would be started for an address nobody
+ * has consented with.
  */
 @Service
 public class RegistrationService {
@@ -39,14 +42,11 @@ public class RegistrationService {
 
 	private final PasswordEncoder passwordEncoder;
 
-	private final ApplicationEventPublisher events;
-
-	public RegistrationService(UserRepository users, AiMemoryRepository memories, PasswordEncoder passwordEncoder,
-			ApplicationEventPublisher events) {
+	public RegistrationService(UserRepository users, AiMemoryRepository memories,
+			PasswordEncoder passwordEncoder) {
 		this.users = users;
 		this.memories = memories;
 		this.passwordEncoder = passwordEncoder;
-		this.events = events;
 	}
 
 	/**
@@ -74,11 +74,6 @@ public class RegistrationService {
 			throw new EmailAlreadyRegisteredException(ex);
 		}
 		memories.save(new AiMemory(user.getId()));
-		// Announced rather than acted on: what has to start happening for a brand-new account is not
-		// registration's business, and the natural rhythm (S-05) is only the first thing that needs to
-		// know. Published inside the transaction on purpose — a listener's write lands or rolls back
-		// with the account, and no signup can leave behind state for a user who was never created.
-		events.publishEvent(new UserRegistered(user.getId()));
 		return user;
 	}
 

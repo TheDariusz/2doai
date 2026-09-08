@@ -65,4 +65,91 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 	@Transactional
 	@Query("update User u set u.preferredLanguage = :language, u.updatedAt = :now where u.id = :id")
 	int updateLanguage(UUID id, AppLanguage language, OffsetDateTime now);
+
+	/**
+	 * Hand one account a fresh verification code (DEV-51), from registration or from a resend.
+	 *
+	 * <p>The attempt count is reset here rather than by a second write, because a new code and the
+	 * budget of guesses it may be spent on are one thing: leaving the old count would make five wrong
+	 * guesses lock the address out for good, and turn "send me another one" into a button that
+	 * changes nothing.
+	 *
+	 * <p>A targeted update for the reason given on {@link #scheduleNextProposalAt} — and one more:
+	 * it is issued after the registration transaction has committed, so the account it writes to is
+	 * detached by construction.
+	 *
+	 * @param id the account the code was drawn for
+	 * @param codeHash the code, encoded with the same {@code PasswordEncoder} as a password
+	 * @param expiresAt when the code stops being accepted
+	 * @param now the moment it was issued, for the audit column
+	 * @return 1 when the row was there, 0 when the account no longer exists
+	 */
+	@Modifying(flushAutomatically = true)
+	@Transactional
+	@Query("""
+			update User u set u.verificationCodeHash = :codeHash, u.verificationExpiresAt = :expiresAt,
+			u.verificationAttempts = 0, u.updatedAt = :now where u.id = :id
+			""")
+	int issueVerificationCode(UUID id, String codeHash, OffsetDateTime expiresAt, OffsetDateTime now);
+
+	/**
+	 * Charge one wrong guess against the outstanding code (DEV-51). Incremented in the database
+	 * rather than read-then-written, so two guesses racing each other both count.
+	 *
+	 * <p>The write has to land even though the request it happens on answers a failure — a counter
+	 * that rolls back with the response it belongs to is not a cap on anything.
+	 *
+	 * @param id the account whose code was guessed at
+	 * @param now the moment of the guess, for the audit column
+	 * @return 1 when the row was there, 0 when the account no longer exists
+	 */
+	@Modifying(flushAutomatically = true)
+	@Transactional
+	@Query("""
+			update User u set u.verificationAttempts = u.verificationAttempts + 1, u.updatedAt = :now
+			where u.id = :id
+			""")
+	int recordFailedVerificationAttempt(UUID id, OffsetDateTime now);
+
+	/**
+	 * The address is proved (DEV-51): the account becomes one that can log in and that the natural
+	 * rhythm may write to. The code is cleared in the same statement, so a code that has been spent
+	 * cannot be spent again.
+	 *
+	 * @param id the account whose address was proved
+	 * @param now the moment it was proved — the state itself, and the audit column
+	 * @return 1 when the row was there, 0 when the account no longer exists
+	 */
+	@Modifying(flushAutomatically = true)
+	@Transactional
+	@Query("""
+			update User u set u.emailVerifiedAt = :now, u.verificationCodeHash = null,
+			u.verificationExpiresAt = null, u.updatedAt = :now where u.id = :id
+			""")
+	int markEmailVerified(UUID id, OffsetDateTime now);
+
+	/**
+	 * Signing up again with an address whose owner never proved it (DEV-51). An unverified account
+	 * holds nothing worth protecting and nobody is known to be behind it, so the second sign-up
+	 * simply takes it over — which is what keeps a typo'd or abandoned attempt from blocking the real
+	 * owner with a 409 they cannot resolve.
+	 *
+	 * <p><b>{@code email_verified_at IS NULL} is in the where clause, not in the caller.</b> On a
+	 * verified account this same write would hand somebody else's live credential to whoever typed
+	 * the address into the sign-up form. A caller can forget the check; a {@code where} clause
+	 * cannot, and it reports the refusal the same way it reports a missing row — 0.
+	 *
+	 * @param id the unverified account being taken over
+	 * @param passwordHash the new credential, already encoded
+	 * @param language the language the second sign-up screen was shown in
+	 * @param now the moment of the takeover, for the audit column
+	 * @return 1 when an unverified row was replaced, 0 when it is gone <em>or already verified</em>
+	 */
+	@Modifying(flushAutomatically = true)
+	@Transactional
+	@Query("""
+			update User u set u.passwordHash = :passwordHash, u.preferredLanguage = :language,
+			u.updatedAt = :now where u.id = :id and u.emailVerifiedAt is null
+			""")
+	int replaceUnverifiedAccount(UUID id, String passwordHash, AppLanguage language, OffsetDateTime now);
 }
