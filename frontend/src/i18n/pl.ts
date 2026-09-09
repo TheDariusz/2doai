@@ -25,6 +25,7 @@ export const pl = {
     password: 'Hasło',
     errors: {
       emailTaken: 'Ten adres email jest już zajęty — zaloguj się.',
+      emailTakenUnconfirmed: 'Konto założone, ale kod nie dotarł? Potwierdź adres.',
       // Only registration carries the 8-character minimum, so only its message may quote it.
       invalidRegistration: 'Sprawdź adres email i hasło (min. 8 znaków).',
       invalidCredentials: 'Sprawdź adres email i hasło.',
@@ -43,7 +44,9 @@ export const pl = {
     code: 'Kod z wiadomości',
     submit: 'Potwierdź adres',
     sendAgain: 'Wyślij kod jeszcze raz',
-    sent: 'Nowy kod jest w drodze — sprawdź skrzynkę.',
+    // Nazywa jedyny przypadek, którego ekran nie widzi: ponowna wysyłka na potwierdzony już
+    // adres jest odfiltrowana po stronie serwera i nic nie wychodzi — czekanie nie miałoby końca.
+    sent: 'Nowy kod jest w drodze — sprawdź skrzynkę. Jeśli adres jest już potwierdzony, po prostu się zaloguj.',
     // Read on the sign-in screen, right after the address was confirmed.
     confirmed: 'Adres potwierdzony — możesz się zalogować.',
     errors: {

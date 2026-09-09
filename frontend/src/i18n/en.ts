@@ -23,6 +23,7 @@ export const en: typeof pl = {
     password: 'Password',
     errors: {
       emailTaken: 'That email is already registered — sign in instead.',
+      emailTakenUnconfirmed: 'Signed up but never got the code? Confirm your address.',
       invalidRegistration: 'Check the email and the password (at least 8 characters).',
       invalidCredentials: 'Check the email and the password.',
       wrongCredentials: 'Incorrect email or password.',
@@ -36,7 +37,9 @@ export const en: typeof pl = {
     code: 'Code from the email',
     submit: 'Confirm address',
     sendAgain: 'Send the code again',
-    sent: 'A new code is on its way — check your inbox.',
+    // Names the one outcome the screen cannot see: a resend for an address that is already
+    // confirmed is filtered server-side and mails nothing, so the wait would never end.
+    sent: 'A new code is on its way — check your inbox. If the address is already confirmed, sign in instead.',
     confirmed: 'Address confirmed — you can sign in now.',
     errors: {
       code: 'That code is wrong or no longer valid. Ask for a new one.',

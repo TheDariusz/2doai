@@ -397,11 +397,27 @@ Cloudflare account as Phase 6.
    | `MX`  | `send`              | `feedback-smtp.<region>.amazonses.com`, prio 10 | where bounces and complaints come back |
    | `TXT` | `send`              | `v=spf1 include:amazonses.com ~all`             | SPF — declares this relay may send as you |
    | `TXT` | `resend._domainkey` | `p=<long public key>`                           | DKIM — the key receivers check the signature against |
+   | `TXT` | `_dmarc`            | `v=DMARC1; p=none`                              | DMARC — the record Microsoft looks for before it trusts a young domain |
 
-   They sit on a `send` subdomain rather than the apex, so none of it collides with mail you might
-   later want to *receive* at `2doai.app`. `TXT` and `MX` have no orange cloud to get wrong; if the
-   dashboard ever hands you a `CNAME`, set it to **DNS only** — Cloudflare rejects a proxied one with
-   `Code: 1004`. DMARC is optional and not needed for verification.
+   The bounce `MX` and the SPF record sit on a `send` subdomain rather than the apex, so neither
+   collides with mail you might later want to *receive* at `2doai.app`; DKIM and `_dmarc` have names
+   the standards fix for them, and `_dmarc` belongs on the apex because the apex is what `From:`
+   says. `TXT` and `MX` have no orange cloud to get wrong; if the dashboard ever hands you a
+   `CNAME`, set it to **DNS only** — Cloudflare rejects a proxied one with `Code: 1004`. **Add the
+   `_dmarc` record even though Resend does not ask for it** — SPF and DKIM alone satisfy the
+   provider, and every receiver worth sending to now looks for the third. `p=none` asks for no
+   enforcement and changes no delivery rule; its *presence* is the signal. The value above carries
+   no `rua=` on purpose: the apex has no MX, so reports sent to `dmarc@2doai.app` would bounce. Add
+   one only once you have a mailbox that answers.
+
+   **It will not buy you `outlook.com`, and nothing here will.** Measured on 2026-09-08 (DEV-51):
+   with SPF, DKIM *and* DMARC all green, `2doai.app` mail reaches Gmail on the first try and
+   `outlook.com` answers `250` and discards it — no bounce, not even a Junk entry, and **Delivered**
+   in the Resend dashboard. Microsoft filters young domains on shared relay IPs by reputation, which
+   is earned over weeks and cannot be configured. Treat a silent `outlook.com` as expected until the
+   domain has age on it, and never debug it from the dashboard's status column — that column reports
+   what the receiving MTA *accepted*, not what a human was shown. See `lessons.md`, "Delivered is not
+   delivered".
 4. **Verify** — press Verify and wait for **Verified**. Usually minutes, up to 72 h. The dashboard is
    the authority, not `dig`: what matters is what the provider's resolver sees.
 5. **Create the API key** — **API Keys → Create API Key**, sending access, restricted to `2doai.app`.

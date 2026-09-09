@@ -29,6 +29,9 @@ export function AuthPage({ mode }: { mode: Mode }) {
   // the address they just confirmed is now theirs.
   const state = useLocation().state as { from?: Partial<Path>; verified?: boolean } | null
   const [error, setError] = useState<string | null>(null)
+  // The address a 409 just refused, so the screen can offer the one route that can still help it.
+  // Set for every 409, proved or not: the server does not say which, and neither may this.
+  const [taken, setTaken] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -38,6 +41,7 @@ export function AuthPage({ mode }: { mode: Mode }) {
     const password = String(form.get('password') ?? '')
 
     setError(null)
+    setTaken(null)
     setPending(true)
     try {
       if (mode === 'login') {
@@ -65,6 +69,9 @@ export function AuthPage({ mode }: { mode: Mode }) {
         navigate('/verify', { replace: true, state: { email, error: reason } })
       } else {
         setError(messageFor(t, failure, mode))
+        if (mode === 'register' && problem?.status === 409) {
+          setTaken(email)
+        }
       }
     } finally {
       setPending(false)
@@ -98,6 +105,11 @@ export function AuthPage({ mode }: { mode: Mode }) {
           />
         </label>
         {error && <p role="alert">{error}</p>}
+        {taken && (
+          <p>
+            <Link to="/verify" state={{ email: taken }}>{t('auth.errors.emailTakenUnconfirmed')}</Link>
+          </p>
+        )}
         <button type="submit" disabled={pending}>
           {t(`auth.${mode}.heading`)}
         </button>
