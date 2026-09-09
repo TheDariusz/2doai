@@ -44,7 +44,9 @@ export const pl = {
     code: 'Kod z wiadomości',
     submit: 'Potwierdź adres',
     sendAgain: 'Wyślij kod jeszcze raz',
-    sent: 'Nowy kod jest w drodze — sprawdź skrzynkę.',
+    // Nazywa jedyny przypadek, którego ekran nie widzi: ponowna wysyłka na potwierdzony już
+    // adres jest odfiltrowana po stronie serwera i nic nie wychodzi — czekanie nie miałoby końca.
+    sent: 'Nowy kod jest w drodze — sprawdź skrzynkę. Jeśli adres jest już potwierdzony, po prostu się zaloguj.',
     // Read on the sign-in screen, right after the address was confirmed.
     confirmed: 'Adres potwierdzony — możesz się zalogować.',
     errors: {

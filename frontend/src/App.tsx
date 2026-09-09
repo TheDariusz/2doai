@@ -11,8 +11,11 @@ import { VerifyPage } from './pages/VerifyPage'
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/login" element={<AuthPage mode="login" />} />
-      <Route path="/register" element={<AuthPage mode="register" />} />
+      {/* Keyed, because these two are one component in two modes at the same position in the tree:
+          without distinct keys React reuses the instance across the hop, and the 409 the sign-up
+          just raised is still on screen over a sign-in form nobody has submitted. */}
+      <Route path="/login" element={<AuthPage key="login" mode="login" />} />
+      <Route path="/register" element={<AuthPage key="register" mode="register" />} />
       {/* Public beside the other two: the account it acts on exists but cannot log in yet. */}
       <Route path="/verify" element={<VerifyPage />} />
 
