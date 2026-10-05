@@ -36,7 +36,7 @@
 		<!-- REST Assured is not managed by the Spring Boot 4 BOM. 6.x targets Hamcrest 3 / Groovy 4 /
 		     Java 17+ — aligned with Boot 4's stack (5.x is built for Hamcrest 2). -->
 		<rest-assured.version>6.0.1</rest-assured.version>
-		<archunit.version>1.5.0</archunit.version>
+		<archunit.version>1.5.1</archunit.version>
 		<!-- Patch-level overrides of BOM-managed versions, ahead of the Boot 4.0.x release that
 		     picks them up. Both clear fixable HIGH/CRITICAL findings that the CI Trivy gate fails
 		     on; drop each override once the Boot parent manages an equal-or-newer version.
