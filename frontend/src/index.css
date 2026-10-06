@@ -771,6 +771,14 @@ button.check.done {
   border-radius: 8px;
   background: var(--bg);
   white-space: nowrap;
+  /* A flex item will not shrink below its content by default, and a native select's content is
+     its longest option — the longest category name pushed the bar off a phone screen. */
+  min-width: 0;
+}
+
+.field select {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .field > span {

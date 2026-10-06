@@ -218,7 +218,7 @@
         <tr><th scope="row">Selection engine</th><td><span class="badge badge-live">implemented</span></td><td>Deterministic neglect heuristic and category balancing behind <code>POST /api/proposals</code> (S-04a); the engine itself still holds no clock, no repository and no model — the AI enters after it has picked</td></tr>
         <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-live">implemented</span></td><td>Sonnet phrases the picked entry, the proposal is stored (at most one pending per user), the four FR-013 answers act on the entry, and <code>STARTING</code> returns FR-014's bullets — all behind the manual trigger on <code>/goals</code> (S-04b)</td></tr>
         <tr><th scope="row">Natural-rhythm return</th><td><span class="badge badge-live">implemented</span></td><td>The non-fixed cycle that decides <em>when</em> to ask (S-05): a per-account moment drawn 2–7 days out inside daytime hours, held in memory and backed by <code>app_user.next_proposal_at</code>, firing <code>ProposalService.proposeScheduled</code> without anyone pressing anything. Since DEV-51 an account joins that cycle when its address is proved rather than when it registers, so the one loop that writes unprompted only ever holds mailboxes somebody confirmed. What comes back is emailed and waits in the app at <code>GET /api/proposals/pending</code>. Its text is the one server-generated sentence still Polish for every account — the accepted FR-009 exception, named at that one seam</td></tr>
-        <tr><th scope="row">PWA/offline behavior</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-10</td></tr>
+        <tr><th scope="row">PWA/offline behavior</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-10. Installing to the home screen already works — a web manifest and PNG icons, so iOS opens the app standalone — but nothing is cached, so it is still online-only</td></tr>
       </tbody>
     </table>
   </div>
@@ -230,7 +230,7 @@
   implemented. Since DEV-50 that shell is a sticky header — mark, language switch, account chip and
   log out — over a rail of domain tags, and a domain is a link that filters the entries screen
   rather than a place of its own: <code>/goals</code> is the only screen to be on, so the index
-  route redirects to it. PWA behavior is planned. Since DEV-51 a third public screen sits beside
+  route redirects to it. The app installs to the home screen; offline behavior is planned. Since DEV-51 a third public screen sits beside
   the other two: <code>/verify</code> takes the six-digit code, and it is where sign-up lands and
   where a login refused with <code>urn:2doai:problem:email-not-verified</code> is sent — the SPA
   branches on the <code>type</code>, never on the status, because a 403 is also what CSRF
@@ -293,6 +293,10 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
+  <p class="note">Verified against DEV-52 on 2026-10-06 — a frontend-only fix found on an iPhone.
+  The category select no longer pushes the entry bar off a phone screen, and the app installs to
+  the home screen (web manifest plus PNG icons). Only the PWA row above and the frontend status
+  prose moved; no package, endpoint, table or flow changed, so the DEV-51 note below still holds.</p>
   <p class="note">Verified against DEV-51 on 2026-09-08, <strong>review round 2</strong> — the PR
   review of address verification, and its docs half. This is not a re-read of the same page: the
   slice changed shape under the review. <strong>Takeover is gone.</strong> An address already in

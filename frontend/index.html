@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Installable from "Add to Home Screen": iOS reads the manifest's `display` but only takes its
+         home-screen icon from a PNG apple-touch-icon, never from the SVG favicon. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="2do AI" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1e1f27" media="(prefers-color-scheme: dark)" />
     <!-- The heading face. Body copy stays on the system stack, so a blocked or slow font delays
          nothing a user reads — only how the headings are set. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
