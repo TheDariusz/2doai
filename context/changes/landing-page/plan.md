@@ -151,23 +151,23 @@ No dependencies, migrations, personal data fixtures, or new network calls. Keep 
 
 #### Automated
 
-- [x] 1.1 Focused frontend tests pass for public entry, auth transitions, wildcard behavior, language choice, and CTA destinations after a recorded red/green cycle.
-- [x] 1.2 Existing deep-link and login/register/verification regression tests pass.
-- [x] 1.3 Frontend lint and build pass with matching PL/EN catalog keys.
+- [x] 1.1 Focused frontend tests pass for public entry, auth transitions, wildcard behavior, language choice, and CTA destinations after a recorded red/green cycle. — 4531b5c
+- [x] 1.2 Existing deep-link and login/register/verification regression tests pass. — 4531b5c
+- [x] 1.3 Frontend lint and build pass with matching PL/EN catalog keys. — 4531b5c
 
 #### Manual
 
-- [x] 1.4 Read the English and Polish copy and fictional preview; every product claim is supported and all navigation targets behave as described.
+- [x] 1.4 Read the English and Polish copy and fictional preview; every product claim is supported and all navigation targets behave as described. — 4531b5c
 
 ### Phase 2: Visual finish, documentation, and release checks
 
 #### Automated
 
-- [ ] 2.1 Full `/check` passes: backend tests, frontend tests, frontend lint, and frontend build.
-- [ ] 2.2 `node --test docs/index.test.mjs` and `git diff --check` pass.
+- [x] 2.1 Full `/check` passes: backend tests, frontend tests, frontend lint, and frontend build.
+- [x] 2.2 `node --test docs/index.test.mjs` and `git diff --check` pass.
 
 #### Manual
 
-- [ ] 2.3 Desktop and mobile renders match the reference lock in both languages, including OS dark preference, 200% zoom, and keyboard navigation.
-- [ ] 2.4 Sign in, registration, verification, protected deep-link return, and signed-in root entry still work; public landing remains readable when the API is unavailable.
-- [ ] 2.5 All nine documentation surfaces are reviewed against the final implementation, and rendered screenshots are retained for review.
+- [x] 2.3 Desktop and mobile renders match the reference lock in both languages, including OS dark preference, 200% zoom, and keyboard navigation.
+- [x] 2.4 Sign in, registration, verification, protected deep-link return, and signed-in root entry still work; public landing remains readable when the API is unavailable.
+- [x] 2.5 All nine documentation surfaces are reviewed against the final implementation, and rendered screenshots are retained for review.

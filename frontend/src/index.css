@@ -932,3 +932,307 @@ button.check.done {
   }
 }
 
+
+/* The public landing page. Light whatever the OS prefers: it is a page about the product, drawn
+   from a paper-and-ink reference, and the dark app starts behind the Sign in link. Every token the
+   page reads is redeclared here, so the dark block on :root cannot reach in and mix palettes. */
+
+body:has(.landing) {
+  background: #fefdfc;
+}
+
+.landing {
+  --page: #fefdfc;
+  --bg: #fff;
+  --cream: #fff6f0;
+  --border: #ebe6e1;
+  --muted: #8a8682;
+  --text: #6f6c69;
+  --text-h: #25221e;
+  --accent-bg: rgba(134, 59, 255, 0.08);
+  --accent-border: rgba(134, 59, 255, 0.4);
+  --accent-text: #6a1fe0;
+  --track: #f1ede9;
+  --chip: #f1ede9;
+  --shadow: rgba(37, 34, 30, 0.07) 0 12px 28px -10px;
+
+  color-scheme: light;
+  min-height: 100svh;
+  background: var(--page);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.landing-header,
+.landing main > section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-inline: 32px;
+  box-sizing: border-box;
+  @media (max-width: 640px) {
+    padding-inline: 16px;
+  }
+}
+
+.landing-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-block: 20px;
+}
+
+.landing-header .seg {
+  margin-left: auto;
+}
+
+.landing h1,
+.landing h2,
+.landing h3 {
+  text-wrap: balance;
+}
+
+.landing h1 {
+  font-size: clamp(36px, 5vw, 56px);
+  line-height: 1.05;
+  letter-spacing: -1.2px;
+  margin: 0 0 20px;
+}
+
+.landing h2 {
+  font-size: clamp(26px, 3vw, 34px);
+  line-height: 1.15;
+  letter-spacing: -0.6px;
+  margin: 0 0 28px;
+}
+
+.landing h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+/* A link styled as the page's one action, not a button: it navigates, so it stays an anchor. */
+.landing .cta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.landing .cta:hover {
+  background: #7529f0;
+}
+
+.landing .text-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--text-h);
+  font-weight: 500;
+  text-underline-offset: 4px;
+}
+
+.landing a:focus-visible,
+.landing summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+/* Benefit left, the product right; one column once the preview would be squeezed. */
+.landing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: 64px;
+  padding-block: 56px 80px;
+  @media (max-width: 900px) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+    padding-block: 24px 56px;
+  }
+}
+
+.landing-pitch > p {
+  max-width: 32rem;
+  font-size: 18px;
+}
+
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  margin-top: 32px;
+}
+
+/* The example sits on cream, and its rows are the app's rows — white, bordered, quiet. */
+.landing-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 28px;
+  border-radius: 16px;
+  background: var(--cream);
+  @media (max-width: 640px) {
+    padding: 16px;
+  }
+}
+
+.landing-preview figcaption {
+  align-self: flex-start;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.landing-preview h2 {
+  margin: 6px 0 4px;
+  font-size: 22px;
+}
+
+.landing-preview h3 {
+  margin: 0 0 2px;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.preview-row {
+  padding: 12px 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-h);
+}
+
+/* The detail the page is about: the dream, and the suggestion that brings it back, joined. */
+.preview-row.dream {
+  border-color: var(--accent-border);
+}
+
+.preview-suggestion {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--accent-border);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(134, 59, 255, 0.1), rgba(71, 191, 255, 0.08)), var(--bg);
+}
+
+.preview-suggestion::before {
+  content: '';
+  position: absolute;
+  left: 28px;
+  bottom: 100%;
+  height: 24px;
+  border-left: 2px dashed var(--accent-border);
+}
+
+.landing-preview .preview-suggestion h3 {
+  color: var(--accent-text);
+}
+
+.preview-suggestion p:first-of-type {
+  color: var(--text-h);
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+.preview-suggestion p:last-of-type {
+  font-size: 14px;
+}
+
+.landing main > section:not(.landing-hero) {
+  padding-block: 64px;
+  border-top: 1px solid var(--border);
+  @media (max-width: 640px) {
+    padding-block: 48px;
+  }
+}
+
+.landing-steps {
+  counter-reset: step;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 40px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.landing-steps li::before {
+  counter-increment: step;
+  content: counter(step);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 16px;
+  border-radius: 50%;
+  background: var(--accent-bg);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.landing-faq details {
+  max-width: 48rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.landing-faq summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 56px;
+  color: var(--text-h);
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+
+.landing-faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.landing-faq summary::after {
+  content: '+';
+  flex-shrink: 0;
+  font-size: 22px;
+  color: var(--muted);
+}
+
+.landing-faq details[open] summary::after {
+  content: '−';
+}
+
+.landing-faq details p {
+  max-width: 40rem;
+  padding-bottom: 20px;
+}
+
+.landing-closing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}

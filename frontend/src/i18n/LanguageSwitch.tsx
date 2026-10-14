@@ -9,9 +9,9 @@ import { LANGUAGES, type Language } from './index'
 const ENDONYM: Record<Language, string> = { pl: 'Polski', en: 'English' }
 
 /**
- * The control behind both switches (FR-001 on the auth screens, FR-002 in the header). What happens
- * on a pick is the caller's business — before login the choice is local, after it the account owns
- * it — so this holds the markup and the labels and nothing else.
+ * The control behind both switches (FR-001 on the landing and auth screens, FR-002 in the header).
+ * What happens on a pick is the caller's business — before login the choice is local, after it the
+ * account owns it — so this holds the markup and the labels and nothing else.
  *
  * A segmented group rather than a `<select>`: with two options the list is the control, and the
  * pressed button says which language is on without opening anything.
