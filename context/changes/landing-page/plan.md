@@ -163,11 +163,11 @@ No dependencies, migrations, personal data fixtures, or new network calls. Keep 
 
 #### Automated
 
-- [x] 2.1 Full `/check` passes: backend tests, frontend tests, frontend lint, and frontend build.
-- [x] 2.2 `node --test docs/index.test.mjs` and `git diff --check` pass.
+- [x] 2.1 Full `/check` passes: backend tests, frontend tests, frontend lint, and frontend build. — fabc14e
+- [x] 2.2 `node --test docs/index.test.mjs` and `git diff --check` pass. — fabc14e
 
 #### Manual
 
-- [x] 2.3 Desktop and mobile renders match the reference lock in both languages, including OS dark preference, 200% zoom, and keyboard navigation.
-- [x] 2.4 Sign in, registration, verification, protected deep-link return, and signed-in root entry still work; public landing remains readable when the API is unavailable.
-- [x] 2.5 All nine documentation surfaces are reviewed against the final implementation, and rendered screenshots are retained for review.
+- [x] 2.3 Desktop and mobile renders match the reference lock in both languages, including OS dark preference, 200% zoom, and keyboard navigation. — fabc14e
+- [x] 2.4 Sign in, registration, verification, protected deep-link return, and signed-in root entry still work; public landing remains readable when the API is unavailable. — fabc14e
+- [x] 2.5 All nine documentation surfaces are reviewed against the final implementation, and rendered screenshots are retained for review. — fabc14e
