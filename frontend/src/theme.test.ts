@@ -5,7 +5,9 @@ import { CHROME, STORED, applyTheme, readTheme } from './theme'
 const KEY = '2doai.theme'
 
 // The first-paint copy of the rule, inlined in index.html before any module loads.
-const inlineScript = new Function(indexHtml.match(/<script>([\s\S]*?)<\/script>/)![1])
+const inlineScript = new Function(
+  new DOMParser().parseFromString(indexHtml, 'text/html').querySelector('head > script:not([src])')!.textContent!,
+)
 
 function osPrefersDark(dark: boolean) {
   vi.stubGlobal('matchMedia', () => ({ matches: dark, addEventListener: vi.fn() }))
