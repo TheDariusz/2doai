@@ -10,6 +10,34 @@
  * `name` arrive already written in the language the request negotiated and are rendered verbatim.
  */
 export const pl = {
+  landing: {
+    title: 'Codzienne zadania. Marzenia na kiedyś.',
+    intro: 'Zbierz zadania, cele długoterminowe i marzenia w jednym miejscu. 2do AI przypomina o odłożonych planach i podsuwa pierwszy krok.',
+    seeHow: 'Zobacz, jak to działa',
+    example: 'Przykład z fikcyjnymi wpisami',
+    preview: {
+      TASK: 'Pobiegać 20 minut po pracy',
+      GOAL: 'Biegać trzy razy w tygodniu',
+      DREAM: 'Przebiec maraton',
+      suggestion: 'Propozycja AI',
+      message: 'Maraton wciąż czeka. Może na początek wybierzesz bieg na 10 km?',
+      choices: 'Ty decydujesz: zacząć, wrócić później albo wyłączyć przypomnienia o tym wpisie.',
+    },
+    howTitle: 'Jak to działa',
+    how: {
+      capture: { title: 'Zapisz wszystko', body: 'Dodaj codzienne zadania, cele na najbliższe miesiące i marzenia bez terminu.' },
+      revisit: { title: 'Wróć do zapomnianych planów', body: 'Propozycje w aplikacji i w emailu przypominają o wpisach, do których dawno nie zaglądasz.' },
+      start: { title: 'Znajdź pierwszy krok', body: 'Gdy zdecydujesz się zacząć, AI zaproponuje kilka małych kroków, które zapiszesz jako zadania. Możesz też odłożyć propozycję lub wyłączyć przypomnienia o tym wpisie.' },
+    },
+    faqTitle: 'Zanim zaczniesz',
+    faq: {
+      account: { question: 'Jak zacząć?', answer: 'Załóż konto, podając email i hasło. Potwierdź adres kodem z wiadomości, a następnie zaloguj się i dodaj pierwszy wpis.' },
+      suggestions: { question: 'Gdzie zobaczę propozycje?', answer: 'Automatyczne propozycje pojawiają się w aplikacji i przychodzą emailem. O propozycję możesz też poprosić w aplikacji w dowolnej chwili.' },
+      control: { question: 'Co, jeśli propozycja mi nie pasuje?', answer: 'Możesz zacząć, odłożyć działanie, wybrać późniejsze przypomnienie lub wycofać wpis z przypomnień. Wycofane wpisy zostają w aplikacji.' },
+      deletion: { question: 'Czy mogę usunąć konto?', answer: 'Tak. W menu konta potwierdź hasłem usunięcie konta oraz zapisanych wpisów, propozycji i pamięci AI. Tej operacji nie da się cofnąć.' },
+    },
+    closing: 'Zacznij od pierwszego wpisu.',
+  },
   layout: {
     nav: 'Nawigacja',
     domainsFailed: 'Nie udało się wczytać domen — odśwież stronę.',

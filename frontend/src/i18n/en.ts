@@ -9,6 +9,34 @@ import type { pl } from './pl'
  * messages name what failed rather than composing one from fragments.
  */
 export const en: typeof pl = {
+  landing: {
+    title: 'Your everyday tasks. Your someday dreams.',
+    intro: 'Keep tasks, long-term goals and dreams in one place. 2do AI reminds you of plans you have set aside and suggests a first step.',
+    seeHow: 'See how it works',
+    example: 'Example with fictional entries',
+    preview: {
+      TASK: 'Go for a 20-minute run after work',
+      GOAL: 'Run three times a week',
+      DREAM: 'Run a marathon',
+      suggestion: 'An AI suggestion',
+      message: 'That marathon is still waiting. How about picking a 10 km race to start with?',
+      choices: 'You decide: start, come back later, or stop reminders about this entry.',
+    },
+    howTitle: 'How it works',
+    how: {
+      capture: { title: 'Write it all down', body: "Add today's tasks, goals for the coming months and dreams with no deadline." },
+      revisit: { title: 'Return to forgotten plans', body: 'Suggestions in the app and by email remind you of entries you have left alone for a while.' },
+      start: { title: 'Find a first step', body: 'When you decide to start, AI suggests a few small steps you can save as tasks. You can also put a suggestion off or stop reminders about that entry.' },
+    },
+    faqTitle: 'Before you begin',
+    faq: {
+      account: { question: 'How do I get started?', answer: 'Create an account with your email and a password. Confirm your address with the code sent by email, then sign in to add your first entry.' },
+      suggestions: { question: 'Where will I see suggestions?', answer: 'Scheduled suggestions appear in the app and arrive by email. You can also ask for one in the app at any time.' },
+      control: { question: 'What if a suggestion does not suit me?', answer: 'You can start, put it off, choose a later reminder, or withdraw the entry from reminders. Withdrawn entries stay in the app.' },
+      deletion: { question: 'Can I delete my account?', answer: 'Yes. In the account menu, confirm with your password to delete your account and its stored entries, proposals and AI memory. This cannot be undone.' },
+    },
+    closing: 'Start with your first entry.',
+  },
   layout: {
     nav: 'Navigation',
     domainsFailed: 'Could not load your life domains — refresh the page.',

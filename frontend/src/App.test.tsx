@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from 'react'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from './App'
+import { AuthProvider } from './auth/AuthProvider'
 import { ApiError } from './api/client'
 import { AuthContext, type Auth } from './auth/auth-context'
 import { LOGGED_IN, renderWithAuth, response, stubAuth } from './test/auth'
@@ -38,8 +39,8 @@ function Session({ children, initial }: { children: ReactNode; initial: Auth['st
 }
 
 function LocationProbe() {
-  const { pathname, search } = useLocation()
-  return <p data-testid="location">{pathname + search}</p>
+  const { pathname, search, hash } = useLocation()
+  return <p data-testid="location">{pathname + search + hash}</p>
 }
 
 function renderApp(path: string, initial: Auth['status'] = 'anonymous') {
@@ -55,7 +56,7 @@ function renderApp(path: string, initial: Auth['status'] = 'anonymous') {
 
 describe('AppRoutes', () => {
   it('returns a bounced visitor to the deep link they asked for, query string and all', async () => {
-    renderApp('/domain/leisure?view=week')
+    renderApp('/domain/leisure?view=week#details')
     const user = userEvent.setup()
 
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
@@ -65,13 +66,14 @@ describe('AppRoutes', () => {
 
     // Not '/' — the whole location, query included, survives the round trip through /login.
     expect(await screen.findByRole('heading', { name: LEISURE.name })).toBeInTheDocument()
-    expect(await screen.findByTestId('location')).toHaveTextContent('/domain/leisure?view=week')
+    expect(await screen.findByTestId('location')).toHaveTextContent('/domain/leisure?view=week#details')
   })
 
-  it('sends an unknown path home, and an anonymous visitor on to /login', async () => {
+  it('sends an unknown path home to the public landing', async () => {
     renderApp('/no-such-path')
 
-    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Your everyday tasks. Your someday dreams.' })).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/)
   })
 
   /**
@@ -99,17 +101,58 @@ describe('AppRoutes', () => {
     expect(screen.queryByRole('link', { name: /confirm your address/i })).not.toBeInTheDocument()
   })
 
-  /** There is one screen to be on, so the index route is a redirect rather than a page of advice. */
-  it('sends an authenticated user from the index route to the entries screen', async () => {
+  it.each(['/', '/no-such-path'])('sends an authenticated user from %s to the entries screen', async (path) => {
     // Nothing to show for any read the screen makes — this is about where it lands, not what is
     // on it. The proposal card's pending slot answers 204, the way an empty slot does.
     fetchMock.mockImplementation((url: string) =>
       Promise.resolve(url === '/api/proposals/pending' ? response(204) : response(200, { items: [] })),
     )
 
-    renderApp('/', 'authenticated')
+    renderApp(path, 'authenticated')
 
     expect(await screen.findByRole('heading', { name: 'Tasks, goals and dreams' })).toBeInTheDocument()
     expect(screen.getByTestId('location')).toHaveTextContent('/goals')
+  })
+})
+
+
+describe('public session bootstrap', () => {
+  function renderBootstrap() {
+    render(
+      <MemoryRouter>
+        <AuthProvider><AppRoutes /><LocationProbe /></AuthProvider>
+      </MemoryRouter>,
+    )
+  }
+
+  it.each([401, 503])('keeps public content through a %s bootstrap without private reads', async (status) => {
+    let resolve!: (value: ReturnType<typeof response>) => void
+    fetchMock.mockReturnValue(new Promise((done) => { resolve = done }))
+    renderBootstrap()
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Your everyday tasks. Your someday dreams.' })).toBeInTheDocument()
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/users/me'])
+    await act(async () => resolve(response(status)))
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Your everyday tasks. Your someday dreams.' })).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/)
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/users/me'])
+  })
+
+  it('replaces public content with the goals screen when the session resolves', async () => {
+    let resolve!: (value: ReturnType<typeof response>) => void
+    fetchMock.mockReturnValueOnce(new Promise((done) => { resolve = done }))
+    fetchMock.mockImplementation((url: string) => Promise.resolve(
+      url === '/api/proposals/pending' ? response(204) : response(200, { items: [] }),
+    ))
+    renderBootstrap()
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Your everyday tasks. Your someday dreams.' })).toBeInTheDocument()
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/users/me'])
+    await act(async () => resolve(response(200, LOGGED_IN.user)))
+
+    expect(await screen.findByRole('heading', { name: 'Tasks, goals and dreams' })).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('/goals')
+    expect(screen.queryByRole('heading', { name: 'Your everyday tasks. Your someday dreams.' })).not.toBeInTheDocument()
   })
 })
