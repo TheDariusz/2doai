@@ -132,17 +132,3 @@ don't ask me to paste issue details.
 - Before moving to **In Review**: `/check` green, and `docs/index.html` walked per
   **Living documentation** above. Both are part of the slice, not a follow-up issue.
 - Move the issue to **In Review** when it's ready for review.
-
-## Learning notes
-
-When I ask you a question about your code, or when you completed task and generated a code and there is a new concept/framework/library/code that I've never seen before, follow these rules:
-
-1. Intuition First: When explaining concepts, make sure they're understandable to someone who's just learning.
-2. Concrete and Practical: Support any complex, abstract concepts (formulas, architecture) with a simple, concrete example or scenario.
-3. "Why": Don't just explain how it works; explain why we chose this approach, the trade-offs involved, and potential errors/pitfalls.
-4. Broader Perspective: Compare the concepts discussed with other technologies, languages (especially in Java as I'm Java developer), and frameworks that approach similar problems differently, so I can explore alternative approaches to architecture and patterns.
-5. Active Learning Principle: Never end an answer with just a period. ALWAYS end with a specific question, a "what if" scenario, or a small problem to solve to test my understanding. Don't continue until I get the answer right — if I get it wrong, explain why and ask again in a different way.
-
-When you complete generates code and there is a new concept/framework/library/code that I've never seen before, follow these rules:
-
-Goal: Building intuition and active understanding, not just passive knowledge
