@@ -1,17 +1,22 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <meta charset="UTF-8" />
+    <meta name="theme-color" content="#ffffff" />
     <!-- First paint: the stylesheet is a <link> and the app a deferred module, so `data-theme` has to
          be set here or a dark user flashes light on every load. Same rule as `src/theme.ts`, which
-         owns every change after this. -->
+         owns every change after this. `theme-color` sits above it so the status bar starts right too.
+         A future CSP must allow this script by its sha256 hash, or the flash comes back silently. -->
     <script>
       try {
         var t = localStorage.getItem('2doai.theme')
       } catch (e) {}
       document.documentElement.dataset.theme =
         t === 'light' || t === 'dark' ? t : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+      if (document.documentElement.dataset.theme === 'dark') {
+        document.querySelector('meta[name="theme-color"]').content = '#1e1f27'
+      }
     </script>
-    <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- Installable from "Add to Home Screen": iOS reads the manifest's `display` but only takes its
@@ -19,7 +24,6 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="2do AI" />
-    <meta name="theme-color" content="#ffffff" />
     <!-- The heading face. Body copy stays on the system stack, so a blocked or slow font delays
          nothing a user reads — only how the headings are set. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

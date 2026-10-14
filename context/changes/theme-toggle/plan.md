@@ -259,6 +259,15 @@ None. A missing key means auto, which is today's behaviour.
 - Pattern: `frontend/src/i18n/index.ts`, `frontend/src/i18n/LanguageSwitch.tsx`
 - Change: `context/changes/theme-toggle/change.md`
 
+## Addendum (post-implementation)
+
+- **Header control (Phase 2, approved mid-phase):** the three-button group did not fit a 360px header
+  (114px over), so the header carries `ThemeCycle`, one icon button stepping light → dark → auto, and
+  hides the "2do AI" wordmark text visually at ≤640px. The auth screens keep `ThemeSwitch` as planned.
+- **Chip restyle (Phase 1, accepted scope):** `.chip` moved from the neutral `--chip` surface to an
+  accent tint, with proposal-card overrides in light and dark, so chips stay legible on the card's
+  wash in both themes. Not in Changes Required; recorded here by the implementation review.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.
