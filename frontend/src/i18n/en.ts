@@ -43,7 +43,10 @@ export const en: typeof pl = {
     domains: 'Life domains',
     domainComingSoon: 'This domain arrives in a later slice.',
     language: 'Language',
+    theme: 'Theme',
+    themeCurrent: 'Theme: {{theme}}',
   },
+  theme: { light: 'Light', dark: 'Dark', auto: 'Auto' },
   auth: {
     login: { heading: 'Sign in', prompt: 'No account yet?' },
     register: { heading: 'Create account', prompt: 'Already have an account?' },

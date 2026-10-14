@@ -267,26 +267,26 @@ None. A missing key means auto, which is today's behaviour.
 
 #### Automated
 
-- [x] 1.1 `npx vitest run src/theme.test.ts` passes
-- [x] 1.2 `npm test` passes (existing suites unaffected)
-- [x] 1.3 `npm run lint` and `npm run build` pass
+- [x] 1.1 `npx vitest run src/theme.test.ts` passes — aabad5c
+- [x] 1.2 `npm test` passes (existing suites unaffected) — aabad5c
+- [x] 1.3 `npm run lint` and `npm run build` pass — aabad5c
 
 #### Manual
 
-- [x] 1.4 Dark OS, nothing stored: dark palette, no light flash on the production build
-- [x] 1.5 Stored `light` on a dark OS renders light; landing stays light
-- [x] 1.6 OS flip while `auto` re-themes the open tab
+- [x] 1.4 Dark OS, nothing stored: dark palette, no light flash on the production build — aabad5c
+- [x] 1.5 Stored `light` on a dark OS renders light; landing stays light — aabad5c
+- [x] 1.6 OS flip while `auto` re-themes the open tab — aabad5c
 
 ### Phase 2: ThemeSwitch control + mounts
 
 #### Automated
 
-- [ ] 2.1 `npm test`, `npm run lint`, `npm run build` pass
-- [ ] 2.2 `node --test docs/index.test.mjs` passes
+- [x] 2.1 `npm test`, `npm run lint`, `npm run build` pass
+- [x] 2.2 `node --test docs/index.test.mjs` passes
 
 #### Manual
 
-- [ ] 2.3 360px header fits without wrapping or horizontal scroll
-- [ ] 2.4 Dark picked on login survives login and reload
-- [ ] 2.5 Installed PWA status bar matches the picked theme
-- [ ] 2.6 Landing shows no theme control and stays light
+- [x] 2.3 360px header fits without wrapping or horizontal scroll
+- [x] 2.4 Dark picked on login survives login and reload
+- [x] 2.5 Installed PWA status bar matches the picked theme
+- [x] 2.6 Landing shows no theme control and stays light

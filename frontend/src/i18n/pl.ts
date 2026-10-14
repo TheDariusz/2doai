@@ -44,7 +44,10 @@ export const pl = {
     domains: 'Obszary życia',
     domainComingSoon: 'Ta domena pojawi się w kolejnym wycinku.',
     language: 'Język',
+    theme: 'Motyw',
+    themeCurrent: 'Motyw: {{theme}}',
   },
+  theme: { light: 'Jasny', dark: 'Ciemny', auto: 'Automatyczny' },
   auth: {
     // Each mode's heading doubles as its submit label, and as the other mode's link label.
     login: { heading: 'Zaloguj się', prompt: 'Nie masz jeszcze konta?' },

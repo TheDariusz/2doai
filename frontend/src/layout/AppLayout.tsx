@@ -7,6 +7,7 @@ import { AccountMenu, LogoutButton } from '../auth/AccountMenu'
 import { useAuth } from '../auth/auth-context'
 import type { Language } from '../i18n'
 import { Wordmark } from './Wordmark'
+import { ThemeCycle } from '../ThemeSwitch'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
 
 /**
@@ -116,6 +117,7 @@ export function AppLayout() {
 
         <div className="topbar-controls">
           <LanguageSwitch onSelect={chooseLanguage} />
+          <ThemeCycle />
           <AccountMenu />
           <LogoutButton />
         </div>

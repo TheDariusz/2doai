@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 /**
- * The screen's icons, drawn rather than installed: five stroke paths are smaller than any icon
+ * The screen's icons, drawn rather than installed: a few stroke paths are smaller than any icon
  * package and carry no version to keep. They are decoration in every case — the control around them
  * always has a name of its own — so each one is `aria-hidden` and none of them takes a label.
  *
@@ -76,6 +76,41 @@ export function SparkleIcon() {
       <path d="m16.2 16.2 2.2 2.2" />
       <path d="m5.6 18.4 2.2-2.2" />
       <path d="m16.2 7.8 2.2-2.2" />
+    </Icon>
+  )
+}
+
+/** The theme switch's three options; the button carries the name. */
+export function SunIcon() {
+  return (
+    <Icon>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="m4.9 4.9 1.4 1.4" />
+      <path d="m17.7 17.7 1.4 1.4" />
+      <path d="m4.9 19.1 1.4-1.4" />
+      <path d="m17.7 6.3 1.4-1.4" />
+    </Icon>
+  )
+}
+
+export function MoonIcon() {
+  return (
+    <Icon>
+      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
+    </Icon>
+  )
+}
+
+/** Half light, half dark: whichever the OS says. */
+export function AutoThemeIcon() {
+  return (
+    <Icon>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 3a9 9 0 0 1 0 18Z" fill="currentColor" />
     </Icon>
   )
 }

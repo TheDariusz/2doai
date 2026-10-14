@@ -211,7 +211,7 @@
         <tr><th scope="row">Account and session auth</th><td><span class="badge badge-live">implemented</span></td><td>Spring Security, server-side in-memory sessions, account erasure — and, since DEV-51, a confirmed address as the price of a session at all: sign-up mails a six-digit code, until it comes back the account exists and can do nothing, and an address already in the table is 409 whether or not it was ever proved</td></tr>
         <tr><th scope="row">Categories</th><td><span class="badge badge-live">implemented</span></td><td>Seeded reference table, <code>LifeDomain</code>, startup drift check — and, since DEV-49, a Polish and an English name per row, picked per request</td></tr>
         <tr><th scope="row">Localization (PL + EN)</th><td><span class="badge badge-live">implemented</span></td><td>English-first with Polish preserved (DEV-49): <code>AppLanguage</code> stored on the account (<code>app_user.preferred_language</code>), <code>Accept-Language</code> as the per-request transport, i18next in the SPA, and every server-generated sentence on the on-demand path — the model's answer and the template fallback alike — written in the caller's language. One surface is deliberately excluded: the scheduled proposal stays Polish until FR-009 lands in increment 2</td></tr>
-        <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens, a sticky header over a rail of the 11 domains, and the two-language catalog behind a switch on the public screens and in that header; <code>/api</code> proxies in development and production</td></tr>
+        <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens, a sticky header over a rail of the 11 domains, the two-language catalog behind a switch on the public screens and in that header, and a light / dark / auto theme choice kept on the device — three buttons on the auth screens, one cycling button in the header, where a phone has no room for three; <code>/api</code> proxies in development and production</td></tr>
         <tr><th scope="row">Public landing page</th><td><span class="badge badge-live">implemented</span></td><td>An anonymous visit to <code>/</code> explains the product before asking for an account: a fictional, static preview of the three layers and a suggestion, how it works, and an FAQ, in both languages. It issues no request of its own, renders while the session check is still pending, and hands a signed-in visitor on to <code>/goals</code></td></tr>
         <tr><th scope="row">Goals and dreams</th><td><span class="badge badge-live">implemented</span></td><td>One <code>goal</code> aggregate for both layers, <code>/api/goals</code>, and the <code>/goals</code> screen (S-02)</td></tr>
         <tr><th scope="row">Current tasks</th><td><span class="badge badge-live">implemented</span></td><td>A third <code>GoalLayer</code> value plus an optional <code>due_date</code> on the same aggregate and screen (S-07)</td></tr>
@@ -228,7 +228,7 @@
   address confirmation,
   logout, account deletion and the 11-domain shell all consume the API through one
   CSRF-aware client; the <code>/api</code> development proxy and production reverse proxy are
-  implemented. Since DEV-50 that shell is a sticky header — mark, language switch, account chip and
+  implemented. Since DEV-50 that shell is a sticky header — mark, language switch, theme button, account chip and
   log out — over a rail of domain tags, and a domain is a link that filters the entries screen
   rather than a place of its own: <code>/goals</code> is the only screen to be on, so the index
   route sends a signed-in visitor to it. An anonymous one gets the public landing page there instead
@@ -297,6 +297,13 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
+  <p class="note">Verified against the <code>theme-toggle</code> change on 2026-10-14 — frontend
+  only. Both auth screens carry a light / dark / auto switch and the header a single button cycling through the same three (the three-button group did not fit a 360px header); the choice lives in
+  <code>localStorage</code> like the pre-login language (no account column, no endpoint), and an
+  inline script in <code>index.html</code> applies it as <code>data-theme</code> before first paint.
+  The landing page stays light and shows no switch. The overview table, the frontend prose and the
+  <code>frontend/src</code> code-map row moved; backend, flows, data, roadmap and glossary stand as the
+  <code>landing-page</code> note left them.</p>
   <p class="note">Verified against the <code>landing-page</code> change on 2026-10-14 — frontend
   only. <code>/</code> is now a public landing page for anonymous visitors (signed-in ones still go
   to <code>/goals</code>), and the pre-login language switch lives there too. The overview table and
@@ -489,7 +496,7 @@ flowchart LR
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/mail"><code>backend/…/mail</code></a></th><td>The <code>EmailSender</code> outbound port and its SMTP adapter — how the app reaches a user who is not looking at it</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai"><code>backend/…/ai</code></a></th><td>Provider-neutral LLM port, schema contract, and Spring AI adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai/memory"><code>backend/…/ai/memory</code></a></th><td>Personal AI-memory aggregate, rendering, persistence, erasure adapter, and the <code>AiMemoryService</code> seam other contexts read and write it through</td><td><span class="badge badge-foundation">foundation</span></td></tr>
-        <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, the public landing page, auth screens, the header-and-rail shell over the 11 domains, the filtered three-layer screen, and the proposal card</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, the public landing page, auth screens, the header-and-rail shell over the 11 domains, the device-level theme switch, the filtered three-layer screen, and the proposal card</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/src/api"><code>frontend/src/api</code></a></th><td>The one backend boundary: same-origin fetch, CSRF double-submit, RFC 9457 errors, 401 session-expired signal, and the <code>Accept-Language</code> header every call carries</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/src/i18n"><code>frontend/src/i18n</code></a></th><td>The two catalogs, the i18next instance and its detection order, and the switch the landing page, the auth screens and the app header share</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/functions/api/[[path]].ts"><code>frontend/functions/api</code></a></th><td>Production same-origin reverse proxy to Fly.io</td><td><span class="badge badge-live">implemented</span></td></tr>

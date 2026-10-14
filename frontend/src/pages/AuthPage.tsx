@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useNavigate, type Path } from 'react-router'
 import { ApiError } from '../api/client'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
+import { ThemeSwitch } from '../ThemeSwitch'
 import { useAuth } from '../auth/auth-context'
 import { EMAIL_NOT_VERIFIED, isProblem } from '../auth/problems'
 
@@ -83,7 +84,10 @@ export function AuthPage({ mode }: { mode: Mode }) {
     <main className="auth">
       {/* The choice is kept locally (the i18n module persists it), because there is no account to
           store it on yet — and it re-renders both screens in place rather than reloading. */}
-      <LanguageSwitch onSelect={(language) => void i18n.changeLanguage(language)} />
+      <div className="auth-controls">
+        <LanguageSwitch onSelect={(language) => void i18n.changeLanguage(language)} />
+        <ThemeSwitch />
+      </div>
       <h1>{t(`auth.${mode}.heading`)}</h1>
       {state?.verified && <p role="status">{t('verify.confirmed')}</p>}
       <form onSubmit={submit}>

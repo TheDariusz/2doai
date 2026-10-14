@@ -202,6 +202,7 @@ describe('AppLayout', () => {
     renderShell()
 
     expect(await screen.findByRole('group', { name: 'Language' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Theme: Auto' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'ala@example.pl' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument()
   })

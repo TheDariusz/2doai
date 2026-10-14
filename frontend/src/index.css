@@ -221,6 +221,12 @@ select {
   font-size: 13px;
 }
 
+.seg button:has(svg) {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+}
+
 .seg button:hover {
   color: var(--text-h);
 }
@@ -555,8 +561,10 @@ select {
   box-shadow: var(--shadow);
 }
 
-/* The switch is a control, not a block: it keeps its own width at the top of the card. */
-.auth .seg {
+/* The switches are controls, not blocks: they keep their own width at the top of the card. */
+.auth-controls {
+  display: flex;
+  gap: 10px;
   align-self: flex-start;
 }
 
@@ -908,17 +916,23 @@ button.check.done {
 }
 
 @media (max-width: 640px) {
-  /* No room in a 375px header for either label, and no reason to lose them: this is the `.vh`
-     treatment, spelled out because plain CSS cannot fold a media query into that selector list.
-     The text stays in the DOM, so both controls keep the accessible name it gives them. */
+  /* No room in a 360px header for these labels — the app's name included, the mark carries it —
+     and no reason to lose them: this is the `.vh` treatment, spelled out because plain CSS cannot
+     fold a media query into that selector list. The text stays in the DOM, so the controls keep
+     the accessible name it gives them. */
   .chip-email,
-  .logout-text {
+  .logout-text,
+  .topbar .wordmark span {
     position: absolute;
     width: 1px;
     height: 1px;
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+
+  .topbar {
+    gap: 12px;
   }
 
   /* With the email gone the chip is an avatar and a caret, and wants no padding around them. */
