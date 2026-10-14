@@ -281,12 +281,12 @@ None. A missing key means auto, which is today's behaviour.
 
 #### Automated
 
-- [x] 2.1 `npm test`, `npm run lint`, `npm run build` pass
-- [x] 2.2 `node --test docs/index.test.mjs` passes
+- [x] 2.1 `npm test`, `npm run lint`, `npm run build` pass — b5a8b93
+- [x] 2.2 `node --test docs/index.test.mjs` passes — b5a8b93
 
 #### Manual
 
-- [x] 2.3 360px header fits without wrapping or horizontal scroll
-- [x] 2.4 Dark picked on login survives login and reload
-- [x] 2.5 Installed PWA status bar matches the picked theme
-- [x] 2.6 Landing shows no theme control and stays light
+- [x] 2.3 360px header fits without wrapping or horizontal scroll — b5a8b93
+- [x] 2.4 Dark picked on login survives login and reload — b5a8b93
+- [x] 2.5 Installed PWA status bar matches the picked theme — b5a8b93
+- [x] 2.6 Landing shows no theme control and stays light — b5a8b93
