@@ -30,7 +30,7 @@
 
   font: 15px/1.45 var(--sans);
   letter-spacing: 0.1px;
-  color-scheme: light dark;
+  color-scheme: light;
   color: var(--text);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -38,28 +38,28 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --page: #16171d;
-    --bg: #1e1f27;
-    --border: #2e303a;
-    --muted: #7c7887;
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
+/* Dark tokens: keyed on the attribute theme.ts / index.html write, not on the OS, so a pick wins. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --page: #16171d;
+  --bg: #1e1f27;
+  --border: #2e303a;
+  --muted: #7c7887;
+  --text: #9ca3af;
+  --text-h: #f3f4f6;
 
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --accent-text: #c084fc;
+  --accent-bg: rgba(192, 132, 252, 0.15);
+  --accent-border: rgba(192, 132, 252, 0.5);
+  --accent-text: #c084fc;
 
-    --chip: #262730;
-    --track: #262730;
-    --track-off: #3a3c47;
-    --border-strong: #494c59;
-    --due-bg: rgba(255, 176, 46, 0.14);
-    --due-text: #f0b76e;
-    --danger: #f2b8b5;
+  --chip: #262730;
+  --track: #262730;
+  --track-off: #3a3c47;
+  --border-strong: #494c59;
+  --due-bg: rgba(255, 176, 46, 0.14);
+  --due-text: #f0b76e;
+  --danger: #f2b8b5;
     --shadow: rgba(0, 0, 0, 0.4) 0 10px 24px -8px;
-  }
 }
 
 body {
@@ -281,14 +281,12 @@ select {
   display: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not(:has(.landing)) .mark-light {
-    display: none;
-  }
+:root[data-theme='dark']:not(:has(.landing)) .mark-light {
+  display: none;
+}
 
-  :root:not(:has(.landing)) .mark-dark {
-    display: block;
-  }
+:root[data-theme='dark']:not(:has(.landing)) .mark-dark {
+  display: block;
 }
 
 .topbar-controls {
@@ -717,8 +715,9 @@ button.check.done {
   height: 24px;
   padding: 0 9px;
   border-radius: 999px;
-  background: var(--chip);
-  color: var(--text);
+  /* Opaque accent tint over the surface: it also reads on the proposal card's own purple wash. */
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+  color: var(--accent-text);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -823,6 +822,17 @@ button.check.done {
   border: 1px solid var(--accent-border);
   border-radius: 14px;
   background: linear-gradient(135deg, rgba(134, 59, 255, 0.1), rgba(71, 191, 255, 0.08));
+}
+
+/* The card is itself an accent wash, so the tinted chip vanishes into it; a plain surface, like the
+   buttons beside it, stays legible. */
+.proposal .chip:not(.due) {
+  background: var(--bg);
+}
+
+/* In dark the surface is as dark as the card, so lean on a stronger accent tint instead. */
+:root[data-theme='dark'] .proposal .chip:not(.due) {
+  background: color-mix(in srgb, var(--accent-text) 22%, var(--bg));
 }
 
 .proposal-head {
