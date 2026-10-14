@@ -48,6 +48,7 @@ describe('AuthPage — the language switch (FR-001)', () => {
     expect(screen.getByLabelText('Email')).toHaveValue('ala@example.pl')
     // The control keeps saying which language is on — both halves stay on screen, one pressed.
     expect(screen.getByRole('group', { name: 'Język' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Motyw' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Polski' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'false')
     // Kept locally, because there is no account to keep it on yet: it is what the sign-up request

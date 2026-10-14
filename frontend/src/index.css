@@ -30,7 +30,7 @@
 
   font: 15px/1.45 var(--sans);
   letter-spacing: 0.1px;
-  color-scheme: light dark;
+  color-scheme: light;
   color: var(--text);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -38,28 +38,28 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --page: #16171d;
-    --bg: #1e1f27;
-    --border: #2e303a;
-    --muted: #7c7887;
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
+/* Dark tokens: keyed on the attribute theme.ts / index.html write, not on the OS, so a pick wins. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --page: #16171d;
+  --bg: #1e1f27;
+  --border: #2e303a;
+  --muted: #7c7887;
+  --text: #9ca3af;
+  --text-h: #f3f4f6;
 
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --accent-text: #c084fc;
+  --accent-bg: rgba(192, 132, 252, 0.15);
+  --accent-border: rgba(192, 132, 252, 0.5);
+  --accent-text: #c084fc;
 
-    --chip: #262730;
-    --track: #262730;
-    --track-off: #3a3c47;
-    --border-strong: #494c59;
-    --due-bg: rgba(255, 176, 46, 0.14);
-    --due-text: #f0b76e;
-    --danger: #f2b8b5;
-    --shadow: rgba(0, 0, 0, 0.4) 0 10px 24px -8px;
-  }
+  --chip: #262730;
+  --track: #262730;
+  --track-off: #3a3c47;
+  --border-strong: #494c59;
+  --due-bg: rgba(255, 176, 46, 0.14);
+  --due-text: #f0b76e;
+  --danger: #f2b8b5;
+  --shadow: rgba(0, 0, 0, 0.4) 0 10px 24px -8px;
 }
 
 body {
@@ -221,6 +221,12 @@ select {
   font-size: 13px;
 }
 
+.seg button:has(svg) {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+}
+
 .seg button:hover {
   color: var(--text-h);
 }
@@ -281,14 +287,12 @@ select {
   display: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not(:has(.landing)) .mark-light {
-    display: none;
-  }
+:root[data-theme='dark']:not(:has(.landing)) .mark-light {
+  display: none;
+}
 
-  :root:not(:has(.landing)) .mark-dark {
-    display: block;
-  }
+:root[data-theme='dark']:not(:has(.landing)) .mark-dark {
+  display: block;
 }
 
 .topbar-controls {
@@ -557,8 +561,10 @@ select {
   box-shadow: var(--shadow);
 }
 
-/* The switch is a control, not a block: it keeps its own width at the top of the card. */
-.auth .seg {
+/* The switches are controls, not blocks: they keep their own width at the top of the card. */
+.auth-controls {
+  display: flex;
+  gap: 10px;
   align-self: flex-start;
 }
 
@@ -898,17 +904,23 @@ button.check.done {
 }
 
 @media (max-width: 640px) {
-  /* No room in a 375px header for either label, and no reason to lose them: this is the `.vh`
-     treatment, spelled out because plain CSS cannot fold a media query into that selector list.
-     The text stays in the DOM, so both controls keep the accessible name it gives them. */
+  /* No room in a 360px header for these labels — the app's name included, the mark carries it —
+     and no reason to lose them: this is the `.vh` treatment, spelled out because plain CSS cannot
+     fold a media query into that selector list. The text stays in the DOM, so the controls keep
+     the accessible name it gives them. */
   .chip-email,
-  .logout-text {
+  .logout-text,
+  .topbar .wordmark span {
     position: absolute;
     width: 1px;
     height: 1px;
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+
+  .topbar {
+    gap: 12px;
   }
 
   /* With the email gone the chip is an avatar and a caret, and wants no padding around them. */
