@@ -271,6 +271,26 @@ select {
   color: var(--text-h);
 }
 
+/* The mark is raster art with its colours baked in, so a palette swap is a file swap. */
+.mark {
+  height: 24px;
+  width: auto;
+}
+
+.mark-dark {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(:has(.landing)) .mark-light {
+    display: none;
+  }
+
+  :root:not(:has(.landing)) .mark-dark {
+    display: block;
+  }
+}
+
 .topbar-controls {
   display: flex;
   align-items: center;
