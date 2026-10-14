@@ -59,7 +59,7 @@
   --due-bg: rgba(255, 176, 46, 0.14);
   --due-text: #f0b76e;
   --danger: #f2b8b5;
-    --shadow: rgba(0, 0, 0, 0.4) 0 10px 24px -8px;
+  --shadow: rgba(0, 0, 0, 0.4) 0 10px 24px -8px;
 }
 
 body {
@@ -723,9 +723,8 @@ button.check.done {
   height: 24px;
   padding: 0 9px;
   border-radius: 999px;
-  /* Opaque accent tint over the surface: it also reads on the proposal card's own purple wash. */
-  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
-  color: var(--accent-text);
+  background: var(--chip);
+  color: var(--text);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -830,17 +829,6 @@ button.check.done {
   border: 1px solid var(--accent-border);
   border-radius: 14px;
   background: linear-gradient(135deg, rgba(134, 59, 255, 0.1), rgba(71, 191, 255, 0.08));
-}
-
-/* The card is itself an accent wash, so the tinted chip vanishes into it; a plain surface, like the
-   buttons beside it, stays legible. */
-.proposal .chip:not(.due) {
-  background: var(--bg);
-}
-
-/* In dark the surface is as dark as the card, so lean on a stronger accent tint instead. */
-:root[data-theme='dark'] .proposal .chip:not(.due) {
-  background: color-mix(in srgb, var(--accent-text) 22%, var(--bg));
 }
 
 .proposal-head {

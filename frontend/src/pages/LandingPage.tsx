@@ -1,12 +1,24 @@
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Navigate } from 'react-router'
 import { useAuth } from '../auth/auth-context'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
 import { Wordmark } from '../layout/Wordmark'
+import { CHROME } from '../theme'
 
 export function LandingPage() {
   const { status } = useAuth()
   const { t, i18n } = useTranslation()
+
+  // The landing is pinned light whatever the theme (index.css), so the status bar is too while it shows.
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]')
+    const previous = meta?.getAttribute('content')
+    meta?.setAttribute('content', CHROME.light)
+    return () => {
+      if (previous) meta?.setAttribute('content', previous)
+    }
+  }, [])
 
   if (status === 'authenticated') return <Navigate to="/goals" replace />
 

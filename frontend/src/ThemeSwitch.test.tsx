@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ThemeCycle, ThemeSwitch } from './ThemeSwitch'
 
@@ -16,6 +16,18 @@ describe('ThemeSwitch', () => {
     expect(screen.getByRole('button', { name: 'Auto' })).toHaveAttribute('aria-pressed', 'false')
     expect(document.documentElement.dataset.theme).toBe('dark')
     expect(localStorage.getItem('2doai.theme')).toBe('dark')
+  })
+
+  it('follows a pick made in another tab', () => {
+    render(<ThemeSwitch />)
+
+    localStorage.setItem('2doai.theme', 'dark')
+    act(() => {
+      window.dispatchEvent(new StorageEvent('storage', { key: '2doai.theme' }))
+    })
+
+    expect(screen.getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'true')
+    expect(document.documentElement.dataset.theme).toBe('dark')
   })
 })
 

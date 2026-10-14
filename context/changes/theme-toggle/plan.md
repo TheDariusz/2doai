@@ -264,9 +264,9 @@ None. A missing key means auto, which is today's behaviour.
 - **Header control (Phase 2, approved mid-phase):** the three-button group did not fit a 360px header
   (114px over), so the header carries `ThemeCycle`, one icon button stepping light → dark → auto, and
   hides the "2do AI" wordmark text visually at ≤640px. The auth screens keep `ThemeSwitch` as planned.
-- **Chip restyle (Phase 1, accepted scope):** `.chip` moved from the neutral `--chip` surface to an
-  accent tint, with proposal-card overrides in light and dark, so chips stay legible on the card's
-  wash in both themes. Not in Changes Required; recorded here by the implementation review.
+- **Chip restyle (reverted in code review):** `.chip` briefly moved to an accent tint with
+  proposal-card overrides; it went back to the neutral `--chip` surface as out of scope for this
+  slice and belongs in its own change.
 
 ## Progress
 

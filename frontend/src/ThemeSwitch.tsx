@@ -1,17 +1,36 @@
-import { useState, type ComponentType } from 'react'
+import { useEffect, useState, type ComponentType } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AutoThemeIcon, MoonIcon, SunIcon } from './pages/icons'
-import { THEMES, applyTheme, readTheme, type Theme } from './theme'
+import { THEMES, applyTheme, isThemeChange, readTheme, type Theme } from './theme'
 
 const ICON: Record<Theme, ComponentType> = { light: SunIcon, dark: MoonIcon, auto: AutoThemeIcon }
 
+/** The stored choice and a setter that applies it; follows picks made in other tabs. */
+function useTheme(): [Theme, (theme: Theme) => void] {
+  const [current, setCurrent] = useState(readTheme)
+  useEffect(() => {
+    const sync = (event: StorageEvent) => {
+      if (isThemeChange(event)) {
+        setCurrent(readTheme())
+      }
+    }
+    window.addEventListener('storage', sync)
+    return () => window.removeEventListener('storage', sync)
+  }, [])
+  const choose = (theme: Theme) => {
+    applyTheme(theme)
+    setCurrent(theme)
+  }
+  return [current, choose]
+}
+
 /**
  * The `LanguageSwitch` shape over the three themes. The header and the auth screens never mount
- * together, so local state seeded from storage is the whole subscription.
+ * together, so `useTheme` only has to follow other tabs.
  */
 export function ThemeSwitch() {
   const { t } = useTranslation()
-  const [current, setCurrent] = useState(readTheme)
+  const [current, choose] = useTheme()
 
   return (
     <div className="seg" role="group" aria-label={t('layout.theme')}>
@@ -23,10 +42,7 @@ export function ThemeSwitch() {
             type="button"
             aria-label={t(`theme.${theme}`)}
             aria-pressed={theme === current}
-            onClick={() => {
-              applyTheme(theme)
-              setCurrent(theme)
-            }}
+            onClick={() => choose(theme)}
           >
             <Glyph />
           </button>
@@ -43,7 +59,7 @@ export function ThemeSwitch() {
  */
 export function ThemeCycle() {
   const { t } = useTranslation()
-  const [current, setCurrent] = useState(readTheme)
+  const [current, choose] = useTheme()
   const Glyph = ICON[current]
 
   return (
@@ -51,11 +67,7 @@ export function ThemeCycle() {
       type="button"
       className="icon-btn"
       aria-label={t('layout.themeCurrent', { theme: t(`theme.${current}`) })}
-      onClick={() => {
-        const next = THEMES[(THEMES.indexOf(current) + 1) % THEMES.length]
-        applyTheme(next)
-        setCurrent(next)
-      }}
+      onClick={() => choose(THEMES[(THEMES.indexOf(current) + 1) % THEMES.length])}
     >
       <Glyph />
     </button>

@@ -4,12 +4,12 @@ export const THEMES = ['light', 'dark', 'auto'] as const
 export type Theme = (typeof THEMES)[number]
 
 /** Device-level, like the pre-login language: no account column. */
-const STORED = '2doai.theme'
+export const STORED = '2doai.theme'
 
 const DARK_OS = '(prefers-color-scheme: dark)'
 
 /** Status-bar colours; the page background in each scheme (`--bg` in index.css). */
-const CHROME = { light: '#ffffff', dark: '#1e1f27' } as const
+export const CHROME = { light: '#ffffff', dark: '#1e1f27' } as const
 
 /**
  * Storage is read inside a `try`: a browser set to block site data throws on every `localStorage`
@@ -28,25 +28,38 @@ export function readTheme(): Theme {
 const osIsDark = () => window.matchMedia?.(DARK_OS).matches ?? false
 
 /**
- * Persists the choice and writes the resolved scheme as `data-theme` on `<html>`, which is all the
- * CSS reads. `index.html` runs the same three-line rule inline before first paint; this owns every
- * change after that.
+ * Writes the resolved scheme as `data-theme` on `<html>`, which is all the CSS reads. `index.html`
+ * runs the same three-line rule inline before first paint; this owns every change after that.
  */
+function paintTheme(theme: Theme): void {
+  const resolved = theme === 'auto' ? (osIsDark() ? 'dark' : 'light') : theme
+  document.documentElement.dataset.theme = resolved
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', CHROME[resolved])
+}
+
+/** A user's pick: persisted, then painted. Boot and OS changes only paint, so they never overwrite it. */
 export function applyTheme(theme: Theme): void {
   try {
     localStorage.setItem(STORED, theme)
   } catch {
     // Storage unavailable: the pick still applies to this tab; only the next boot forgets it.
   }
-  const resolved = theme === 'auto' ? (osIsDark() ? 'dark' : 'light') : theme
-  document.documentElement.dataset.theme = resolved
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', CHROME[resolved])
+  paintTheme(theme)
 }
 
-// Side effect, like `./i18n`: first render already sees the right scheme, and auto tracks the OS live.
-applyTheme(readTheme())
+/** True for a `storage` event that may have changed the theme (`key` is null when storage was cleared). */
+export const isThemeChange = (event: StorageEvent) => event.key === STORED || event.key === null
+
+// Side effect, like `./i18n`: first render already sees the right scheme, auto tracks the OS live,
+// and a pick made in another tab repaints this one.
+paintTheme(readTheme())
 window.matchMedia?.(DARK_OS).addEventListener('change', () => {
   if (readTheme() === 'auto') {
-    applyTheme('auto')
+    paintTheme('auto')
+  }
+})
+window.addEventListener('storage', (event) => {
+  if (isThemeChange(event)) {
+    paintTheme(readTheme())
   }
 })
