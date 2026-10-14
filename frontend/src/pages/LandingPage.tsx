@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, Navigate } from 'react-router'
 import { useAuth } from '../auth/auth-context'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
+import { Wordmark } from '../layout/Wordmark'
 
 export function LandingPage() {
   const { status } = useAuth()
@@ -12,7 +13,7 @@ export function LandingPage() {
   return (
     <div className="landing">
       <header className="landing-header">
-        <span className="wordmark">2do AI</span>
+        <Wordmark />
         <LanguageSwitch onSelect={(language) => void i18n.changeLanguage(language)} />
         <Link className="text-link" to="/login">{t('auth.login.heading')}</Link>
       </header>

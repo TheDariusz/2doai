@@ -946,13 +946,14 @@ body:has(.landing) {
   --bg: #fff;
   --cream: #fff6f0;
   --border: #ebe6e1;
-  --muted: #8a8682;
+  --muted: #6f6c69;
   --text: #6f6c69;
   --text-h: #25221e;
+  --accent: #863bff;
   --accent-bg: rgba(134, 59, 255, 0.08);
   --accent-border: rgba(134, 59, 255, 0.4);
   --accent-text: #6a1fe0;
-  --track: #f1ede9;
+  --track: #f4f1ee;
   --chip: #f1ede9;
   --shadow: rgba(37, 34, 30, 0.07) 0 12px 28px -10px;
 
@@ -1215,14 +1216,14 @@ body:has(.landing) {
 }
 
 .landing-faq summary::after {
-  content: '+';
+  content: '+' / '';
   flex-shrink: 0;
   font-size: 22px;
   color: var(--muted);
 }
 
 .landing-faq details[open] summary::after {
-  content: '−';
+  content: '−' / '';
 }
 
 .landing-faq details p {

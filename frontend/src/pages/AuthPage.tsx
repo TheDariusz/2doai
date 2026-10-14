@@ -48,7 +48,7 @@ export function AuthPage({ mode }: { mode: Mode }) {
       if (mode === 'login') {
         await login(email, password)
         // The whole location, not just its pathname — a bounced deep link keeps its query and hash.
-        navigate(state?.from ?? '/', { replace: true })
+        navigate(state?.from ?? '/goals', { replace: true })
       } else {
         await register(email, password)
         navigate('/verify', { replace: true, state: { email } })

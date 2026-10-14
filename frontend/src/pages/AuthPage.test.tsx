@@ -15,7 +15,7 @@ function renderAt(path: '/login' | '/register', auth: Auth) {
       <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/register" element={<AuthPage mode="register" />} />
       <Route path="/verify" element={<VerifyPage />} />
-      <Route path="/" element={<p>the app</p>} />
+      <Route path="/goals" element={<p>the app</p>} />
     </Routes>,
     { path, auth },
   )
