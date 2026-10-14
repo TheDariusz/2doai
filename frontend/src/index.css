@@ -934,8 +934,8 @@ button.check.done {
 
 
 /* The public landing page. Light whatever the OS prefers: it is a page about the product, drawn
-   from a paper-and-ink reference, and the dark app starts behind the Sign in link. Every token the
-   page reads is redeclared here, so the dark block on :root cannot reach in and mix palettes. */
+   from a paper-and-ink reference, and the dark app starts behind the login link. Every palette token
+   the page reads is redeclared here, so the dark block on :root cannot reach in and mix palettes. */
 
 body:has(.landing) {
   background: #fefdfc;

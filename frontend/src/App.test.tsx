@@ -7,8 +7,11 @@ import { AppRoutes } from './App'
 import { AuthProvider } from './auth/AuthProvider'
 import { ApiError } from './api/client'
 import { AuthContext, type Auth } from './auth/auth-context'
+import i18n from './i18n'
 import { LOGGED_IN, renderWithAuth, response, stubAuth } from './test/auth'
 import { DOMAINS } from './test/domains'
+
+const LANDING = { level: 1, name: i18n.t('landing.title') }
 
 const fetchMock = vi.fn()
 
@@ -72,7 +75,7 @@ describe('AppRoutes', () => {
   it('sends an unknown path home to the public landing', async () => {
     renderApp('/no-such-path')
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Your everyday tasks. Your someday dreams.' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', LANDING)).toBeInTheDocument()
     expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/)
   })
 
@@ -130,11 +133,11 @@ describe('public session bootstrap', () => {
     fetchMock.mockReturnValue(new Promise((done) => { resolve = done }))
     renderBootstrap()
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Your everyday tasks. Your someday dreams.' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', LANDING)).toBeInTheDocument()
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/users/me'])
     await act(async () => resolve(response(status)))
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Your everyday tasks. Your someday dreams.' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', LANDING)).toBeInTheDocument()
     expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/)
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/users/me'])
   })
@@ -147,12 +150,12 @@ describe('public session bootstrap', () => {
     ))
     renderBootstrap()
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Your everyday tasks. Your someday dreams.' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', LANDING)).toBeInTheDocument()
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/users/me'])
     await act(async () => resolve(response(200, LOGGED_IN.user)))
 
     expect(await screen.findByRole('heading', { name: 'Tasks, goals and dreams' })).toBeInTheDocument()
     expect(screen.getByTestId('location')).toHaveTextContent('/goals')
-    expect(screen.queryByRole('heading', { name: 'Your everyday tasks. Your someday dreams.' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', LANDING)).not.toBeInTheDocument()
   })
 })

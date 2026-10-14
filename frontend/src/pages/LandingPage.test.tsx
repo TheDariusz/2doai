@@ -43,10 +43,9 @@ it('points account actions and the explanation anchor to their destinations', as
   expect(document.getElementById('how-it-works')).toHaveTextContent('How it works')
 })
 
-it.each([
-  ['Zaloguj się', 'Zaloguj się'],
-  ['Załóż konto', 'Załóż konto'],
-])('keeps the local language when navigating through %s without a settings write', async (link, heading) => {
+it.each(['login', 'register'] as const)('keeps the local language when following the %s link without a settings write', async (mode) => {
+  // The link and the screen it opens share one label, so the heading proves where the click landed.
+  const label = i18n.t(`auth.${mode}.heading`, { lng: 'pl' })
   const auth = stubAuth()
   renderWithAuth(<AppRoutes />, { auth })
   const user = userEvent.setup()
@@ -54,9 +53,9 @@ it.each([
   await user.click(screen.getByRole('button', { name: 'Polski' }))
   expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Codzienne zadania. Marzenia na kiedyś.')
   expect(localStorage.getItem('2doai.language')).toBe('pl')
-  await user.click(screen.getAllByRole('link', { name: link })[0])
+  await user.click(screen.getAllByRole('link', { name: label })[0])
 
-  expect(screen.getByRole('heading', { level: 1, name: heading })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { level: 1, name: label })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Polski' })).toHaveAttribute('aria-pressed', 'true')
   expect(auth.changeLanguage).not.toHaveBeenCalled()
   expect(fetchMock).not.toHaveBeenCalled()
