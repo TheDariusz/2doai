@@ -5,12 +5,14 @@ import { AppLayout } from './layout/AppLayout'
 import { AuthPage } from './pages/AuthPage'
 import { DomainPlaceholder } from './pages/DomainPlaceholder'
 import { GoalsPage } from './pages/GoalsPage'
+import { LandingPage } from './pages/LandingPage'
 import { VerifyPage } from './pages/VerifyPage'
 
 /** The route tree, router-free so tests can mount it inside a `MemoryRouter`. */
 export function AppRoutes() {
   return (
     <Routes>
+      <Route index element={<LandingPage />} />
       {/* Keyed, because these two are one component in two modes at the same position in the tree:
           without distinct keys React reuses the instance across the hop, and the 409 the sign-up
           just raised is still on screen over a sign-in form nobody has submitted. */}
@@ -21,9 +23,6 @@ export function AppRoutes() {
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
-          {/* There is one screen to be on, so the index route is a redirect rather than a page
-              of advice about a rail the user is already looking at. */}
-          <Route index element={<Navigate to="/goals" replace />} />
           <Route path="goals" element={<GoalsPage />} />
           <Route path="domain/:code" element={<DomainPlaceholder />} />
         </Route>

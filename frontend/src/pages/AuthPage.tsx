@@ -14,8 +14,9 @@ type Mode = 'login' | 'register'
  * deliberately looser on login, so as not to leak which submissions could belong to an account)
  * and in where success goes — one component beats two near-copies drifting apart.
  *
- * These are the only screens rendered before there is an account to read a language from, so they
- * carry the switch that decides what the app is written in until then (FR-001) — and, because
+ * Like the public landing page, they are rendered before there is an account to read a language
+ * from, so they carry the switch that decides what the app is written in until then (FR-001) — the
+ * choice is local and survives the walk from one to the other. And because
  * `client.ts` sends whatever is being rendered as `Accept-Language`, the language the sign-up
  * request arrives in is the one the new account starts in (FR-003).
  */
@@ -47,7 +48,7 @@ export function AuthPage({ mode }: { mode: Mode }) {
       if (mode === 'login') {
         await login(email, password)
         // The whole location, not just its pathname — a bounced deep link keeps its query and hash.
-        navigate(state?.from ?? '/', { replace: true })
+        navigate(state?.from ?? '/goals', { replace: true })
       } else {
         await register(email, password)
         navigate('/verify', { replace: true, state: { email } })
