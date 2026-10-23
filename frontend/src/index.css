@@ -998,6 +998,7 @@ body:has(.landing) {
 }
 
 .landing-header,
+.landing-footer,
 .landing main > section {
   max-width: 1200px;
   margin: 0 auto;
@@ -1268,4 +1269,87 @@ body:has(.landing) {
   flex-direction: column;
   align-items: center;
   text-align: center;
+}
+
+/* The author's card: the one place on the page that is about the maker, not the product. */
+.landing-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 32px;
+  padding-block: 28px 40px;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.landing-author {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.author-mark {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.author-mark rect {
+  fill: var(--bg);
+  stroke: var(--border);
+}
+
+.author-mark text {
+  font: 700 15px var(--heading);
+  fill: var(--text-h);
+}
+
+.landing-author p {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.landing-author strong {
+  font-size: 15px;
+  color: var(--text-h);
+}
+
+.landing-author strong a {
+  color: var(--accent-text);
+  text-decoration: none;
+}
+
+.landing-author strong a:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.landing-social {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  @media (max-width: 640px) {
+    margin-left: 0;
+  }
+}
+
+/* A 44px box per link; the text link among them is a .text-link like the rest of the page. */
+.landing-social a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding-inline: 10px;
+  border-radius: 8px;
+  color: var(--text-h);
+}
+
+.landing-social a:hover {
+  background: var(--accent-bg);
+  color: var(--accent-text);
 }

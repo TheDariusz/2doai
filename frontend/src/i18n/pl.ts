@@ -11,7 +11,7 @@
  */
 export const pl = {
   landing: {
-    title: 'Codzienne zadania. Marzenia na kiedyś.',
+    title: 'Codzienne zadania. Marzenia, które się spełniają.',
     intro: 'Zbierz zadania, cele długoterminowe i marzenia w jednym miejscu. 2do AI przypomina o odłożonych planach i podsuwa pierwszy krok.',
     seeHow: 'Zobacz, jak to działa',
     example: 'Przykład z fikcyjnymi wpisami',
@@ -37,6 +37,10 @@ export const pl = {
       deletion: { question: 'Czy mogę usunąć konto?', answer: 'Tak. W menu konta potwierdź hasłem usunięcie konta oraz zapisanych wpisów, propozycji i pamięci AI. Tej operacji nie da się cofnąć.' },
     },
     closing: 'Zacznij od pierwszego wpisu.',
+    // The author's handle, site and profile names are ASCII proper nouns and stay in the component;
+    // the name carries a diacritic, so it lives here (identical in both catalogs) to keep the lint
+    // rule's diacritic detector meaningful everywhere else.
+    footer: { credit: 'Autor', name: 'Dariusz Szczepański', role: 'Software Engineer', links: 'Strona i profile autora' },
   },
   layout: {
     nav: 'Nawigacja',
