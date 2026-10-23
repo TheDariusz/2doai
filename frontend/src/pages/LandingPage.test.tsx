@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { AppRoutes } from '../App'
 import i18n from '../i18n'
 import { renderWithAuth, stubAuth } from '../test/auth'
+import { CHROME } from '../theme'
 import { LandingPage } from './LandingPage'
 
 const fetchMock = vi.fn()
@@ -84,4 +85,18 @@ it.each(['login', 'register'] as const)('keeps the local language when following
   expect(screen.getByRole('button', { name: 'Polski' })).toHaveAttribute('aria-pressed', 'true')
   expect(auth.changeLanguage).not.toHaveBeenCalled()
   expect(fetchMock).not.toHaveBeenCalled()
+})
+
+it('leaves the status-bar colour to the theme in force rather than pinning it light', () => {
+  // theme.ts keeps this meta in step with data-theme on every page; the landing used to override it.
+  const meta = document.createElement('meta')
+  meta.name = 'theme-color'
+  meta.content = CHROME.dark
+  document.head.appendChild(meta)
+
+  const { unmount } = renderWithAuth(<LandingPage />)
+  expect(meta.content).toBe(CHROME.dark)
+  unmount()
+  expect(meta.content).toBe(CHROME.dark)
+  meta.remove()
 })
