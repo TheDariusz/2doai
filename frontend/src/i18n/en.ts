@@ -10,7 +10,7 @@ import type { pl } from './pl'
  */
 export const en: typeof pl = {
   landing: {
-    title: 'Your everyday tasks. Your someday dreams.',
+    title: 'Your everyday tasks. Dreams that come true.',
     intro: 'Keep tasks, long-term goals and dreams in one place. 2do AI reminds you of plans you have set aside and suggests a first step.',
     seeHow: 'See how it works',
     example: 'Example with fictional entries',
@@ -36,6 +36,7 @@ export const en: typeof pl = {
       deletion: { question: 'Can I delete my account?', answer: 'Yes. In the account menu, confirm with your password to delete your account and its stored entries, proposals and AI memory. This cannot be undone.' },
     },
     closing: 'Start with your first entry.',
+    footer: { credit: 'Made by', name: 'Dariusz Szczepański', role: 'Software Engineer', links: "The author's site and profiles" },
   },
   layout: {
     nav: 'Navigation',

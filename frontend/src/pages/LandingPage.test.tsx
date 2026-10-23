@@ -13,8 +13,8 @@ beforeEach(() => {
 })
 
 it.each([
-  ['en', 'Your everyday tasks. Your someday dreams.', 'Example with fictional entries', 'Run a marathon'],
-  ['pl', 'Codzienne zadania. Marzenia na kiedyś.', 'Przykład z fikcyjnymi wpisami', 'Przebiec maraton'],
+  ['en', 'Your everyday tasks. Dreams that come true.', 'Example with fictional entries', 'Run a marathon'],
+  ['pl', 'Codzienne zadania. Marzenia, które się spełniają.', 'Przykład z fikcyjnymi wpisami', 'Przebiec maraton'],
 ] as const)('renders the static content in %s without private requests or pretend controls', async (language, heading, caption, dream) => {
   await act(() => i18n.changeLanguage(language))
   renderWithAuth(<LandingPage />)
@@ -28,7 +28,32 @@ it.each([
   expect(within(preview).queryByRole('link')).not.toBeInTheDocument()
   expect(screen.getByRole('banner')).toBeInTheDocument()
   expect(screen.getByRole('main')).toBeInTheDocument()
+  expect(screen.getByRole('contentinfo')).toBeInTheDocument()
   expect(fetchMock).not.toHaveBeenCalled()
+})
+
+it('credits the developer in a footer whose links open their site and profiles in new tabs', () => {
+  renderWithAuth(<LandingPage />)
+
+  const footer = screen.getByRole('contentinfo')
+  expect(screen.getByRole('main')).not.toContainElement(footer)
+  expect(footer).toHaveTextContent('Made by')
+  expect(footer).toHaveTextContent('Dariusz Szczepański')
+  expect(footer).toHaveTextContent('Software Engineer')
+  // The profile links are icons, so each one's accessible name is the site it opens.
+  const expected: Record<string, string> = {
+    TheDariusz: 'https://thedariusz.dev',
+    'thedariusz.dev': 'https://thedariusz.dev',
+    GitHub: 'https://github.com/thedariusz',
+    LinkedIn: 'https://www.linkedin.com/in/dariusz-szczepanski-dev',
+  }
+  const links = within(footer).getAllByRole('link')
+  expect(links.map((link) => link.getAttribute('aria-label') ?? link.textContent)).toEqual(Object.keys(expected))
+  for (const link of links) {
+    expect(link).toHaveAttribute('href', expected[link.getAttribute('aria-label') ?? link.textContent ?? ''])
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+  }
 })
 
 it('points account actions and the explanation anchor to their destinations', async () => {
@@ -51,7 +76,7 @@ it.each(['login', 'register'] as const)('keeps the local language when following
   const user = userEvent.setup()
 
   await user.click(screen.getByRole('button', { name: 'Polski' }))
-  expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Codzienne zadania. Marzenia na kiedyś.')
+  expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Codzienne zadania. Marzenia, które się spełniają.')
   expect(localStorage.getItem('2doai.language')).toBe('pl')
   await user.click(screen.getAllByRole('link', { name: label })[0])
 
