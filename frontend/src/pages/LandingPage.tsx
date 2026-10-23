@@ -8,7 +8,8 @@ import { CHROME } from '../theme'
 import { GitHubIcon, LinkedInIcon } from './icons'
 
 const AUTHOR_SITE = 'https://thedariusz.dev'
-const EXTERNAL = { target: '_blank', rel: 'noopener noreferrer' } as const
+// `noopener` only: the footer is the author's advert, so the referrer is the point, not a leak.
+const EXTERNAL = { target: '_blank', rel: 'noopener' } as const
 
 export function LandingPage() {
   const { status } = useAuth()
@@ -86,11 +87,14 @@ export function LandingPage() {
       </main>
       <footer className="landing-footer">
         <div className="landing-author">
-          {/* The author's mark, redrawn for a light page; the dark original would sit as a black square here. */}
+          {/* The author's mark, redrawn for a light page in the page's own tokens (index.css); the dark
+              original would sit as a black square here. The dot is the one brand colour it keeps. The
+              rect is inset by half its stroke so the border is not clipped by the viewBox, and the
+              text is pinned to a width so an unknown fallback font cannot run it into the edge. */}
           <svg className="author-mark" viewBox="0 0 32 32" aria-hidden="true">
-            <rect width="32" height="32" rx="6" fill="#fff" stroke="#ebe6e1" />
+            <rect x="0.5" y="0.5" width="31" height="31" rx="6" />
             <circle cx="5.5" cy="21" r="2" fill="#e11d48" />
-            <text x="10" y="23" fontFamily="Inter, Arial, sans-serif" fontWeight="700" fontSize="15" fill="#25221e">TD</text>
+            <text x="10" y="23" textLength="19" lengthAdjust="spacingAndGlyphs">TD</text>
           </svg>
           <p>
             <span>{t('landing.footer.credit')}</span>
@@ -99,7 +103,7 @@ export function LandingPage() {
           </p>
         </div>
         <nav className="landing-social" aria-label={t('landing.footer.links')}>
-          <a href={AUTHOR_SITE} {...EXTERNAL}>thedariusz.dev</a>
+          <a className="text-link" href={AUTHOR_SITE} {...EXTERNAL}>thedariusz.dev</a>
           <a href="https://github.com/thedariusz" aria-label="GitHub" {...EXTERNAL}><GitHubIcon /></a>
           <a href="https://www.linkedin.com/in/dariusz-szczepanski-dev" aria-label="LinkedIn" {...EXTERNAL}><LinkedInIcon /></a>
         </nav>

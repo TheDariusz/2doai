@@ -1294,6 +1294,16 @@ body:has(.landing) {
   flex-shrink: 0;
 }
 
+.author-mark rect {
+  fill: var(--bg);
+  stroke: var(--border);
+}
+
+.author-mark text {
+  font: 700 15px var(--heading);
+  fill: var(--text-h);
+}
+
 .landing-author p {
   display: flex;
   flex-direction: column;
@@ -1327,17 +1337,15 @@ body:has(.landing) {
   }
 }
 
+/* A 44px box per link; the text link among them is a .text-link like the rest of the page. */
 .landing-social a {
   display: inline-flex;
-  align-items: center;
   justify-content: center;
   min-width: 44px;
   min-height: 44px;
   padding-inline: 10px;
   border-radius: 8px;
   color: var(--text-h);
-  font-weight: 500;
-  text-underline-offset: 4px;
 }
 
 .landing-social a:hover {

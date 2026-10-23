@@ -13,9 +13,9 @@ beforeEach(() => {
 })
 
 it.each([
-  ['en', 'Your everyday tasks. Dreams that come true.', 'Example with fictional entries', 'Run a marathon'],
-  ['pl', 'Codzienne zadania. Marzenia, które się spełniają.', 'Przykład z fikcyjnymi wpisami', 'Przebiec maraton'],
-] as const)('renders the static content in %s without private requests or pretend controls', async (language, heading, caption, dream) => {
+  ['en', 'Your everyday tasks. Dreams that come true.', 'Example with fictional entries', 'Run a marathon', 'Made by'],
+  ['pl', 'Codzienne zadania. Marzenia, które się spełniają.', 'Przykład z fikcyjnymi wpisami', 'Przebiec maraton', 'Autor'],
+] as const)('renders the static content in %s without private requests or pretend controls', async (language, heading, caption, dream, credit) => {
   await act(() => i18n.changeLanguage(language))
   renderWithAuth(<LandingPage />)
 
@@ -28,7 +28,7 @@ it.each([
   expect(within(preview).queryByRole('link')).not.toBeInTheDocument()
   expect(screen.getByRole('banner')).toBeInTheDocument()
   expect(screen.getByRole('main')).toBeInTheDocument()
-  expect(screen.getByRole('contentinfo')).toBeInTheDocument()
+  expect(screen.getByRole('contentinfo')).toHaveTextContent(credit)
   expect(fetchMock).not.toHaveBeenCalled()
 })
 
@@ -37,7 +37,6 @@ it('credits the developer in a footer whose links open their site and profiles i
 
   const footer = screen.getByRole('contentinfo')
   expect(screen.getByRole('main')).not.toContainElement(footer)
-  expect(footer).toHaveTextContent('Made by')
   expect(footer).toHaveTextContent('Dariusz Szczepański')
   expect(footer).toHaveTextContent('Software Engineer')
   // The profile links are icons, so each one's accessible name is the site it opens.
@@ -52,7 +51,8 @@ it('credits the developer in a footer whose links open their site and profiles i
   for (const link of links) {
     expect(link).toHaveAttribute('href', expected[link.getAttribute('aria-label') ?? link.textContent ?? ''])
     expect(link).toHaveAttribute('target', '_blank')
-    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    // Not `noreferrer`: the author's site should see where its visitors come from.
+    expect(link).toHaveAttribute('rel', 'noopener')
   }
 })
 
