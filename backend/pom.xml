@@ -31,8 +31,8 @@
 		<spring-ai.version>2.0.1</spring-ai.version>
 		<!-- REST Assured is not managed by the Spring Boot 4 BOM. 6.x targets Hamcrest 3 / Groovy 4 /
 		     Java 17+ — aligned with Boot 4's stack (5.x is built for Hamcrest 2). -->
-		<rest-assured.version>6.0.1</rest-assured.version>
-		<archunit.version>1.5.0</archunit.version>
+		<rest-assured.version>6.2.0</rest-assured.version>
+		<archunit.version>1.5.1</archunit.version>
 		<!-- No patch-level overrides of BOM-managed versions at the moment: Boot 4.1.2 manages
 		     Tomcat 11.0.27, Netty 4.2.19.Final and PostgreSQL JDBC 42.7.14, each at or past the pin
 		     that used to sit here for the Trivy gate. When the gate goes red again, pin the single
