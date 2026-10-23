@@ -1340,6 +1340,7 @@ body:has(.landing) {
 /* A 44px box per link; the text link among them is a .text-link like the rest of the page. */
 .landing-social a {
   display: inline-flex;
+  align-items: center;
   justify-content: center;
   min-width: 44px;
   min-height: 44px;
