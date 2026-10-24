@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { AppRoutes } from '../App'
 import i18n from '../i18n'
 import { renderWithAuth, stubAuth } from '../test/auth'
+import { CHROME } from '../theme'
 import { LandingPage } from './LandingPage'
 
 const fetchMock = vi.fn()
@@ -13,9 +14,9 @@ beforeEach(() => {
 })
 
 it.each([
-  ['en', 'Your everyday tasks. Dreams that come true.', 'Example with fictional entries', 'Run a marathon', 'Made by'],
-  ['pl', 'Codzienne zadania. Marzenia, które się spełniają.', 'Przykład z fikcyjnymi wpisami', 'Przebiec maraton', 'Autor'],
-] as const)('renders the static content in %s without private requests or pretend controls', async (language, heading, caption, dream, credit) => {
+  ['en', 'Your everyday tasks. Dreams that come true.', 'Example with fictional entries', 'Run a marathon', 'Made by', 'Theme'],
+  ['pl', 'Codzienne zadania. Marzenia, które się spełniają.', 'Przykład z fikcyjnymi wpisami', 'Przebiec maraton', 'Autor', 'Motyw'],
+] as const)('renders the static content in %s without private requests or pretend controls', async (language, heading, caption, dream, credit, theme) => {
   await act(() => i18n.changeLanguage(language))
   renderWithAuth(<LandingPage />)
 
@@ -26,7 +27,7 @@ it.each([
   expect(within(preview).getAllByRole('heading', { level: 3 })).toHaveLength(4)
   expect(within(preview).queryByRole('button')).not.toBeInTheDocument()
   expect(within(preview).queryByRole('link')).not.toBeInTheDocument()
-  expect(screen.getByRole('banner')).toBeInTheDocument()
+  expect(within(screen.getByRole('banner')).getByRole('group', { name: theme })).toBeInTheDocument()
   expect(screen.getByRole('main')).toBeInTheDocument()
   expect(screen.getByRole('contentinfo')).toHaveTextContent(credit)
   expect(fetchMock).not.toHaveBeenCalled()
@@ -84,4 +85,33 @@ it.each(['login', 'register'] as const)('keeps the local language when following
   expect(screen.getByRole('button', { name: 'Polski' })).toHaveAttribute('aria-pressed', 'true')
   expect(auth.changeLanguage).not.toHaveBeenCalled()
   expect(fetchMock).not.toHaveBeenCalled()
+})
+
+it('applies and keeps a theme picked in the header without a settings write', async () => {
+  // Like the language, the choice is local: there is no account to store it on yet.
+  const auth = stubAuth()
+  renderWithAuth(<LandingPage />, { auth })
+  const user = userEvent.setup()
+
+  await user.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Dark' }))
+
+  expect(screen.getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'true')
+  expect(document.documentElement.dataset.theme).toBe('dark')
+  expect(localStorage.getItem('2doai.theme')).toBe('dark')
+  expect(auth.changeLanguage).not.toHaveBeenCalled()
+  expect(fetchMock).not.toHaveBeenCalled()
+})
+
+it('leaves the status-bar colour to the theme in force rather than pinning it light', () => {
+  // theme.ts keeps this meta in step with data-theme on every page; the landing used to override it.
+  const meta = document.createElement('meta')
+  meta.name = 'theme-color'
+  meta.content = CHROME.dark
+  document.head.appendChild(meta)
+
+  const { unmount } = renderWithAuth(<LandingPage />)
+  expect(meta.content).toBe(CHROME.dark)
+  unmount()
+  expect(meta.content).toBe(CHROME.dark)
+  meta.remove()
 })

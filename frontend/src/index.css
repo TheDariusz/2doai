@@ -287,11 +287,11 @@ select {
   display: none;
 }
 
-:root[data-theme='dark']:not(:has(.landing)) .mark-light {
+:root[data-theme='dark'] .mark-light {
   display: none;
 }
 
-:root[data-theme='dark']:not(:has(.landing)) .mark-dark {
+:root[data-theme='dark'] .mark-dark {
   display: block;
 }
 
@@ -910,7 +910,8 @@ button.check.done {
      the accessible name it gives them. */
   .chip-email,
   .logout-text,
-  .topbar .wordmark span {
+  .topbar .wordmark span,
+  .landing-header .wordmark span {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -965,15 +966,15 @@ button.check.done {
 }
 
 
-/* The public landing page. Light whatever the OS prefers: it is a page about the product, drawn
-   from a paper-and-ink reference, and the dark app starts behind the login link. Every palette token
-   the page reads is redeclared here, so the dark block on :root cannot reach in and mix palettes. */
+/* The public landing page. Its light palette is warm paper and ink, drawn from the reference the
+   page was designed on, so every token it reads is redeclared here rather than inherited from :root.
+   In dark it inherits the app's own dark tokens, so the login link one click away changes nothing;
+   only two tokens differ. The cream card has no app counterpart and gets a warm dark of its own, and
+   muted text takes the body-text colour, as the light palette does, because the app's dark muted
+   falls under 4.5:1 at the caption and label sizes this page uses. Both blocks sit on body so
+   `body { background: var(--page) }` paints the landing's page colour too. */
 
-body:has(.landing) {
-  background: #fefdfc;
-}
-
-.landing {
+:root:not([data-theme='dark']) body:has(.landing) {
   --page: #fefdfc;
   --bg: #fff;
   --cream: #fff6f0;
@@ -988,8 +989,14 @@ body:has(.landing) {
   --track: #f4f1ee;
   --chip: #f1ede9;
   --shadow: rgba(37, 34, 30, 0.07) 0 12px 28px -10px;
+}
 
-  color-scheme: light;
+:root[data-theme='dark'] body:has(.landing) {
+  --cream: #26222a;
+  --muted: var(--text);
+}
+
+.landing {
   min-height: 100svh;
   background: var(--page);
   color: var(--text);
@@ -1011,12 +1018,20 @@ body:has(.landing) {
 
 .landing-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 16px;
   padding-block: 20px;
+  /* A 360px row holds the mark and both switches but not "Zaloguj się" after them, so the link
+     drops to a second line there rather than pushing the page into a horizontal scroll. */
+  @media (max-width: 640px) {
+    gap: 10px;
+  }
 }
 
-.landing-header .seg {
+.landing-controls {
+  display: flex;
+  gap: 10px;
   margin-left: auto;
 }
 
