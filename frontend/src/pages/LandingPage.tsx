@@ -20,20 +20,25 @@ const TOPICS = ['account', 'suggestions', 'control', 'deletion'] as const
  * The headline enters one word at a time, so each word is wrapped for the animation; the spaces
  * stay as text between them, directly in the heading (a wrapper around word and space would lose
  * the space from the accessible name), so the heading reads as the one sentence it is. The last
- * word is the one the page is about and carries the highlight.
+ * word is the one the page is about and carries the highlight — a second animation, so its inline
+ * delay lists the sheen's own as well (one value would be repeated over both).
  */
 function Headline({ text }: { text: string }) {
   const words = text.split(' ')
   return (
     <>
-      {words.map((word, index) => (
-        <Fragment key={index}>
-          <span className={index === words.length - 1 ? 'landing-word landing-word-accent' : 'landing-word'} style={{ animationDelay: `${0.05 + index * 0.08}s` }}>
-            {word}
-          </span>
-          {index < words.length - 1 ? ' ' : null}
-        </Fragment>
-      ))}
+      {words.map((word, index) => {
+        const last = index === words.length - 1
+        const delay = `${0.05 + index * 0.08}s`
+        return (
+          <Fragment key={index}>
+            <span className={last ? 'landing-word landing-word-accent' : 'landing-word'} style={{ animationDelay: last ? `${delay}, 1.6s` : delay }}>
+              {word}
+            </span>
+            {last ? null : ' '}
+          </Fragment>
+        )
+      })}
     </>
   )
 }

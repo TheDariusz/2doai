@@ -1082,7 +1082,8 @@ button.check.done {
    on the page: they move, and they fade out before the first fold. */
 .landing-ambient {
   position: absolute;
-  inset: 0;
+  inset: 0 0 auto;
+  height: 1200px;
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
@@ -1150,8 +1151,11 @@ button.check.done {
   }
 }
 
-/* A glass bar that stays put and firms up — border, shadow — over the first 160px of scrolling. */
+/* A glass bar that stays put and firms up — border, shadow — over the first 160px of scrolling. It
+   spans the viewport so nothing scrolls past it unblurred; padding keeps its content on the column. */
 .landing-header {
+  max-width: none;
+  padding-inline: max(32px, (100% - 1136px) / 2);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -1167,6 +1171,7 @@ button.check.done {
      drops to a second line there rather than pushing the page into a horizontal scroll. */
   @media (max-width: 640px) {
     gap: 10px;
+    padding-inline: 16px;
   }
 }
 
@@ -1682,11 +1687,13 @@ button.check.done {
   border: 1px solid var(--border);
   border-radius: 18px;
   background: var(--bg);
-  transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.35s, border-color 0.35s;
+  transition: translate 0.35s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.35s, border-color 0.35s;
 }
 
+/* `translate`, not `transform`: the scroll reveal holds `transform` once it has played, and an
+   animated value outranks the hover. */
 .landing-steps li:hover {
-  transform: translateY(-6px);
+  translate: 0 -6px;
   border-color: var(--accent-border);
   box-shadow: var(--shadow-lift);
 }
@@ -1804,7 +1811,16 @@ button.check.done {
   max-width: 40rem;
   margin: 0;
   padding: 0 44px 22px 0;
-  animation: landing-rise 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: landing-open 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/* From below into place. `landing-rise` has only an end, and the answer has no hidden start to
+   leave from, so it would play nothing. */
+@keyframes landing-open {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
 }
 
 .landing-closing {
@@ -1823,6 +1839,8 @@ button.check.done {
   left: 50%;
   top: 50%;
   z-index: -1;
+  /* Centred outside the keyframes, so reduced motion keeps it behind the headline. */
+  translate: -50% -30%;
   background: var(--glow-a);
   filter: blur(90px);
   animation: landing-breathe 7s ease-in-out infinite alternate;
@@ -1830,11 +1848,11 @@ button.check.done {
 
 @keyframes landing-breathe {
   from {
-    transform: translate(-50%, -30%) scale(0.9);
+    transform: scale(0.9);
     opacity: 0.7;
   }
   to {
-    transform: translate(-50%, -30%) scale(1.1);
+    transform: scale(1.1);
     opacity: 1;
   }
 }
