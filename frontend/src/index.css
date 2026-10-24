@@ -968,11 +968,13 @@ button.check.done {
 
 /* The public landing page. Its light palette is warm paper and ink, drawn from the reference the
    page was designed on, so every token it reads is redeclared here rather than inherited from :root.
-   The dark palette is the app's own dark surfaces, so the login link one click away changes nothing;
-   the cream card is the one surface with no app counterpart and gets a warm dark of its own. Both
-   blocks sit on body so `body { background: var(--page) }` paints the landing's page colour too. */
+   In dark it inherits the app's own dark tokens, so the login link one click away changes nothing;
+   only two tokens differ. The cream card has no app counterpart and gets a warm dark of its own, and
+   muted text takes the body-text colour, as the light palette does, because the app's dark muted
+   falls under 4.5:1 at the caption and label sizes this page uses. Both blocks sit on body so
+   `body { background: var(--page) }` paints the landing's page colour too. */
 
-body:has(.landing) {
+:root:not([data-theme='dark']) body:has(.landing) {
   --page: #fefdfc;
   --bg: #fff;
   --cream: #fff6f0;
@@ -990,20 +992,8 @@ body:has(.landing) {
 }
 
 :root[data-theme='dark'] body:has(.landing) {
-  --page: #16171d;
-  /* Equal to CHROME.dark in theme.ts, so the status bar matches the page without a special case. */
-  --bg: #1e1f27;
   --cream: #26222a;
-  --border: #2e303a;
-  --muted: #7c7887;
-  --text: #9ca3af;
-  --text-h: #f3f4f6;
-  --accent-bg: rgba(192, 132, 252, 0.15);
-  --accent-border: rgba(192, 132, 252, 0.5);
-  --accent-text: #c084fc;
-  --track: #262730;
-  --chip: #262730;
-  --shadow: rgba(0, 0, 0, 0.4) 0 10px 24px -8px;
+  --muted: var(--text);
 }
 
 .landing {
