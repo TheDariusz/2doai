@@ -296,12 +296,12 @@ applies the same way on every other page.
 
 #### Automated
 
-- [x] 2.1 `npm test`, `npm run lint`, `npm run build` pass
-- [x] 2.2 `node --test docs/index.test.mjs` passes
+- [x] 2.1 `npm test`, `npm run lint`, `npm run build` pass — 41104b8
+- [x] 2.2 `node --test docs/index.test.mjs` passes — 41104b8
 
 #### Manual
 
-- [x] 2.3 360px header, PL and EN, light and dark: no horizontal scroll
-- [x] 2.4 Dark picked on `/` carries through login, header and reload
-- [x] 2.5 Auto on `/` follows an OS flip
-- [x] 2.6 `docs/index.html` reads correctly in a browser
+- [x] 2.3 360px header, PL and EN, light and dark: no horizontal scroll — 41104b8
+- [x] 2.4 Dark picked on `/` carries through login, header and reload — 41104b8
+- [x] 2.5 Auto on `/` follows an OS flip — 41104b8
+- [x] 2.6 `docs/index.html` reads correctly in a browser — 41104b8
