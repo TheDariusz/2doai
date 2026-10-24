@@ -125,3 +125,47 @@ export function LinkedInIcon() {
     </Icon>
   )
 }
+
+/** Trails the landing's call to action and nudges forward under the pointer (index.css). */
+export function ArrowIcon() {
+  return (
+    <Icon size={18}>
+      <path d="M5 12h14" />
+      <path d="m13 6 6 6-6 6" />
+    </Icon>
+  )
+}
+
+/**
+ * One mark per step of the landing's "how it works": write it down, return to it, take a step. The
+ * list item carries the number and the heading; this is only its picture.
+ */
+export function StepIcon({ step }: { step: 'capture' | 'revisit' | 'start' }) {
+  return (
+    <span className="step-icon">
+      <Icon size={24}>
+        {step === 'capture' && (
+          <>
+            <rect x="3" y="3" width="18" height="18" rx="5" />
+            <path d="M12 8v8" />
+            <path d="M8 12h8" />
+          </>
+        )}
+        {step === 'revisit' && (
+          <>
+            <path d="M3 12a9 9 0 1 0 3-6.7" />
+            <path d="M3 4v5h5" />
+            <path d="M12 8v4l3 2" />
+          </>
+        )}
+        {step === 'start' && (
+          <>
+            <path d="M4 20 20 4" />
+            <path d="M14 4h6v6" />
+            <path d="M4 14v6h6" />
+          </>
+        )}
+      </Icon>
+    </span>
+  )
+}

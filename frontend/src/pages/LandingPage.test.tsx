@@ -33,6 +33,31 @@ it.each([
   expect(fetchMock).not.toHaveBeenCalled()
 })
 
+it.each([
+  ['en', 'Your everyday tasks. Dreams that come true.', ['Start now', 'Later', 'Stop reminders']],
+  ['pl', 'Codzienne zadania. Marzenia, które się spełniają.', ['Zaczynam', 'Wrócę później', 'Nie przypominaj']],
+] as const)('animates the %s hero word by word and the example choice by choice without changing what is read', async (language, heading, choices) => {
+  // The headline enters one word at a time, so each word is its own box — but the heading's text,
+  // and so its accessible name, stays the single sentence from the catalog.
+  await act(() => i18n.changeLanguage(language))
+  renderWithAuth(<LandingPage />)
+
+  const title = screen.getByRole('heading', { level: 1 })
+  expect(title).toHaveTextContent(heading)
+  expect(title.querySelectorAll('.landing-word')).toHaveLength(heading.split(' ').length)
+
+  // The AI suggestion in the example ends in the three answers the real card offers, drawn as
+  // chips: they are illustration, so still neither buttons nor links.
+  const preview = screen.getByRole('figure')
+  for (const choice of choices) expect(within(preview).getByText(choice)).toBeInTheDocument()
+  expect(within(preview).queryByRole('button')).not.toBeInTheDocument()
+
+  // The moving background is decoration: present for the eye, absent for the screen reader.
+  const ambient = document.querySelector('.landing-ambient')
+  expect(ambient).toHaveAttribute('aria-hidden', 'true')
+  expect(screen.getByRole('main')).not.toContainElement(ambient as HTMLElement)
+})
+
 it('credits the developer in a footer whose links open their site and profiles in new tabs', () => {
   renderWithAuth(<LandingPage />)
 
