@@ -282,26 +282,26 @@ applies the same way on every other page.
 
 #### Automated
 
-- [x] 1.1 `npx vitest run src/pages/LandingPage.test.tsx` passes
-- [x] 1.2 `npm test`, `npm run lint`, `npm run build` pass
+- [x] 1.1 `npx vitest run src/pages/LandingPage.test.tsx` passes — 6f31365
+- [x] 1.2 `npm test`, `npm run lint`, `npm run build` pass — 6f31365
 
 #### Manual
 
-- [x] 1.3 OS dark, nothing stored: `/` paints dark with no light flash
-- [x] 1.4 Dark picked on `/login`, back on `/`: dark landing, dark mark, card, author mark, FAQ borders, CTA legible
-- [x] 1.5 Light picked: landing identical to today
-- [x] 1.6 Installed PWA on a dark landing: status bar `#1e1f27`
+- [x] 1.3 OS dark, nothing stored: `/` paints dark with no light flash — 6f31365
+- [x] 1.4 Dark picked on `/login`, back on `/`: dark landing, dark mark, card, author mark, FAQ borders, CTA legible — 6f31365
+- [x] 1.5 Light picked: landing identical to today — 6f31365
+- [x] 1.6 Installed PWA on a dark landing: status bar `#1e1f27` — 6f31365
 
 ### Phase 2: Header control, phone-width layout, docs
 
 #### Automated
 
-- [ ] 2.1 `npm test`, `npm run lint`, `npm run build` pass
-- [ ] 2.2 `node --test docs/index.test.mjs` passes
+- [x] 2.1 `npm test`, `npm run lint`, `npm run build` pass
+- [x] 2.2 `node --test docs/index.test.mjs` passes
 
 #### Manual
 
-- [ ] 2.3 360px header, PL and EN, light and dark: no horizontal scroll
-- [ ] 2.4 Dark picked on `/` carries through login, header and reload
-- [ ] 2.5 Auto on `/` follows an OS flip
-- [ ] 2.6 `docs/index.html` reads correctly in a browser
+- [x] 2.3 360px header, PL and EN, light and dark: no horizontal scroll
+- [x] 2.4 Dark picked on `/` carries through login, header and reload
+- [x] 2.5 Auto on `/` follows an OS flip
+- [x] 2.6 `docs/index.html` reads correctly in a browser

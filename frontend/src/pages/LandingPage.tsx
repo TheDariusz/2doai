@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router'
 import { useAuth } from '../auth/auth-context'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
 import { Wordmark } from '../layout/Wordmark'
+import { ThemeSwitch } from '../ThemeSwitch'
 import { GitHubIcon, LinkedInIcon } from './icons'
 
 const AUTHOR_SITE = 'https://thedariusz.dev'
@@ -19,7 +20,10 @@ export function LandingPage() {
     <div className="landing">
       <header className="landing-header">
         <Wordmark />
-        <LanguageSwitch onSelect={(language) => void i18n.changeLanguage(language)} />
+        <div className="landing-controls">
+          <LanguageSwitch onSelect={(language) => void i18n.changeLanguage(language)} />
+          <ThemeSwitch />
+        </div>
         <Link className="text-link" to="/login">{t('auth.login.heading')}</Link>
       </header>
       <main>

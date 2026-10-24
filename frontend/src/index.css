@@ -910,7 +910,8 @@ button.check.done {
      the accessible name it gives them. */
   .chip-email,
   .logout-text,
-  .topbar .wordmark span {
+  .topbar .wordmark span,
+  .landing-header .wordmark span {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -1027,12 +1028,20 @@ body:has(.landing) {
 
 .landing-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 16px;
   padding-block: 20px;
+  /* A 360px row holds the mark and both switches but not "Zaloguj się" after them, so the link
+     drops to a second line there rather than pushing the page into a horizontal scroll. */
+  @media (max-width: 640px) {
+    gap: 10px;
+  }
 }
 
-.landing-header .seg {
+.landing-controls {
+  display: flex;
+  gap: 10px;
   margin-left: auto;
 }
 

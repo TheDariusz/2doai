@@ -211,8 +211,8 @@
         <tr><th scope="row">Account and session auth</th><td><span class="badge badge-live">implemented</span></td><td>Spring Security, server-side in-memory sessions, account erasure — and, since DEV-51, a confirmed address as the price of a session at all: sign-up mails a six-digit code, until it comes back the account exists and can do nothing, and an address already in the table is 409 whether or not it was ever proved</td></tr>
         <tr><th scope="row">Categories</th><td><span class="badge badge-live">implemented</span></td><td>Seeded reference table, <code>LifeDomain</code>, startup drift check — and, since DEV-49, a Polish and an English name per row, picked per request</td></tr>
         <tr><th scope="row">Localization (PL + EN)</th><td><span class="badge badge-live">implemented</span></td><td>English-first with Polish preserved (DEV-49): <code>AppLanguage</code> stored on the account (<code>app_user.preferred_language</code>), <code>Accept-Language</code> as the per-request transport, i18next in the SPA, and every server-generated sentence on the on-demand path — the model's answer and the template fallback alike — written in the caller's language. One surface is deliberately excluded: the scheduled proposal stays Polish until FR-009 lands in increment 2</td></tr>
-        <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens, a sticky header over a rail of the 11 domains, the two-language catalog behind a switch on the public screens and in that header, and a light / dark / auto theme choice kept on the device — three buttons on the auth screens, one cycling button in the header, where a phone has no room for three; <code>/api</code> proxies in development and production</td></tr>
-        <tr><th scope="row">Public landing page</th><td><span class="badge badge-live">implemented</span></td><td>An anonymous visit to <code>/</code> explains the product before asking for an account: a fictional, static preview of the three layers and a suggestion, how it works, an FAQ, and a footer crediting the developer with icon links to their site and profiles, in both languages. It issues no request of its own, renders while the session check is still pending, and hands a signed-in visitor on to <code>/goals</code></td></tr>
+        <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens, a sticky header over a rail of the 11 domains, the two-language catalog behind a switch on the public screens and in that header, and a light / dark / auto theme choice kept on the device — three buttons on the landing and auth screens, one cycling button in the header, where a phone has no room for three beside the account chip; <code>/api</code> proxies in development and production</td></tr>
+        <tr><th scope="row">Public landing page</th><td><span class="badge badge-live">implemented</span></td><td>An anonymous visit to <code>/</code> explains the product before asking for an account: a fictional, static preview of the three layers and a suggestion, how it works, an FAQ, and a footer crediting the developer with icon links to their site and profiles, in both languages, in a light or dark palette of its own under the same theme switch the auth screens carry. It issues no request of its own, renders while the session check is still pending, and hands a signed-in visitor on to <code>/goals</code></td></tr>
         <tr><th scope="row">Goals and dreams</th><td><span class="badge badge-live">implemented</span></td><td>One <code>goal</code> aggregate for both layers, <code>/api/goals</code>, and the <code>/goals</code> screen (S-02)</td></tr>
         <tr><th scope="row">Current tasks</th><td><span class="badge badge-live">implemented</span></td><td>A third <code>GoalLayer</code> value plus an optional <code>due_date</code> on the same aggregate and screen (S-07)</td></tr>
         <tr><th scope="row">Unified three-layer view</th><td><span class="badge badge-live">implemented</span></td><td>All three layers on one <code>/goals</code> screen, narrowed by layer and by category from the query string — filtered in the browser, no API change (S-08)</td></tr>
@@ -232,7 +232,7 @@
   log out — over a rail of domain tags, and a domain is a link that filters the entries screen
   rather than a place of its own: <code>/goals</code> is the only screen to be on, so the index
   route sends a signed-in visitor to it. An anonymous one gets the public landing page there instead
-  — a light, static explanation with a fictional preview, rendered without waiting for the session
+  — a static explanation with a fictional preview, light or dark like every other screen, rendered without waiting for the session
   check, so a slow or unreachable backend never hides what the product is; protected deep links
   still go to <code>/login</code> and come back. The app installs to the home screen; offline behavior is planned. Since DEV-51 a further public screen sits beside
   login and registration: <code>/verify</code> takes the six-digit code, and it is where sign-up lands and
@@ -314,6 +314,13 @@
   copy only. The hero tagline now speaks of dreams coming true rather than being put off, and the page
   ends in a developer-credit footer (author mark, name, role, site and profile icon links, all opening
   in a new tab). Only the overview row above moved; nothing else on this page changed.</p>
+  <p class="note">Verified against the <code>landing-theme-toggle</code> change on 2026-10-24 — frontend
+  only, and it supersedes the <code>theme-toggle</code> note's "stays light": the landing now follows
+  <code>data-theme</code> like every other screen, with a dark twin of its warm palette, and its header
+  carries the same three-button theme group as the auth screens beside the language switch (at 360px
+  the sign-in link wraps to a second header line). The choice is the same <code>localStorage</code>
+  entry, so a pick on <code>/</code> is what login and the app then show. The overview table and the
+  frontend prose moved; the code-map rows, backend, flows, data, roadmap and glossary stand as they were.</p>
   <p class="note">Verified against DEV-52 on 2026-10-06 — a frontend-only fix found on an iPhone.
   The category select no longer pushes the entry bar off a phone screen, and the app installs to
   the home screen (web manifest plus PNG icons). Only the PWA row above and the frontend status
