@@ -22,7 +22,10 @@ export const pl = {
       suggestion: 'Propozycja AI',
       message: 'Maraton wciąż czeka. Może na początek wybierzesz bieg na 10 km?',
       choices: 'Ty decydujesz: zacząć, wrócić później albo wyłączyć przypomnienia o tym wpisie.',
+      // The three answers the real proposal card offers, as chips in the example.
+      answers: { start: 'Zaczynam', later: 'Wrócę później', never: 'Nie przypominaj' },
     },
+    eyebrow: 'Przypomina w naturalnym rytmie',
     howTitle: 'Jak to działa',
     how: {
       capture: { title: 'Zapisz wszystko', body: 'Dodaj codzienne zadania, cele na najbliższe miesiące i marzenia bez terminu.' },

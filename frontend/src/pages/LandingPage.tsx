@@ -1,14 +1,47 @@
+import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Navigate } from 'react-router'
 import { useAuth } from '../auth/auth-context'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
 import { Wordmark } from '../layout/Wordmark'
 import { ThemeSwitch } from '../ThemeSwitch'
-import { GitHubIcon, LinkedInIcon } from './icons'
+import { ArrowIcon, GitHubIcon, LinkedInIcon, PlusIcon, SparkleIcon, StepIcon } from './icons'
 
 const AUTHOR_SITE = 'https://thedariusz.dev'
 // `noopener` only: the footer is the author's advert, so the referrer is the point, not a leak.
 const EXTERNAL = { target: '_blank', rel: 'noopener' } as const
+
+const LAYERS = ['TASK', 'GOAL', 'DREAM'] as const
+const STEPS = ['capture', 'revisit', 'start'] as const
+const ANSWERS = ['start', 'later', 'never'] as const
+const TOPICS = ['account', 'suggestions', 'control', 'deletion'] as const
+
+/**
+ * The headline enters one word at a time, so each word is wrapped for the animation; the spaces
+ * stay as text between them, directly in the heading (a wrapper around word and space would lose
+ * the space from the accessible name), so the heading reads as the one sentence it is. The last
+ * word is the one the page is about and carries the highlight — a second animation, so its inline
+ * delay lists the sheen's own as well (one value would be repeated over both).
+ */
+function Headline({ text }: { text: string }) {
+  const words = text.split(' ')
+  return (
+    <>
+      {words.map((word, index) => {
+        const last = index === words.length - 1
+        const delay = `${0.05 + index * 0.08}s`
+        return (
+          <Fragment key={index}>
+            <span className={last ? 'landing-word landing-word-accent' : 'landing-word'} style={{ animationDelay: last ? `${delay}, 1.6s` : delay }}>
+              {word}
+            </span>
+            {last ? null : ' '}
+          </Fragment>
+        )
+      })}
+    </>
+  )
+}
 
 export function LandingPage() {
   const { status } = useAuth()
@@ -18,6 +51,13 @@ export function LandingPage() {
 
   return (
     <div className="landing">
+      {/* Three soft lights drifting over a dot grid: the page breathes, and nothing here is read aloud. */}
+      <div className="landing-ambient" aria-hidden="true">
+        <span className="landing-orb landing-orb-a" />
+        <span className="landing-orb landing-orb-b" />
+        <span className="landing-orb landing-orb-c" />
+        <span className="landing-dots" />
+      </div>
       <header className="landing-header">
         <Wordmark />
         <div className="landing-controls">
@@ -29,34 +69,48 @@ export function LandingPage() {
       <main>
         <section className="landing-hero" aria-labelledby="landing-title">
           <div className="landing-pitch">
-            <h1 id="landing-title">{t('landing.title')}</h1>
-            <p>{t('landing.intro')}</p>
-            <div className="landing-actions">
-              <Link className="cta" to="/register">{t('auth.register.heading')}</Link>
+            <p className="landing-eyebrow landing-rise"><span className="landing-live" aria-hidden="true" />{t('landing.eyebrow')}</p>
+            <h1 id="landing-title"><Headline text={t('landing.title')} /></h1>
+            <p className="landing-rise landing-rise-2">{t('landing.intro')}</p>
+            <div className="landing-actions landing-rise landing-rise-3">
+              <Link className="cta" to="/register">{t('auth.register.heading')}<ArrowIcon /></Link>
               <a className="text-link" href="#how-it-works">{t('landing.seeHow')}</a>
             </div>
           </div>
-          <figure className="landing-preview" aria-labelledby="landing-example">
-            <figcaption id="landing-example">{t('landing.example')}</figcaption>
-            <h2>{t('goals.title')}</h2>
-            {(['TASK', 'GOAL', 'DREAM'] as const).map((layer) => (
-              <section key={layer} className={layer === 'DREAM' ? 'preview-row dream' : 'preview-row'}>
-                <h3>{t(`goals.sections.${layer}`)}</h3>
-                <p>{t(`landing.preview.${layer}`)}</p>
+          {/* The example tilts towards the reader and straightens under the pointer; inside it the
+              rows arrive, then a loop plays the product story: a task gets ticked, the dream wakes,
+              and the AI's suggestion arrives with its three answers. */}
+          <div className="landing-stage landing-rise landing-rise-1">
+            <figure className="landing-preview" aria-labelledby="landing-example">
+              <figcaption id="landing-example">{t('landing.example')}</figcaption>
+              <h2>{t('goals.title')}</h2>
+              {LAYERS.map((layer) => (
+                <section key={layer} className={`preview-row preview-${layer.toLowerCase()}`}>
+                  <span className="preview-box" aria-hidden="true" />
+                  <h3>{t(`goals.sections.${layer}`)}</h3>
+                  <p>{t(`landing.preview.${layer}`)}</p>
+                </section>
+              ))}
+              <span className="preview-cord" aria-hidden="true" />
+              <section className="preview-suggestion">
+                <h3><SparkleIcon />{t('landing.preview.suggestion')}</h3>
+                <p>{t('landing.preview.message')}</p>
+                <p>{t('landing.preview.choices')}</p>
+                <ul className="preview-answers">
+                  {ANSWERS.map((answer) => (
+                    <li key={answer} className={answer === 'start' ? 'preview-answer accent' : 'preview-answer'}>{t(`landing.preview.answers.${answer}`)}</li>
+                  ))}
+                </ul>
               </section>
-            ))}
-            <section className="preview-suggestion">
-              <h3>{t('landing.preview.suggestion')}</h3>
-              <p>{t('landing.preview.message')}</p>
-              <p>{t('landing.preview.choices')}</p>
-            </section>
-          </figure>
+            </figure>
+          </div>
         </section>
         <section id="how-it-works" aria-labelledby="landing-how">
-          <h2 id="landing-how">{t('landing.howTitle')}</h2>
+          <h2 id="landing-how" className="landing-reveal">{t('landing.howTitle')}</h2>
           <ol className="landing-steps">
-            {(['capture', 'revisit', 'start'] as const).map((step) => (
-              <li key={step}>
+            {STEPS.map((step) => (
+              <li key={step} className="landing-reveal">
+                <StepIcon step={step} />
                 <h3>{t(`landing.how.${step}.title`)}</h3>
                 <p>{t(`landing.how.${step}.body`)}</p>
               </li>
@@ -64,17 +118,22 @@ export function LandingPage() {
           </ol>
         </section>
         <section className="landing-faq" aria-labelledby="landing-faq">
-          <h2 id="landing-faq">{t('landing.faqTitle')}</h2>
-          {(['account', 'suggestions', 'control', 'deletion'] as const).map((topic) => (
-            <details key={topic}>
-              <summary>{t(`landing.faq.${topic}.question`)}</summary>
-              <p>{t(`landing.faq.${topic}.answer`)}</p>
-            </details>
-          ))}
+          <h2 id="landing-faq" className="landing-reveal">{t('landing.faqTitle')}</h2>
+          <div className="landing-reveal">
+            {TOPICS.map((topic) => (
+              <details key={topic}>
+                <summary>{t(`landing.faq.${topic}.question`)}<span className="faq-mark" aria-hidden="true"><PlusIcon /></span></summary>
+                <p>{t(`landing.faq.${topic}.answer`)}</p>
+              </details>
+            ))}
+          </div>
         </section>
         <section className="landing-closing" aria-labelledby="landing-start">
-          <h2 id="landing-start">{t('landing.closing')}</h2>
-          <Link className="cta" to="/register">{t('auth.register.heading')}</Link>
+          <span className="landing-orb landing-orb-closing" aria-hidden="true" />
+          <h2 id="landing-start" className="landing-reveal">{t('landing.closing')}</h2>
+          <div className="landing-reveal">
+            <Link className="cta" to="/register">{t('auth.register.heading')}<ArrowIcon /></Link>
+          </div>
         </section>
       </main>
       <footer className="landing-footer">

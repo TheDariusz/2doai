@@ -21,7 +21,9 @@ export const en: typeof pl = {
       suggestion: 'An AI suggestion',
       message: 'That marathon is still waiting. How about picking a 10 km race to start with?',
       choices: 'You decide: start, come back later, or stop reminders about this entry.',
+      answers: { start: 'Start now', later: 'Later', never: 'Stop reminders' },
     },
+    eyebrow: 'Reminds you in a natural rhythm',
     howTitle: 'How it works',
     how: {
       capture: { title: 'Write it all down', body: "Add today's tasks, goals for the coming months and dreams with no deadline." },
