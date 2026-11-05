@@ -554,6 +554,32 @@ health indicator UP either way.
 
 ---
 
+## Phase 9 — Logs to Grafana Cloud Loki
+
+The backend pushes JSON log lines to the shared Grafana Cloud Loki stack (thedariusz-ops, central
+logging plan 02). The appender lives in `logback-spring.xml` under the `prod` Spring profile, which
+`fly.toml` `[env]` switches on; every other run, CI included, logs to the console only.
+
+| Name | Where | What |
+| --- | --- | --- |
+| `SPRING_PROFILES_ACTIVE=prod` | `fly.toml` `[env]` | Turns on the Loki appender, nothing else |
+| `LOKI_PUSH_URL` | `fly.toml` `[env]` | Full push URL, `https://logs-prod-…grafana.net/loki/api/v1/push` (not secret) |
+| `LOKI_USER` | `fly.toml` `[env]` | Numeric Loki tenant id, "User" on the stack's Loki details page (not secret) |
+| `LOKI_TOKEN` | Fly secret | Loki write token from the `services-logs-write` access policy, token `2doai` |
+
+```bash
+cd backend
+fly secrets set LOKI_TOKEN=glc_...   # value never committed, never echoed in logs
+fly secrets list                     # names + digests, never values
+```
+
+A missing or wrong token does not stop the app: pushes fail with 401, loki4j reports it on its
+own status channel, and log lines are dropped. The appender batches asynchronously, so a Loki
+outage never blocks a request or the scheduler thread.
+
+Two events are what the alert rules in thedariusz-ops key on: `user_registered` (an address was
+proved, logged after the verification commits) and `heartbeat` (every 5 minutes).
+
 ## Verification checklist (the full chain)
 
 | Check | Command | Expected |
@@ -568,6 +594,7 @@ health indicator UP either way.
 | Scheduler alive | `curl https://2doai.fly.dev/actuator/health` | `UP` — the `proposalScheduler` indicator reports the tick's own pulse |
 | Sender domain verified | Resend dashboard → Domains | `2doai.app` **Verified** (an unverified domain drops mail silently) |
 | Mail secrets present | `fly secrets list` | `RESEND_API_KEY` and `APP_BASE_URL` both listed |
+| Logs reach Loki | Grafana Explore, `{service="2doai"} \| json \| event="heartbeat"` | A line every 5 minutes |
 
 ---
 

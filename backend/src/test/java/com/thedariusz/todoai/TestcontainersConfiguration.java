@@ -20,7 +20,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * Gives {@code @SpringBootTest} a real Postgres. {@code @ServiceConnection}
  * auto-wires the container's JDBC coordinates into the context, so Flyway runs
  * and Hibernate validates against the same DB used in dev and production.
- * {@code @WebMvcTest} slices (e.g. PingControllerTest) load no datasource and
+ * {@code @WebMvcTest} slices (none today) load no datasource and
  * are unaffected.
  *
  * <p>It also replaces the SMTP adapter, which since DEV-51 is on the path of every registration
