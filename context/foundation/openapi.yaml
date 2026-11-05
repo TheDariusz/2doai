@@ -771,6 +771,10 @@ paths:
         same cookie on its 401 and would serve as well; this is the cheaper of the two.
 
 
+        Permanent: Grafana Cloud Synthetic Monitoring probes it every five minutes (thedariusz-ops),
+        so the owner's downtime alert depends on this path answering 200 with no session.
+
+
         A verb in an otherwise verb-free API (#141), kept deliberately: an operational probe is not a
         domain concept, and `/pings` would invent a collection that does not exist. Specified rather
         than left out — an endpoint the deployment and the test harness both depend on is part of

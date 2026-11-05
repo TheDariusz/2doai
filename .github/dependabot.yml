@@ -57,3 +57,9 @@ updates:
     groups:
       maven:
         patterns: ["*"]
+    ignore:
+      # loki4j 2.1.x is built against Logback 1.6; Boot 4.1.2 manages Logback 1.5, which is the
+      # 2.0.x line (see loki4j.version in pom.xml). Left alone, the grouped weekly PR proposes 2.1 as
+      # a minor, which the auto-merge workflow merges on green. Drop this when Boot moves to Logback 1.6.
+      - dependency-name: com.github.loki4j:loki-logback-appender
+        versions: ["[2.1,)"]

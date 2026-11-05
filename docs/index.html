@@ -219,6 +219,7 @@
         <tr><th scope="row">Selection engine</th><td><span class="badge badge-live">implemented</span></td><td>Deterministic neglect heuristic and category balancing behind <code>POST /api/proposals</code> (S-04a); the engine itself still holds no clock, no repository and no model — the AI enters after it has picked</td></tr>
         <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-live">implemented</span></td><td>Sonnet phrases the picked entry, the proposal is stored (at most one pending per user), the four FR-013 answers act on the entry, and <code>STARTING</code> returns FR-014's bullets — all behind the manual trigger on <code>/goals</code> (S-04b)</td></tr>
         <tr><th scope="row">Natural-rhythm return</th><td><span class="badge badge-live">implemented</span></td><td>The non-fixed cycle that decides <em>when</em> to ask (S-05): a per-account moment drawn 2–7 days out inside daytime hours, held in memory and backed by <code>app_user.next_proposal_at</code>, firing <code>ProposalService.proposeScheduled</code> without anyone pressing anything. Since DEV-51 an account joins that cycle when its address is proved rather than when it registers, so the one loop that writes unprompted only ever holds mailboxes somebody confirmed. What comes back is emailed and waits in the app at <code>GET /api/proposals/pending</code>. Its text is the one server-generated sentence still Polish for every account — the accepted FR-009 exception, named at that one seam</td></tr>
+        <tr><th scope="row">Observability</th><td><span class="badge badge-live">implemented</span></td><td>In production (the <code>prod</code> profile <code>fly.toml</code> switches on) every log line is also pushed as JSON to the shared Grafana Cloud Loki stack, labelled <code>service=2doai</code>, <code>env=prod</code> and a lowercase <code>level</code>. Two lines exist for the owner's alerts: <code>user_registered</code>, after a verification commits, and a five-minute <code>heartbeat</code>, so that silence is visible (DEV-58). Rules, checks and dashboards live in the thedariusz-ops repository, not here</td></tr>
         <tr><th scope="row">PWA/offline behavior</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-10. Installing to the home screen already works — a web manifest and PNG icons, so iOS opens the app standalone — but nothing is cached, so it is still online-only</td></tr>
       </tbody>
     </table>
@@ -297,6 +298,14 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
+  <p class="note">Verified against DEV-58 on 2026-11-05 — backend and ops only, no schema change. A
+  new <code>observability</code> package (<code>RegistrationAuditLogger</code>, <code>Heartbeat</code>,
+  <code>FailSafeLokiAppender</code>, <code>RedactingJsonLayout</code>, the two lowercase-level helpers and the two providers that shape <code>msg</code> and <code>err</code>), loki4j behind the new <code>prod</code> profile in
+  <code>logback-spring.xml</code>, and <code>/api/ping</code> declared permanent because Synthetic
+  Monitoring probes it. Moved: the overview table, the runtime diagram and its scheduler note, the
+  code map, the backend terms and a new <code>observability</code> chapter with its class diagram, the
+  address-proving flow, the services table, the roadmap and the glossary. <code>#data</code> stands
+  as DEV-51 left it.</p>
   <p class="note">Verified against the <code>theme-toggle</code> change on 2026-10-14 — frontend
   only. Both auth screens carry a light / dark / auto switch and the header a single button cycling through the same three (the three-button group did not fit a 360px header); the choice lives in
   <code>localStorage</code> like the pre-login language (no account column, no endpoint), and an
@@ -447,6 +456,7 @@ flowchart LR
   BE -- "LlmClient (Spring AI), on a proposal" --> LLM[OpenRouter → Anthropic Sonnet]
   BE -- "EmailSender (SMTP), at sign-up and on a scheduled fire" --> MAIL[Resend — verification code, then proposal + app link]
   MAIL -. email .-> U
+  BE -- "loki4j, prod profile only" --> LOKI[Grafana Cloud Loki — shared with the owner's other services]
   GHA[GitHub Actions — delivery plane] -. "flyctl deploy" .-> BE
   GHA -. "wrangler pages deploy" .-> CFP
   </pre>
@@ -454,7 +464,9 @@ flowchart LR
   inside the same Fly machine, which is why the diagram has no fourth box: <code>fly.toml</code> pins
   exactly one machine, so there is nothing to elect and nothing to lock. That thread is also the
   <code>proposalScheduler</code> liveness indicator, so a tick that stops while the web server keeps
-  answering becomes a restart rather than silence.</p>
+  answering becomes a restart rather than silence. Since DEV-58 it carries a second job, the
+  five-minute <code>Heartbeat</code>, whose absence in Loki is what pages the owner — the outside view
+  of the same liveness that the indicator gives Fly from inside.</p>
   <h3>Target MVP runtime <span class="badge badge-planned">planned</span></h3>
   <p>The target keeps the same small deployment shape. Task/goal storage, AI orchestration, the
   natural-rhythm background process and email delivery have all since landed; what remains of this
@@ -511,6 +523,7 @@ flowchart LR
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/goal"><code>backend/…/goal</code></a></th><td>One aggregate for all three layers — current tasks, goals and dreams — its CRUD API, and its erasure adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/proposal"><code>backend/…/proposal</code></a></th><td>The whole proactive loop: the selection engine, the two Sonnet prompts and their template fallback, the stored <code>proposal</code> aggregate, the four answers, the three endpoints — and, since S-05, the natural-rhythm scheduler that fires without a caller and the email it sends, still Polish for every account until FR-009</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/mail"><code>backend/…/mail</code></a></th><td>The <code>EmailSender</code> outbound port and its SMTP adapter — how the app reaches a user who is not looking at it</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/observability"><code>backend/…/observability</code></a></th><td>What the app tells the shared Loki stack beyond its ordinary lines: <code>user_registered</code> after a verification commits, the five-minute <code>heartbeat</code>, and the lowercase level the label contract needs. The shipping itself is configuration — <code>logback-spring.xml</code> and <code>logback-loki.xml</code> — under the <code>prod</code> profile only</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai"><code>backend/…/ai</code></a></th><td>Provider-neutral LLM port, schema contract, and Spring AI adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai/memory"><code>backend/…/ai/memory</code></a></th><td>Personal AI-memory aggregate, rendering, persistence, erasure adapter, and the <code>AiMemoryService</code> seam other contexts read and write it through</td><td><span class="badge badge-foundation">foundation</span></td></tr>
         <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, the public landing page, auth screens, the header-and-rail shell over the 11 domains, the device-level theme switch, the filtered three-layer screen, and the proposal card</td><td><span class="badge badge-live">implemented</span></td></tr>
@@ -670,6 +683,15 @@ flowchart LR
     <dt>LLM port</dt>
     <dd>The provider-neutral <code>LlmClient</code> interface used by backend use cases. Its Spring
     AI adapter translates those calls to the selected external model provider.</dd>
+    <dt>user_registered</dt>
+    <dd>The log line (<code>event=user_registered</code>, with the account's UUID and nothing else
+    about it) written once a verification has <em>committed</em>: a human proved an address. The
+    owner's registration alert keys on it, which is why a rolled-back verification must never
+    produce one.</dd>
+    <dt>Heartbeat</dt>
+    <dd>The <code>event=heartbeat</code> line written every five minutes on the scheduler thread.
+    Nobody reads it; its <em>absence</em> for fifteen minutes is the alert that the app has gone
+    quiet.</dd>
   </dl>
 
   <h3>Architectural roles</h3>
@@ -1500,6 +1522,80 @@ classDiagram
   EmailVerificationService --> EmailSender : the six-digit code (DEV-51)
   </pre>
 
+  <h3>observability</h3>
+  <p>The package exists because the owner's alerts need a few lines that mean something exact, and
+  those lines belong to no domain slice. Shipping is not code at all: <code>logback-spring.xml</code>
+  attaches a loki4j appender (<code>logback-loki.xml</code>) under the <code>prod</code> profile, which
+  only <code>fly.toml</code> sets, so every test run and every developer machine logs to the console
+  exactly as before. Structured fields travel as SLF4J key-value pairs and come out as top-level JSON
+  keys; labels are only <code>service</code>, <code>env</code> and <code>level</code>, the contract
+  shared with the owner's other services. A logged exception follows that contract too:
+  <code>err</code> is only its type and message (<code>java.lang.IllegalStateException: boom</code>), short
+  enough for a query or alert rule to match, and the stack trace, causes included, follows the message
+  in <code>msg</code>.</p>
+  <p><strong>Never in the way.</strong> loki4j batches on its own threads and drops lines once its send
+  queue is full, so a Loki outage costs log lines, never a request or a scheduler tick. A missing or
+  wrong <code>LOKI_TOKEN</code> is the same case: Loki answers 401 and loki4j prints a warning per
+  failed batch to the console. An unusable <code>LOKI_PUSH_URL</code> would be worse — plain loki4j
+  throws while starting, and Spring Boot refuses to boot on a failed logging setup — so
+  <code>FailSafeLokiAppender</code> turns that into a warning and a stopped appender; the missing
+  heartbeat then reaches the owner instead. Lines leave in five-second batches, not loki4j's default
+  minute, so an alert is prompt and a hard-killed machine takes little with it.</p>
+  <p><strong>No address leaves the machine.</strong> Shipping makes every line a third party's copy, so
+  the contract's "never an address, never user-typed text" applies to the whole log, not only to the
+  two lines this package writes. Three guards, one per way it was broken before DEV-58 shipped:
+  <code>RedactingJsonLayout</code> strips the local part of any address in the finished line, which is
+  the only defence against third-party exception text in <code>err</code> and in the stack trace inside <code>msg</code> (an SMTP rejection quotes its
+  recipient); pgjdbc runs with <code>logServerErrorDetail=false</code>, so Postgres's
+  <code>DETAIL</code> — the duplicate address, a failing row's user-typed content — never reaches a
+  message; and the scoped-lookup 404 logs the account id from <code>CurrentUser.findId()</code> instead
+  of the request's client description, which carried the session id and the address.
+  <code>LogPrivacyApiTest</code> pins the last two. <code>LokiLogLineTest</code> runs the real appender fragment against a
+  fake Loki to pin the wire shape, and <code>LoggingProfileTest</code> pins that no test run attaches
+  it.</p>
+  <p><code>RegistrationAuditLogger</code> is the first <code>@TransactionalEventListener</code> in the
+  codebase, and the contrast with <code>ProposalScheduler</code>'s plain listener is deliberate: the
+  rhythm's write rolls back with the verification, a line already shipped to Loki cannot, so it waits
+  for <code>AFTER_COMMIT</code>. <code>Heartbeat</code> shares Boot's single scheduler thread with the
+  rhythm's tick; a long fire makes a beat late rather than lost, and the fifteen-minute absence rule
+  tolerates one late beat.</p>
+  <pre class="mermaid">
+classDiagram
+  class RegistrationAuditLogger {
+    &lt;&lt;application service&gt;&gt;
+    +onVerified(UserVerified) AFTER_COMMIT — event=user_registered, user_id
+  }
+  class Heartbeat {
+    &lt;&lt;inbound adapter / clock&gt;&gt;
+    +beat() @Scheduled every 5 minutes — event=heartbeat
+  }
+  class FailSafeLokiAppender {
+    &lt;&lt;infrastructure configuration&gt;&gt;
+    +start() a loki4j start failure becomes a warning, never a failed boot
+  }
+  class LowercaseLevelConverter {
+    &lt;&lt;infrastructure configuration&gt;&gt;
+    lowerLevel conversion word — the level label
+  }
+  class LowercaseLevelJsonProvider {
+    &lt;&lt;infrastructure configuration&gt;&gt;
+    the level key of the JSON line
+  }
+  class RedactingJsonLayout {
+    &lt;&lt;infrastructure configuration&gt;&gt;
+    +doLayout(ILoggingEvent) an address keeps only its domain
+  }
+  class ErrorSummaryJsonProvider {
+    &lt;&lt;infrastructure configuration&gt;&gt;
+    the err key — exception type and message
+  }
+  class MessageWithStackTraceJsonProvider {
+    &lt;&lt;infrastructure configuration&gt;&gt;
+    the msg key — message, then the stack trace
+  }
+  EmailVerificationService ..> RegistrationAuditLogger : UserVerified, after the commit
+  </pre>
+
   <h3>ai + ai/memory</h3>
   <p>The memory aggregate got its first real content in S-04b. The root has always existed —
   <code>RegistrationService</code> writes it in the same transaction as the user, so every account
@@ -1568,7 +1664,8 @@ classDiagram
   <code>GET /api/goals</code>, <code>POST /api/goals</code>, <code>PUT /api/goals/{id}</code>,
   <code>DELETE /api/goals/{id}</code>, <code>POST /api/proposals</code>,
   <code>GET /api/proposals/pending</code>, <code>POST /api/proposals/{id}/answer</code>,
-  <code>GET /api/ping</code>. That list is not maintained by hand: <code>ApiSurfaceTest</code>
+  <code>GET /api/ping</code> — permanent since DEV-58, because Grafana Cloud Synthetic Monitoring
+  probes it every five minutes. That list is not maintained by hand: <code>ApiSurfaceTest</code>
   compares the operations Spring publishes against the ones
   <a href="../context/foundation/openapi.yaml"><code>openapi.yaml</code></a> declares, as a set in
   both directions, so a controller the spec never mentions fails the build — which is how
@@ -1891,6 +1988,7 @@ sequenceDiagram
   participant TH as VerificationThrottle
   participant UR as UserRepository
   participant SCH as ProposalScheduler
+  participant RAL as RegistrationAuditLogger
   SPA->>VC: POST /api/verifications {email, code}
   VC->>EVS: verify(email, code)
   EVS->>UR: findByEmail
@@ -1906,6 +2004,8 @@ sequenceDiagram
     Note over EVS,UR: the update carries "and emailVerifiedAt is null" too,&lt;br/&gt;so of two requests racing the same code only one wins
     EVS->>SCH: UserVerified, published only by the winner, inside the same transaction
     Note over SCH: the rhythm draws this account's first moment here.&lt;br/&gt;A rolled-back verification takes it with it
+    EVS->>RAL: UserVerified again, delivered only once the transaction has committed
+    Note over RAL: event=user_registered with the account's UUID —&lt;br/&gt;the line the owner's registration alert keys on
     EVS-->>SPA: 204 — no session, and POST /api/sessions is still the only one
   end
   SPA->>VC: POST /api/verification-codes {email} — "send again"
@@ -2474,6 +2574,7 @@ flowchart TB
         <tr><th scope="row">Cloudflare Pages</th><td>Frontend host and <code>/api/*</code> reverse proxy</td><td><code>CLOUDFLARE_API_TOKEN</code>, <code>CLOUDFLARE_ACCOUNT_ID</code></td></tr>
         <tr><th scope="row">Neon</th><td>Managed PostgreSQL 18 (EU/Frankfurt), pooled SSL connection, autosuspend</td><td>Consumed by the backend only</td></tr>
         <tr><th scope="row">GitHub Actions</th><td>Pull-request validation and deployment runner</td><td>Five workflows; path filtering lives inside the jobs, never on the trigger</td></tr>
+        <tr><th scope="row">Grafana Cloud Loki</th><td>Log store and alerting shared with the owner's other services (rules live in thedariusz-ops)</td><td><code>LOKI_PUSH_URL</code> and <code>LOKI_USER</code> in <code>fly.toml</code> <code>[env]</code>; <code>LOKI_TOKEN</code> a Fly secret</td></tr>
         <tr><th scope="row">OpenRouter (CI)</th><td>Model gateway for the AI code review</td><td><code>OPENROUTER_CI_KEY</code>—a <em>separate</em>, credit-capped key; the application's <code>OPENROUTER_API_KEY</code> stays a Fly secret and never enters GitHub</td></tr>
       </tbody>
     </table>
@@ -2525,7 +2626,7 @@ flowchart TB
   all three task layers on one <code>goal</code>
   aggregate, the complete proposal loop — on demand <em>and</em> on its own natural rhythm, by email
   and in the app — the AI memory and category foundations, since DEV-49 both languages the
-  product speaks, and a public landing page that explains all of it before asking for an account. The MVP roadmap builds vertical slices on top:</p>
+  product speaks, a public landing page that explains all of it before asking for an account, and, since DEV-58, production logs in Grafana Cloud Loki with the two events the owner's alerts key on. The MVP roadmap builds vertical slices on top:</p>
   <div class="card"><strong>Category auto-tag</strong> <span class="badge badge-planned">planned</span><br>AI
   classification into the 11 life domains at capture time. All three layers already ship with a
   manual picker; the auto-tag replaces the picking, not the storage. It is also where Haiku's
@@ -2545,6 +2646,10 @@ flowchart TB
   natural-rhythm e-mail (FR-009), so the protected loop was not touched inside the freeze window —
   until it lands, a scheduled proposal reads Polish for every account, on the pending card as well as
   in the inbox.</div>
+  <div class="card"><strong>Observability</strong> <span class="badge badge-live">implemented</span><br>Production
+  logs in the owner's shared Grafana Cloud Loki stack, a <code>user_registered</code> line after each
+  committed verification and a five-minute heartbeat (DEV-58), so a new account and a silent app both
+  reach the owner without anyone reading <code>fly logs</code>.</div>
   <div class="card"><strong>Onboarding memory seed</strong> <span class="badge badge-planned">planned</span><br>The
   durable profile facts that would let a proposal know who it is talking to. Memory currently fills
   from proposal answers alone, so early prompts carry an episodic log and no profile.</div>
@@ -2583,6 +2688,7 @@ flowchart TB
         <tr><th scope="row">AppLanguage</th><td>The two languages the app writes to a person in, <code>PL</code> and <code>EN</code>. Persisted by <code>name()</code> in <code>app_user.preferred_language</code> and carried on the wire as the same two letters, not a BCP 47 tag. <code>DEFAULT = EN</code> is what a <em>request</em> naming nothing known resolves to; a null <em>account</em> column reads as Polish instead, and the two rules must stay separate.</td></tr>
         <tr><th scope="row">Accept-Language</th><td>The transport half of localization: the SPA sends whatever it is currently rendering, <code>i18n/LocaleConfig</code>'s resolver negotiates it against the two supported locales, and handlers receive a plain <code>Locale</code>. The account column is the persistence half — the header cannot be asked at a moment when no request exists.</td></tr>
         <tr><th scope="row">The FR-009 gap</th><td>The accepted exception to "no leaked word": <code>ProposalService.proposeScheduled</code> passes <code>AppLanguage.PL</code> literally, so a scheduled proposal is Polish for every account until increment 2. Because the text is stored, it reaches the pending card as well as the e-mail. Pinned by <code>ScheduledProposalTest</code> so it reads as a decision, not a defect.</td></tr>
+        <tr><th scope="row">Heartbeat / user_registered</th><td>The two log events the owner's alerts key on (DEV-58), both shipped to Grafana Cloud Loki in production only: <code>heartbeat</code> every five minutes from <code>observability/Heartbeat</code>, whose fifteen-minute absence means the app went quiet, and <code>user_registered</code> from <code>RegistrationAuditLogger</code>, written only after a verification commits. Each carries at most the account's UUID.</td></tr>
         <tr><th scope="row">PerUserDataDeleter</th><td>Interface each module implements so FR-019 account deletion erases its per-user rows; the final user delete's plain FKs fail loudly if one is missing.</td></tr>
         <tr><th scope="row">Session model</th><td>Server-side session cookie (<code>HttpOnly; Secure; SameSite=Strict</code>), held in-memory on the single Fly machine. Not JWT; never DB-backed (Neon autosuspend).</td></tr>
         <tr><th scope="row">Pattern B / unified origin</th><td>Cloudflare serves the SPA and reverse-proxies <code>/api/*</code> to Fly—production is same-origin, no CORS.</td></tr>

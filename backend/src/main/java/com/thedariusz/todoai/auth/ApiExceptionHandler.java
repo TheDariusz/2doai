@@ -6,6 +6,7 @@ import com.thedariusz.todoai.goal.GoalNotFoundException;
 import com.thedariusz.todoai.mail.MailDeliveryException;
 import com.thedariusz.todoai.proposal.ProposalAlreadyAnsweredException;
 import com.thedariusz.todoai.proposal.ProposalNotFoundException;
+import com.thedariusz.todoai.security.CurrentUser;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -36,6 +37,12 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
 	/** Likewise. The SPA branches on it to send the user to the code screen instead of the login one. */
 	private static final URI VERIFICATION_FAILED = URI.create("urn:2doai:problem:verification-failed");
+
+	private final CurrentUser currentUser;
+
+	ApiExceptionHandler(CurrentUser currentUser) {
+		this.currentUser = currentUser;
+	}
 
 	/**
 	 * Validation → <b>422</b>, not Spring's default 400: the request parsed fine, its content failed
@@ -72,12 +79,14 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	 * nothing the caller did <em>not</em> already know may reach the body. {@code GoalApiTest} strips
 	 * {@code instance} before comparing the two responses for exactly that reason.
 	 *
-	 * <p>Logs with the request description because a bare id cannot be tied to an account: a stale
-	 * id of one's own and a probe of somebody else's look identical in the log otherwise.
+	 * <p>Logs the account id because a bare goal id cannot be tied to an account: a stale id of one's
+	 * own and a probe of somebody else's look identical in the log otherwise. The account id and
+	 * nothing else — {@code getDescription(true)} would add the session id, which is a bearer
+	 * credential, and the remote user, which is the address, to a line that ships to Loki.
 	 */
 	@ExceptionHandler(GoalNotFoundException.class)
 	ProblemDetail handleGoalNotFound(GoalNotFoundException ex, WebRequest request) {
-		logger.warn("Scoped lookup missed at " + request.getDescription(true) + ": " + ex.getMessage());
+		logScopedLookupMiss(ex, request);
 		return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "No such goal");
 	}
 
@@ -87,8 +96,14 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	 */
 	@ExceptionHandler(ProposalNotFoundException.class)
 	ProblemDetail handleProposalNotFound(ProposalNotFoundException ex, WebRequest request) {
-		logger.warn("Scoped lookup missed at " + request.getDescription(true) + ": " + ex.getMessage());
+		logScopedLookupMiss(ex, request);
 		return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "No such proposal");
+	}
+
+	private void logScopedLookupMiss(RuntimeException ex, WebRequest request) {
+		String account = currentUser.findId().map(id -> "account " + id).orElse("no account");
+		logger.warn("Scoped lookup missed at " + request.getDescription(false) + " for " + account + ": "
+				+ ex.getMessage());
 	}
 
 	/**

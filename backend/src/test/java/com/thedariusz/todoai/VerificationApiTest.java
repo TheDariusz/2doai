@@ -1,13 +1,19 @@
 package com.thedariusz.todoai;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.thedariusz.todoai.auth.EmailVerificationService;
 import com.thedariusz.todoai.auth.VerificationThrottle;
+import com.thedariusz.todoai.observability.RegistrationAuditLogger;
 import io.restassured.response.ValidatableResponse;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -94,6 +100,34 @@ class VerificationApiTest extends ApiTestBase {
 		submitCode(email, mail.codeFor(email).orElseThrow()).statusCode(204);
 
 		login(email, PASSWORD).statusCode(201).body("email", equalTo(email));
+	}
+
+	/**
+	 * The owner's registration alert keys on this line, and the listener that writes it runs only after
+	 * a commit: a publish that ever moved outside the verifying transaction would drop it without a
+	 * sound. So this goes through the real endpoint and the real transaction, not the annotation.
+	 */
+	@Test
+	void logsUserRegisteredOnceTheVerificationHasCommitted() {
+		String email = uniqueEmail();
+		signUp(email, PASSWORD).statusCode(201);
+		ListAppender<ILoggingEvent> lines = new ListAppender<>();
+		Logger auditLog = (Logger) LoggerFactory.getLogger(RegistrationAuditLogger.class);
+		lines.start();
+		auditLog.addAppender(lines);
+
+		try {
+			submitCode(email, mail.codeFor(email).orElseThrow()).statusCode(204);
+		}
+		finally {
+			auditLog.detachAppender(lines);
+		}
+
+		String accountId = jdbc.queryForObject("select id from app_user where email = ?", String.class, email);
+		assertThat(lines.list).singleElement()
+				.extracting(event -> event.getKeyValuePairs().stream()
+						.map(kv -> kv.key + "=" + kv.value).toList())
+				.isEqualTo(List.of("event=user_registered", "user_id=" + accountId));
 	}
 
 	@Test

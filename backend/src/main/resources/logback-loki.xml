@@ -1,0 +1,61 @@
+<!--
+  The Loki appender, included by logback-spring.xml inside <springProfile name="prod"> only (and by
+  LokiLogLineTest, which pins its wire shape). Shared contract (thedariusz-ops, central logging):
+  labels are exactly service, env and level; the line is JSON with ts, logger, level and msg, plus
+  every SLF4J key-value pair (event, user_id, ...) at the top level, and err (the exception's type and
+  message) when one was logged; its stack trace follows the message in msg.
+
+  Never blocks the caller: loki4j batches on its own threads and drops lines once its send queue is
+  full. A wrong or missing LOKI_TOKEN costs the lines (Loki answers 401, loki4j prints a warning per
+  failed batch to the console), never a failure at startup or at a logging call site. An unusable
+  LOKI_PUSH_URL is the same: FailSafeLokiAppender stays stopped with a warning instead of failing
+  Spring Boot's logging setup.
+-->
+<included>
+	<conversionRule conversionWord="lowerLevel" class="com.thedariusz.todoai.observability.LowercaseLevelConverter"/>
+
+	<appender name="LOKI" class="com.thedariusz.todoai.observability.FailSafeLokiAppender">
+		<http>
+			<url>${LOKI_PUSH_URL}</url>
+			<auth>
+				<username>${LOKI_USER:-}</username>
+				<password>${LOKI_TOKEN:-}</password>
+			</auth>
+		</http>
+		<!-- The contract wants lines in Loki within seconds; loki4j's default batch waits a minute,
+		     which is also what a hard-killed machine would take with it. -->
+		<batch>
+			<timeoutMs>5000</timeoutMs>
+		</batch>
+		<labels>
+			service=2doai
+			env=prod
+			level=%lowerLevel
+		</labels>
+		<structuredMetadata>off</structuredMetadata>
+		<!-- RedactingJsonLayout: loki4j's JsonLayout with every address's local part removed. -->
+		<message class="com.thedariusz.todoai.observability.RedactingJsonLayout">
+			<timestamp>
+				<fieldName>ts</fieldName>
+			</timestamp>
+			<loggerName>
+				<fieldName>logger</fieldName>
+			</loggerName>
+			<logLevel class="com.thedariusz.todoai.observability.LowercaseLevelJsonProvider"/>
+			<threadName>
+				<enabled>false</enabled>
+			</threadName>
+			<!-- Ops spec 7.2: err is the error's type and message; the stack trace stays in msg. -->
+			<message class="com.thedariusz.todoai.observability.MessageWithStackTraceJsonProvider">
+				<fieldName>msg</fieldName>
+			</message>
+			<stackTrace class="com.thedariusz.todoai.observability.ErrorSummaryJsonProvider"/>
+			<mdc>
+				<enabled>false</enabled>
+			</mdc>
+			<kvp>
+				<noPrefix>true</noPrefix>
+			</kvp>
+		</message>
+	</appender>
+</included>
