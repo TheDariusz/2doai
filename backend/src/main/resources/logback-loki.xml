@@ -6,12 +6,14 @@
 
   Never blocks the caller: loki4j batches on its own threads and drops lines once its send queue is
   full. A wrong or missing LOKI_TOKEN costs the lines (Loki answers 401, loki4j prints a warning per
-  failed batch to the console), never a failure at startup or at a logging call site.
+  failed batch to the console), never a failure at startup or at a logging call site. An unusable
+  LOKI_PUSH_URL is the same: FailSafeLokiAppender stays stopped with a warning instead of failing
+  Spring Boot's logging setup.
 -->
 <included>
 	<conversionRule conversionWord="lowerLevel" class="com.thedariusz.todoai.observability.LowercaseLevelConverter"/>
 
-	<appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+	<appender name="LOKI" class="com.thedariusz.todoai.observability.FailSafeLokiAppender">
 		<http>
 			<url>${LOKI_PUSH_URL}</url>
 			<auth>

@@ -573,8 +573,10 @@ fly secrets set LOKI_TOKEN=glc_...   # value never committed, never echoed in lo
 fly secrets list                     # names + digests, never values
 ```
 
-A missing or wrong token does not stop the app: pushes fail with 401, loki4j reports it on its
-own status channel, and log lines are dropped. The appender batches asynchronously, so a Loki
+A missing or wrong token does not stop the app: pushes fail with 401, loki4j prints a warning per
+failed batch to the console, and those log lines are dropped. An unusable `LOKI_PUSH_URL` does not
+stop it either: `FailSafeLokiAppender` leaves the appender stopped with one warning, and everything
+stays on the console. Either way the heartbeat stops arriving, which is what alerts the owner. The appender batches asynchronously, so a Loki
 outage never blocks a request or the scheduler thread.
 
 Two events are what the alert rules in thedariusz-ops key on: `user_registered` (an address was

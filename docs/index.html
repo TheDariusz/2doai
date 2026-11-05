@@ -299,8 +299,8 @@
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
   <p class="note">Verified against DEV-58 on 2026-11-05 — backend and ops only, no schema change. A
-  new <code>observability</code> package (<code>RegistrationAuditLogger</code>, <code>Heartbeat</code>
-  and the two lowercase-level helpers), loki4j behind the new <code>prod</code> profile in
+  new <code>observability</code> package (<code>RegistrationAuditLogger</code>, <code>Heartbeat</code>,
+  <code>FailSafeLokiAppender</code> and the two lowercase-level helpers), loki4j behind the new <code>prod</code> profile in
   <code>logback-spring.xml</code>, and <code>/api/ping</code> declared permanent because Synthetic
   Monitoring probes it. Moved: the overview table, the runtime diagram and its scheduler note, the
   code map, the backend terms and a new <code>observability</code> chapter with its class diagram, the
@@ -1533,7 +1533,10 @@ classDiagram
   <p><strong>Never in the way.</strong> loki4j batches on its own threads and drops lines once its send
   queue is full, so a Loki outage costs log lines, never a request or a scheduler tick. A missing or
   wrong <code>LOKI_TOKEN</code> is the same case: Loki answers 401 and loki4j prints a warning per
-  failed batch to the console. <code>LokiLogLineTest</code> runs the real appender fragment against a
+  failed batch to the console. An unusable <code>LOKI_PUSH_URL</code> would be worse — plain loki4j
+  throws while starting, and Spring Boot refuses to boot on a failed logging setup — so
+  <code>FailSafeLokiAppender</code> turns that into a warning and a stopped appender; the missing
+  heartbeat then reaches the owner instead. <code>LokiLogLineTest</code> runs the real appender fragment against a
   fake Loki to pin the wire shape, and <code>LoggingProfileTest</code> pins that no test run attaches
   it.</p>
   <p><code>RegistrationAuditLogger</code> is the first <code>@TransactionalEventListener</code> in the
@@ -1551,6 +1554,10 @@ classDiagram
   class Heartbeat {
     &lt;&lt;inbound adapter / clock&gt;&gt;
     +beat() @Scheduled every 5 minutes — event=heartbeat
+  }
+  class FailSafeLokiAppender {
+    &lt;&lt;infrastructure configuration&gt;&gt;
+    +start() a loki4j start failure becomes a warning, never a failed boot
   }
   class LowercaseLevelConverter {
     &lt;&lt;infrastructure configuration&gt;&gt;
