@@ -109,6 +109,11 @@ that already appear in the file rather than inventing syntax.
 - No `.env` files exist yet; environment config is not implemented. Never read or print `.env` contents.
 - Neither half is scaffold any more: auth/session, categories, the three-layer `goal` aggregate with full CRUD, the proposal selection engine, and the React SPA (routing, guard, auth screens, `/goals`) are all implemented. Read the neighbouring slice before assuming a seam does not exist yet.
 
+## Production logs
+
+Production logs live in Grafana Cloud Loki under `service="2doai"` (plus `env=prod`, `level`); query them through the read-only `grafana` MCP server declared in `.mcp.json`.
+Cookbook: `../thedariusz-ops/docs/querying-logs.md`. Raw fallback: `fly logs -a 2doai`.
+
 ## Linear workflow (via Linear MCP)
 This repo maps to the **"2doai"** project in my Linear workspace.
 The Linear MCP server is connected; use it to read and update issue state —
