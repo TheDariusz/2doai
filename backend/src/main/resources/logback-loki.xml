@@ -2,7 +2,8 @@
   The Loki appender, included by logback-spring.xml inside <springProfile name="prod"> only (and by
   LokiLogLineTest, which pins its wire shape). Shared contract (thedariusz-ops, central logging):
   labels are exactly service, env and level; the line is JSON with ts, logger, level and msg, plus
-  every SLF4J key-value pair (event, user_id, ...) at the top level and err for a stack trace.
+  every SLF4J key-value pair (event, user_id, ...) at the top level, and err (the exception's type and
+  message) when one was logged; its stack trace follows the message in msg.
 
   Never blocks the caller: loki4j batches on its own threads and drops lines once its send queue is
   full. A wrong or missing LOKI_TOKEN costs the lines (Loki answers 401, loki4j prints a warning per
@@ -44,12 +45,11 @@
 			<threadName>
 				<enabled>false</enabled>
 			</threadName>
-			<message>
+			<!-- Ops spec 7.2: err is the error's type and message; the stack trace stays in msg. -->
+			<message class="com.thedariusz.todoai.observability.MessageWithStackTraceJsonProvider">
 				<fieldName>msg</fieldName>
 			</message>
-			<stackTrace>
-				<fieldName>err</fieldName>
-			</stackTrace>
+			<stackTrace class="com.thedariusz.todoai.observability.ErrorSummaryJsonProvider"/>
 			<mdc>
 				<enabled>false</enabled>
 			</mdc>

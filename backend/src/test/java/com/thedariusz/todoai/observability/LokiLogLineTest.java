@@ -105,7 +105,25 @@ class LokiLogLineTest {
 		assertThat(stream.get("stream").get("level").asString()).isEqualTo("error");
 		JsonNode line = JSON.readTree(stream.get("values").get(0).get(1).asString());
 		assertThat(line.get("level").asString()).isEqualTo("error");
-		assertThat(line.get("err").asString()).contains("IllegalStateException: boom");
+		// Ops spec 7.2: err is the error's type and message; the stack trace stays in the message body.
+		assertThat(line.get("err").asString()).isEqualTo("java.lang.IllegalStateException: boom");
+		assertThat(line.get("msg").asString())
+			.startsWith("fire failed\njava.lang.IllegalStateException: boom")
+			.contains("\tat ");
+	}
+
+	@Test
+	void anExceptionWithoutAMessageTravelsAsItsTypeAlone() throws Exception {
+		LoggerContext context = configure("tenant-1", "secret-1");
+
+		context.getLogger("com.thedariusz.todoai.observability.Probe")
+			.error("fire failed", new IllegalStateException());
+
+		Push push = pushes.poll(10, TimeUnit.SECONDS);
+		context.stop();
+		assertThat(push).isNotNull();
+		JsonNode line = JSON.readTree(JSON.readTree(push.body()).get("streams").get(0).get("values").get(0).get(1).asString());
+		assertThat(line.get("err").asString()).isEqualTo("java.lang.IllegalStateException");
 	}
 
 	@Test
@@ -123,8 +141,10 @@ class LokiLogLineTest {
 		assertThat(push).isNotNull();
 		assertThat(push.body()).doesNotContain("jan.kowalski");
 		JsonNode line = JSON.readTree(JSON.readTree(push.body()).get("streams").get(0).get("values").get(0).get(1).asString());
-		assertThat(line.get("msg").asString()).isEqualTo("could not mail <redacted>@example.com");
-		assertThat(line.get("err").asString()).contains("<<redacted>@example.com>: Recipient address rejected");
+		assertThat(line.get("msg").asString())
+			.startsWith("could not mail <redacted>@example.com\n")
+			.contains("<<redacted>@example.com>: Recipient address rejected");
+		assertThat(line.get("err").asString()).isEqualTo("java.lang.IllegalStateException: send failed");
 	}
 
 	@Test

@@ -10,7 +10,7 @@ import com.github.loki4j.logback.JsonLayout;
  * {@code jan@example.com} leaves the machine as {@code <redacted>@example.com}.
  *
  * <p>The app's own log lines already name only a domain. What they cannot control is the text of a
- * third-party exception that rides along in {@code err}: Spring's {@code MailSendException} quotes the
+ * third-party exception, in {@code err} and in the stack trace inside {@code msg}: Spring's {@code MailSendException} quotes the
  * SMTP server's reply, and a rejected recipient's reply quotes the address. Redacting the finished
  * line covers every field and every cause at once, which no per-call-site rule can. The domain stays,
  * as in the app's own lines — it is what tells one provider's outage from one mailbox's bounce.

@@ -6,7 +6,9 @@
  * ({@code logback-loki.xml}) under the {@code prod} profile only. The two level helpers here exist
  * because the shared contract wants {@code level} lowercase both as a Loki label and as a JSON key,
  * and Logback renders it uppercase. {@code RedactingJsonLayout} strips the local part of any address
- * from the finished line, because a third-party exception in {@code err} can quote one.
+ * from the finished line, because a third-party exception can quote one. A logged exception follows
+ * the contract's shape: {@code err} is its type and message only ({@code ErrorSummaryJsonProvider}),
+ * and the stack trace follows the message in {@code msg} ({@code MessageWithStackTraceJsonProvider}).
  *
  * <p>Structured fields travel as SLF4J key-value pairs and come out as top-level JSON keys:
  * {@code log.atInfo().addKeyValue("event", "heartbeat").log("heartbeat")}. Alert rules key on

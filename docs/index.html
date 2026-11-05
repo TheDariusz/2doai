@@ -300,7 +300,7 @@
   <a href="../context/foundation/data-model.md">data model</a>.</p>
   <p class="note">Verified against DEV-58 on 2026-11-05 — backend and ops only, no schema change. A
   new <code>observability</code> package (<code>RegistrationAuditLogger</code>, <code>Heartbeat</code>,
-  <code>FailSafeLokiAppender</code>, <code>RedactingJsonLayout</code> and the two lowercase-level helpers), loki4j behind the new <code>prod</code> profile in
+  <code>FailSafeLokiAppender</code>, <code>RedactingJsonLayout</code>, the two lowercase-level helpers and the two providers that shape <code>msg</code> and <code>err</code>), loki4j behind the new <code>prod</code> profile in
   <code>logback-spring.xml</code>, and <code>/api/ping</code> declared permanent because Synthetic
   Monitoring probes it. Moved: the overview table, the runtime diagram and its scheduler note, the
   code map, the backend terms and a new <code>observability</code> chapter with its class diagram, the
@@ -1529,7 +1529,10 @@ classDiagram
   only <code>fly.toml</code> sets, so every test run and every developer machine logs to the console
   exactly as before. Structured fields travel as SLF4J key-value pairs and come out as top-level JSON
   keys; labels are only <code>service</code>, <code>env</code> and <code>level</code>, the contract
-  shared with the owner's other services.</p>
+  shared with the owner's other services. A logged exception follows that contract too:
+  <code>err</code> is only its type and message (<code>java.lang.IllegalStateException: boom</code>), short
+  enough for a query or alert rule to match, and the stack trace, causes included, follows the message
+  in <code>msg</code>.</p>
   <p><strong>Never in the way.</strong> loki4j batches on its own threads and drops lines once its send
   queue is full, so a Loki outage costs log lines, never a request or a scheduler tick. A missing or
   wrong <code>LOKI_TOKEN</code> is the same case: Loki answers 401 and loki4j prints a warning per
@@ -1542,7 +1545,7 @@ classDiagram
   the contract's "never an address, never user-typed text" applies to the whole log, not only to the
   two lines this package writes. Three guards, one per way it was broken before DEV-58 shipped:
   <code>RedactingJsonLayout</code> strips the local part of any address in the finished line, which is
-  the only defence against third-party exception text in <code>err</code> (an SMTP rejection quotes its
+  the only defence against third-party exception text in <code>err</code> and in the stack trace inside <code>msg</code> (an SMTP rejection quotes its
   recipient); pgjdbc runs with <code>logServerErrorDetail=false</code>, so Postgres's
   <code>DETAIL</code> — the duplicate address, a failing row's user-typed content — never reaches a
   message; and the scoped-lookup 404 logs the account id from <code>CurrentUser.findId()</code> instead
@@ -1581,6 +1584,14 @@ classDiagram
   class RedactingJsonLayout {
     &lt;&lt;infrastructure configuration&gt;&gt;
     +doLayout(ILoggingEvent) an address keeps only its domain
+  }
+  class ErrorSummaryJsonProvider {
+    &lt;&lt;infrastructure configuration&gt;&gt;
+    the err key — exception type and message
+  }
+  class MessageWithStackTraceJsonProvider {
+    &lt;&lt;infrastructure configuration&gt;&gt;
+    the msg key — message, then the stack trace
   }
   EmailVerificationService ..> RegistrationAuditLogger : UserVerified, after the commit
   </pre>
