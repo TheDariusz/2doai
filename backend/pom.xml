@@ -128,7 +128,7 @@
 			<artifactId>flyway-database-postgresql</artifactId>
 		</dependency>
 		<!-- Ships JSON log lines to Grafana Cloud Loki; only attached under the prod profile
-		     (logback-spring.xml). Compile scope because LokiLogLineTest builds its layout. -->
+		     (logback-spring.xml). Compile scope: FailSafeLokiAppender and the level helpers extend it. -->
 		<dependency>
 			<groupId>com.github.loki4j</groupId>
 			<artifactId>loki-logback-appender</artifactId>
