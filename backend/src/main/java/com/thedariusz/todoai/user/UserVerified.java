@@ -5,8 +5,10 @@ import java.util.UUID;
 
 /**
  * An account has proved its address, and is from this moment one the app may act on unprompted.
- * Consumed by whatever has to start happening for such an account — today only the natural rhythm
- * (S-05), which holds its schedule in memory and would otherwise not see it until the next restart.
+ * Consumed by whatever has to start happening for such an account: the natural rhythm (S-05), which
+ * holds its schedule in memory and would otherwise not see it until the next restart, and, once the
+ * verification has committed, {@code RegistrationAuditLogger}, which logs the {@code user_registered}
+ * line the owner's registration alert keys on.
  *
  * <p><b>Verification, not registration, is the moment.</b> Registration alone creates a row for an
  * address nobody has consented with, and the one thing the rhythm does is write to that address
