@@ -1,5 +1,6 @@
 package com.thedariusz.todoai.security;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
@@ -27,12 +28,20 @@ public class CurrentUser {
 	 *         so the {@code ExceptionTranslationFilter} maps it to 401 via the entry point.
 	 */
 	public UUID requireId() {
+		return findId().orElseThrow(() -> new AuthenticationCredentialsNotFoundException("No authenticated user"));
+	}
+
+	/**
+	 * The same id without the 401, for code that only <em>describes</em> a request — a log line
+	 * written while handling a failure must not fail on an anonymous one.
+	 */
+	public Optional<UUID> findId() {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		if (authentication == null
 				|| !authentication.isAuthenticated()
 				|| !(authentication.getPrincipal() instanceof UserPrincipal principal)) {
-			throw new AuthenticationCredentialsNotFoundException("No authenticated user");
+			return Optional.empty();
 		}
-		return principal.userId();
+		return Optional.of(principal.userId());
 	}
 }

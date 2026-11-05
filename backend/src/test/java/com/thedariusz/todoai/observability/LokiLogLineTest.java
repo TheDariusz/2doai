@@ -68,9 +68,9 @@ class LokiLogLineTest {
 			.addKeyValue("event", "user_registered")
 			.addKeyValue("user_id", id)
 			.log("user registered");
-		context.stop();
 
 		Push push = pushes.poll(10, TimeUnit.SECONDS);
+		context.stop();
 		assertThat(push).as("a push reached the fake Loki").isNotNull();
 		assertThat(push.authorization()).isEqualTo("Basic "
 				+ Base64.getEncoder().encodeToString("tenant-1:secret-1".getBytes(StandardCharsets.UTF_8)));
@@ -97,15 +97,48 @@ class LokiLogLineTest {
 
 		context.getLogger("com.thedariusz.todoai.observability.Probe")
 			.error("fire failed", new IllegalStateException("boom"));
-		context.stop();
 
 		Push push = pushes.poll(10, TimeUnit.SECONDS);
+		context.stop();
 		assertThat(push).isNotNull();
 		JsonNode stream = JSON.readTree(push.body()).get("streams").get(0);
 		assertThat(stream.get("stream").get("level").asString()).isEqualTo("error");
 		JsonNode line = JSON.readTree(stream.get("values").get(0).get(1).asString());
 		assertThat(line.get("level").asString()).isEqualTo("error");
 		assertThat(line.get("err").asString()).contains("IllegalStateException: boom");
+	}
+
+	@Test
+	void anAddressInAMessageOrACauseLeavesOnlyItsDomain() throws Exception {
+		// The app's own lines name only a domain, but a third-party cause does not ask: Spring's
+		// MailSendException quotes the SMTP reply, and that quotes the recipient.
+		LoggerContext context = configure("tenant-1", "secret-1");
+
+		context.getLogger("com.thedariusz.todoai.observability.Probe")
+			.error("could not mail jan.kowalski@example.com", new IllegalStateException("send failed",
+					new IllegalStateException("550 5.1.1 <jan.kowalski+2do@example.com>: Recipient address rejected")));
+
+		Push push = pushes.poll(10, TimeUnit.SECONDS);
+		context.stop();
+		assertThat(push).isNotNull();
+		assertThat(push.body()).doesNotContain("jan.kowalski");
+		JsonNode line = JSON.readTree(JSON.readTree(push.body()).get("streams").get(0).get("values").get(0).get(1).asString());
+		assertThat(line.get("msg").asString()).isEqualTo("could not mail <redacted>@example.com");
+		assertThat(line.get("err").asString()).contains("<<redacted>@example.com>: Recipient address rejected");
+	}
+
+	@Test
+	void aLineReachesLokiWithinSecondsWithoutWaitingForShutdown() throws Exception {
+		// The shared contract wants lines in Loki "within seconds"; loki4j's default batch timeout is a
+		// minute, which is also how much a hard-killed machine would take with it. Every test here
+		// waits for the push before stopping, because loki4j's drain-on-stop can close its HTTP client
+		// before a queued request is sent: that race made these tests flaky under a loaded build.
+		LoggerContext context = configure("tenant-1", "secret-1");
+
+		context.getLogger("com.thedariusz.todoai.observability.Probe").info("prompt");
+
+		assertThat(pushes.poll(10, TimeUnit.SECONDS)).as("pushed before the context stopped").isNotNull();
+		context.stop();
 	}
 
 	@Test
@@ -117,9 +150,10 @@ class LokiLogLineTest {
 
 		context.getLogger("com.thedariusz.todoai.observability.Probe").info("still alive");
 		assertThat(context.getLogger("ROOT").getAppender("LOKI").isStarted()).isTrue();
-		context.stop();
 
-		assertThat(pushes.poll(10, TimeUnit.SECONDS)).as("the push was attempted").isNotNull();
+		Push push = pushes.poll(10, TimeUnit.SECONDS);
+		context.stop();
+		assertThat(push).as("the push was attempted").isNotNull();
 	}
 
 	private LoggerContext configure(String user, String token) throws JoranException {

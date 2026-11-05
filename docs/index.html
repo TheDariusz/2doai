@@ -300,7 +300,7 @@
   <a href="../context/foundation/data-model.md">data model</a>.</p>
   <p class="note">Verified against DEV-58 on 2026-11-05 — backend and ops only, no schema change. A
   new <code>observability</code> package (<code>RegistrationAuditLogger</code>, <code>Heartbeat</code>,
-  <code>FailSafeLokiAppender</code> and the two lowercase-level helpers), loki4j behind the new <code>prod</code> profile in
+  <code>FailSafeLokiAppender</code>, <code>RedactingJsonLayout</code> and the two lowercase-level helpers), loki4j behind the new <code>prod</code> profile in
   <code>logback-spring.xml</code>, and <code>/api/ping</code> declared permanent because Synthetic
   Monitoring probes it. Moved: the overview table, the runtime diagram and its scheduler note, the
   code map, the backend terms and a new <code>observability</code> chapter with its class diagram, the
@@ -1536,7 +1536,18 @@ classDiagram
   failed batch to the console. An unusable <code>LOKI_PUSH_URL</code> would be worse — plain loki4j
   throws while starting, and Spring Boot refuses to boot on a failed logging setup — so
   <code>FailSafeLokiAppender</code> turns that into a warning and a stopped appender; the missing
-  heartbeat then reaches the owner instead. <code>LokiLogLineTest</code> runs the real appender fragment against a
+  heartbeat then reaches the owner instead. Lines leave in five-second batches, not loki4j's default
+  minute, so an alert is prompt and a hard-killed machine takes little with it.</p>
+  <p><strong>No address leaves the machine.</strong> Shipping makes every line a third party's copy, so
+  the contract's "never an address, never user-typed text" applies to the whole log, not only to the
+  two lines this package writes. Three guards, one per way it was broken before DEV-58 shipped:
+  <code>RedactingJsonLayout</code> strips the local part of any address in the finished line, which is
+  the only defence against third-party exception text in <code>err</code> (an SMTP rejection quotes its
+  recipient); pgjdbc runs with <code>logServerErrorDetail=false</code>, so Postgres's
+  <code>DETAIL</code> — the duplicate address, a failing row's user-typed content — never reaches a
+  message; and the scoped-lookup 404 logs the account id from <code>CurrentUser.findId()</code> instead
+  of the request's client description, which carried the session id and the address.
+  <code>LogPrivacyApiTest</code> pins the last two. <code>LokiLogLineTest</code> runs the real appender fragment against a
   fake Loki to pin the wire shape, and <code>LoggingProfileTest</code> pins that no test run attaches
   it.</p>
   <p><code>RegistrationAuditLogger</code> is the first <code>@TransactionalEventListener</code> in the
@@ -1566,6 +1577,10 @@ classDiagram
   class LowercaseLevelJsonProvider {
     &lt;&lt;infrastructure configuration&gt;&gt;
     the level key of the JSON line
+  }
+  class RedactingJsonLayout {
+    &lt;&lt;infrastructure configuration&gt;&gt;
+    +doLayout(ILoggingEvent) an address keeps only its domain
   }
   EmailVerificationService ..> RegistrationAuditLogger : UserVerified, after the commit
   </pre>

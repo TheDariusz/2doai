@@ -21,13 +21,19 @@
 				<password>${LOKI_TOKEN:-}</password>
 			</auth>
 		</http>
+		<!-- The contract wants lines in Loki within seconds; loki4j's default batch waits a minute,
+		     which is also what a hard-killed machine would take with it. -->
+		<batch>
+			<timeoutMs>5000</timeoutMs>
+		</batch>
 		<labels>
 			service=2doai
 			env=prod
 			level=%lowerLevel
 		</labels>
 		<structuredMetadata>off</structuredMetadata>
-		<message class="com.github.loki4j.logback.JsonLayout">
+		<!-- RedactingJsonLayout: loki4j's JsonLayout with every address's local part removed. -->
+		<message class="com.thedariusz.todoai.observability.RedactingJsonLayout">
 			<timestamp>
 				<fieldName>ts</fieldName>
 			</timestamp>

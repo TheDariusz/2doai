@@ -5,7 +5,8 @@
  * <p>Shipping is configuration, not code: {@code logback-spring.xml} attaches the loki4j appender
  * ({@code logback-loki.xml}) under the {@code prod} profile only. The two level helpers here exist
  * because the shared contract wants {@code level} lowercase both as a Loki label and as a JSON key,
- * and Logback renders it uppercase.
+ * and Logback renders it uppercase. {@code RedactingJsonLayout} strips the local part of any address
+ * from the finished line, because a third-party exception in {@code err} can quote one.
  *
  * <p>Structured fields travel as SLF4J key-value pairs and come out as top-level JSON keys:
  * {@code log.atInfo().addKeyValue("event", "heartbeat").log("heartbeat")}. Alert rules key on
