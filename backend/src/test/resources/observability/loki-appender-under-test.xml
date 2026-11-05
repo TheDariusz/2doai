@@ -1,0 +1,8 @@
+<!-- Wraps the production Loki appender fragment so LokiLogLineTest can load it into a bare
+     LoggerContext: <springProfile> needs a Spring environment, the fragment itself does not. -->
+<configuration>
+	<include resource="logback-loki.xml"/>
+	<root level="INFO">
+		<appender-ref ref="LOKI"/>
+	</root>
+</configuration>

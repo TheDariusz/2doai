@@ -1,0 +1,53 @@
+<!--
+  The Loki appender, included by logback-spring.xml inside <springProfile name="prod"> only (and by
+  LokiLogLineTest, which pins its wire shape). Shared contract (thedariusz-ops, central logging):
+  labels are exactly service, env and level; the line is JSON with ts, logger, level and msg, plus
+  every SLF4J key-value pair (event, user_id, ...) at the top level and err for a stack trace.
+
+  Never blocks the caller: loki4j batches on its own threads and drops lines once its send queue is
+  full. A wrong or missing LOKI_TOKEN costs the lines (Loki answers 401, loki4j prints a warning per
+  failed batch to the console), never a failure at startup or at a logging call site.
+-->
+<included>
+	<conversionRule conversionWord="lowerLevel" class="com.thedariusz.todoai.observability.LowercaseLevelConverter"/>
+
+	<appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+		<http>
+			<url>${LOKI_PUSH_URL}</url>
+			<auth>
+				<username>${LOKI_USER:-}</username>
+				<password>${LOKI_TOKEN:-}</password>
+			</auth>
+		</http>
+		<labels>
+			service=2doai
+			env=prod
+			level=%lowerLevel
+		</labels>
+		<structuredMetadata>off</structuredMetadata>
+		<message class="com.github.loki4j.logback.JsonLayout">
+			<timestamp>
+				<fieldName>ts</fieldName>
+			</timestamp>
+			<loggerName>
+				<fieldName>logger</fieldName>
+			</loggerName>
+			<logLevel class="com.thedariusz.todoai.observability.LowercaseLevelJsonProvider"/>
+			<threadName>
+				<enabled>false</enabled>
+			</threadName>
+			<message>
+				<fieldName>msg</fieldName>
+			</message>
+			<stackTrace>
+				<fieldName>err</fieldName>
+			</stackTrace>
+			<mdc>
+				<enabled>false</enabled>
+			</mdc>
+			<kvp>
+				<noPrefix>true</noPrefix>
+			</kvp>
+		</message>
+	</appender>
+</included>

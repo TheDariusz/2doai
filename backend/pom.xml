@@ -33,6 +33,9 @@
 		     Java 17+ — aligned with Boot 4's stack (5.x is built for Hamcrest 2). -->
 		<rest-assured.version>6.3.0</rest-assured.version>
 		<archunit.version>1.5.1</archunit.version>
+		<!-- loki4j 2.0.x is the line built against Logback 1.5 (what Boot 4.1.2 manages); 2.1.x moves
+		     to Logback 1.6. Bump together with the Logback line. -->
+		<loki4j.version>2.0.3</loki4j.version>
 		<!-- No patch-level overrides of BOM-managed versions at the moment: Boot 4.1.2 manages
 		     Tomcat 11.0.27, Netty 4.2.19.Final and PostgreSQL JDBC 42.7.14, each at or past the pin
 		     that used to sit here for the Trivy gate. When the gate goes red again, pin the single
@@ -123,6 +126,13 @@
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-database-postgresql</artifactId>
+		</dependency>
+		<!-- Ships JSON log lines to Grafana Cloud Loki; only attached under the prod profile
+		     (logback-spring.xml). Compile scope because LokiLogLineTest builds its layout. -->
+		<dependency>
+			<groupId>com.github.loki4j</groupId>
+			<artifactId>loki-logback-appender</artifactId>
+			<version>${loki4j.version}</version>
 		</dependency>
 
 		<dependency>

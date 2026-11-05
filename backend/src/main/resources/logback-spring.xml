@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The only logging configuration (no logging.* keys in application.properties). Every run logs to
+  the console exactly as Spring Boot's default does; the prod profile, switched on by fly.toml and
+  by nothing else, also ships every line to Grafana Cloud Loki (logback-loki.xml). Tests and CI
+  never run as prod, so they never reach Loki (LoggingProfileTest).
+-->
+<configuration>
+	<include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+	<include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+	<springProfile name="prod">
+		<include resource="logback-loki.xml"/>
+		<root level="INFO">
+			<appender-ref ref="CONSOLE"/>
+			<appender-ref ref="LOKI"/>
+		</root>
+	</springProfile>
+
+	<springProfile name="!prod">
+		<root level="INFO">
+			<appender-ref ref="CONSOLE"/>
+		</root>
+	</springProfile>
+</configuration>
