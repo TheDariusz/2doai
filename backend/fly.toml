@@ -12,8 +12,8 @@ primary_region = "ams"
   SPRING_PROFILES_ACTIVE = "prod"   # enables the Loki appender in logback-spring.xml, nothing else
   # Not secret: the push URL and the stack's numeric Loki tenant id. The token is the Fly secret
   # LOKI_TOKEN (deployment-runbook.md, Phase 9).
-  LOKI_PUSH_URL = "TODO_LOKI_PUSH_URL"
-  LOKI_USER = "TODO_LOKI_USER"
+  LOKI_PUSH_URL = "https://logs-prod-025.grafana.net/loki/api/v1/push"
+  LOKI_USER = "1865276"
 
 [build]
 
