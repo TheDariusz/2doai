@@ -5,14 +5,15 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 
 import org.slf4j.Logger;
+import com.thedariusz.todoai.mail.MailboxProperties;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
  * A daily ceiling on auth mail (sign-in codes), so a burst of code requests cannot spend the mail
  * provider's daily allowance that proposal mail depends on. The Resend plan this app runs on allows
- * 100 messages a day for everything; {@code app.mail.auth-daily-budget} (60 by default) is the share
+ * 100 messages a day for everything; {@code app.mail.auth-daily-budget} (60 in {@code application.properties}) is the share
  * auth mail may take.
  *
  * <p><b>Consulted before the address is looked up</b>, like {@link VerificationThrottle}, so an
@@ -37,10 +38,13 @@ public class AuthMailBudget {
 
 	private boolean exhaustionLogged;
 
-	public AuthMailBudget(@Value("${app.mail.auth-daily-budget:60}") int dailyBudget) {
-		if (dailyBudget < 1) {
-			throw new IllegalArgumentException("app.mail.auth-daily-budget must be at least 1, was " + dailyBudget);
-		}
+	@Autowired
+	public AuthMailBudget(MailboxProperties mailbox) {
+		this(mailbox.authDailyBudget());
+	}
+
+	/** The budget itself; bound and range-checked ({@code @Min(1)}) on {@link MailboxProperties}. */
+	AuthMailBudget(int dailyBudget) {
 		this.dailyBudget = dailyBudget;
 	}
 

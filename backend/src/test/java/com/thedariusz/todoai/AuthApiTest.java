@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.thedariusz.todoai.user.AppLanguage;
@@ -882,7 +884,7 @@ class AuthApiTest extends ApiTestBase {
 		}
 		String sixth = signInWithCode(email, capped).statusCode(401).extract().asString();
 
-		assertThat(java.util.List.of(unknown, wrong, spent, expired, sixth))
+		assertThat(List.of(unknown, wrong, spent, expired, sixth))
 				.as("no failed code can be told apart from a wrong password")
 				.containsOnly(wrongPassword);
 	}
@@ -914,11 +916,10 @@ class AuthApiTest extends ApiTestBase {
 		String token = primeCsrfToken();
 		String wrong = wrongCodeFor(code);
 
-		var pool = java.util.concurrent.Executors.newFixedThreadPool(20);
+		var pool = Executors.newFixedThreadPool(20);
 		try {
-			var guesses = java.util.stream.IntStream.range(0, 20)
-					.mapToObj(i -> pool.submit(() -> io.restassured.RestAssured.given()
-							.contentType(io.restassured.http.ContentType.JSON)
+			var guesses = IntStream.range(0, 20)
+					.mapToObj(i -> pool.submit(() -> anonymous()
 							.cookie("XSRF-TOKEN", token)
 							.header("X-XSRF-TOKEN", token)
 							.body(Map.of("email", email, "code", wrong))
@@ -983,11 +984,6 @@ class AuthApiTest extends ApiTestBase {
 
 		newBrowser();
 		signInWithCode(email, mailedSignInCode(email)).statusCode(201).body("email", equalTo(email));
-	}
-
-	/** Eight digits that are not the ones mailed — a wrong guess, not a malformed request. */
-	private static String wrongCodeFor(String code) {
-		return code.equals("00000000") ? "11111111" : "00000000";
 	}
 
 	/**

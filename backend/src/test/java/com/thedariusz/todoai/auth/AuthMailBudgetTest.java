@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * The daily ceiling on auth mail: admit, exhaust, refund, and the day rolling over. The day is the
@@ -99,10 +98,5 @@ class AuthMailBudgetTest {
 				.filteredOn(event -> event.getKeyValuePairs() != null && event.getKeyValuePairs().stream()
 						.anyMatch(kv -> kv.key.equals("event") && kv.value.equals("auth_mail_budget_exhausted")))
 				.hasSize(2);
-	}
-
-	@Test
-	void refusesABudgetThatCouldNeverSendAnything() {
-		assertThatThrownBy(() -> new AuthMailBudget(0)).isInstanceOf(IllegalArgumentException.class);
 	}
 }

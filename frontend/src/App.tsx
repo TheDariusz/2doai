@@ -18,7 +18,7 @@ export function AppRoutes() {
           just raised is still on screen over a sign-in form nobody has submitted. */}
       <Route path="/login" element={<AuthPage key="login" mode="login" />} />
       <Route path="/register" element={<AuthPage key="register" mode="register" />} />
-      {/* Public beside the other two: the account it acts on exists but cannot log in yet. */}
+      {/* Public beside the other two: entering a mailed code is how every account signs in. */}
       <Route path="/verify" element={<VerifyPage />} />
 
       <Route element={<ProtectedRoute />}>

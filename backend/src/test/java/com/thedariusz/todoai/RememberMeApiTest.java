@@ -153,12 +153,9 @@ class RememberMeApiTest extends ApiTestBase {
 	void anAutoLoginHandsOutAFreshCsrfTokenAndTheNextMutationSucceeds() {
 		String email = uniqueEmail();
 		register(email, "correct-horse");
-		Response signIn = csrfAware()
-				.body(Map.of("email", email, "password", "correct-horse"))
-				.when()
-				.post("/api/sessions");
-		String remembered = signIn.getCookie(REMEMBER_ME);
-		String csrfBeforeTheDeploy = signIn.getCookie("XSRF-TOKEN");
+		var signIn = login(email, "correct-horse").statusCode(201).extract();
+		String remembered = signIn.cookie(REMEMBER_ME);
+		String csrfBeforeTheDeploy = signIn.cookie("XSRF-TOKEN");
 		assertThat(csrfBeforeTheDeploy).isNotBlank();
 
 		Response autoLogin = given()
@@ -218,8 +215,7 @@ class RememberMeApiTest extends ApiTestBase {
 	void anAutoLoginRenewsTheCookieWithTheSameValueAndAFreshNinetyDays() {
 		String email = uniqueEmail();
 		String remembered = rememberedSignIn(email);
-		jdbc.update("update remember_me_token set last_used_at = now() - interval '10 days' "
-				+ "where user_id = (select id from app_user where email = ?)", email);
+		lastUsedDaysAgo(email, 10);
 
 		Cookie renewed = given()
 				.cookie(REMEMBER_ME, remembered)
@@ -242,8 +238,7 @@ class RememberMeApiTest extends ApiTestBase {
 	@Test
 	void logoutDeletesTheTokenAndClearsTheCookie() {
 		String email = uniqueEmail();
-		register(email, "correct-horse");
-		String remembered = login(email, "correct-horse").statusCode(201).extract().cookie(REMEMBER_ME);
+		String remembered = rememberedSignIn(email);
 
 		Cookie cleared = csrfAware()
 				.when()
@@ -262,8 +257,7 @@ class RememberMeApiTest extends ApiTestBase {
 	@Test
 	void deletingTheAccountRevokesTheRememberMeCookie() {
 		String email = uniqueEmail();
-		register(email, "correct-horse");
-		String remembered = login(email, "correct-horse").statusCode(201).extract().cookie(REMEMBER_ME);
+		String remembered = rememberedSignIn(email);
 
 		Cookie cleared = csrfAware()
 				.body(Map.of("password", "correct-horse"))
@@ -310,8 +304,7 @@ class RememberMeApiTest extends ApiTestBase {
 	void aTokenUnusedForNinetyDaysNoLongerSignsIn() {
 		String email = uniqueEmail();
 		String remembered = rememberedSignIn(email);
-		jdbc.update("update remember_me_token set last_used_at = now() - interval '91 days' "
-				+ "where user_id = (select id from app_user where email = ?)", email);
+		lastUsedDaysAgo(email, 91);
 
 		given().cookie(REMEMBER_ME, remembered).when().get("/api/users/me").then().statusCode(401);
 	}
@@ -320,12 +313,7 @@ class RememberMeApiTest extends ApiTestBase {
 	@Test
 	void aTokenForAnAccountWhoseAddressIsUnprovedIsRefused() {
 		String email = uniqueEmail();
-		csrfAware()
-				.body(Map.of("email", email, "password", "correct-horse"))
-				.when()
-				.post("/api/users")
-				.then()
-				.statusCode(201);
+		signUp(email, "correct-horse").statusCode(201);
 		tokens.createNewToken(new PersistentRememberMeToken(email, "unprovedseries", "unprovedvalue", new Date()));
 
 		given()
@@ -379,6 +367,11 @@ class RememberMeApiTest extends ApiTestBase {
 	private int tokenRowsOf(String email) {
 		return jdbc.queryForObject("select count(*) from remember_me_token "
 				+ "where user_id = (select id from app_user where email = ?)", Integer.class, email);
+	}
+
+	private void lastUsedDaysAgo(String email, int days) {
+		jdbc.update("update remember_me_token set last_used_at = now() - make_interval(days => ?) "
+				+ "where user_id = (select id from app_user where email = ?)", days, email);
 	}
 
 	/** The cookie's wire format: Base64 of the parts joined by {@code :}, padding stripped. */

@@ -33,9 +33,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 	 * which is also how the scheduler learns to drop the entry from its map.
 	 *
 	 * <p><b>{@code email_verified_at IS NOT NULL} is in the where clause, not in the caller</b>
-	 * (DEV-51). The rhythm is the app's only unprompted outbound mail, so "only an address somebody has proved" is
-	 * an invariant that must not rest on three entry points each remembering it; the fourth one
-	 * somebody adds will not know. A caller can forget the check, a {@code where} clause cannot, and
+	 * (DEV-51). The rhythm is the app's only unprompted outbound mail, so "only an address somebody
+	 * has proved" is an invariant that must not rest on three entry points each remembering it; the
+	 * fourth one somebody adds will not know. A caller can forget the check, a {@code where} clause cannot, and
 	 * it reports the refusal exactly as it reports a missing row — 0, which the scheduler already
 	 * treats as "drop the map entry".
 	 *
@@ -171,10 +171,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 	 * The address is proved (DEV-51): the account becomes one the natural rhythm may write to.
 	 *
 	 * <p>{@code email_verified_at IS NULL} makes it the <b>one</b> write that can prove an address, and
-	 * the 1 it returns is the only way to learn that this was the first proof: every later sign-in by
-	 * code reaches this too, and gets a 0. That 0 is what keeps {@code UserVerified} — and so the
-	 * {@code user_registered} line and the rhythm's first drawn moment — from being published on every
-	 * sign-in.
+	 * the 1 it returns is the only way to learn that this was the first proof: a sign-in racing the
+	 * first one reaches this too, and gets a 0. That 0 is what keeps {@code UserVerified} — and so the
+	 * {@code user_registered} line and the rhythm's first drawn moment — from being published twice.
+	 * (Sign-ins by an account already proved skip the call altogether.)
 	 *
 	 * @param id the account whose address was proved
 	 * @param now the moment it was proved — the state itself, and the audit column

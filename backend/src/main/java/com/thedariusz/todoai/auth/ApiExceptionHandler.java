@@ -137,8 +137,8 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	/**
 	 * A code that does not prove the address → <b>403</b>, and the URN is the whole point of the
 	 * status: the SPA has to tell "that code is not right, try again" from the CSRF 403 that shares it
-	 * and can only be fixed by reloading the page. The detail is fixed and says nothing about which of
-	 * the six causes it was — see {@link VerificationFailedException}.
+	 * and can only be fixed by reloading the page. The detail is fixed and says nothing about which
+	 * cause it was — see {@link VerificationFailedException}.
 	 */
 	@ExceptionHandler(VerificationFailedException.class)
 	ProblemDetail handleVerificationFailed(VerificationFailedException ex, WebRequest request) {

@@ -142,7 +142,7 @@ class VerificationApiTest extends ApiTestBase {
 		String email = uniqueEmail();
 		signUp(email, PASSWORD).statusCode(201);
 
-		submitCode(email, wrongCodeFor(email))
+		submitCode(email, wrongGuessFor(email))
 				.statusCode(403)
 				.contentType("application/problem+json")
 				.body("type", equalTo("urn:2doai:problem:verification-failed"));
@@ -169,7 +169,7 @@ class VerificationApiTest extends ApiTestBase {
 		String code = mail.codeFor(email).orElseThrow();
 
 		for (int attempt = 0; attempt < 5; attempt++) {
-			submitCode(email, wrongCodeFor(email)).statusCode(403);
+			submitCode(email, wrongGuessFor(email)).statusCode(403);
 		}
 
 		submitCode(email, code).statusCode(403);
@@ -188,7 +188,7 @@ class VerificationApiTest extends ApiTestBase {
 		String code = mail.codeFor(email).orElseThrow();
 
 		for (int attempt = 0; attempt < 4; attempt++) {
-			submitCode(email, wrongCodeFor(email)).statusCode(403);
+			submitCode(email, wrongGuessFor(email)).statusCode(403);
 		}
 
 		submitCode(email, code).statusCode(204);
@@ -200,7 +200,7 @@ class VerificationApiTest extends ApiTestBase {
 		String email = uniqueEmail();
 		signUp(email, PASSWORD).statusCode(201);
 		for (int attempt = 0; attempt < 5; attempt++) {
-			submitCode(email, wrongCodeFor(email)).statusCode(403);
+			submitCode(email, wrongGuessFor(email)).statusCode(403);
 		}
 
 		throttle.forget(email);
@@ -421,7 +421,7 @@ class VerificationApiTest extends ApiTestBase {
 		}
 	}
 
-		/**
+	/**
 	 * The enumeration defence itself: the throttle is consulted <em>before</em> the address is looked
 	 * up, so an address with no account is refused a second code exactly as a real one is. Move
 	 * {@code admit} inside the lookup and every other case here stays green while this endpoint becomes
@@ -548,7 +548,7 @@ class VerificationApiTest extends ApiTestBase {
 		String email = uniqueEmail();
 		signUp(email, PASSWORD).statusCode(201);
 
-		String verificationFailed = submitCode(email, wrongCodeFor(email))
+		String verificationFailed = submitCode(email, wrongGuessFor(email))
 				.statusCode(403)
 				.extract()
 				.path("type");
@@ -562,7 +562,7 @@ class VerificationApiTest extends ApiTestBase {
 				.contains(verificationFailed)
 				.contains(emailNotVerified);
 		assertThat(read("../frontend/src/auth/problems.ts"))
-				.as("the SPA branches the verification screens on these exact strings")
+				.as("the SPA keeps these exact strings until release 2 retires them")
 				.contains(verificationFailed)
 				.contains(emailNotVerified);
 
@@ -598,6 +598,9 @@ class VerificationApiTest extends ApiTestBase {
 				.as("the SPA constrains its own input to the same width, twice over")
 				.contains("pattern=\"" + digits + "\"")
 				.contains("maxLength={" + EmailVerificationService.CODE_LENGTH + "}");
+		assertThat(read("../frontend/src/pages/verifyLink.ts"))
+				.as("the mail link drops a prefilled code of any other width")
+				.contains("/^" + digits + "$/");
 	}
 
 	/**
@@ -617,15 +620,6 @@ class VerificationApiTest extends ApiTestBase {
 				.contains(".get('" + SignInLink.CODE_PARAM + "')");
 	}
 
-	/** Registration without the verification step {@code register} adds — several cases need the gap. */
-	private ValidatableResponse signUp(String email, String password) {
-		return csrfAware()
-				.body(Map.of("email", email, "password", password))
-				.when()
-				.post("/api/users")
-				.then();
-	}
-
 	private ValidatableResponse submitCode(String email, String code) {
 		return csrfAware()
 				.body(Map.of("email", email, "code", code))
@@ -634,10 +628,9 @@ class VerificationApiTest extends ApiTestBase {
 				.then();
 	}
 
-	/** Eight digits that are not the ones mailed — a wrong guess, not a malformed request. */
-	private String wrongCodeFor(String email) {
-		String issued = mail.codeFor(email).orElse("00000000");
-		return issued.equals("00000000") ? "11111111" : "00000000";
+	/** A wrong guess at the code this address was last mailed. */
+	private String wrongGuessFor(String email) {
+		return wrongCodeFor(mail.codeFor(email).orElse("00000000"));
 	}
 
 	/** Spends every slot the budget has left today, returning how many it took. */

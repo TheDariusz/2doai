@@ -232,7 +232,9 @@ public class EmailVerificationService implements PerUserDataDeleter {
 		if (users.consumeVerificationCode(account.getId(), codeHash, now) == 0) {
 			throw refuse("spent by a request racing this one", email);
 		}
-		if (users.markEmailVerified(account.getId(), now) == 1) {
+		// An address once proved is never un-proved, so only a first proof is worth a round trip; the
+		// conditional update still settles which of two racing first proofs publishes the event.
+		if (!account.isEmailVerified() && users.markEmailVerified(account.getId(), now) == 1) {
 			events.publishEvent(new UserVerified(account.getId()));
 			log.info("Account {} proved its address", account.getId());
 		}

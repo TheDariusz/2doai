@@ -1,18 +1,14 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Link, MemoryRouter, Route, Routes, useLocation, type InitialEntry } from 'react-router'
+import { Link, MemoryRouter, Route, Routes, type InitialEntry } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { VerifyPage } from './VerifyPage'
 import type { VerifyHandover } from './verifyHandover'
 import { ApiError } from '../api/client'
 import { AuthProvider } from '../auth/AuthProvider'
 import { LOGGED_IN, renderWithAuth, response, stubAuth } from '../test/auth'
+import { LocationProbe } from '../test/LocationProbe'
 import { type Auth } from '../auth/auth-context'
-
-function LocationProbe() {
-  const { pathname, search, hash } = useLocation()
-  return <p data-testid="location">{pathname + search + hash}</p>
-}
 
 /** The screen, plus the places a session sends the user on to. */
 function renderVerify(auth: Auth, entry: InitialEntry = '/verify') {

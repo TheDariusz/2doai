@@ -24,6 +24,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.jdbc.datasource.DelegatingDataSource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
@@ -72,7 +73,7 @@ public class TestcontainersConfiguration {
 	@Primary
 	@Qualifier(MailConfig.AUTH_MAIL_EXECUTOR)
 	Executor synchronousAuthMailExecutor() {
-		return Runnable::run;
+		return new SyncTaskExecutor();
 	}
 
 	/**

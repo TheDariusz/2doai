@@ -32,12 +32,11 @@ export const LOGGED_IN: Partial<Auth> = {
  */
 export function response(status: number, body?: unknown, headers: Record<string, string> = {}) {
   const text = body === undefined ? '' : JSON.stringify(body)
-  const named = new Map(Object.entries(headers).map(([name, value]) => [name.toLowerCase(), value]))
   return {
     ok: status < 400,
     status,
     statusText: '',
-    headers: { get: (name: string) => named.get(name.toLowerCase()) ?? null },
+    headers: new Headers(headers),
     text: async () => text,
     json: async () => JSON.parse(text) as unknown,
   }

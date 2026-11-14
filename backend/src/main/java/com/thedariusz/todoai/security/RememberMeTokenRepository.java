@@ -13,15 +13,28 @@ import org.springframework.data.repository.query.Param;
  * The {@code remember_me_token} table. A {@link Repository}, not a {@code JpaRepository}, so it
  * publishes no unscoped finder by id (the {@code UserOwned} convention).
  *
- * <p>{@link #findBySeries} is the one read not scoped by user, and it cannot be: it runs on a request
- * that has no user yet, and the series is what says whose it is. That is the same position a session
- * id is in — a 128-bit random name, looked up to find the owner.
+ * <p>{@link #findOwnedBySeries} and {@link #recordUse} are the only statements not scoped by user,
+ * and they cannot be: they run on a request that has no user yet, and the series is what says whose it
+ * is. That is the same position a session id is in — a 128-bit random name, looked up to find the
+ * owner.
  */
 interface RememberMeTokenRepository extends Repository<RememberMeToken, UUID> {
 
 	RememberMeToken save(RememberMeToken token);
 
-	Optional<RememberMeToken> findBySeries(String series);
+	/**
+	 * Records an auto-login in one statement, without loading the row first. The value is written
+	 * because that is the contract Spring's {@code PersistentTokenRepository.updateToken} states; this
+	 * application only ever passes the value the row already holds. A bulk update bypasses
+	 * {@code @UpdateTimestamp}, hence the explicit {@code updatedAt}.
+	 */
+	@Modifying
+	@Query("""
+			update RememberMeToken t set t.tokenValue = :tokenValue, t.lastUsedAt = :at, t.updatedAt = :at
+			where t.series = :series
+			""")
+	int recordUse(@Param("series") String series, @Param("tokenValue") String tokenValue,
+			@Param("at") OffsetDateTime at);
 
 	/**
 	 * The series together with the address that owns it — the address is what Spring Security's

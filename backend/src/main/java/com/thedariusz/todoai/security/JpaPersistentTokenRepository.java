@@ -54,7 +54,7 @@ class JpaPersistentTokenRepository implements PersistentTokenRepository, PerUser
 	@Override
 	@Transactional
 	public void updateToken(String series, String tokenValue, Date lastUsed) {
-		tokens.findBySeries(series).ifPresent(token -> token.use(tokenValue, toOffsetDateTime(lastUsed)));
+		tokens.recordUse(series, tokenValue, toOffsetDateTime(lastUsed));
 	}
 
 	@Override

@@ -127,13 +127,17 @@ abstract class ApiTestBase {
 	 * get is an account produced exactly the way a user's is, not one nudged into shape from the side.
 	 */
 	protected void register(String email, String password) {
-		csrfAware()
+		signUp(email, password).statusCode(201);
+		confirmAddress(email);
+	}
+
+	/** Registration without the verification step {@link #register} adds — several cases need the gap. */
+	protected ValidatableResponse signUp(String email, String password) {
+		return csrfAware()
 				.body(Map.of("email", email, "password", password))
 				.when()
 				.post("/api/users")
-				.then()
-				.statusCode(201);
-		confirmAddress(email);
+				.then();
 	}
 
 	/**
@@ -204,6 +208,11 @@ abstract class ApiTestBase {
 		requestCode(email).statusCode(202);
 		return mail.codeFor(email)
 				.orElseThrow(() -> new AssertionError("No code was mailed to " + email));
+	}
+
+	/** Eight digits that are not {@code code} — a wrong guess, not a malformed request. */
+	protected static String wrongCodeFor(String code) {
+		return code.equals("00000000") ? "11111111" : "00000000";
 	}
 
 	/**

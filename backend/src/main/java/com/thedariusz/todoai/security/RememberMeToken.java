@@ -64,35 +64,9 @@ public class RememberMeToken implements UserOwned {
 		this.lastUsedAt = Objects.requireNonNull(issuedAt, "issuedAt");
 	}
 
-	/**
-	 * Records a use. The value is taken as given because that is the contract Spring's
-	 * {@code PersistentTokenRepository.updateToken} states; this application only ever passes the
-	 * value the row already holds.
-	 */
-	void use(String presentedValue, OffsetDateTime at) {
-		this.tokenValue = Objects.requireNonNull(presentedValue, "presentedValue");
-		this.lastUsedAt = Objects.requireNonNull(at, "at");
-	}
-
-	public UUID getId() {
-		return id;
-	}
-
 	@Override
 	public UUID getUserId() {
 		return userId;
-	}
-
-	public String getSeries() {
-		return series;
-	}
-
-	public String getTokenValue() {
-		return tokenValue;
-	}
-
-	public OffsetDateTime getLastUsedAt() {
-		return lastUsedAt;
 	}
 
 	/** Never renders the value: half of a credential has no business in a log line. */

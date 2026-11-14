@@ -1,6 +1,6 @@
 import { act, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Route, Routes, useLocation } from 'react-router'
+import { Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppLayout } from './AppLayout'
 import { ApiError } from '../api/client'
@@ -8,6 +8,7 @@ import type { Auth } from '../auth/auth-context'
 import i18n from '../i18n'
 import { DomainPlaceholder } from '../pages/DomainPlaceholder'
 import { LOGGED_IN, renderWithAuth, response, stubAuth } from '../test/auth'
+import { LocationProbe } from '../test/LocationProbe'
 import { DOMAINS } from '../test/domains'
 
 const fetchMock = vi.fn()
@@ -19,15 +20,10 @@ beforeEach(() => {
 })
 
 /**
- * Stands in for the screen the rail filters. What a tag or the withdrawn switch *writes* is the
- * whole of its behaviour, so the URL it lands on is all this shell test needs — `GoalsPage` has its
- * own suite, and mounting it here would add its reads to every assertion in this file.
+ * `LocationProbe` stands in for the screen the rail filters. What a tag or the withdrawn switch
+ * *writes* is the whole of its behaviour, so the URL it lands on is all this shell test needs —
+ * `GoalsPage` has its own suite, and mounting it here would add its reads to every assertion in this file.
  */
-function LocationProbe() {
-  const { pathname, search } = useLocation()
-  return <p data-testid="location">{pathname + search}</p>
-}
-
 function renderShell(path = '/goals', auth: Auth = stubAuth(LOGGED_IN)) {
   renderWithAuth(
     <Routes>

@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, useLocation } from 'react-router'
+import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from './App'
 import { AuthProvider } from './auth/AuthProvider'
@@ -9,6 +9,7 @@ import { ApiError } from './api/client'
 import { AuthContext, type Auth } from './auth/auth-context'
 import i18n from './i18n'
 import { LOGGED_IN, renderWithAuth, response, stubAuth } from './test/auth'
+import { LocationProbe } from './test/LocationProbe'
 import { DOMAINS } from './test/domains'
 
 const LANDING = { level: 1, name: i18n.t('landing.title') }
@@ -39,11 +40,6 @@ function Session({ children, initial }: { children: ReactNode; initial: Auth['st
       {children}
     </AuthContext>
   )
-}
-
-function LocationProbe() {
-  const { pathname, search, hash } = useLocation()
-  return <p data-testid="location">{pathname + search + hash}</p>
 }
 
 function renderApp(path: string, initial: Auth['status'] = 'anonymous') {
@@ -125,7 +121,6 @@ describe('AppRoutes', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/goals')
   })
 })
-
 
 describe('public session bootstrap', () => {
   function renderBootstrap() {

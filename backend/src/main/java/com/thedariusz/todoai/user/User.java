@@ -243,7 +243,7 @@ public class User {
 	 * <p>The rule lives here rather than in the service because it is the aggregate's own — four fields
 	 * that only mean anything together, and a caller reading them one at a time is a caller who can get
 	 * the conjunction wrong. What the service still owns is what a failure <em>costs</em>: the write
-	 * that charges a wrong guess, and the {@code where} clauses that hold under a race.
+	 * that charges each guess, and the {@code where} clauses that hold under a race.
 	 */
 	public boolean hasCodeAwaiting(OffsetDateTime now, CodePurpose purpose) {
 		return verificationCodeHash != null
