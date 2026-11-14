@@ -78,7 +78,7 @@ export const pl = {
     // in full, and the window, because staleness is the only thing that kills a code. The number is
     // `EmailVerificationService.CODE_VALIDITY`; both catalogs are held against it by
     // `VerificationApiTest.emitsTheVerificationUrnsTheContractAndTheSpaBothHardcode`.
-    hint: 'Wysłaliśmy sześciocyfrowy kod na {{email}}. Jest ważny 15 minut.',
+    hint: 'Wysłaliśmy ośmiocyfrowy kod na {{email}}. Jest ważny 15 minut.',
     code: 'Kod z wiadomości',
     submit: 'Potwierdź adres',
     sendAgain: 'Wyślij kod jeszcze raz',

@@ -76,6 +76,30 @@ class UserRepositoryTest {
 		assertThat(reloaded.getUpdatedAt()).isNotNull();
 	}
 
+	/**
+	 * V15, the expand half of passwordless sign-in: an account can exist without a password. Release 1
+	 * never writes one, but release 2 does, and a rollback to release 1 must still read such a row.
+	 */
+	@Test
+	void persistsAnAccountThatHasNoPassword() {
+		User user = users.saveAndFlush(new User(Email.of("no-password@example.com"), null, AppLanguage.EN));
+
+		assertThat(users.findById(user.getId()).orElseThrow().getPasswordHash()).isNull();
+	}
+
+	/**
+	 * The image V15 runs beside writes rows without naming {@code verification_purpose}; the column's
+	 * default is what keeps those inserts legal, and it reads back as a sign-in code.
+	 */
+	@Test
+	void givesARowWrittenWithoutAPurposeTheSignInPurpose() {
+		UUID id = UUID.randomUUID();
+		jdbc.update("insert into app_user (id, email, password_hash, created_at, updated_at) "
+				+ "values (?, ?, ?, now(), now())", id, "previous-image@example.com", "{bcrypt}$2a$10$hash");
+
+		assertThat(users.findById(id).orElseThrow().getVerificationPurpose()).isEqualTo(CodePurpose.SIGN_IN);
+	}
+
 	/** An account deleted between reading the principal and writing the column matches nothing. */
 	@Test
 	void reportsNoRowUpdatedForAnAccountThatNoLongerExists() {

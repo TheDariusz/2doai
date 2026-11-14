@@ -22,7 +22,7 @@ function Probe() {
       <button onClick={() => logout().catch(() => setFailed(true))}>Wyloguj</button>
       <button onClick={() => void changeLanguage('pl')}>na polski</button>
       <button onClick={() => void changeLanguage('en')}>to English</button>
-      <button onClick={() => void verify('ala@example.pl', '042317')}>spend the code</button>
+      <button onClick={() => void verify('ala@example.pl', '04231789')}>spend the code</button>
       <button onClick={() => void resendCode('ala@example.pl')}>ask for another</button>
     </>
   )
@@ -129,7 +129,7 @@ describe('AuthProvider', () => {
     const [url, init] = fetchMock.mock.calls[1]
     expect(url).toBe('/api/verifications')
     expect(init.method).toBe('POST')
-    expect(JSON.parse(init.body)).toEqual({ email: 'ala@example.pl', code: '042317' })
+    expect(JSON.parse(init.body)).toEqual({ email: 'ala@example.pl', code: '04231789' })
     expect(screen.getByText('status: anonymous')).toBeInTheDocument()
   })
 

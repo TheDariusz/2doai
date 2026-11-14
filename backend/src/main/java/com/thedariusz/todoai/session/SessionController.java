@@ -2,15 +2,22 @@ package com.thedariusz.todoai.session;
 
 import java.net.URI;
 
+import com.thedariusz.todoai.auth.EmailVerificationService;
 import com.thedariusz.todoai.auth.LoginRequest;
 import com.thedariusz.todoai.auth.UserResponse;
+import com.thedariusz.todoai.auth.VerificationFailedException;
 import com.thedariusz.todoai.security.AuthenticatedSession;
 import com.thedariusz.todoai.security.UserPrincipal;
+import com.thedariusz.todoai.user.CodePurpose;
+import com.thedariusz.todoai.user.User;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationServiceException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -19,6 +26,7 @@ import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.transaction.TransactionException;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -40,6 +48,14 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>and persisted through the {@link SecurityContextRepository}, which is what actually writes
  *       the session — without it the login "succeeds" and the very next request is anonymous.</li>
  * </ol>
+ *
+ * <p><b>Two credentials, one session-creation path</b> (passwordless sign-in). A password goes through
+ * the {@link AuthenticationManager}; a mailed code is redeemed by {@link EmailVerificationService} and
+ * turned into an authenticated token here. There is deliberately no second
+ * {@code AuthenticationProvider} bean for the code — Spring adopts a single provider bean into the
+ * global manager, and a second one would silently make it adopt neither. Both paths then run the same
+ * three steps above, so a code sign-in rotates the session id and the CSRF token exactly as a password
+ * sign-in does.
  */
 @RestController
 @RequestMapping("/api/sessions")
@@ -54,28 +70,33 @@ public class SessionController {
 	/** Owns step 3 below — the write-back through the chain's own {@code SecurityContextRepository}. */
 	private final AuthenticatedSession session;
 
+	private final EmailVerificationService verification;
+
 	public SessionController(AuthenticationManager authenticationManager,
 			SessionAuthenticationStrategy sessionAuthenticationStrategy, LogoutHandler logoutHandler,
-			AuthenticatedSession session) {
+			AuthenticatedSession session, EmailVerificationService verification) {
 		this.authenticationManager = authenticationManager;
 		this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
 		this.logoutHandler = logoutHandler;
 		this.session = session;
+		this.verification = verification;
 	}
 
 	/**
 	 * Authenticates and establishes the session. A failure throws {@code BadCredentialsException},
 	 * which propagates to Spring Security's {@code ExceptionTranslationFilter} and comes back as the
 	 * generic 401 Problem JSON from {@code ProblemDetailsSecurityHandler} — identical whether the
-	 * email is unknown or the password is wrong, so the response reveals nothing about which emails
-	 * exist.
+	 * email is unknown, the password is wrong, or the code is wrong, expired, spent or out of guesses,
+	 * so the response reveals nothing about which emails exist.
 	 */
 	@PostMapping
 	ResponseEntity<UserResponse> login(@Valid @RequestBody LoginRequest request,
 			HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
 
-		Authentication authentication = authenticationManager.authenticate(
-				UsernamePasswordAuthenticationToken.unauthenticated(request.email(), request.password()));
+		Authentication authentication = request.signsInByCode()
+				? redeemCode(request)
+				: authenticationManager.authenticate(
+						UsernamePasswordAuthenticationToken.unauthenticated(request.email(), request.password()));
 
 		sessionAuthenticationStrategy.onAuthentication(authentication, httpRequest, httpResponse);
 		materializeRotatedCsrfToken(httpRequest);
@@ -84,6 +105,34 @@ public class SessionController {
 
 		UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
 		return ResponseEntity.created(URI.create("/api/sessions/current")).body(UserResponse.from(principal));
+	}
+
+	/**
+	 * Spends the code and answers with the authenticated token the password path would have produced.
+	 * The redemption has already committed — including a wrong guess's charge — by the time either
+	 * exception is translated here, which is why the translation happens outside it.
+	 *
+	 * <p>A refused code is bad credentials: the generic 401. A database failure is a service failure,
+	 * the 503 the password path gets from {@code DaoAuthenticationProvider} wrapping it in
+	 * {@link AuthenticationServiceException} — telling every user their code is wrong during an outage
+	 * would be the lie {@code ProblemDetailsSecurityHandler} exists to prevent.
+	 */
+	private Authentication redeemCode(LoginRequest request) {
+		User account;
+		try {
+			account = verification.redeem(request.email(), request.code(), CodePurpose.SIGN_IN);
+		}
+		catch (VerificationFailedException ex) {
+			// No cause on purpose: Spring MVC matches @ExceptionHandler methods against an exception's
+			// causes too, so carrying this one would let ApiExceptionHandler answer the address-proof 403
+			// instead of the generic 401. The service has already logged why it refused.
+			throw new BadCredentialsException("The code was refused");
+		}
+		catch (DataAccessException | TransactionException ex) {
+			throw new AuthenticationServiceException("A code sign-in could not be completed", ex);
+		}
+		UserPrincipal principal = UserPrincipal.from(account);
+		return UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities());
 	}
 
 	/**

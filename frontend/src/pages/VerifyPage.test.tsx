@@ -26,12 +26,12 @@ describe('VerifyPage', () => {
     const auth = stubAuth()
     renderVerify(auth, { email: 'ala@example.pl' })
 
-    expect(screen.getByText(/six-digit code to ala@example\.pl/)).toBeInTheDocument()
+    expect(screen.getByText(/eight-digit code to ala@example\.pl/)).toBeInTheDocument()
     const user = userEvent.setup()
-    await user.type(screen.getByLabelText('Code from the email'), '042317')
+    await user.type(screen.getByLabelText('Code from the email'), '04231789')
     await user.click(screen.getByRole('button', { name: 'Confirm address' }))
 
-    expect(auth.verify).toHaveBeenCalledWith('ala@example.pl', '042317')
+    expect(auth.verify).toHaveBeenCalledWith('ala@example.pl', '04231789')
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent(/confirmed/i)
   })
@@ -49,7 +49,7 @@ describe('VerifyPage', () => {
     renderVerify(auth, { email: 'ala@example.pl' })
 
     const user = userEvent.setup()
-    await user.type(screen.getByLabelText('Code from the email'), '000000')
+    await user.type(screen.getByLabelText('Code from the email'), '00000000')
     await user.click(screen.getByRole('button', { name: 'Confirm address' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/no longer valid/i)

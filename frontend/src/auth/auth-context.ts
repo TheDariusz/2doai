@@ -27,7 +27,7 @@ export type Auth = {
   status: 'loading' | 'authenticated' | 'anonymous'
   login: (email: string, password: string) => Promise<void>
   /**
-   * Registration does not open a session — the server returns 201, mails a six-digit code to the
+   * Registration does not open a session — the server returns 201, mails an eight-digit code to the
    * address and the account stays inert until `verify` spends it.
    */
   register: (email: string, password: string) => Promise<void>

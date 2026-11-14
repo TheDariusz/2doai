@@ -14,7 +14,8 @@ import org.springframework.security.core.userdetails.UserDetails;
  * Adapts the domain {@link User} to Spring Security's authentication model. Carries the user's
  * <b>UUID</b> — the value the per-user isolation contract keys on ({@link CurrentUser#requireId()}
  * pulls it out of the security context) — alongside the email (Spring Security's {@code username}),
- * the stored password hash and the account's {@link AppLanguage}.
+ * the stored password hash (null for an account that signs in by code only) and the account's
+ * {@link AppLanguage}.
  *
  * <p><b>The language rides here so {@code GET /api/users/me} keeps costing zero queries.</b> The
  * login lookup already has the row in hand; carrying one more field off it is free, and every
@@ -34,16 +35,19 @@ public record UserPrincipal(UUID userId, String email, String passwordHash, AppL
 		boolean verified) implements UserDetails {
 
 	/**
-	 * Every component is required, and {@link #userId} is the one that would fail quietly without
-	 * this: {@link #equals} dereferences it, so a principal built with a null id throws from inside a
-	 * {@code SessionRegistry} lookup rather than at the point that built it. The others are stated for
-	 * the same reason a NOT NULL column is — this is the record the whole request is authorized
-	 * against, and "absent" is not one of the states it has.
+	 * Every component but the password hash is required, and {@link #userId} is the one that would
+	 * fail quietly without this: {@link #equals} dereferences it, so a principal built with a null id
+	 * throws from inside a {@code SessionRegistry} lookup rather than at the point that built it. The
+	 * others are stated for the same reason a NOT NULL column is — this is the record the whole request
+	 * is authorized against, and "absent" is not one of the states it has.
+	 *
+	 * <p>The hash may be null: an account can exist without a password (passwordless sign-in), and a
+	 * password checked against one is simply wrong — Spring Security's encoder answers {@code false}
+	 * for a missing hash, so a password login is the ordinary 401 and account deletion the ordinary 403.
 	 */
 	public UserPrincipal {
 		Objects.requireNonNull(userId, "userId");
 		Objects.requireNonNull(email, "email");
-		Objects.requireNonNull(passwordHash, "passwordHash");
 		Objects.requireNonNull(language, "language");
 	}
 

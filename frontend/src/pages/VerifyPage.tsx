@@ -23,7 +23,7 @@ type Handover = { email?: string; error?: MessageKey } | null
 
 /**
  * The address-proof screen. An account exists from the moment sign-up returns, but it is inert —
- * it cannot log in and the natural rhythm never writes to it — until the six digits mailed to the
+ * it cannot log in and the natural rhythm never writes to it — until the eight digits mailed to the
  * address land here.
  *
  * The address is an ordinary editable field seeded from the route state rather than a line of text:
@@ -88,14 +88,14 @@ export function VerifyPage() {
         <label>
           {t('verify.code')}
           {/* Native attributes rather than six boxes wired together: the numeric keypad, the SMS /
-              mail autofill and the six-digit rule are all the platform's, and the server checks the
+              mail autofill and the eight-digit rule are all the platform's, and the server checks the
               same pattern anyway. */}
           <input
             name="code"
             inputMode="numeric"
             autoComplete="one-time-code"
-            pattern="\d{6}"
-            maxLength={6}
+            pattern="\d{8}"
+            maxLength={8}
             required
           />
         </label>

@@ -1,6 +1,7 @@
 package com.thedariusz.todoai;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -8,7 +9,9 @@ import java.util.Map;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.thedariusz.todoai.auth.AuthMailBudget;
 import com.thedariusz.todoai.auth.EmailVerificationService;
+import com.thedariusz.todoai.auth.SignInLink;
 import com.thedariusz.todoai.auth.VerificationThrottle;
 import com.thedariusz.todoai.observability.RegistrationAuditLogger;
 import io.restassured.response.ValidatableResponse;
@@ -48,13 +51,17 @@ class VerificationApiTest extends ApiTestBase {
 	@Autowired
 	VerificationThrottle throttle;
 
+	/** Drained by the one case about it, and given back in full afterwards — it is shared by the suite. */
+	@Autowired
+	AuthMailBudget budget;
+
 	@Test
 	void mailsACodeWhenAnAccountIsRegistered() {
 		String email = uniqueEmail();
 
 		signUp(email, PASSWORD).statusCode(201);
 
-		assertThat(mail.codeFor(email)).as("registration mails a six-digit code").isPresent();
+		assertThat(mail.codeFor(email)).as("registration mails a code").isPresent();
 	}
 
 	/**
@@ -144,13 +151,13 @@ class VerificationApiTest extends ApiTestBase {
 	/** An unknown address is refused exactly like a wrong code — the response is not an oracle. */
 	@Test
 	void rejectsACodeForAnAddressThatHasNoAccount() {
-		submitCode(uniqueEmail(), "123456")
+		submitCode(uniqueEmail(), "12345678")
 				.statusCode(403)
 				.body("type", equalTo("urn:2doai:problem:verification-failed"));
 	}
 
 	/**
-	 * Six digits is a million guesses, which is nothing to a script — so the code is worth five and
+	 * Eight digits is a hundred million guesses, still nothing to a script — so the code is worth five and
 	 * the sixth is refused <em>even when it is right</em>. The counter has to survive the 403 it is
 	 * charged on, which is the one thing about it that is easy to get wrong: a write that rolls back
 	 * with its own response caps nothing.
@@ -303,8 +310,13 @@ class VerificationApiTest extends ApiTestBase {
 		assertThat(mail.sentAnythingTo(stranger)).isFalse();
 	}
 
+	/**
+	 * The code is the sign-in credential now, so a proved address is sent one on request — the case
+	 * this endpoint used to answer by sending nothing. The message carries the link that prefills the
+	 * code, in the account's language, and nothing in the response says a message went out.
+	 */
 	@Test
-	void acceptsACodeRequestForAnAlreadyVerifiedAddressAndMailsNothing() {
+	void mailsASignInCodeAndItsLinkToAVerifiedAddressOnRequest() {
 		String email = uniqueEmail();
 		register(email, PASSWORD);
 		throttle.forget(email);
@@ -312,10 +324,104 @@ class VerificationApiTest extends ApiTestBase {
 
 		requestCode(email).statusCode(202);
 
-		assertThat(mail.sentAnythingTo(email)).isFalse();
+		String code = mail.codeFor(email).orElseThrow();
+		assertThat(mail.sent()).singleElement()
+				.extracting(TestcontainersConfiguration.RecordingEmailSender.Sent::text)
+				.asString()
+				.contains(SignInLink.of("http://localhost:5173", email, code));
+		signInWithCode(email, code).statusCode(201);
 	}
 
 	/**
+	 * The first code that opens a session is also the proof of the address — there is no separate
+	 * verification step on the way in. {@code user_registered} is logged once for that first proof and
+	 * never again for a later sign-in, because it drives the owner's registration alert and the
+	 * rhythm's first drawn moment.
+	 */
+	@Test
+	void provesTheAddressOnTheFirstCodeSignInAndLogsUserRegisteredExactlyOnce() {
+		String email = uniqueEmail();
+		signUp(email, PASSWORD).statusCode(201);
+		ListAppender<ILoggingEvent> lines = new ListAppender<>();
+		Logger auditLog = (Logger) LoggerFactory.getLogger(RegistrationAuditLogger.class);
+		lines.start();
+		auditLog.addAppender(lines);
+
+		try {
+			signInWithCode(email, mail.codeFor(email).orElseThrow()).statusCode(201);
+			newBrowser();
+			signInWithCode(email, mailedSignInCode(email)).statusCode(201);
+		}
+		finally {
+			auditLog.detachAppender(lines);
+		}
+
+		assertThat(lines.list).as("one user_registered for one account, however often it signs in")
+				.hasSize(1);
+		// The password works too, now that the address is proved.
+		newBrowser();
+		login(email, PASSWORD).statusCode(201);
+	}
+
+	/**
+	 * The Resend plan is shared with proposal mail, so auth mail has a ceiling of its own. Once it is
+	 * spent the answer is 503 for every address alike — consulted before the lookup, as the throttle
+	 * is, so it says nothing about which addresses have accounts.
+	 */
+	@Test
+	void refusesEveryCodeRequestOnceTheDailyBudgetIsSpent() {
+		String known = uniqueEmail();
+		register(known, PASSWORD);
+		throttle.forget(known);
+		mail.clear();
+		int drained = drainBudget();
+
+		try {
+			String forKnown = requestCode(known).statusCode(503).contentType("application/problem+json")
+					.extract().asString();
+			String forStranger = requestCode(uniqueEmail()).statusCode(503).extract().asString();
+
+			assertThat(forStranger).as("the same 503 whether or not the address has an account")
+					.isEqualTo(forKnown);
+			assertThat(mail.sentAnythingTo(known)).isFalse();
+		}
+		finally {
+			refill(drained);
+		}
+
+		// The refused request was not charged to the throttle either: the user can ask again at once.
+		requestCode(known).statusCode(202);
+	}
+
+	/**
+	 * Mail goes out off the request thread, so a provider failure can no longer be the 503 it is on
+	 * sign-up — the request has already been answered. What it must still do is give back what it
+	 * spent: the throttle entry and the budget slot, so "send again" works at once.
+	 */
+	@Test
+	void givesBackTheThrottleAndTheBudgetWhenTheProviderRefusesACode() {
+		String email = uniqueEmail();
+		register(email, PASSWORD);
+		throttle.forget(email);
+		int drained = drainBudget();
+		budget.refund(Instant.now());
+		mail.clear();
+
+		try {
+			mail.failNextSend();
+			requestCode(email).statusCode(202);
+			assertThat(mail.sentAnythingTo(email)).isFalse();
+
+			// One budget slot was left; the failed send gave it back, and the throttle let it through.
+			requestCode(email).statusCode(202);
+			assertThat(mail.codeFor(email)).isPresent();
+		}
+		finally {
+			refill(drained - 1);
+		}
+	}
+
+		/**
 	 * The enumeration defence itself: the throttle is consulted <em>before</em> the address is looked
 	 * up, so an address with no account is refused a second code exactly as a real one is. Move
 	 * {@code admit} inside the lookup and every other case here stays green while this endpoint becomes
@@ -403,8 +509,8 @@ class VerificationApiTest extends ApiTestBase {
 	}
 
 	@Test
-	void rejectsACodeThatIsNotSixDigits() {
-		submitCode(uniqueEmail(), "12345")
+	void rejectsACodeThatIsNotEightDigits() {
+		submitCode(uniqueEmail(), "1234567")
 				.statusCode(422)
 				.contentType("application/problem+json");
 	}
@@ -479,7 +585,7 @@ class VerificationApiTest extends ApiTestBase {
 	 * with nothing red to say so.
 	 *
 	 * <p>Files only, no request: what is being pinned is a number three files agree on, and the wire
-	 * already has {@code rejectsACodeThatIsNotSixDigits} standing over it.
+	 * already has {@code rejectsACodeThatIsNotEightDigits} standing over it.
 	 */
 	@Test
 	void usesTheSameCodeWidthTheContractAndTheSpaBothHardcode() throws IOException {
@@ -492,6 +598,23 @@ class VerificationApiTest extends ApiTestBase {
 				.as("the SPA constrains its own input to the same width, twice over")
 				.contains("pattern=\"" + digits + "\"")
 				.contains("maxLength={" + EmailVerificationService.CODE_LENGTH + "}");
+	}
+
+	/**
+	 * The mail link is a contract between the Java that builds it and the SPA that reads it: the path
+	 * must be a route the SPA serves, and the fragment names must be the ones it parses. Neither side
+	 * can see the other, so this reads both — renaming one without the other goes red here instead of
+	 * landing a user on a blank form.
+	 */
+	@Test
+	void buildsTheMailLinkTheSpaRoutesAndParses() throws IOException {
+		assertThat(read("../frontend/src/App.tsx"))
+				.as("the SPA serves the path the link points at")
+				.contains("path=\"" + SignInLink.PATH + "\"");
+		assertThat(read("../frontend/src/pages/verifyLink.ts"))
+				.as("the SPA reads the fragment names the link writes")
+				.contains(".get('" + SignInLink.EMAIL_PARAM + "')")
+				.contains(".get('" + SignInLink.CODE_PARAM + "')");
 	}
 
 	/** Registration without the verification step {@code register} adds — several cases need the gap. */
@@ -511,17 +634,26 @@ class VerificationApiTest extends ApiTestBase {
 				.then();
 	}
 
-	private ValidatableResponse requestCode(String email) {
-		return csrfAware()
-				.body(Map.of("email", email))
-				.when()
-				.post("/api/verification-codes")
-				.then();
+	/** Eight digits that are not the ones mailed — a wrong guess, not a malformed request. */
+	private String wrongCodeFor(String email) {
+		String issued = mail.codeFor(email).orElse("00000000");
+		return issued.equals("00000000") ? "11111111" : "00000000";
 	}
 
-	/** Six digits that are not the ones mailed — a wrong guess, not a malformed request. */
-	private String wrongCodeFor(String email) {
-		String issued = mail.codeFor(email).orElse("000000");
-		return issued.equals("000000") ? "111111" : "000000";
+	/** Spends every slot the budget has left today, returning how many it took. */
+	private int drainBudget() {
+		Instant now = Instant.now();
+		int drained = 0;
+		while (budget.admit(now)) {
+			drained++;
+		}
+		return drained;
+	}
+
+	private void refill(int slots) {
+		Instant now = Instant.now();
+		for (int slot = 0; slot < slots; slot++) {
+			budget.refund(now);
+		}
 	}
 }

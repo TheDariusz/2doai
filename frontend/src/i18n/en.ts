@@ -67,7 +67,7 @@ export const en: typeof pl = {
   },
   verify: {
     heading: 'Confirm your address',
-    hint: 'We sent a six-digit code to {{email}}. It is valid for 15 minutes.',
+    hint: 'We sent an eight-digit code to {{email}}. It is valid for 15 minutes.',
     code: 'Code from the email',
     submit: 'Confirm address',
     sendAgain: 'Send the code again',

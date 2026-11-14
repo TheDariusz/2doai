@@ -48,6 +48,17 @@ class UserTest {
 				.isInstanceOf(NullPointerException.class);
 	}
 
+	/**
+	 * An account may exist without a password (passwordless sign-in, release 1 expand): the column is
+	 * nullable from V15 and the aggregate must tolerate the row release 2 will write.
+	 */
+	@Test
+	void acceptsAnAccountWithoutAPassword() {
+		User user = new User(Email.of("alice@example.com"), null, AppLanguage.EN);
+
+		assertThat(user.getPasswordHash()).isNull();
+	}
+
 	@Test
 	void rejectsBlankPasswordHash() {
 		assertThatThrownBy(() -> new User(Email.of("alice@example.com"), "   ", AppLanguage.EN))
@@ -63,25 +74,39 @@ class UserTest {
 	void saysACodeMayBeTriedWhileItIsLiveAndUnspent() {
 		OffsetDateTime now = OffsetDateTime.now();
 
-		assertThat(withCode(now.plusMinutes(15), 0).hasCodeAwaiting(now)).isTrue();
-		assertThat(withCode(now.plusMinutes(15), User.MAX_VERIFICATION_ATTEMPTS - 1).hasCodeAwaiting(now))
+		assertThat(withCode(now.plusMinutes(15), 0).hasCodeAwaiting(now, CodePurpose.SIGN_IN)).isTrue();
+		assertThat(withCode(now.plusMinutes(15), User.MAX_VERIFICATION_ATTEMPTS - 1)
+				.hasCodeAwaiting(now, CodePurpose.SIGN_IN))
 				.as("the last guess the code is worth is still a guess")
 				.isTrue();
 	}
 
+	/**
+	 * A proved address no longer closes the slot: the code is now the sign-in credential, so a
+	 * verified account must be able to hold and spend one.
+	 */
 	@Test
-	void refusesACodeThatIsMissingExpiredSpentOrAlreadyProved() {
+	void letsAProvedAccountSpendACode() {
+		OffsetDateTime now = OffsetDateTime.now();
+		User proved = withCode(now.plusMinutes(15), 0);
+		ReflectionTestUtils.setField(proved, "emailVerifiedAt", now);
+
+		assertThat(proved.hasCodeAwaiting(now, CodePurpose.SIGN_IN)).isTrue();
+	}
+
+	@Test
+	void refusesACodeThatIsMissingExpiredSpentOrForAnotherPurpose() {
 		OffsetDateTime now = OffsetDateTime.now();
 
 		assertThat(new User(Email.of("alice@example.com"), "{bcrypt}$2a$10$hash", AppLanguage.EN)
-				.hasCodeAwaiting(now)).as("a fresh account has no code drawn yet").isFalse();
-		assertThat(withCode(now.minusSeconds(1), 0).hasCodeAwaiting(now)).as("expired").isFalse();
-		assertThat(withCode(now.plusMinutes(15), User.MAX_VERIFICATION_ATTEMPTS).hasCodeAwaiting(now))
+				.hasCodeAwaiting(now, CodePurpose.SIGN_IN)).as("a fresh account has no code drawn yet").isFalse();
+		assertThat(withCode(now.minusSeconds(1), 0).hasCodeAwaiting(now, CodePurpose.SIGN_IN))
+				.as("expired").isFalse();
+		assertThat(withCode(now.plusMinutes(15), User.MAX_VERIFICATION_ATTEMPTS)
+				.hasCodeAwaiting(now, CodePurpose.SIGN_IN))
 				.as("out of guesses").isFalse();
-
-		User proved = withCode(now.plusMinutes(15), 0);
-		ReflectionTestUtils.setField(proved, "emailVerifiedAt", now);
-		assertThat(proved.hasCodeAwaiting(now)).as("already proved").isFalse();
+		assertThat(withCode(now.plusMinutes(15), 0).hasCodeAwaiting(now, CodePurpose.ACCOUNT_DELETION))
+				.as("a sign-in code does not confirm a deletion").isFalse();
 	}
 
 	private static User withCode(OffsetDateTime expiresAt, int attempts) {
@@ -89,6 +114,7 @@ class UserTest {
 		ReflectionTestUtils.setField(user, "verificationCodeHash", "{bcrypt}$2a$10$code");
 		ReflectionTestUtils.setField(user, "verificationExpiresAt", expiresAt);
 		ReflectionTestUtils.setField(user, "verificationAttempts", attempts);
+		ReflectionTestUtils.setField(user, "verificationPurpose", CodePurpose.SIGN_IN);
 		return user;
 	}
 }

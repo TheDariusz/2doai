@@ -13,9 +13,9 @@ import org.springframework.context.annotation.Import;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The verification state of the {@link User} aggregate against a real Postgres with {@code V13}
- * applied: the four columns exist and the mapping validates against them, a new account is inert
- * until somebody proves the address, and each of the writes moves exactly its own columns.
+ * The code slot of the {@link User} aggregate against a real Postgres with {@code V13}-{@code V15}
+ * applied: the columns exist and the mapping validates against them, a new account is inert until
+ * somebody proves the address, and each of the writes moves exactly its own columns.
  *
  * <p>The {@code where} clauses get their own cases here, and they are the point of the class as much
  * as the columns are: each one is an invariant the code is built on ("a caller can forget the check,
@@ -47,61 +47,119 @@ class UserVerificationPersistenceTest {
 
 	/**
 	 * A fresh code is a fresh budget of attempts — otherwise five wrong guesses would lock the address
-	 * out permanently, and "send me another one" would be a button that does nothing.
+	 * out permanently, and "send me another one" would be a button that does nothing. It also says what
+	 * it is for, so a code drawn for one purpose cannot be spent on the other.
 	 */
 	@Test
-	void issuingACodeStoresItsHashAndExpiryAndResetsTheAttemptsSpentOnTheLastOne() {
+	void issuingACodeStoresItsHashExpiryAndPurposeAndResetsTheAttemptsSpentOnTheLastOne() {
 		UUID id = persisted();
 		OffsetDateTime now = OffsetDateTime.now();
-		users.recordFailedVerificationAttempt(id, now);
+		users.issueVerificationCode(id, CODE_HASH, CodePurpose.SIGN_IN, now.plusMinutes(15), now);
+		users.chargeVerificationAttempt(id, now);
 
-		assertThat(users.issueVerificationCode(id, CODE_HASH, now.plusMinutes(15), now)).isEqualTo(1);
+		assertThat(users.issueVerificationCode(id, CODE_HASH, CodePurpose.ACCOUNT_DELETION,
+				now.plusMinutes(15), now)).isEqualTo(1);
 
 		User account = reload(id);
 		assertThat(account.getVerificationCodeHash()).isEqualTo(CODE_HASH);
 		assertThat(account.getVerificationExpiresAt()).isNotNull();
+		assertThat(account.getVerificationPurpose()).isEqualTo(CodePurpose.ACCOUNT_DELETION);
 		assertThat(account.getVerificationAttempts()).isZero();
 		assertThat(account.isEmailVerified()).isFalse();
 	}
 
-	/** The wrong guess is counted even though the request it came in on answers a failure. */
+	/**
+	 * The code is the sign-in credential now, so a proved account must be handed one. The where clause
+	 * that used to refuse this is gone, and this is what goes red if it comes back.
+	 */
 	@Test
-	void countsAFailedAttemptWithoutSpendingTheCode() {
+	void issuesACodeToAnAccountThatAlreadyProvedItsAddress() {
 		UUID id = persisted();
 		OffsetDateTime now = OffsetDateTime.now();
-		users.issueVerificationCode(id, CODE_HASH, now.plusMinutes(15), now);
+		users.markEmailVerified(id, now);
 
-		assertThat(users.recordFailedVerificationAttempt(id, now)).isEqualTo(1);
-		assertThat(users.recordFailedVerificationAttempt(id, now)).isEqualTo(1);
+		assertThat(users.issueVerificationCode(id, CODE_HASH, CodePurpose.SIGN_IN, now.plusMinutes(15), now))
+				.isEqualTo(1);
+
+		assertThat(reload(id).getVerificationCodeHash()).isEqualTo(CODE_HASH);
+	}
+
+	/**
+	 * The cap holds in the database, not in a read the caller made earlier: the charge applies only
+	 * while the code still has guesses left, and the one that would exceed it updates nothing. That is
+	 * what keeps parallel guesses at five per code.
+	 */
+	@Test
+	void chargesGuessesOnlyWhileTheCodeStillHasSomeLeft() {
+		UUID id = persisted();
+		OffsetDateTime now = OffsetDateTime.now();
+		users.issueVerificationCode(id, CODE_HASH, CodePurpose.SIGN_IN, now.plusMinutes(15), now);
+
+		for (int guess = 0; guess < User.MAX_VERIFICATION_ATTEMPTS; guess++) {
+			assertThat(users.chargeVerificationAttempt(id, now)).isEqualTo(1);
+		}
+		assertThat(users.chargeVerificationAttempt(id, now)).as("the sixth guess is refused").isZero();
 
 		User account = reload(id);
-		assertThat(account.getVerificationAttempts()).isEqualTo(2);
+		assertThat(account.getVerificationAttempts()).isEqualTo(User.MAX_VERIFICATION_ATTEMPTS);
 		assertThat(account.getVerificationCodeHash()).isEqualTo(CODE_HASH);
 	}
 
-	/** A spent code is worth nothing: verifying clears it, so it can never be replayed. */
+	/** With no code outstanding there is nothing to guess at, and nothing is counted. */
 	@Test
-	void markingVerifiedClearsTheCodeAndItsExpiry() {
+	void chargesNothingWhenNoCodeIsOutstanding() {
+		UUID id = persisted();
+
+		assertThat(users.chargeVerificationAttempt(id, OffsetDateTime.now())).isZero();
+
+		assertThat(reload(id).getVerificationAttempts()).isZero();
+	}
+
+	/**
+	 * A spent code is worth nothing: consuming clears it, so it can never be replayed — and only the
+	 * hash that was checked can be consumed, so a code re-issued between the check and the write is
+	 * left alone. Consuming does not decide whether the address is proved; that is its own write.
+	 */
+	@Test
+	void consumingClearsOnlyTheCodeThatWasChecked() {
 		UUID id = persisted();
 		OffsetDateTime now = OffsetDateTime.now();
-		users.issueVerificationCode(id, CODE_HASH, now.plusMinutes(15), now);
-		users.recordFailedVerificationAttempt(id, now);
+		users.issueVerificationCode(id, CODE_HASH, CodePurpose.SIGN_IN, now.plusMinutes(15), now);
+		users.chargeVerificationAttempt(id, now);
 
-		assertThat(users.markEmailVerified(id, now)).isEqualTo(1);
+		assertThat(users.consumeVerificationCode(id, "{bcrypt}$2a$10$other", now))
+				.as("a code re-issued since the check is not the one being spent").isZero();
+		assertThat(users.consumeVerificationCode(id, CODE_HASH, now)).isEqualTo(1);
+		assertThat(users.consumeVerificationCode(id, CODE_HASH, now)).as("spent once").isZero();
 
 		User account = reload(id);
-		assertThat(account.isEmailVerified()).isTrue();
 		assertThat(account.getVerificationCodeHash()).isNull();
 		assertThat(account.getVerificationExpiresAt()).isNull();
 		// The count is guesses against an outstanding code, and there is none any more.
 		assertThat(account.getVerificationAttempts()).isZero();
+		assertThat(account.isEmailVerified()).isFalse();
+	}
+
+	/**
+	 * The one write that can prove an address, and the 1 is what says "this was the first proof" —
+	 * which is what keeps {@code UserVerified} from being published on every sign-in.
+	 */
+	@Test
+	void provesAnAddressOnceAndSaysSoOnlyTheFirstTime() {
+		UUID id = persisted();
+		OffsetDateTime now = OffsetDateTime.now();
+
+		assertThat(users.markEmailVerified(id, now)).isEqualTo(1);
+		assertThat(users.markEmailVerified(id, now.plusMinutes(1))).isZero();
+
+		assertThat(reload(id).isEmailVerified()).isTrue();
 	}
 
 	/**
 	 * The rhythm's guard. It is the app's only unprompted outbound mail, so "only an address somebody
-	 * has proved" may not rest on the three entry points each remembering it — and the fourth one
-	 * somebody adds will not know. Strip {@code email_verified_at is not null} from the JPQL and this
-	 * is what goes red.
+	 * has proved" may not rest on the entry points each remembering it — and the next one somebody
+	 * adds will not know. Strip {@code email_verified_at is not null} from the JPQL and this is what
+	 * goes red.
 	 */
 	@Test
 	void refusesToScheduleAnAccountThatNeverProvedItsAddress() {
@@ -113,26 +171,16 @@ class UserVerificationPersistenceTest {
 		assertThat(reload(id).getNextProposalAt()).isNull();
 	}
 
-	/** And its mirror: a proved account has no code outstanding, so it must not be handed one. */
-	@Test
-	void refusesToIssueACodeToAnAccountThatAlreadyProvedItsAddress() {
-		UUID id = persisted();
-		OffsetDateTime now = OffsetDateTime.now();
-		users.markEmailVerified(id, now);
-
-		assertThat(users.issueVerificationCode(id, CODE_HASH, now.plusMinutes(15), now)).isZero();
-
-		assertThat(reload(id).getVerificationCodeHash()).isNull();
-	}
-
-	/** An account deleted between the read and the write matches nothing, on every one of the three. */
+	/** An account deleted between the read and the write matches nothing, on every one of them. */
 	@Test
 	void reportsNoRowUpdatedWhenTheVerificationWritesMissTheirAccount() {
 		UUID gone = UUID.randomUUID();
 		OffsetDateTime now = OffsetDateTime.now();
 
-		assertThat(users.issueVerificationCode(gone, CODE_HASH, now.plusMinutes(15), now)).isZero();
-		assertThat(users.recordFailedVerificationAttempt(gone, now)).isZero();
+		assertThat(users.issueVerificationCode(gone, CODE_HASH, CodePurpose.SIGN_IN, now.plusMinutes(15), now))
+				.isZero();
+		assertThat(users.chargeVerificationAttempt(gone, now)).isZero();
+		assertThat(users.consumeVerificationCode(gone, CODE_HASH, now)).isZero();
 		assertThat(users.markEmailVerified(gone, now)).isZero();
 	}
 

@@ -33,7 +33,10 @@ info:
   # → 1.7.0, +the two proposal operations declaring the `Accept-Language` they already honoured
   # (DEV-49) → 1.7.1 — a PATCH, because it documents behaviour the server already had rather than
   # changing any, +the two address-verification resources and the login gate they exist for
-  # (DEV-51) → 1.8.0.
+  # (DEV-51) → 1.8.0, +sign-in by mailed code beside the password, the eight-digit code, the code
+  # request open to verified accounts and its daily-budget 503 (passwordless sign-in, DEV-62)
+  # → 1.9.0. The code widening from six to eight digits is incompatible for a client that validates
+  # the old pattern; the component-internal exemption below covers it, as it covered 1.4.0.
   #
   # 1.4.0 carries one genuinely *incompatible* change and is not pretending otherwise:
   # `GoalUpdate.withdrawn` is a required boolean (Jackson rejects a null for a primitive), so a
@@ -41,7 +44,7 @@ info:
   # versioning — deliberately not done, because x-audience is component-internal: the only client is
   # the SPA in this repository, and it gained the field in the same commit the server did. The day a
   # second consumer exists, that exemption expires and this is the paragraph that says so.
-  version: 1.8.0
+  version: 1.9.0
   contact:
     name: 2do AI
     email: thedariusz@gmail.com
@@ -84,9 +87,11 @@ paths:
         sign-up request carried, so there is deliberately no field for it on the payload.
 
 
-        The account is created **unverified** and a six-digit code is emailed to the address, in the
-        account's language and valid for 15 minutes: it cannot log in and the natural rhythm never
-        writes to it until POST /verifications has been answered. Any address already in the table is
+        The account is created **unverified** and an eight-digit code is emailed to the address, in
+        the account's language and valid for 15 minutes, with a link that prefills it: it cannot log
+        in with its password and the natural rhythm never writes to it until the code has been
+        redeemed — by POST /verifications, or by signing in with it on POST /sessions, which proves
+        the address and opens a session in one step. Any address already in the table is
         409, **whether or not the account behind it was ever verified**: a second sign-up must never be
         able to move the password on a row whose outstanding code is already in somebody else's
         mailbox. The recovery for an unverified account whose code was lost is POST
@@ -237,10 +242,22 @@ paths:
       tags: [sessions]
       summary: Log in (create a session)
       description: >
-        Authenticates an email + password and establishes a server-side session, returned as an
-        HttpOnly session cookie (Set-Cookie). The body echoes the authenticated user for the SPA's
-        convenience. Bad credentials return a generic 401 with no indication of whether the email
-        exists (no user enumeration).
+        Authenticates an email with **exactly one** credential — a password, or a code mailed by
+        POST /verification-codes (or POST /users) — and establishes a server-side session, returned
+        as an HttpOnly session cookie (Set-Cookie). Both credentials, or neither, is 422. This is the
+        sole session-creation path for both; a code sign-in rotates the session id and the CSRF token
+        exactly as a password sign-in does. The body echoes the authenticated user for the SPA's
+        convenience.
+
+
+        Bad credentials return a generic 401 with no indication of whether the email exists (no user
+        enumeration). For a code that covers every cause: unknown address, no code outstanding,
+        expired, already spent, out of guesses, or simply wrong. A code is worth five guesses, charged
+        before each comparison, so parallel guesses cannot exceed five.
+
+
+        The first code an **unverified** account redeems here also proves its address — no separate
+        POST /verifications is needed.
       operationId: createSession
       security: []                                          # public (login is the entry point)
       parameters:
@@ -278,8 +295,9 @@ paths:
           description: >
             Two distinct causes, told apart by the Problem `type` (never by parsing `detail`):
             `urn:2doai:problem:email-not-verified` means the password was right but the address has
-            never been confirmed — the remedy is POST /verifications, and a client should send the
-            user to the code screen rather than reporting a credentials failure. Any other `type`,
+            never been confirmed — the remedy is a code (POST /verification-codes), and a client should
+            send the user to the code screen rather than reporting a credentials failure. Only a
+            password sign-in can produce it; a code proves the address as it signs in. Any other `type`,
             **including its absence**, is a missing or invalid CSRF token, which only a page reload
             re-primes.
             A *wrong* password on an unverified account is deliberately the generic 401 above and not
@@ -290,7 +308,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
         '503':
-          $ref: '#/components/responses/ServiceUnavailable' # login is the only operation that loads a user
+          $ref: '#/components/responses/ServiceUnavailable' # the user could not be loaded or the code not checked
 
   /sessions/current:
     delete:
@@ -314,9 +332,11 @@ paths:
       tags: [verifications]
       summary: Prove an email address with the code that was mailed to it
       description: >
-        Spends the six-digit code POST /users (or POST /verification-codes) emailed to the address.
+        Spends the eight-digit code POST /users (or POST /verification-codes) emailed to the address.
         On success the account becomes one that can log in and that the proactive engine may write
-        to; the code is cleared in the same write, so it cannot be spent twice.
+        to; the code is cleared in the same transaction, so it cannot be spent twice. It spends a
+        sign-in code exactly as POST /sessions does, minus the session — a client that wants a session
+        signs in with the code instead.
 
 
         Does NOT open a session — POST /sessions remains the sole session-creation path, so the
@@ -352,25 +372,30 @@ paths:
             operation description; the causes are deliberately conflated). Any other `type`,
             including its absence, is a missing or invalid CSRF token.
         '422':
-          $ref: '#/components/responses/UnprocessableEntity' # `code` is not six digits
+          $ref: '#/components/responses/UnprocessableEntity' # `code` is not eight digits
         '500':
           $ref: '#/components/responses/InternalServerError'
 
   /verification-codes:
     post:
       tags: [verifications]
-      summary: Send another verification code to an address
+      summary: Send a sign-in code to an address
       description: >
-        Issues a fresh code for an unverified account, in that account's language, and invalidates
-        the outstanding one — so a resend never widens the window a guesser is working in. The new
-        code also restores the five attempts the old one may have spent.
+        Issues a fresh code for the account at this address, verified or not, in that account's
+        language, and invalidates the outstanding one — so a resend never widens the window a guesser
+        is working in. The new code also restores the five guesses the old one may have spent. The
+        code signs in on POST /sessions (and, for an unverified account, proves the address there).
+        The message carries the code and a link, `{base-url}/verify#email=<address>&code=<code>`,
+        that opens the SPA's code screen with both filled in; the link spends nothing on its own.
 
 
-        **202 for every address**, including one with no account and one already verified, neither of
-        which is sent anything. "Accepted" is the honest word: the server has taken the request, and
-        whether a message follows is exactly what it declines to disclose. The throttle is consulted
-        before the address is looked up for the same reason — a 429 that only ever happened to real
-        accounts would answer the question the 202 refuses to.
+        **202 for every address**, including one with no account, which is sent nothing. "Accepted"
+        is the honest word: the server has taken the request, the message (if any) is sent afterwards
+        off the request thread, and whether one follows is exactly what it declines to disclose. The
+        throttle and the daily budget are consulted before the address is looked up for the same
+        reason — a 429 or 503 that only ever happened to real accounts would answer the question the
+        202 refuses to. Because the send happens after the answer, a provider failure is not reported
+        here: it refunds the throttle and the budget, and the remedy is to ask again.
       operationId: createVerificationCode
       security: []                                          # public (the account cannot log in yet)
       parameters:
@@ -397,7 +422,11 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
         '503':
-          $ref: '#/components/responses/ServiceUnavailable' # the provider would not take the message
+          $ref: '#/components/responses/ServiceUnavailable'
+          description: >
+            Today's auth-mail budget is spent (it protects the provider's daily allowance, which
+            proposal mail shares) or the send queue is full. The same answer for every address; retry
+            later.
 
   /categories:
     get:
@@ -919,7 +948,12 @@ components:
 
     Credentials:
       type: object
-      required: [email, password]
+      description: >
+        An address and exactly one credential: a password, or a mailed code. Both, or neither, is 422.
+      required: [email]
+      oneOf:
+        - required: [password]
+        - required: [code]
       properties:
         email:
           type: string
@@ -931,6 +965,14 @@ components:
           x-max-utf8-bytes: 72
           description: At most 72 UTF-8 bytes (the BCrypt input limit).
           writeOnly: true
+        code:
+          type: string
+          pattern: '^\d{8}$'
+          description: >
+            The code mailed by POST /verification-codes or POST /users. A malformed code is 422 and
+            never spends one of the five guesses the real code is worth.
+          writeOnly: true
+          example: '04231789'
 
     EmailVerification:
       type: object
@@ -946,16 +988,16 @@ components:
             would start answering 422 for some of them and 403 for others.
         code:
           type: string
-          pattern: '^\d{6}$'
+          pattern: '^\d{8}$'
           description: >
-            Exactly six digits. A malformed code is 422 and never spends one of the five guesses the
+            Exactly eight digits. A malformed code is 422 and never spends one of the five guesses the
             real code is worth.
-          example: '042317'
+          example: '04231789'
 
     VerificationCodeRequest:
       type: object
       description: >
-        The address to send another code to, for POST /verification-codes. Address only — which
+        The address to send a code to, for POST /verification-codes. Address only — which
         account it belongs to, and whether it has one at all, is deliberately not something the
         answer reveals.
       required: [email]
@@ -1430,8 +1472,8 @@ components:
         authentication could not be completed for an infrastructure reason (a connection-pool
         timeout, a database cold start that overran) — deliberately NOT reported as 401, which would
         tell every user their password is wrong during an outage; the credentials were never judged.
-        On the operations that email a code: the provider would not take the message. Retry in both
-        cases.
+        On POST /users: the provider would not take the code's message. On POST /verification-codes:
+        today's auth-mail budget is spent or the send queue is full. Retry in every case.
       content:
         application/problem+json:
           schema:

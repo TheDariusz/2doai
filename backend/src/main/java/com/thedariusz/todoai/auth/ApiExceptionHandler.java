@@ -172,6 +172,17 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	}
 
 	/**
+	 * A code request could not even be queued → <b>503</b>: today's auth-mail budget is spent, or the
+	 * auth-mail queue is full. Decided before the address is looked up, so it is the same answer for
+	 * every address and says nothing about which ones have accounts.
+	 */
+	@ExceptionHandler(AuthMailUnavailableException.class)
+	ProblemDetail handleAuthMailUnavailable(AuthMailUnavailableException ex, WebRequest request) {
+		logger.warn("Request to " + request.getDescription(false) + " rejected with 503: " + ex.getMessage());
+		return ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+	}
+
+	/**
 	 * The provider would not take the message → <b>503</b>, not 500: nothing the caller sent is wrong
 	 * and retrying is exactly the right thing to do. The account is already created and unverified, and
 	 * "send again" overwrites its code, so there is nothing to clean up — and the send that never

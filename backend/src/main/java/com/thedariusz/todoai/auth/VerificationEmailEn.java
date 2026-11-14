@@ -10,14 +10,17 @@ final class VerificationEmailEn {
 	}
 
 	static String subject(String code) {
-		return "Your confirmation code: " + code;
+		return "Your 2do AI code: " + code;
 	}
 
-	static String body(String code) {
+	static String body(String code, String link) {
 		return """
-				Your 2do AI confirmation code: %s
+				Your 2do AI code: %s
 
-				The code is valid for %d minutes. If you did not sign up, ignore this message.
-				""".formatted(code, EmailVerificationService.CODE_VALIDITY.toMinutes());
+				Type it into the app, or open this link to have it filled in for you:
+				%s
+
+				The code is valid for %d minutes. If you did not ask for it, ignore this message.
+				""".formatted(code, link, EmailVerificationService.CODE_VALIDITY.toMinutes());
 	}
 }

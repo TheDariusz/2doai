@@ -2,14 +2,18 @@ package com.thedariusz.todoai;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.Executor;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.thedariusz.todoai.auth.EmailVerificationService;
 import com.thedariusz.todoai.mail.EmailSender;
+import com.thedariusz.todoai.mail.MailConfig;
 import com.thedariusz.todoai.mail.MailDeliveryException;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
@@ -51,6 +55,20 @@ public class TestcontainersConfiguration {
 	}
 
 	/**
+	 * Runs auth mail on the calling thread. Production sends it from a queue so the response time is
+	 * the same for every address; here about forty call sites read the mailed code the moment the
+	 * request returns, and a queue would make every one of them race the worker. {@code @Primary} under
+	 * the production qualifier, rather than the same bean name, because Boot refuses to override a
+	 * bean definition.
+	 */
+	@Bean
+	@Primary
+	@Qualifier(MailConfig.AUTH_MAIL_EXECUTOR)
+	Executor synchronousAuthMailExecutor() {
+		return Runnable::run;
+	}
+
+	/**
 	 * Every message the app tried to send, and — because a verification code only ever exists inside
 	 * one — the code each address was last given. Reading it back out of the message is deliberate:
 	 * the alternative is a seam in production code that exists only for tests, and this way the code a
@@ -58,8 +76,9 @@ public class TestcontainersConfiguration {
 	 */
 	public static class RecordingEmailSender implements EmailSender {
 
-		/** The one six-digit run in a verification message; nothing else the app sends has one. */
-		private static final Pattern CODE = Pattern.compile("\\b\\d{6}\\b");
+		/** The one code-wide run of digits in a code message's subject; nothing else the app sends has one. */
+		private static final Pattern CODE =
+				Pattern.compile("\\b\\d{" + EmailVerificationService.CODE_LENGTH + "}\\b");
 
 		private final List<Sent> sent = new CopyOnWriteArrayList<>();
 
