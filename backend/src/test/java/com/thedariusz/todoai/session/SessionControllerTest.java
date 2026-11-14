@@ -12,6 +12,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.web.authentication.RememberMeServices;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.transaction.CannotCreateTransactionException;
@@ -34,7 +35,7 @@ class SessionControllerTest {
 
 	private final SessionController controller = new SessionController(mock(AuthenticationManager.class),
 			mock(SessionAuthenticationStrategy.class), mock(LogoutHandler.class), mock(AuthenticatedSession.class),
-			verification);
+			verification, mock(RememberMeServices.class));
 
 	private final LoginRequest byCode = new LoginRequest("ala@example.pl", null, "04231789");
 

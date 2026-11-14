@@ -883,18 +883,18 @@ rows 2686-2693, the stamp.
 
 #### Automated
 
-- [x] 2.1 Login submits the address, requests a code and lands on `/verify` with the address and `from` preserved
-- [x] 2.2 `/verify` prefills from the fragment, clears it, and does not sign in without a submit
-- [x] 2.3 A successful code returns the user to the originally requested route
-- [x] 2.4 The resend button counts down and honours `Retry-After`
-- [x] 2.5 `/login` renders no password field; `/register` still does
-- [x] 2.6 `npm run lint`, `npm test` and `npm run build` pass
-- [x] 2.7 Backend file guards on `VerifyPage.tsx`, `pl.ts` and `en.ts` pass
-- [x] 2.8 `/check` is green
+- [x] 2.1 Login submits the address, requests a code and lands on `/verify` with the address and `from` preserved — 3011448
+- [x] 2.2 `/verify` prefills from the fragment, clears it, and does not sign in without a submit — 3011448
+- [x] 2.3 A successful code returns the user to the originally requested route — 3011448
+- [x] 2.4 The resend button counts down and honours `Retry-After` — 3011448
+- [x] 2.5 `/login` renders no password field; `/register` still does — 3011448
+- [x] 2.6 `npm run lint`, `npm test` and `npm run build` pass — 3011448
+- [x] 2.7 Backend file guards on `VerifyPage.tsx`, `pl.ts` and `en.ts` pass — 3011448
+- [x] 2.8 `/check` is green — 3011448
 
 #### Manual
 
-- [x] 2.9 Local: sign in by typed code and by link; the fragment is gone afterwards
+- [x] 2.9 Local: sign in by typed code and by link; the fragment is gone afterwards — 3011448
 - [ ] 2.10 Link opened on a phone with the PWA installed: the code can be typed into the installed app
 - [ ] 2.11 After the production deploy, the owner signs in with a mailed code and sees their existing goals
 - [ ] 2.12 Control test: Gmail receives the mail; the `outlook.com` result is recorded in the runbook
@@ -903,17 +903,17 @@ rows 2686-2693, the stamp.
 
 #### Automated
 
-- [ ] 3.1 Flyway applies V16 and Hibernate validation passes
-- [ ] 3.2 Signing in sets a remember-me cookie that is `HttpOnly` and `SameSite=Strict`
-- [ ] 3.3 A request carrying only the remember-me cookie is authenticated, and the following request runs zero queries
-- [ ] 3.4 That auto-login response carries a fresh `XSRF-TOKEN` cookie, and a mutation sent next succeeds
-- [ ] 3.5 Two concurrent requests carrying the same remember-me cookie both succeed and the token survives
-- [ ] 3.6 A request with a live session never reads the token table
-- [ ] 3.7 The session cookie has no `Max-Age`; the remember-me cookie has 90 days and is renewed by an auto-login
-- [ ] 3.8 Logout deletes the token and clears the cookie; the old cookie no longer authenticates
-- [ ] 3.9 Account deletion removes the user's tokens
-- [ ] 3.10 A forged or unknown token is refused with 401, never 500
-- [ ] 3.11 `mvn test` passes; `node --test docs/index.test.mjs` passes
+- [x] 3.1 Flyway applies V16 and Hibernate validation passes
+- [x] 3.2 Signing in sets a remember-me cookie that is `HttpOnly` and `SameSite=Strict`
+- [x] 3.3 A request carrying only the remember-me cookie is authenticated, and the following request runs zero queries
+- [x] 3.4 That auto-login response carries a fresh `XSRF-TOKEN` cookie, and a mutation sent next succeeds
+- [x] 3.5 Two concurrent requests carrying the same remember-me cookie both succeed and the token survives
+- [x] 3.6 A request with a live session never reads the token table
+- [x] 3.7 The session cookie has no `Max-Age`; the remember-me cookie has 90 days and is renewed by an auto-login
+- [x] 3.8 Logout deletes the token and clears the cookie; the old cookie no longer authenticates
+- [x] 3.9 Account deletion removes the user's tokens
+- [x] 3.10 A forged or unknown token is refused with 401, never 500
+- [x] 3.11 `mvn test` passes; `node --test docs/index.test.mjs` passes
 
 #### Manual
 

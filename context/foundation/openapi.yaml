@@ -24,7 +24,9 @@ info:
     and the goals resource (S-02/S-07) — current tasks, long-term goals and someday dreams,
     per-user and full CRUD. The proposals resource (S-04) is the proactive half: it picks the one
     neglected entry worth coming back to and phrases it. Session model is a server-side HttpSession cookie (not JWT); mutations are
-    CSRF-protected via a double-submit XSRF-TOKEN cookie echoed as the X-XSRF-TOKEN header.
+    CSRF-protected via a double-submit XSRF-TOKEN cookie echoed as the X-XSRF-TOKEN header. Every
+    sign-in also sets a remember-me cookie that re-establishes the session after a browser restart or
+    a backend deploy, for up to 90 days without use.
   # #116 — MAJOR.MINOR.PATCH over the *contract*, not the app. 1.0.0 was S-01 (users, sessions,
   # categories); +goals (S-02) → 1.1.0, +proposals (S-04a) → 1.2.0, +current tasks (S-07) → 1.3.0,
   # +the phrased, stored, answerable proposal (S-04b) → 1.4.0, +the pending read the natural rhythm
@@ -37,6 +39,8 @@ info:
   # request open to verified accounts and its daily-budget 503 (passwordless sign-in, DEV-62)
   # → 1.9.0. The code widening from six to eight digits is incompatible for a client that validates
   # the old pattern; the component-internal exemption below covers it, as it covered 1.4.0.
+  # +the remember-me cookie as a second way to be authenticated, the 30-day session and logout
+  # revoking every remembered browser (long sessions, DEV-62) → 1.10.0.
   #
   # 1.4.0 carries one genuinely *incompatible* change and is not pretending otherwise:
   # `GoalUpdate.withdrawn` is a required boolean (Jackson rejects a null for a primitive), so a
@@ -44,7 +48,7 @@ info:
   # versioning — deliberately not done, because x-audience is component-internal: the only client is
   # the SPA in this repository, and it gained the field in the same commit the server did. The day a
   # second consumer exists, that exemption expires and this is the paragraph that says so.
-  version: 1.9.0
+  version: 1.10.0
   contact:
     name: 2do AI
     email: thedariusz@gmail.com
@@ -215,7 +219,9 @@ paths:
               $ref: '#/components/schemas/AccountDeletion'
       responses:
         '204':
-          description: Account and all data deleted; session invalidated.
+          description: >
+            Account and all data deleted, every remember-me token with it; session invalidated and
+            both cookies cleared.
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -273,7 +279,13 @@ paths:
           description: Session created.
           headers:
             Set-Cookie:
-              description: The HttpOnly; SameSite=Strict session cookie (Secure in prod).
+              description: >
+                Two cookies, both HttpOnly; SameSite=Strict (Secure in prod). `JSESSIONID`, the session
+                cookie, carries no Max-Age: it lasts as long as the browser session and the server-side
+                session (30 days idle). `remember-me` (Max-Age 90 days) re-establishes a session on a
+                request that arrives without a live one — after a browser restart or a backend deploy —
+                and is renewed with the same value each time it does. Every successful sign-in sets it,
+                with either credential. Also the rotated `XSRF-TOKEN`.
               schema:
                 type: string
             Location:
@@ -319,7 +331,10 @@ paths:
         - $ref: '#/components/parameters/XsrfToken'
       responses:
         '204':
-          description: Session invalidated and cookie cleared.
+          description: >
+            Session invalidated and both cookies cleared. Every remember-me token of the user is
+            revoked, so a browser remembered on another device has to sign in again once its own
+            session ends.
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -828,6 +843,20 @@ components:
       type: apiKey
       in: cookie
       name: JSESSIONID
+      description: The server-side session. 30 days idle; a browser-session cookie (no Max-Age).
+    rememberMeCookie:
+      # Persistent remember-me (DEV-62). Consulted only when a request carries no live session: the
+      # server looks the token up once, opens a new session (Set-Cookie JSESSIONID, a fresh
+      # XSRF-TOKEN, and the same remember-me renewed for 90 days) and answers the request as that
+      # user. A request with a live session never reads it. Not a session store — see
+      # context/foundation/auth-session-model.md, addendum 2026-11-14. Any refused token (unknown,
+      # mismatched, expired, unproved address) is cleared and the request is anonymous: 401, never 500.
+      type: apiKey
+      in: cookie
+      name: remember-me
+      description: >
+        Re-establishes the session after a browser restart or a backend deploy. 90 days from last
+        use; revoked by logout and by account deletion.
 
   # Every operation is authenticated by default; the public entry points override with
   # `security: []` (register, login, ping).
@@ -1479,6 +1508,8 @@ components:
           schema:
             $ref: '#/components/schemas/Problem'
 
-# Authenticated by default (#104); register + login opt out with `security: []`.
+# Authenticated by default (#104); register + login opt out with `security: []`. Either cookie
+# authenticates — two entries of the list are alternatives.
 security:
   - sessionCookie: []
+  - rememberMeCookie: []

@@ -22,6 +22,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.RememberMeServices;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -48,6 +49,9 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>and persisted through the {@link SecurityContextRepository}, which is what actually writes
  *       the session — without it the login "succeeds" and the very next request is anonymous.</li>
  * </ol>
+ * A fourth step is this application's own: {@link RememberMeServices#loginSuccess} issues the
+ * {@code remember-me} cookie that brings the user back after a browser restart or a deploy. The
+ * filter that would call it on a form login is not on this path either.
  *
  * <p><b>Two credentials, one session-creation path</b> (passwordless sign-in). A password goes through
  * the {@link AuthenticationManager}; a mailed code is redeemed by {@link EmailVerificationService} and
@@ -72,14 +76,17 @@ public class SessionController {
 
 	private final EmailVerificationService verification;
 
+	private final RememberMeServices rememberMe;
+
 	public SessionController(AuthenticationManager authenticationManager,
 			SessionAuthenticationStrategy sessionAuthenticationStrategy, LogoutHandler logoutHandler,
-			AuthenticatedSession session, EmailVerificationService verification) {
+			AuthenticatedSession session, EmailVerificationService verification, RememberMeServices rememberMe) {
 		this.authenticationManager = authenticationManager;
 		this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
 		this.logoutHandler = logoutHandler;
 		this.session = session;
 		this.verification = verification;
+		this.rememberMe = rememberMe;
 	}
 
 	/**
@@ -102,6 +109,8 @@ public class SessionController {
 		materializeRotatedCsrfToken(httpRequest);
 
 		session.establish(authentication, httpRequest, httpResponse);
+		// Last, so only a sign-in that has fully succeeded is remembered. Both credentials pass here.
+		rememberMe.loginSuccess(httpRequest, httpResponse, authentication);
 
 		UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
 		return ResponseEntity.created(URI.create("/api/sessions/current")).body(UserResponse.from(principal));

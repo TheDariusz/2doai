@@ -145,6 +145,11 @@ public class UserController {
 	 * <p>Sibling sessions are expired explicitly. {@code logout} only ends the calling request's
 	 * session, so a phone left logged in would otherwise keep authenticating as a user who no longer
 	 * exists — and, once per-user writes land, would fail at commit against a dangling foreign key.
+	 *
+	 * <p>Remembered browsers need no sweep of their own: the account's remember-me tokens are erased
+	 * with it (a {@code PerUserDataDeleter}), so a browser that comes back after a restart presents a
+	 * series that no longer exists and is answered 401. The logout handler clears this browser's
+	 * remember-me cookie as well.
 	 */
 	@DeleteMapping("/me")
 	ResponseEntity<Void> deleteCurrentUser(@Valid @RequestBody DeleteAccountRequest request,

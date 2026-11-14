@@ -22,6 +22,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * materializes the token (writing the cookie) on the way in; the cookie survives on the 401
  * response. Reading {@link CsrfToken#getToken()} is what triggers the {@code CookieCsrfTokenRepository}
  * to emit the cookie. This is the canonical SS6 single-page-app recipe.
+ *
+ * <p><b>It sits after the remember-me filter</b> (passwordless sign-in). A remember-me auto-login runs
+ * {@code CsrfAuthenticationStrategy}, which deletes the browser's existing token and only defers its
+ * replacement. Reading the token here, after that, is what writes the replacement — otherwise the
+ * first response after a backend deploy carries a deletion and no token, and the SPA's next mutation
+ * fails. Pinned by {@code RememberMeApiTest.anAutoLoginHandsOutAFreshCsrfTokenAndTheNextMutationSucceeds}.
  */
 final class CsrfCookieFilter extends OncePerRequestFilter {
 

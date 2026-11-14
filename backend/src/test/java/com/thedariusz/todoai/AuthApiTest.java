@@ -1,6 +1,7 @@
 package com.thedariusz.todoai;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -24,7 +25,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -149,14 +149,16 @@ class AuthApiTest extends ApiTestBase {
 	void logsOutAndInvalidatesTheSession() {
 		givenLoggedInUser();
 
-		csrfAware()
+		List<String> setCookies = csrfAware()
 				.when()
 				.delete("/api/sessions/current")
 				.then()
 				.statusCode(204)
-				.header("Set-Cookie", allOf(
-						containsString("JSESSIONID="),
-						containsString("Expires=Thu, 01 Jan 1970")));
+				.extract()
+				.headers()
+				.getValues("Set-Cookie");
+
+		assertSessionCookieCancelled(setCookies);
 
 		client()
 				.when()
@@ -222,15 +224,17 @@ class AuthApiTest extends ApiTestBase {
 	void deletesTheAccountInvalidatesTheSessionAndFreesTheEmail() {
 		String email = givenLoggedInUser();
 
-		csrfAware()
+		List<String> setCookies = csrfAware()
 				.body(Map.of("password", "correct-horse"))
 				.when()
 				.delete("/api/users/me")
 				.then()
 				.statusCode(204)
-				.header("Set-Cookie", allOf(
-						containsString("JSESSIONID="),
-						containsString("Expires=Thu, 01 Jan 1970")));
+				.extract()
+				.headers()
+				.getValues("Set-Cookie");
+
+		assertSessionCookieCancelled(setCookies);
 
 		client()
 				.when()
@@ -336,7 +340,7 @@ class AuthApiTest extends ApiTestBase {
 	/**
 	 * FR-019 says the account is erased, so no device may still be holding an authenticated session
 	 * for it. {@code logout} only ends the calling request's session, so without expiring the rest a
-	 * phone keeps returning 200 for a deleted account until its 30-minute idle timeout.
+	 * phone keeps returning 200 for a deleted account until its 30-day idle timeout.
 	 */
 	@Test
 	void endsEverySessionWhenTheAccountIsDeleted() {
@@ -372,7 +376,7 @@ class AuthApiTest extends ApiTestBase {
 	/**
 	 * An anonymous 401 must not cost a server-side session. Spring Security's request cache would
 	 * otherwise call {@code request.getSession()} before the entry point runs, so every unauthenticated
-	 * hit would pin 30 minutes of in-memory session on the single Fly machine — an unauthenticated
+	 * hit would pin 30 days of in-memory session on the single Fly machine — an unauthenticated
 	 * memory-exhaustion lever. {@code Accept: *&#47;*} is the case that matters: it is what {@code fetch()}
 	 * sends, and it passes the request cache's default matcher.
 	 */
@@ -750,6 +754,7 @@ class AuthApiTest extends ApiTestBase {
 	void answers401WhenTheAccountWasErasedUnderTheSession() {
 		String email = givenLoggedInUser();
 		jdbc.update("delete from ai_memory where user_id = (select id from app_user where email = ?)", email);
+		jdbc.update("delete from remember_me_token where user_id = (select id from app_user where email = ?)", email);
 		jdbc.update("delete from app_user where email = ?", email);
 
 		csrfAware()
@@ -983,5 +988,15 @@ class AuthApiTest extends ApiTestBase {
 	/** Eight digits that are not the ones mailed — a wrong guess, not a malformed request. */
 	private static String wrongCodeFor(String code) {
 		return code.equals("00000000") ? "11111111" : "00000000";
+	}
+
+	/**
+	 * Picked out by name: the same response also cancels the remember-me cookie, and REST Assured's
+	 * own header matcher only ever reads the last {@code Set-Cookie}.
+	 */
+	private static void assertSessionCookieCancelled(List<String> setCookies) {
+		assertThat(setCookies).anySatisfy(cookie -> assertThat(cookie)
+				.startsWith("JSESSIONID=;")
+				.contains("Expires=Thu, 01 Jan 1970"));
 	}
 }

@@ -75,6 +75,16 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
+
+    remember_me_token {
+        uuid id PK "UUID v7"
+        uuid user_id FK "→ app_user(id), NO ACTION"
+        varchar series UK "what the remember-me cookie names"
+        varchar token_value "the secret half; never rotates"
+        timestamptz last_used_at "the 90-day expiry counts from here"
+        timestamptz created_at
+        timestamptz updated_at
+    }
 ```
 
 `category` is the reference table from the persistence baseline (F-01). It is **reference
@@ -269,6 +279,29 @@ five are spent, so parallel guesses cannot exceed the cap. Spending a code is
 `consumeVerificationCode`, keyed on the hash that was checked, and proving the address is a separate
 `markEmailVerified` that keeps its guard — its 1 is the only signal that a redemption was the first
 proof, which is what keeps `user_registered` to once per account.
+
+DEV-62 (`V16`, passwordless sign-in, release 1) adds **one table**, `remember_me_token`, so a user
+stays signed in across a browser restart and a backend deploy, both of which lose the in-memory
+`HttpSession`. A `remember-me` cookie names one row by its `series` (unique) and carries the secret
+`token_value`, compared in constant time. It is **not a session store**, which is the line the
+session decision record draws (`auth-session-model.md`, addendum of 2026-11-14): the row is read only
+when a request arrives with no live session — once per browser launch or backend restart, per
+device — and an ordinary request never touches it, so Neon still suspends with a signed-in tab open.
+
+- **The value never rotates.** Only `last_used_at` moves on an auto-login, and the 90-day expiry
+  counts from it. Spring's stock persistent remember-me rewrites the value every time and reads two
+  requests carrying one cookie (two restored tabs, React StrictMode's double bootstrap) as theft;
+  `StableTokenRememberMeServices` explains the trade.
+- **No cleanup job.** A user's expired rows are deleted when that user next signs in
+  (`JpaPersistentTokenRepository.createNewToken`), in the same transaction as the new row. A user who
+  never comes back leaves at most one row per remembered browser, which is the bounded cost of
+  keeping Neon asleep (lessons.md).
+- **Keyed by `user_id`, not by the address.** Spring Security's `PersistentTokenRepository` contract
+  is keyed by username — here the e-mail — and `JpaPersistentTokenRepository` maps it to `user_id`.
+  That keeps the plain foreign key to `app_user` with no `ON DELETE`, so FR-019 erasure goes through
+  the class's `PerUserDataDeleter` and `AccountDeletionIntegrationTest`'s schema check covers it.
+  Logout deletes every row of the user, so signing out on one device signs out every remembered one.
+- **Expand-only.** A plain `CREATE TABLE`; the previous image never reads it.
 
 ### Internationalization
 

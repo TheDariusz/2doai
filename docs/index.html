@@ -208,7 +208,7 @@
         <tr><th scope="row">Persistence baseline</th><td><span class="badge badge-live">implemented</span></td><td>PostgreSQL 18, Flyway migrations, JPA/Hibernate validation</td></tr>
         <tr><th scope="row">AI provider port</th><td><span class="badge badge-live">implemented</span></td><td><code>LlmClient</code>, Spring AI adapter, structured output support — and, since S-04b, a production caller on both operations</td></tr>
         <tr><th scope="row">AI memory aggregate</th><td><span class="badge badge-foundation">implemented foundation</span></td><td>Per-user root, profile facts, append-only episodes. Proposal answers are its first writer (S-04b); the onboarding profile seed is still S-03</td></tr>
-        <tr><th scope="row">Account and session auth</th><td><span class="badge badge-live">implemented</span></td><td>Spring Security, server-side in-memory sessions, account erasure — and, since DEV-51, a confirmed address as the price of a session at all: sign-up mails a code, until it comes back the account exists and can do nothing, and an address already in the table is 409 whether or not it was ever proved. Since DEV-62 (release 1 of passwordless sign-in) the mailed code is a second credential beside the password: eight digits, with a link that prefills it, requestable for any account on <code>POST /api/verification-codes</code> and exchanged for a session on <code>POST /api/sessions</code>. The first code an unverified account redeems there proves its address too. Since DEV-62 phase 2 the code is the only way in on the screen: <code>/login</code> asks for the address alone and <code>/verify</code> opens the session. The API still accepts a password, and sign-up still sets one, until release 2 removes it</td></tr>
+        <tr><th scope="row">Account and session auth</th><td><span class="badge badge-live">implemented</span></td><td>Spring Security, server-side in-memory sessions, account erasure — and, since DEV-51, a confirmed address as the price of a session at all: sign-up mails a code, until it comes back the account exists and can do nothing, and an address already in the table is 409 whether or not it was ever proved. Since DEV-62 (release 1 of passwordless sign-in) the mailed code is a second credential beside the password: eight digits, with a link that prefills it, requestable for any account on <code>POST /api/verification-codes</code> and exchanged for a session on <code>POST /api/sessions</code>. The first code an unverified account redeems there proves its address too. Since DEV-62 phase 2 the code is the only way in on the screen: <code>/login</code> asks for the address alone and <code>/verify</code> opens the session. The API still accepts a password, and sign-up still sets one, until release 2 removes it. Since DEV-62 phase 3 a sign-in lasts: the in-memory session idles out after 30 days rather than 30 minutes, and every sign-in also sets a <code>remember-me</code> cookie backed by the <code>remember_me_token</code> table, which brings the user back after a browser restart or a backend deploy for 90 days from its last use. The table is read only on a request that arrives with no live session, so an ordinary request still never touches the database</td></tr>
         <tr><th scope="row">Categories</th><td><span class="badge badge-live">implemented</span></td><td>Seeded reference table, <code>LifeDomain</code>, startup drift check — and, since DEV-49, a Polish and an English name per row, picked per request</td></tr>
         <tr><th scope="row">Localization (PL + EN)</th><td><span class="badge badge-live">implemented</span></td><td>English-first with Polish preserved (DEV-49): <code>AppLanguage</code> stored on the account (<code>app_user.preferred_language</code>), <code>Accept-Language</code> as the per-request transport, i18next in the SPA, and every server-generated sentence on the on-demand path — the model's answer and the template fallback alike — written in the caller's language. One surface is deliberately excluded: the scheduled proposal stays Polish until FR-009 lands in increment 2</td></tr>
         <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens — a code-first sign-in since DEV-62 phase 2 — a sticky header over a rail of the 11 domains, the two-language catalog behind a switch on the public screens and in that header, and a light / dark / auto theme choice kept on the device — three buttons on the landing and auth screens, one cycling button in the header, where a phone has no room for three beside the account chip; <code>/api</code> proxies in development and production</td></tr>
@@ -306,6 +306,18 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
+  <p class="note">Verified against DEV-62 phase 3 on 2026-11-14 — release 1 of passwordless sign-in,
+  long sessions, with schema change <code>V16</code> (<code>remember_me_token</code>) and
+  <code>openapi.yaml</code> 1.10.0. The session idles out after 30 days and its cookie carries no
+  <code>Max-Age</code>; every sign-in sets a <code>remember-me</code> cookie whose token is read only
+  when a request arrives with no session, never rotates, and is revoked for every device by logout and
+  account deletion; <code>CsrfCookieFilter</code> moved after the remember-me filter. Moved: the
+  overview row, the <code>session</code> and <code>security</code> code-map rows, the in-memory sessions
+  decision row plus a new one for the non-rotating token, the Session term and a new remember-me term,
+  the <code>security + session</code> chapter and its class diagram, the <code>account</code> diagram,
+  the login, authenticated-request and logout flows, the <code>#data</code> prose with both ER diagrams
+  re-exported, the roadmap card, and the glossary. No package and no path appeared, so the endpoint
+  list stands. The edited Mermaid diagrams are unverified until the page is opened in a browser.</p>
   <p class="note">Verified against DEV-62 phase 2 on 2026-11-14 — release 1 of passwordless sign-in,
   frontend half; no schema, endpoint or spec change. <code>/login</code> asks for the address only and
   hands over to <code>/verify</code>, which reads the mail link's fragment, strips it, opens the session
@@ -546,8 +558,8 @@ flowchart LR
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/user"><code>backend/…/user</code></a></th><td>User aggregate, email value object, repository, the user API, and the account's one setting — <code>AppLanguage</code> and <code>UserSettingsService</code>; since DEV-51 also the verification state every other slice reads through <code>User.isEmailVerified()</code>, and the <code>UserVerified</code> event that replaced <code>UserRegistered</code></td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/i18n"><code>backend/…/i18n</code></a></th><td>How a request says which language to answer in: one <code>AcceptHeaderLocaleResolver</code> bean, and nothing else</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/auth"><code>backend/…/auth</code></a></th><td>Registration, request validation, and the error mapping for it — and, since DEV-51, the e-mailed code: issuing, redeeming and resending it (eight digits since DEV-62, and a sign-in credential as well as the proof of an address), the in-memory per-address throttle and daily budget on it, the link it carries (<code>SignInLink</code>), and the code e-mail in both languages</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/session"><code>backend/…/session</code></a></th><td>Explicit login and logout endpoints — login by password or, since DEV-62, by a mailed code, both through the same session-creation steps</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/security"><code>backend/…/security</code></a></th><td>Filter chain, CSRF, session identity, and RFC 9457 security errors</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/session"><code>backend/…/session</code></a></th><td>Explicit login and logout endpoints — login by password or, since DEV-62, by a mailed code, both through the same session-creation steps, both remembered by a <code>remember-me</code> cookie, and logout revoking every remembered browser</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/security"><code>backend/…/security</code></a></th><td>Filter chain, CSRF, session identity, and RFC 9457 security errors — and, since DEV-62, remember-me: the <code>remember_me_token</code> aggregate and its store (<code>JpaPersistentTokenRepository</code>, also a <code>PerUserDataDeleter</code>), and <code>StableTokenRememberMeServices</code>, which brings a session back after a restart without rotating the token</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/account"><code>backend/…/account</code></a></th><td>Modular per-user erasure coordinated before the user row is deleted</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/category"><code>backend/…/category</code></a></th><td>Fixed life-domain reference data in two languages, and enum/table drift detection</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/goal"><code>backend/…/goal</code></a></th><td>One aggregate for all three layers — current tasks, goals and dreams — its CRUD API, and its erasure adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
@@ -580,7 +592,8 @@ flowchart LR
       <tbody>
         <tr><th scope="row"><a href="../context/foundation/deployment.md">Unified public origin</a></th><td>Avoids CORS and keeps cookie/CSRF behavior same-origin while frontend and backend deploy independently</td><td>Cloudflare proxy becomes part of every API path</td><td>A supported client must run on another public origin</td></tr>
         <tr><th scope="row"><a href="../context/foundation/auth-session-model.md">Server-side session cookie, not JWT</a></th><td>Spring Security defaults give a smaller revocable auth model for a browser-only MVP</td><td>The server owns session state</td><td>Horizontal replicas or multi-region deployment become necessary</td></tr>
-        <tr><th scope="row"><a href="../context/foundation/auth-session-model.md">In-memory sessions on one Fly machine</a></th><td>Authenticated requests do not wake Neon with a session lookup</td><td>Redeploys and machine restarts log users out</td><td>The backend runs on more than one machine; move to signed cookies or an external store, never Neon sessions</td></tr>
+        <tr><th scope="row"><a href="../context/foundation/auth-session-model.md">In-memory sessions on one Fly machine</a></th><td>Authenticated requests do not wake Neon with a session lookup</td><td>Sessions die with the JVM. Since DEV-62 that no longer signs anyone out: a <code>remember-me</code> token in Postgres opens a new session on each device's first request after a restart or a browser launch — one lookup per device then, never one per request, which is the line between this and the rejected Neon sessions</td><td>The backend runs on more than one machine; move to signed cookies or an external store, never Neon sessions</td></tr>
+        <tr><th scope="row"><a href="../context/foundation/auth-session-model.md">Remember-me tokens do not rotate</a></th><td>Spring's persistent remember-me rewrites the token on every auto-login and reads a second request with the old value as cookie theft: it wipes every token of the user and answers 500. Two requests carrying one cookie are normal here — two tabs restored together, React StrictMode bootstrapping twice in development</td><td>A stolen cookie stays usable until it expires or the owner logs out, instead of being detected the next time the owner uses theirs. The cookie is <code>HttpOnly; Secure; SameSite=Strict</code> on one origin, and logout and deletion revoke every token at once</td><td>The cookie can leave the origin — a second client, a subdomain, a cross-site embed — or the app starts holding data where a silently stolen session matters more than a signed-out user</td></tr>
         <tr><th scope="row"><a href="../context/foundation/data-model.md">Flyway owns schema; Hibernate validates</a></th><td>One explicit, reviewable source of schema change prevents ORM drift</td><td>Every schema change needs a migration</td><td>The persistence technology itself is replaced</td></tr>
         <tr><th scope="row"><a href="../context/foundation/deployment.md">Expand-only migrations</a></th><td>An older application image can still run after a rollback</td><td>Destructive cleanup takes a later contract step</td><td>Deployment and rollback guarantees are deliberately redesigned</td></tr>
         <tr><th scope="row"><a href="../context/foundation/data-model.md">UUID v7 aggregate identifiers</a></th><td>IDs can be created independently while retaining time-ordered index locality</td><td>Wider, less human-friendly keys than sequences</td><td>A future datastore makes a different identifier strategy materially better</td></tr>
@@ -616,7 +629,15 @@ flowchart LR
     exactly one account's data and one AI-memory root.</dd>
     <dt>Session</dt>
     <dd>The authenticated login state held in backend memory and referenced by the browser's
-    session cookie. It is not the user's durable application data.</dd>
+    session cookie. It is not the user's durable application data. Since DEV-62 it idles out after 30
+    days and dies with the JVM, but the user does not notice: a remember-me token opens a new one.</dd>
+    <dt>Remember-me token</dt>
+    <dd>A row of <code>remember_me_token</code> named by the browser's <code>remember-me</code> cookie
+    (DEV-62): a random <em>series</em> that finds the row and a secret <em>value</em> that must match it.
+    It is consulted only when a request arrives with no live session — after a browser restart or a
+    backend deploy — and then opens a new session. Valid 90 days from its last use, renewed by every
+    use, never rotated, and revoked for every device by logout and by account deletion. Not a session
+    store: an ordinary request never reads it.</dd>
     <dt>Verification code</dt>
     <dd>The eight digits mailed to an address — at sign-up, and since DEV-62 whenever anybody asks for
     one to sign in — and the only thing an unconfirmed account is ever sent. Valid fifteen minutes,
@@ -1052,6 +1073,30 @@ classDiagram
   causes too and would otherwise answer with the address-proof 403. <code>UserPrincipal</code>'s
   password hash may be null: Spring Security's encoder answers <code>false</code> for a missing hash, so
   a password tried against a code-only account is the ordinary 401.</p>
+  <p>DEV-62 phase 3 made a sign-in <strong>last</strong>. The session idles out after 30 days instead
+  of 30 minutes, and its cookie still carries no <code>Max-Age</code> — Tomcat fixes one when the
+  session is created and never moves it, so a lifetime there would end a busy user's session N days
+  after sign-in. Persistence across a browser restart or a deploy is a second cookie's job:
+  <code>SessionController</code> calls <code>RememberMeServices.loginSuccess</code> after
+  <code>establish</code> on both credentials (no filter on the JSON path would), and
+  <code>StableTokenRememberMeServices</code> writes a <code>remember_me_token</code> row through
+  <code>JpaPersistentTokenRepository</code>, sweeping the user's expired rows in the same transaction —
+  there is no cleanup job. The chain's <code>RememberMeAuthenticationFilter</code> consults the cookie
+  only when the request has no session; it then runs the chain's own session strategy (fixation,
+  CSRF rotation, the registry) and saves through the chain's repository, so what it opens is an
+  ordinary in-memory session and the next request costs no query. <strong>The token never
+  rotates.</strong> The stock services rewrite it on every auto-login and read a second request with
+  the old value as theft — wiping every token and answering 500 — and two requests carrying one
+  cookie are normal here. So the subclass checks series and value (in constant time), touches
+  <code>last_used_at</code>, and re-sends the same value for another 90 days; every refusal clears the
+  cookie and leaves the request anonymous, a 401, never a 500. Two details the stock class gets wrong
+  for this app are set by hand: <code>SameSite=Strict</code> on the cancel cookie, which ignores the
+  customizer, and <code>Secure</code> from the session cookie's own environment switch. Because an
+  auto-login rotates the CSRF token and only defers the replacement, <code>CsrfCookieFilter</code> now
+  sits <em>after</em> the remember-me filter — otherwise the first response after a deploy would carry
+  a deletion and no token, and the SPA's next save would fail. The services join
+  <code>apiLogoutHandler</code>, so logout and account deletion clear the cookie and delete every token
+  of the user.</p>
   <pre class="mermaid">
 classDiagram
   class SecurityConfig {
@@ -1076,6 +1121,28 @@ classDiagram
   class CsrfCookieFilter {
     &lt;&lt;inbound security adapter&gt;&gt;
     materializes XSRF-TOKEN cookie
+    after the remember-me filter, so an auto-login's rotated token reaches the response
+  }
+  class StableTokenRememberMeServices {
+    &lt;&lt;security adapter / RememberMeServices + LogoutHandler&gt;&gt;
+    remember-me cookie, 90 days from last use, alwaysRemember
+    +loginSuccess(request, response, authentication)
+    +autoLogin(request, response) — only when no session is alive
+    never rotates — series + value checked, last_used_at touched, same cookie re-sent
+    +logout() — cancel cookie + every token of the user
+  }
+  class JpaPersistentTokenRepository {
+    &lt;&lt;persistence adapter / PersistentTokenRepository&gt;&gt;
+    maps Spring's username (the e-mail) to user_id
+    createNewToken — sweeps the user's expired rows first
+    also a PerUserDataDeleter
+  }
+  class RememberMeToken {
+    &lt;&lt;entity / UserOwned&gt;&gt;
+    UUID userId
+    String series — unique, what the cookie names
+    String tokenValue
+    OffsetDateTime lastUsedAt
   }
   class ProblemDetailsSecurityHandler {
     &lt;&lt;inbound error adapter&gt;&gt;
@@ -1116,6 +1183,11 @@ classDiagram
   SessionController --> AuthenticatedSession : write the context back (login)
   SessionController --> EmailVerificationService : the code path, with no provider bean
   AuthenticatedSession --> SecurityConfig : the chain's own SecurityContextRepository
+  SecurityConfig --> StableTokenRememberMeServices : remember-me filter + apiLogoutHandler
+  SessionController --> StableTokenRememberMeServices : loginSuccess after establish
+  StableTokenRememberMeServices --> JpaPersistentTokenRepository
+  StableTokenRememberMeServices --> AppUserDetailsService : reloads the principal
+  JpaPersistentTokenRepository ..> RememberMeToken : stores
   </pre>
   <p class="note">The record's generated <code>equals</code> was fine only while every component came
   off the same row and never changed. DEV-49 put the account language on the principal and then moved
@@ -1143,6 +1215,10 @@ classDiagram
   class GoalDataDeleter {
     &lt;&lt;module adapter&gt;&gt;
   }
+  class JpaPersistentTokenRepository {
+    &lt;&lt;security adapter&gt;&gt;
+    also a deleter — a remember-me token is a way back into the account
+  }
   class EmailVerificationService {
     &lt;&lt;application service&gt;&gt;
     also a deleter — the throttle's entry for the address is per-user state like the rhythm's map
@@ -1155,6 +1231,7 @@ classDiagram
   PerUserDataDeleter &lt;|.. EmailVerificationService
   PerUserDataDeleter &lt;|.. AiMemoryDataDeleter
   PerUserDataDeleter &lt;|.. GoalDataDeleter
+  PerUserDataDeleter &lt;|.. JpaPersistentTokenRepository
   </pre>
 
   <h3>category</h3>
@@ -2207,7 +2284,8 @@ sequenceDiagram
     SC->>SC: SessionAuthenticationStrategy.onAuthentication()&lt;br/&gt;rotates session id (fixation) + CSRF token
     SC->>SC: materializeRotatedCsrfToken() — forces new&lt;br/&gt;XSRF-TOKEN cookie onto THIS response
     SC->>SC: AuthenticatedSession.establish()&lt;br/&gt;— saveContext() through the chain's repository,&lt;br/&gt;which is what actually writes the session
-    SC-->>SPA: 201 Created + Set-Cookie (session, XSRF-TOKEN) — the same steps for either credential
+    SC->>SC: RememberMeServices.loginSuccess()&lt;br/&gt;— a new remember_me_token row, the user's expired ones swept (DEV-62)
+    SC-->>SPA: 201 Created + Set-Cookie (session, XSRF-TOKEN, remember-me) — the same steps for either credential
   end
   </pre>
 
@@ -2217,15 +2295,32 @@ sequenceDiagram
   actor SPA
   participant FC as Security filter chain
   participant UC as UserController
-  SPA->>FC: GET /api/users/me + session cookie
-  Note over FC: session validated in-memory —&lt;br/&gt;no DB query, Neon stays suspended
-  alt missing/expired session
-    FC-->>SPA: 401 Problem JSON (ProblemDetailsSecurityHandler)
-  else valid session
+  participant RM as StableTokenRememberMeServices
+  participant DB as remember_me_token
+  SPA->>FC: GET /api/users/me + session cookie (+ remember-me cookie)
+  alt valid session
+    Note over FC: session validated in-memory —&lt;br/&gt;no DB query, the remember-me cookie is never looked at
     FC->>UC: currentUser(@AuthenticationPrincipal UserPrincipal)
     UC-->>SPA: 200 UserResponse — answered from the principal, no query
+  else no session (browser restart or backend deploy), remember-me cookie present
+    FC->>RM: autoLogin(request, response)
+    RM->>DB: find by series, compare value, touch last_used_at
+    alt the token holds
+      FC->>FC: the chain's session strategy + saveContext — a new in-memory session
+      FC->>FC: CsrfCookieFilter — the rotated XSRF-TOKEN onto this response
+      FC->>UC: currentUser(@AuthenticationPrincipal UserPrincipal)
+      UC-->>SPA: 200 + Set-Cookie (session, XSRF-TOKEN, the same remember-me for 90 more days)
+    else unknown, mismatched, expired or unproved
+      FC-->>SPA: 401 Problem JSON + the remember-me cookie cleared — never 500
+    end
+  else neither
+    FC-->>SPA: 401 Problem JSON (ProblemDetailsSecurityHandler)
   end
   </pre>
+  <p>The token table is read once per device per browser launch or backend restart, and from then on
+  the new session answers in memory. <code>RememberMeApiTest</code> pins both halves by counting the
+  connections a request takes from the pool: zero with a live session, and zero on the request after
+  an auto-login.</p>
 
   <h4>Logout <span class="badge badge-live">implemented</span></h4>
   <pre class="mermaid">
@@ -2235,7 +2330,7 @@ sequenceDiagram
   participant LH as LogoutHandler
   SPA->>SC: DELETE /api/sessions/current (+ X-XSRF-TOKEN header)
   SC->>LH: logout(request, response, authentication)
-  Note over LH: invalidates the HttpSession,&lt;br/&gt;clears context + cookies
+  Note over LH: invalidates the HttpSession,&lt;br/&gt;clears context + both cookies,&lt;br/&gt;deletes every remember_me_token of the user (DEV-62)
   SC-->>SPA: 204 No Content
   </pre>
 
@@ -2482,9 +2577,9 @@ sequenceDiagram
   table: <code>app_user.next_proposal_at</code>, and DEV-49 added two more of the same kind —
   <code>app_user.preferred_language</code> and <code>category.name_en</code>. DEV-51 added four,
   all on <code>app_user</code> again, for address verification, plus one <code>CHECK</code> holding
-  two of them together. Nothing in the data
-  model still belongs only to the target diagram, and no slice has yet needed a table for a change
-  that columns on an existing one could carry.</p>
+  two of them together. DEV-62 added the first table since <code>proposal</code>:
+  <code>remember_me_token</code>, because a remembered browser is a row of its own rather than a fact
+  about the account. Nothing in the data model still belongs only to the target diagram.</p>
   <div class="card-grid">
     <div class="card"><strong>Ownership and isolation</strong><br><code>AiMemory</code> is one
     aggregate per user. Child profile facts and episodes are reached through that root.</div>
@@ -2606,7 +2701,16 @@ sequenceDiagram
   the <code>DEFAULT</code> is what makes <code>NOT NULL</code> safe beside an image that inserts rows
   without naming it — <code>verification_attempts</code>'s argument. No <code>CHECK</code> on its
   values, so nothing the previous image writes can violate one.</p>
-  <img class="diagram" src="../context/foundation/data-model-current.svg" width="1190" height="1422" loading="lazy" alt="Current entity relationship model: app user with its next_proposal_at scheduling column, preferred_language setting, nullable password hash and five code columns, goal with its three layers, proposal, category with its two label columns, AI memory, profile facts, and episodes">
+  <p><code>V16</code> (DEV-62 phase 3) creates <code>remember_me_token</code>: a UUID v7 key, a
+  <code>user_id</code> foreign key with no <code>ON DELETE</code> (so its <code>PerUserDataDeleter</code>
+  is checked like every other), a unique <code>series</code>, the <code>token_value</code>,
+  <code>last_used_at</code> — what the 90-day expiry counts from — and the audit columns. It is
+  <strong>not a session store</strong>: it is read only when a request arrives with no live session,
+  once per device per browser launch or backend restart, so Neon still suspends with a signed-in tab
+  open. The value never rotates, so an auto-login writes <code>last_used_at</code> alone; expired rows
+  go when their owner next signs in, because a cleanup job would wake the database on a timer. A plain
+  <code>CREATE</code>, which the previous image never reads.</p>
+  <img class="diagram" src="../context/foundation/data-model-current.svg" width="1572" height="1422" loading="lazy" alt="Current entity relationship model: app user with its next_proposal_at scheduling column, preferred_language setting, nullable password hash and five code columns, remember-me tokens owned by the user, goal with its three layers, proposal, category with its two label columns, AI memory, profile facts, and episodes">
   <h3>Target model <span class="badge badge-planned">planned</span></h3>
   <p>The target diagram shows the whole shape, migrated and not: solid tables exist today, ghosted
   ones are direction rather than an implemented database contract. After S-07 — and still after
@@ -2614,7 +2718,7 @@ sequenceDiagram
   is <code>task</code>, and it marks a deferred split rather than planned work: current tasks shipped
   as a third <code>goal</code> layer, so that table is the escape hatch for the day tasks earn a
   lifecycle of their own.</p>
-  <img class="diagram" src="../context/foundation/data-model-target.svg" width="2112" height="1268" loading="lazy" alt="Target entity relationship model: migrated app user with its language setting, nullable password hash and five code columns, goal, proposal, category with two label columns, and AI memory alongside the deferred task table">
+  <img class="diagram" src="../context/foundation/data-model-target.svg" width="2233" height="1268" loading="lazy" alt="Target entity relationship model: migrated app user with its language setting, nullable password hash and five code columns, remember-me tokens, goal, proposal, category with two label columns, and AI memory alongside the deferred task table">
   <p class="note">Canonical source:
   <a href="../context/foundation/data-model.md"><code>context/foundation/data-model.md</code></a>.
   Editable Draw.io sources live beside the exported SVGs.</p>
@@ -2825,9 +2929,10 @@ flowchart TB
   e-mailed code replaces the password as the sign-in credential (DEV-62), in two releases. Release 1's
   backend is in: any account can ask for an eight-digit code and sign in with it, the mail carries a
   link that prefills it, and a daily budget guards the mail quota. So is its screen: <code>/login</code>
-  asks for the address only and <code>/verify</code> opens the session. Still to come in release 1:
-  sessions that survive browser restarts and deploys. Release 2 removes
-  the password from sign-up, sign-in and account deletion.</div>
+  asks for the address only and <code>/verify</code> opens the session. And sessions now last: 30 days
+  in memory, and a remember-me cookie that survives browser restarts and deploys for 90 days from its
+  last use — which completes release 1. Release 2 removes the password from sign-up, sign-in and
+  account deletion.</div>
   <div class="card"><strong>Observability</strong> <span class="badge badge-live">implemented</span><br>Production
   logs in the owner's shared Grafana Cloud Loki stack, a <code>user_registered</code> line after each
   committed verification and a five-minute heartbeat (DEV-58), so a new account and a silent app both
@@ -2874,7 +2979,8 @@ flowchart TB
         <tr><th scope="row">The FR-009 gap</th><td>The accepted exception to "no leaked word": <code>ProposalService.proposeScheduled</code> passes <code>AppLanguage.PL</code> literally, so a scheduled proposal is Polish for every account until increment 2. Because the text is stored, it reaches the pending card as well as the e-mail. Pinned by <code>ScheduledProposalTest</code> so it reads as a decision, not a defect.</td></tr>
         <tr><th scope="row">Heartbeat / user_registered</th><td>The two log events the owner's alerts key on (DEV-58), both shipped to Grafana Cloud Loki in production only: <code>heartbeat</code> every five minutes from <code>observability/Heartbeat</code>, whose fifteen-minute absence means the app went quiet, and <code>user_registered</code> from <code>RegistrationAuditLogger</code>, written only after a verification commits. Each carries at most the account's UUID.</td></tr>
         <tr><th scope="row">PerUserDataDeleter</th><td>Interface each module implements so FR-019 account deletion erases its per-user rows; the final user delete's plain FKs fail loudly if one is missing.</td></tr>
-        <tr><th scope="row">Session model</th><td>Server-side session cookie (<code>HttpOnly; Secure; SameSite=Strict</code>), held in-memory on the single Fly machine. Not JWT; never DB-backed (Neon autosuspend).</td></tr>
+        <tr><th scope="row">Session model</th><td>Server-side session cookie (<code>HttpOnly; Secure; SameSite=Strict</code>), held in-memory on the single Fly machine for up to 30 days idle. Not JWT; never DB-backed (Neon autosuspend). Since DEV-62 a <code>remember-me</code> cookie, backed by <code>remember_me_token</code> and read only when no session is alive, opens a new session after a browser restart or a deploy.</td></tr>
+        <tr><th scope="row">Remember-me token</th><td>One remembered browser (DEV-62): a <code>remember_me_token</code> row named by the cookie's series, matched by its value, valid 90 days from last use. It never rotates, because two requests carrying one cookie are normal (restored tabs, StrictMode), and every refusal is an anonymous 401, never a 500. Logout and account deletion revoke every token of the user.</td></tr>
         <tr><th scope="row">Pattern B / unified origin</th><td>Cloudflare serves the SPA and reverse-proxies <code>/api/*</code> to Fly—production is same-origin, no CORS.</td></tr>
         <tr><th scope="row">Expand-only migration</th><td>Flyway migrations stay backward-compatible under image rollback; destructive changes use expand then contract.</td></tr>
         <tr><th scope="row">FR-nnn</th><td>Functional requirement id from the <a href="../context/foundation/prd.md">PRD</a> (for example, FR-019 is account deletion).</td></tr>

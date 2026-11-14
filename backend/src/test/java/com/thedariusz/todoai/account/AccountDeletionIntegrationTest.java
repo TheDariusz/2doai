@@ -1,5 +1,6 @@
 package com.thedariusz.todoai.account;
 
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,6 +24,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.web.authentication.rememberme.PersistentRememberMeToken;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -55,6 +58,9 @@ class AccountDeletionIntegrationTest {
 
 	@Autowired
 	private ProposalRepository proposals;
+
+	@Autowired
+	private PersistentTokenRepository rememberMeTokens;
 
 	@Autowired
 	private JdbcTemplate jdbc;
@@ -114,6 +120,25 @@ class AccountDeletionIntegrationTest {
 
 		assertThat(proposalRowsOf(alice.getId())).isZero();
 		assertThat(proposalRowsOf(bob.getId())).isEqualTo(1);
+	}
+
+	/**
+	 * A remember-me token is a way back into the account from any browser that holds it, so it goes
+	 * with the account — on every device, not only the one the deletion was confirmed from.
+	 */
+	@Test
+	void deletingAnAccountRemovesItsRememberMeTokens() {
+		User alice = registrationService.register(uniqueEmail(), "correct-horse", AppLanguage.PL);
+		User bob = registrationService.register(uniqueEmail(), "correct-horse", AppLanguage.PL);
+		String aliceSeries = "series-" + UUID.randomUUID();
+		String bobSeries = "series-" + UUID.randomUUID();
+		rememberMeTokens.createNewToken(new PersistentRememberMeToken(alice.getEmail(), aliceSeries, "a", new Date()));
+		rememberMeTokens.createNewToken(new PersistentRememberMeToken(bob.getEmail(), bobSeries, "b", new Date()));
+
+		accountDeletionService.deleteAccount(alice.getId());
+
+		assertThat(rememberMeTokens.getTokenForSeries(aliceSeries)).isNull();
+		assertThat(rememberMeTokens.getTokenForSeries(bobSeries)).isNotNull();
 	}
 
 	/**
@@ -179,7 +204,7 @@ class AccountDeletionIntegrationTest {
 				WHERE table_schema = 'public' AND column_name = 'user_id'
 				""", String.class);
 
-		assertThat(userScopedTables).contains("ai_memory");
+		assertThat(userScopedTables).contains("ai_memory", "remember_me_token");
 	}
 
 	/**
