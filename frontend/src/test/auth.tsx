@@ -9,9 +9,8 @@ export function stubAuth(overrides: Partial<Auth> = {}): Auth {
   return {
     user: null,
     status: 'anonymous',
-    login: vi.fn().mockResolvedValue(undefined),
+    signInWithCode: vi.fn().mockResolvedValue(undefined),
     register: vi.fn().mockResolvedValue(undefined),
-    verify: vi.fn().mockResolvedValue(undefined),
     resendCode: vi.fn().mockResolvedValue(undefined),
     changeLanguage: vi.fn().mockResolvedValue(undefined),
     logout: vi.fn().mockResolvedValue(undefined),
@@ -31,12 +30,13 @@ export const LOGGED_IN: Partial<Auth> = {
  * with no body has an empty `text()` and a `json()` that throws `SyntaxError`, exactly as the
  * platform does — a stub that resolved to `undefined` there let a broken 202 path pass.
  */
-export function response(status: number, body?: unknown) {
+export function response(status: number, body?: unknown, headers: Record<string, string> = {}) {
   const text = body === undefined ? '' : JSON.stringify(body)
   return {
     ok: status < 400,
     status,
     statusText: '',
+    headers: new Headers(headers),
     text: async () => text,
     json: async () => JSON.parse(text) as unknown,
   }

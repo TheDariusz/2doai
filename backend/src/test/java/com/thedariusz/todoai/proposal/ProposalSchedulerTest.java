@@ -63,7 +63,7 @@ class ProposalSchedulerTest {
 	private static final OffsetDateTime DAWN = warsaw(4);
 
 	private static final MailboxProperties MAILBOX =
-			new MailboxProperties("2do AI <propozycje@2doai.app>", "https://2doai.app");
+			new MailboxProperties("2do AI <propozycje@2doai.app>", "https://2doai.app", 60);
 
 	private final UserRepository users = mock(UserRepository.class);
 

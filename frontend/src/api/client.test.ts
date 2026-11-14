@@ -27,7 +27,7 @@ describe('api client', () => {
   it('echoes the XSRF-TOKEN cookie as X-XSRF-TOKEN on mutations', async () => {
     fetchMock.mockResolvedValue(response(201, { id: 'u1', email: 'a@b.pl' }))
 
-    await api('/sessions', { method: 'POST', body: { email: 'a@b.pl', password: 'secret12' } })
+    await api('/sessions', { method: 'POST', body: { email: 'a@b.pl', code: '04231789' } })
 
     expect(headersOf(0)['X-XSRF-TOKEN']).toBe('token-123')
     expect(fetchMock.mock.calls[0][1].credentials).toBe('include')
@@ -68,6 +68,30 @@ describe('api client', () => {
       status: 403,
       type: 'urn:2doai:problem:re-auth-failed',
     })
+  })
+
+  /**
+   * The throttle's 429 says how long to wait, and the header is the only part of it a screen can act
+   * on: the resend button counts that down instead of guessing.
+   */
+  it('carries the Retry-After seconds of a 429', async () => {
+    fetchMock.mockResolvedValue(response(429, { detail: 'Too many verification codes requested' }, { 'Retry-After': '42' }))
+
+    await expect(
+      api('/verification-codes', { method: 'POST', body: { email: 'a@b.pl' } }),
+    ).rejects.toMatchObject({ status: 429, retryAfter: 42 })
+  })
+
+  it('leaves retryAfter undefined when the header is missing or not a number of seconds', async () => {
+    fetchMock
+      .mockResolvedValueOnce(response(429, { detail: 'Slow down' }))
+      .mockResolvedValueOnce(response(429, { detail: 'Slow down' }, { 'Retry-After': 'Wed, 21 Oct 2026 07:28:00 GMT' }))
+
+    for (let i = 0; i < 2; i++) {
+      await expect(
+        api('/verification-codes', { method: 'POST', body: { email: 'a@b.pl' } }),
+      ).rejects.toMatchObject({ status: 429, retryAfter: undefined })
+    }
   })
 
   it('leaves the type undefined when the body carries none', async () => {

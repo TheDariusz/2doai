@@ -11,7 +11,7 @@ const fetchMock = vi.fn()
 
 /** Surfaces the provider's state, and swallows the rejection so a failed logout is assertable. */
 function Probe() {
-  const { status, user, logout, changeLanguage, verify, resendCode } = useAuth()
+  const { status, user, logout, changeLanguage, signInWithCode, resendCode } = useAuth()
   const [failed, setFailed] = useState(false)
 
   return (
@@ -22,7 +22,7 @@ function Probe() {
       <button onClick={() => logout().catch(() => setFailed(true))}>Wyloguj</button>
       <button onClick={() => void changeLanguage('pl')}>na polski</button>
       <button onClick={() => void changeLanguage('en')}>to English</button>
-      <button onClick={() => void verify('ala@example.pl', '042317')}>spend the code</button>
+      <button onClick={() => void signInWithCode('ala@example.pl', '04231789').catch(() => {})}>spend the code</button>
       <button onClick={() => void resendCode('ala@example.pl')}>ask for another</button>
     </>
   )
@@ -113,23 +113,36 @@ describe('AuthProvider', () => {
   })
 
   /**
-   * Both address-proof calls are public and answer with no body — the account they move cannot log
-   * in yet, so there is nothing for the provider to adopt from either one.
+   * The code is the credential: it goes to the one endpoint that opens a session, and the answer is
+   * the account, adopted the way a bootstrap adopts one — language included.
    */
-  it('spends a code through POST /verifications and leaves the session alone', async () => {
+  it('signs in with a code through POST /sessions and adopts the account it answers with', async () => {
     fetchMock
       .mockResolvedValueOnce(response(401, { detail: 'Authentication is required' }))
-      .mockResolvedValueOnce(response(204))
+      .mockResolvedValueOnce(response(200, { id: 'u1', email: 'ala@example.pl', language: 'PL' }))
+
+    render(<AuthProvider><Probe /></AuthProvider>)
+    await screen.findByText('status: anonymous')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'spend the code' }))
+
+    expect(await screen.findByText('status: authenticated')).toBeInTheDocument()
+    const [url, init] = fetchMock.mock.calls[1]
+    expect(url).toBe('/api/sessions')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body)).toEqual({ email: 'ala@example.pl', code: '04231789' })
+    await waitFor(() => expect(i18n.resolvedLanguage).toBe('pl'))
+  })
+
+  it('stays anonymous when the code is refused', async () => {
+    fetchMock
+      .mockResolvedValueOnce(response(401, { detail: 'Authentication is required' }))
+      .mockResolvedValueOnce(response(401, { detail: 'Authentication is required or credentials are invalid' }))
 
     render(<AuthProvider><Probe /></AuthProvider>)
     await screen.findByText('status: anonymous')
     await userEvent.setup().click(screen.getByRole('button', { name: 'spend the code' }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
-    const [url, init] = fetchMock.mock.calls[1]
-    expect(url).toBe('/api/verifications')
-    expect(init.method).toBe('POST')
-    expect(JSON.parse(init.body)).toEqual({ email: 'ala@example.pl', code: '042317' })
     expect(screen.getByText('status: anonymous')).toBeInTheDocument()
   })
 

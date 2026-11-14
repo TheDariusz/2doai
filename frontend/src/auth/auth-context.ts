@@ -25,17 +25,20 @@ export const APP_LANGUAGE: Record<User['language'], Language> = { PL: 'pl', EN: 
 export type Auth = {
   user: User | null
   status: 'loading' | 'authenticated' | 'anonymous'
-  login: (email: string, password: string) => Promise<void>
   /**
-   * Registration does not open a session — the server returns 201, mails a six-digit code to the
-   * address and the account stays inert until `verify` spends it.
+   * Opens a session with a mailed code — the one way in on the screen. The first code an account
+   * ever spends also proves its address, so there is no separate confirmation step.
+   */
+  signInWithCode: (email: string, code: string) => Promise<void>
+  /**
+   * Registration does not open a session — the server returns 201 and mails an eight-digit code to
+   * the address; `signInWithCode` then spends it.
    */
   register: (email: string, password: string) => Promise<void>
-  /** Spends the mailed code. Opens no session either: the user signs in once the address is theirs. */
-  verify: (email: string, code: string) => Promise<void>
   /**
-   * Asks for a fresh code. Accepted for every address — whether one was actually sent is exactly
-   * what the server declines to disclose — so a resolved promise is not evidence of an account.
+   * Asks for a code to sign in with — for a new account and a returning one alike. Accepted for
+   * every address: whether one was actually sent is exactly what the server declines to disclose,
+   * so a resolved promise is not evidence of an account.
    */
   resendCode: (email: string) => Promise<void>
   /**

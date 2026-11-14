@@ -137,8 +137,8 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	/**
 	 * A code that does not prove the address → <b>403</b>, and the URN is the whole point of the
 	 * status: the SPA has to tell "that code is not right, try again" from the CSRF 403 that shares it
-	 * and can only be fixed by reloading the page. The detail is fixed and says nothing about which of
-	 * the six causes it was — see {@link VerificationFailedException}.
+	 * and can only be fixed by reloading the page. The detail is fixed and says nothing about which
+	 * cause it was — see {@link VerificationFailedException}.
 	 */
 	@ExceptionHandler(VerificationFailedException.class)
 	ProblemDetail handleVerificationFailed(VerificationFailedException ex, WebRequest request) {
@@ -169,6 +169,18 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 		return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
 				.header(HttpHeaders.RETRY_AFTER, Long.toString(ex.retryAfterSeconds()))
 				.body(body);
+	}
+
+	/**
+	 * A code request could not even be queued → <b>503</b>: the auth-mail queue is full. Decided
+	 * before the address is looked up, so it is the same answer for every address and says nothing
+	 * about which ones have accounts. A spent daily budget is not this: it drops the code after the
+	 * lookup, and the request still answers 202.
+	 */
+	@ExceptionHandler(AuthMailUnavailableException.class)
+	ProblemDetail handleAuthMailUnavailable(AuthMailUnavailableException ex, WebRequest request) {
+		logger.warn("Request to " + request.getDescription(false) + " rejected with 503: " + ex.getMessage());
+		return ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
 	}
 
 	/**

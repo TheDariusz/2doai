@@ -1,5 +1,6 @@
 package com.thedariusz.todoai.auth;
 
+import com.thedariusz.todoai.user.CodePurpose;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,18 +27,22 @@ class VerificationController {
 
 	/**
 	 * 204 rather than a body: there is nothing to say back that the caller does not know, and no
-	 * session is opened — the user logs in next, through the one path that creates sessions.
+	 * session is opened — the user logs in next, through the one path that creates sessions. Spends a
+	 * sign-in code exactly as {@code POST /api/sessions} does, minus the session; release 2 removes this
+	 * endpoint, since the first code sign-in now proves the address on its own.
 	 */
 	@PostMapping("/api/verifications")
 	ResponseEntity<Void> verify(@Valid @RequestBody EmailVerificationRequest request) {
-		verification.verify(request.email(), request.code());
+		verification.redeem(request.email(), request.code(), CodePurpose.SIGN_IN);
 		return ResponseEntity.noContent().build();
 	}
 
 	/**
-	 * <b>202, always</b> — including for an address with no account and one already verified, neither
-	 * of which is sent anything. "Accepted" is the honest word for it: the server has taken the
-	 * request, and whether a message follows is precisely what it declines to disclose.
+	 * <b>202 for every address</b> — one with no account is sent nothing, and the answer does not say
+	 * so. "Accepted" is the honest word for it: the server has taken the request, the message (if any)
+	 * goes out afterwards on its own thread, and whether one follows is precisely what it declines to
+	 * disclose. 429 and 503 (a full send queue) are decided before the address is looked up, so they
+	 * are uniform too; a spent daily budget drops the code after the lookup and still answers 202.
 	 */
 	@PostMapping("/api/verification-codes")
 	ResponseEntity<Void> sendCode(@Valid @RequestBody VerificationCodeRequest request) {

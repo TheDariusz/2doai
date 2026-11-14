@@ -1,10 +1,13 @@
 package com.thedariusz.todoai.security;
 
 import java.util.List;
+import java.util.UUID;
 
 import jakarta.servlet.DispatcherType;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.configurers.RequestCacheConfigurer;
 import org.springframework.security.authentication.AccountStatusUserDetailsChecker;
@@ -22,6 +25,8 @@ import org.springframework.security.web.authentication.logout.CompositeLogoutHan
 import org.springframework.security.web.authentication.logout.CookieClearingLogoutHandler;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
+import org.springframework.security.web.authentication.rememberme.RememberMeAuthenticationFilter;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
@@ -29,7 +34,6 @@ import org.springframework.security.web.authentication.session.CompositeSessionA
 import org.springframework.security.web.authentication.session.RegisterSessionAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
-import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfAuthenticationStrategy;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
@@ -68,6 +72,12 @@ import org.springframework.security.web.context.SecurityContextRepository;
  *       token is read, so a {@link CsrfCookieFilter} (ordered before the authorization filter)
  *       renders it on every request — priming the cookie even on the SPA's unauthenticated
  *       {@code GET /api/users/me} bootstrap, which is rejected 401 before any handler could run.</li>
+ *   <li><b>Remember-me</b> — every sign-in also sets a {@code remember-me} cookie backed by the
+ *       {@code remember_me_token} table, so a user stays signed in across a browser restart and a
+ *       backend deploy (see {@link StableTokenRememberMeServices} and the 2026-11-14 addendum to the
+ *       decision record). The token is read only when a request arrives with no live session — once
+ *       per browser launch or restart, per device — so the database stays off the ordinary request
+ *       path and Neon can still suspend. This is not a Neon-backed session store.</li>
  *   <li><b>Session management</b> — sessions are created on authentication only. Fixation protection
  *       ({@code changeSessionId}) and CSRF-token rotation are applied by the explicit
  *       {@link #sessionAuthenticationStrategy} bean, because the JSON login path does not run through
@@ -75,7 +85,7 @@ import org.springframework.security.web.context.SecurityContextRepository;
  *       {@code SameSite=Strict}, env-driven {@code Secure}) live in {@code application.properties}.</li>
  *   <li><b>No request cache</b> — the default {@code HttpSessionRequestCache} calls
  *       {@code request.getSession()} before the entry point runs, so every anonymous 401 would mint a
- *       30-minute in-memory session on the single machine: an unauthenticated memory-exhaustion lever.
+ *       30-day in-memory session on the single machine: an unauthenticated memory-exhaustion lever.
  *       Nothing replays saved requests here — post-login routing is the SPA's job.</li>
  *   <li><b>{@code ERROR} dispatch is permitted</b> — the chain runs on that dispatch by default, so
  *       without this an unhandled 500 on a public endpoint is re-authorized as an anonymous request
@@ -89,7 +99,8 @@ public class SecurityConfig {
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http, CsrfTokenRepository csrfTokenRepository,
 			SecurityContextRepository securityContextRepository,
-			ProblemDetailsSecurityHandler problemDetailsSecurityHandler, SessionRegistry sessionRegistry)
+			ProblemDetailsSecurityHandler problemDetailsSecurityHandler, SessionRegistry sessionRegistry,
+			StableTokenRememberMeServices rememberMeServices)
 			throws Exception {
 		http
 				.securityContext(context -> context.securityContextRepository(securityContextRepository))
@@ -105,7 +116,14 @@ public class SecurityConfig {
 				.csrf(csrf -> csrf
 						.csrfTokenRepository(csrfTokenRepository)
 						.csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
-				.addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
+				// After the remember-me filter, not merely before authorization: an auto-login rotates the
+				// CSRF token (CsrfAuthenticationStrategy) and only defers the replacement, so this filter has
+				// to be the thing that reads it — or a request after a deploy gets a cookie deletion and no
+				// token, and the SPA's next mutation fails.
+				.addFilterAfter(new CsrfCookieFilter(), RememberMeAuthenticationFilter.class)
+				// The filter's session strategy is the chain's own (fixation, CSRF rotation, registry), and
+				// it saves through the repository above — both picked up by the configurer.
+				.rememberMe(rememberMe -> rememberMe.rememberMeServices(rememberMeServices))
 				.requestCache(RequestCacheConfigurer::disable)
 				.sessionManagement(session -> session
 						.maximumSessions(-1)
@@ -182,11 +200,41 @@ public class SecurityConfig {
 				new RegisterSessionAuthenticationStrategy(sessionRegistry)));
 	}
 
+	/**
+	 * Remember-me as a declared bean rather than configurer defaults, because three callers need the
+	 * same instance: the filter chain (auto-login), {@code SessionController} (issue on every sign-in —
+	 * the JSON login does not run through a filter that would) and {@link #apiLogoutHandler} (revoke).
+	 *
+	 * <p>The key only binds the {@code RememberMeAuthenticationToken} a successful auto-login produces
+	 * to this process's provider; persistent tokens are not signed with it. A fresh random key per boot
+	 * is therefore enough, and there is no secret to configure. {@code Secure} follows the session
+	 * cookie's own environment switch, so the two cookies can never disagree on it.
+	 */
 	@Bean
-	LogoutHandler apiLogoutHandler() {
+	StableTokenRememberMeServices rememberMeServices(UserDetailsService userDetailsService,
+			PersistentTokenRepository tokens,
+			@Value("${server.servlet.session.cookie.secure:false}") boolean secureCookie) {
+		return new StableTokenRememberMeServices(UUID.randomUUID().toString(), userDetailsService, tokens,
+				secureCookie);
+	}
+
+	/**
+	 * What both {@code DELETE} endpoints run to end the caller's sign-in: the security context, the
+	 * session cookie, and the remember-me cookie together with every token the user holds — so no
+	 * remembered browser can auto-login again. It does not end another browser's live session: that one
+	 * stays signed in until its own session ends (idle timeout, restart, deploy). Account deletion
+	 * ends those separately, by expiring the user's sessions in the registry.
+	 *
+	 * <p>{@code @Primary} because {@link StableTokenRememberMeServices} is a {@code LogoutHandler} too,
+	 * and an injection point asking for "the" logout handler must get all of them, never that one alone.
+	 */
+	@Bean
+	@Primary
+	LogoutHandler apiLogoutHandler(StableTokenRememberMeServices rememberMeServices) {
 		return new CompositeLogoutHandler(
 				new SecurityContextLogoutHandler(),
-				new CookieClearingLogoutHandler("JSESSIONID"));
+				new CookieClearingLogoutHandler("JSESSIONID"),
+				rememberMeServices);
 	}
 
 	/**

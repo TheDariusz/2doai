@@ -45,7 +45,7 @@ Decyzja wynika z **konkretnych ograniczeń tego projektu**, które unieważniaj�
 
 ## Konsekwencje
 
-- **Przyjęty kompromis:** restart/redeploy maszyny (OOM-kill na 512 MB, migracja hosta Fly) gubi sesje in-memory → użytkownicy logują się ponownie. Przy 1–10 użytkownikach i rzadkich deployach — pomijalne.
+- **Przyjęty kompromis:** restart/redeploy maszyny (OOM-kill na 512 MB, migracja hosta Fly) gubi sesje in-memory → użytkownicy logują się ponownie. Przy 1–10 użytkownikach i rzadkich deployach — pomijalne. *(Wycofane 2026-11-14 — patrz „Decyzja uzupełniająca (2026-11-14, DEV-62)" niżej: sesja przeżywa restart dzięki ciasteczku remember-me.)*
 - **Kiedy rewidować:** **wyłącznie** gdy porzucimy pojedynczą maszynę (multi-region lub repliki poziome, tj. zejście z `min_machines_running = 1`). Wtedy migracja: sesje in-memory → **podpisane ciasteczko (stateless)** albo **cookie + zewnętrzny magazyn (np. Redis)**. **Nigdy cookie + sesje w Neon** — to samo naruszenie reguły z pkt. 4 Rationale. Bezstanowość JWT staje się warta swoich kosztów dopiero w tym momencie, nie wcześniej.
 - **Front (PWA, offline read-only / FR-017):** tryb offline pokazuje dane z cache i nie wykonuje uwierzytelnionych wywołań, więc niedostępność ciasteczka dla JS (`HttpOnly`) jest neutralna; stan „czy zalogowany" offline opiera się na zcache'owanym profilu, nie na odczycie tokenu.
 - **Spring Security 6:** ścieżka domyślna (`SecurityFilterChain`, konfiguracja ciasteczka, wbudowany CSRF); brak `oauth2-resource-server` (to droga JWT) w zakresie MVP.
@@ -83,3 +83,52 @@ samego żądania. Wygaśnięcie sesji nie unieważnia `XSRF-TOKEN`, więc żąda
 dociera nieuwierzytelnione do filtra autoryzacji i dostaje **401** z entry pointu — czyli dokładnie
 to, co SPA zamienia na przekierowanie do logowania. Spisane, żeby nikt nie wyprowadzał tego wniosku
 drugi raz.
+
+## Decyzja uzupełniająca (2026-11-14, DEV-62): długie sesje, które przeżywają restart
+
+Logowanie przestaje być hasłem i staje się kodem wysyłanym e-mailem (zmiana `password-reset`). Każde
+logowanie to więc okrążenie przez skrzynkę pocztową — a przyjęty kompromis z „Konsekwencji" (restart
+lub deploy wylogowuje wszystkich, sesja wygasa po 30 minutach bezczynności) zamieniał każdy deploy i
+każde zamknięcie przeglądarki w takie okrążenie. Ten kompromis zostaje **wycofany**.
+
+**Rozstrzygnięcie:**
+
+1. **Decyzja 2 obowiązuje bez zmian.** Sesje (`HttpSession`) nadal żyją w pamięci jedynej maszyny Fly,
+   nie w Postgresie. Limit bezczynności rośnie z 30 minut do **30 dni**
+   (`server.servlet.session.timeout=30d`); ciasteczko `JSESSIONID` pozostaje ciasteczkiem sesji
+   przeglądarki, **bez `Max-Age`** — Tomcat ustala `Max-Age` w chwili utworzenia sesji i nigdy go nie
+   przesuwa, więc sesja wygasłaby N dni po zalogowaniu niezależnie od aktywności.
+2. **Trwałość niesie drugie ciasteczko, `remember-me`** (`HttpOnly`, `SameSite=Strict` — także na
+   ciasteczku kasującym — oraz `Secure` z tego samego przełącznika środowiskowego co ciasteczko sesji),
+   ustawiane przy każdym logowaniu, kodem i hasłem. Wskazuje jeden wiersz tabeli `remember_me_token`
+   (`V16`): `series` znajduje wiersz, `token_value` musi się zgadzać (porównanie w stałym czasie).
+   Ważność: **90 dni od ostatniego użycia**; każde automatyczne logowanie odnawia ciasteczko.
+3. **To nie są „sesje w Neon".** Tabela jest czytana **tylko wtedy, gdy żądanie przychodzi bez żywej
+   sesji** — raz na uruchomienie przeglądarki lub restart backendu, na urządzenie. Takie żądanie
+   dostaje nową sesję in-memory i od następnego żądania wszystko dzieje się w pamięci, jak dotąd.
+   Zwykłe żądanie z żywą sesją nie dotyka bazy wcale (pinuje to `RememberMeApiTest`, licząc pobrane
+   połączenia), więc reguła z pkt. 4 Rationale nadal trzyma: Neon zasypia z otwartą, zalogowaną
+   kartą. Odrzucony wzorzec z pkt. 5 Decision — `SELECT` przy **każdym** żądaniu — nie wraca.
+4. **Token nie rotuje.** Standardowe `PersistentTokenBasedRememberMeServices` zapisuje nową wartość
+   przy każdym auto-logowaniu i traktuje drugie żądanie ze starą wartością jako kradzież ciasteczka:
+   kasuje wszystkie tokeny użytkownika i rzuca `CookieTheftException` powyżej
+   `ExceptionTranslationFilter`, czyli 500. Dwa żądania z jednym ciasteczkiem są tu normalne (dwie
+   karty przywrócone po restarcie przeglądarki, podwójny bootstrap React StrictMode w dev), więc
+   `StableTokenRememberMeServices` sprawdza serię i wartość, zapisuje tylko `last_used_at` i odsyła
+   to samo ciasteczko. Rotacja wykrywa kradzież dopiero wtedy, gdy właściciel użyje ciasteczka po
+   złodzieju; przy ciasteczku `HttpOnly; Secure; SameSite=Strict` na jednym originie to nie jest
+   zagrożenie warte tej ceny. Każda odmowa (zła wartość, nieznana seria, wygaśnięcie, niepotwierdzony
+   adres) czyści ciasteczko i kończy się zwykłym anonimowym 401, nigdy 500.
+5. **Unieważnialność (Rationale pkt. 3) zostaje.** Wylogowanie i usunięcie konta kasują **wszystkie**
+   tokeny użytkownika (wylogowanie na jednym urządzeniu wylogowuje każdą zapamiętaną przeglądarkę;
+   jej żywa sesja trwa do zamknięcia przeglądarki lub restartu). Usunięcie konta kasuje je przez
+   `PerUserDataDeleter`, a klucz obcy `user_id` bez `ON DELETE` sprawia, że zapomniany deleter
+   wywróciłby usunięcie konta głośno.
+6. **Brak zadania sprzątającego.** Wygasłe wiersze użytkownika znikają, gdy ten użytkownik loguje się
+   ponownie — żaden `@Scheduled` nie budzi bazy (lessons.md).
+
+**Konsekwencje:** deploy i zamknięcie przeglądarki nie wylogowują. Auto-logowanie po deployu wymienia
+też token CSRF (`CsrfAuthenticationStrategy`) — `CsrfCookieFilter` stoi za filtrem remember-me, żeby
+odpowiedź niosła nowy `XSRF-TOKEN`, a nie samo jego skasowanie; inaczej pierwszy zapis po deployu
+kończyłby się 403. 30 dni sesji in-memory dla 1–10 użytkowników to pomijalny koszt sterty na maszynie
+512 MB. **Kiedy rewidować** — bez zmian: dopiero przy zejściu z jednej maszyny.

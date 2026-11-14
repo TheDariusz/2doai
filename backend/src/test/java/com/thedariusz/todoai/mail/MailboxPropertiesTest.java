@@ -53,6 +53,17 @@ class MailboxPropertiesTest {
 						.getFailure().hasStackTraceContaining("from"));
 	}
 
+	/** A budget of nothing would silently drop every code from the first one. */
+	@Test
+	void rejectsAnAuthMailBudgetThatCouldNeverSendAnything() {
+		new ApplicationContextRunner()
+				.withUserConfiguration(Config.class)
+				.withPropertyValues("app.mail.from=2do AI <propozycje@2doai.app>",
+						"app.mail.base-url=https://2doai.app", "app.mail.auth-daily-budget=0")
+				.run(context -> assertThat(context).hasFailed()
+						.getFailure().hasStackTraceContaining("authDailyBudget"));
+	}
+
 	@Configuration
 	@EnableConfigurationProperties(MailboxProperties.class)
 	static class Config {

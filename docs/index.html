@@ -208,10 +208,10 @@
         <tr><th scope="row">Persistence baseline</th><td><span class="badge badge-live">implemented</span></td><td>PostgreSQL 18, Flyway migrations, JPA/Hibernate validation</td></tr>
         <tr><th scope="row">AI provider port</th><td><span class="badge badge-live">implemented</span></td><td><code>LlmClient</code>, Spring AI adapter, structured output support — and, since S-04b, a production caller on both operations</td></tr>
         <tr><th scope="row">AI memory aggregate</th><td><span class="badge badge-foundation">implemented foundation</span></td><td>Per-user root, profile facts, append-only episodes. Proposal answers are its first writer (S-04b); the onboarding profile seed is still S-03</td></tr>
-        <tr><th scope="row">Account and session auth</th><td><span class="badge badge-live">implemented</span></td><td>Spring Security, server-side in-memory sessions, account erasure — and, since DEV-51, a confirmed address as the price of a session at all: sign-up mails a six-digit code, until it comes back the account exists and can do nothing, and an address already in the table is 409 whether or not it was ever proved</td></tr>
+        <tr><th scope="row">Account and session auth</th><td><span class="badge badge-live">implemented</span></td><td>Spring Security, server-side in-memory sessions, account erasure — and, since DEV-51, a confirmed address as the price of a session at all: sign-up mails a code, until it comes back the account exists and can do nothing, and an address already in the table is 409 whether or not it was ever proved. Since DEV-62 (release 1 of passwordless sign-in) the mailed code is a second credential beside the password: eight digits, with a link that prefills it, requestable for any account on <code>POST /api/verification-codes</code> and exchanged for a session on <code>POST /api/sessions</code>. The first code an unverified account redeems there proves its address too. Since DEV-62 phase 2 the code is the only way in on the screen: <code>/login</code> asks for the address alone and <code>/verify</code> opens the session. The API still accepts a password, and sign-up still sets one, until release 2 removes it. Since DEV-62 phase 3 a sign-in lasts: the in-memory session idles out after 30 days rather than 30 minutes, and every sign-in also sets a <code>remember-me</code> cookie backed by the <code>remember_me_token</code> table, which brings the user back after a browser restart or a backend deploy for 90 days from its last use. The table is read only on a request that arrives with no live session, so an ordinary request still never touches the database</td></tr>
         <tr><th scope="row">Categories</th><td><span class="badge badge-live">implemented</span></td><td>Seeded reference table, <code>LifeDomain</code>, startup drift check — and, since DEV-49, a Polish and an English name per row, picked per request</td></tr>
         <tr><th scope="row">Localization (PL + EN)</th><td><span class="badge badge-live">implemented</span></td><td>English-first with Polish preserved (DEV-49): <code>AppLanguage</code> stored on the account (<code>app_user.preferred_language</code>), <code>Accept-Language</code> as the per-request transport, i18next in the SPA, and every server-generated sentence on the on-demand path — the model's answer and the template fallback alike — written in the caller's language. One surface is deliberately excluded: the scheduled proposal stays Polish until FR-009 lands in increment 2</td></tr>
-        <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens, a sticky header over a rail of the 11 domains, the two-language catalog behind a switch on the public screens and in that header, and a light / dark / auto theme choice kept on the device — three buttons on the landing and auth screens, one cycling button in the header, where a phone has no room for three beside the account chip; <code>/api</code> proxies in development and production</td></tr>
+        <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens — a code-first sign-in since DEV-62 phase 2 — a sticky header over a rail of the 11 domains, the two-language catalog behind a switch on the public screens and in that header, and a light / dark / auto theme choice kept on the device — three buttons on the landing and auth screens, one cycling button in the header, where a phone has no room for three beside the account chip; <code>/api</code> proxies in development and production</td></tr>
         <tr><th scope="row">Public landing page</th><td><span class="badge badge-live">implemented</span></td><td>An anonymous visit to <code>/</code> explains the product before asking for an account: a fictional preview of the three layers and a suggestion, animated in CSS alone and at rest for readers who ask for reduced motion, how it works, an FAQ, and a footer crediting the developer with icon links to their site and profiles, in both languages, in a light or dark palette of its own under the same theme switch the auth screens carry. It issues no request of its own, renders while the session check is still pending, and hands a signed-in visitor on to <code>/goals</code></td></tr>
         <tr><th scope="row">Goals and dreams</th><td><span class="badge badge-live">implemented</span></td><td>One <code>goal</code> aggregate for both layers, <code>/api/goals</code>, and the <code>/goals</code> screen (S-02)</td></tr>
         <tr><th scope="row">Current tasks</th><td><span class="badge badge-live">implemented</span></td><td>A third <code>GoalLayer</code> value plus an optional <code>due_date</code> on the same aggregate and screen (S-07)</td></tr>
@@ -225,8 +225,8 @@
     </table>
   </div>
   <h3>Frontend status</h3>
-  <p>A React 19 single-page application on react-router. Session bootstrap, login, registration,
-  address confirmation,
+  <p>A React 19 single-page application on react-router. Session bootstrap, sign-in by code,
+  registration,
   logout, account deletion and the 11-domain shell all consume the API through one
   CSRF-aware client; the <code>/api</code> development proxy and production reverse proxy are
   implemented. Since DEV-50 that shell is a sticky header — mark, language switch, theme button, account chip and
@@ -236,10 +236,18 @@
   — a request-free explanation with a fictional, animated preview, light or dark like every other screen, rendered without waiting for the session
   check, so a slow or unreachable backend never hides what the product is; protected deep links
   still go to <code>/login</code> and come back. The app installs to the home screen; offline behavior is planned. Since DEV-51 a further public screen sits beside
-  login and registration: <code>/verify</code> takes the six-digit code, and it is where sign-up lands and
-  where a login refused with <code>urn:2doai:problem:email-not-verified</code> is sent — the SPA
-  branches on the <code>type</code>, never on the status, because a 403 is also what CSRF
-  answers.</p>
+  login and registration: <code>/verify</code> takes the eight-digit code (six until DEV-62).
+  Since DEV-62 phase 2 it is where a session opens. <code>/login</code> asks for the address only,
+  requests a code and hands over to <code>/verify</code> with the address and the route the visitor
+  was bounced from; sign-up lands there too. The code goes to <code>POST /api/sessions</code>, and
+  the first one an account spends also proves its address, so there is no separate confirmation
+  step and the SPA no longer calls <code>POST /api/verifications</code>. The mail's link opens the
+  same screen with both fields filled from the URL fragment, which the page then strips with a
+  history replace; it never submits on its own, so a mail scanner that follows the link spends
+  nothing. "Send again" is locked for a minute after every send, with a visible countdown, and for
+  as long as a 429's <code>Retry-After</code> says after a refusal — the one header
+  <code>ApiError</code> carries. The registration screen keeps its password field until release 2,
+  because the API still requires one there.</p>
   <p>The <code>/goals</code> screen adds the first data UI. Current tasks, goals and dreams are
   created, edited, converted between layers, completed, reopened and deleted against the live API,
   and narrowed by layer from tabs above the list and by category from the rail beside it. Above
@@ -298,6 +306,47 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
+  <p class="note">Verified against the DEV-62 review fix on 2026-11-14 — the daily auth-mail budget
+  moved after the address lookup. Only an address with an account spends it, so a flood of made-up
+  addresses can no longer spend the day's codes for everyone; once it is spent a code is dropped and
+  logged (<code>auth_mail_code_dropped</code>) and the request still answers 202. The 503 on
+  <code>POST /api/verification-codes</code> now means a full send queue only. No schema change;
+  <code>openapi.yaml</code> wording only. Moved: the throttle decision row, the <code>auth</code>
+  chapter prose and class diagram, and the code-request flow.</p>
+  <p class="note">Verified against DEV-62 phase 3 on 2026-11-14 — release 1 of passwordless sign-in,
+  long sessions, with schema change <code>V16</code> (<code>remember_me_token</code>) and
+  <code>openapi.yaml</code> 1.10.0. The session idles out after 30 days and its cookie carries no
+  <code>Max-Age</code>; every sign-in sets a <code>remember-me</code> cookie whose token is read only
+  when a request arrives with no session, never rotates, and is revoked for every device by logout and
+  account deletion; <code>CsrfCookieFilter</code> moved after the remember-me filter. Moved: the
+  overview row, the <code>session</code> and <code>security</code> code-map rows, the in-memory sessions
+  decision row plus a new one for the non-rotating token, the Session term and a new remember-me term,
+  the <code>security + session</code> chapter and its class diagram, the <code>account</code> diagram,
+  the login, authenticated-request and logout flows, the <code>#data</code> prose with both ER diagrams
+  re-exported, the roadmap card, and the glossary. No package and no path appeared, so the endpoint
+  list stands. The edited Mermaid diagrams are unverified until the page is opened in a browser.</p>
+  <p class="note">Verified against DEV-62 phase 2 on 2026-11-14 — release 1 of passwordless sign-in,
+  frontend half; no schema, endpoint or spec change. <code>/login</code> asks for the address only and
+  hands over to <code>/verify</code>, which reads the mail link's fragment, strips it, opens the session
+  with the code and returns the user to the route they were bounced from; the resend counts down a
+  minute, or a 429's <code>Retry-After</code>. Moved: the two overview rows and the frontend prose, the
+  <code>frontend/src</code> and <code>frontend/src/api</code> code-map rows, the registration, proving
+  and login flows plus a new SPA sign-in flow, the roadmap card and the verification-code glossary
+  row. No backend package, term or endpoint changed. The new Mermaid diagram is unverified until the
+  page is opened in a browser.</p>
+  <p class="note">Verified against DEV-62 phase 1 on 2026-11-14 — release 1 of passwordless sign-in,
+  backend half, with schema change <code>V15</code> (<code>password_hash</code> nullable,
+  <code>verification_purpose</code> added) and <code>openapi.yaml</code> 1.9.0. The mailed code becomes
+  a sign-in credential beside the password: eight digits, a purpose, a guess charged atomically before
+  each comparison, a prefilling link in the mail, code requests sent off the request thread under a
+  daily budget, and <code>POST /api/sessions</code> accepting <code>{email, code}</code>. Moved: the
+  overview row and frontend prose (the code width only — no screen changed), the <code>auth</code>,
+  <code>session</code> and <code>mail</code> code-map rows, the throttle decision row (now throttle and
+  budget), the verification-code term, the <code>user + auth</code>, <code>security + session</code>
+  and <code>mail</code> chapters and their class diagrams, the address-proving and login flows, the
+  <code>#data</code> prose with both ER diagrams re-exported, the roadmap and the glossary. No package
+  and no path appeared, so the endpoint list stands. The edited Mermaid diagrams are unverified until
+  the page is opened in a browser.</p>
   <p class="note">Verified against DEV-58 on 2026-11-05 — backend and ops only, no schema change. A
   new <code>observability</code> package (<code>RegistrationAuditLogger</code>, <code>Heartbeat</code>,
   <code>FailSafeLokiAppender</code>, <code>RedactingJsonLayout</code>, the two lowercase-level helpers and the two providers that shape <code>msg</code> and <code>err</code>), loki4j behind the new <code>prod</code> profile in
@@ -515,19 +564,19 @@ flowchart LR
       <tbody>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/user"><code>backend/…/user</code></a></th><td>User aggregate, email value object, repository, the user API, and the account's one setting — <code>AppLanguage</code> and <code>UserSettingsService</code>; since DEV-51 also the verification state every other slice reads through <code>User.isEmailVerified()</code>, and the <code>UserVerified</code> event that replaced <code>UserRegistered</code></td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/i18n"><code>backend/…/i18n</code></a></th><td>How a request says which language to answer in: one <code>AcceptHeaderLocaleResolver</code> bean, and nothing else</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/auth"><code>backend/…/auth</code></a></th><td>Registration, request validation, and the error mapping for it — and, since DEV-51, address verification: issuing, checking and resending the six-digit code, the in-memory per-address throttle on it, and the code e-mail in both languages</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/session"><code>backend/…/session</code></a></th><td>Explicit login and logout endpoints</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/security"><code>backend/…/security</code></a></th><td>Filter chain, CSRF, session identity, and RFC 9457 security errors</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/auth"><code>backend/…/auth</code></a></th><td>Registration, request validation, and the error mapping for it — and, since DEV-51, the e-mailed code: issuing, redeeming and resending it (eight digits since DEV-62, and a sign-in credential as well as the proof of an address), the in-memory per-address throttle and daily budget on it, the link it carries (<code>SignInLink</code>), and the code e-mail in both languages</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/session"><code>backend/…/session</code></a></th><td>Explicit login and logout endpoints — login by password or, since DEV-62, by a mailed code, both through the same session-creation steps, both remembered by a <code>remember-me</code> cookie, and logout revoking every remembered browser</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/security"><code>backend/…/security</code></a></th><td>Filter chain, CSRF, session identity, and RFC 9457 security errors — and, since DEV-62, remember-me: the <code>remember_me_token</code> aggregate and its store (<code>JpaPersistentTokenRepository</code>, also a <code>PerUserDataDeleter</code>), and <code>StableTokenRememberMeServices</code>, which brings a session back after a restart without rotating the token</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/account"><code>backend/…/account</code></a></th><td>Modular per-user erasure coordinated before the user row is deleted</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/category"><code>backend/…/category</code></a></th><td>Fixed life-domain reference data in two languages, and enum/table drift detection</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/goal"><code>backend/…/goal</code></a></th><td>One aggregate for all three layers — current tasks, goals and dreams — its CRUD API, and its erasure adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/proposal"><code>backend/…/proposal</code></a></th><td>The whole proactive loop: the selection engine, the two Sonnet prompts and their template fallback, the stored <code>proposal</code> aggregate, the four answers, the three endpoints — and, since S-05, the natural-rhythm scheduler that fires without a caller and the email it sends, still Polish for every account until FR-009</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/mail"><code>backend/…/mail</code></a></th><td>The <code>EmailSender</code> outbound port and its SMTP adapter — how the app reaches a user who is not looking at it</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/mail"><code>backend/…/mail</code></a></th><td>The <code>EmailSender</code> outbound port and its SMTP adapter — how the app reaches a user who is not looking at it — and, since DEV-62, the single-worker executor code requests send on</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/observability"><code>backend/…/observability</code></a></th><td>What the app tells the shared Loki stack beyond its ordinary lines: <code>user_registered</code> after a verification commits, the five-minute <code>heartbeat</code>, and the lowercase level the label contract needs. The shipping itself is configuration — <code>logback-spring.xml</code> and <code>logback-loki.xml</code> — under the <code>prod</code> profile only</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai"><code>backend/…/ai</code></a></th><td>Provider-neutral LLM port, schema contract, and Spring AI adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai/memory"><code>backend/…/ai/memory</code></a></th><td>Personal AI-memory aggregate, rendering, persistence, erasure adapter, and the <code>AiMemoryService</code> seam other contexts read and write it through</td><td><span class="badge badge-foundation">foundation</span></td></tr>
-        <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, the public landing page, auth screens, the header-and-rail shell over the 11 domains, the device-level theme switch, the filtered three-layer screen, and the proposal card</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../frontend/src/api"><code>frontend/src/api</code></a></th><td>The one backend boundary: same-origin fetch, CSRF double-submit, RFC 9457 errors, 401 session-expired signal, and the <code>Accept-Language</code> header every call carries</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, the public landing page, auth screens (an address-only sign-in, and the code screen <code>/verify</code> that reads the mail link and opens the session), the header-and-rail shell over the 11 domains, the device-level theme switch, the filtered three-layer screen, and the proposal card</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../frontend/src/api"><code>frontend/src/api</code></a></th><td>The one backend boundary: same-origin fetch, CSRF double-submit, RFC 9457 errors with a 429's <code>Retry-After</code> seconds, 401 session-expired signal, and the <code>Accept-Language</code> header every call carries</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/src/i18n"><code>frontend/src/i18n</code></a></th><td>The two catalogs, the i18next instance and its detection order, and the switch the landing page, the auth screens and the app header share</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/functions/api/[[path]].ts"><code>frontend/functions/api</code></a></th><td>Production same-origin reverse proxy to Fly.io</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../context/foundation"><code>context/foundation</code></a></th><td>Canonical product, data, security, deployment, and roadmap decisions</td><td>design source</td></tr>
@@ -550,7 +599,8 @@ flowchart LR
       <tbody>
         <tr><th scope="row"><a href="../context/foundation/deployment.md">Unified public origin</a></th><td>Avoids CORS and keeps cookie/CSRF behavior same-origin while frontend and backend deploy independently</td><td>Cloudflare proxy becomes part of every API path</td><td>A supported client must run on another public origin</td></tr>
         <tr><th scope="row"><a href="../context/foundation/auth-session-model.md">Server-side session cookie, not JWT</a></th><td>Spring Security defaults give a smaller revocable auth model for a browser-only MVP</td><td>The server owns session state</td><td>Horizontal replicas or multi-region deployment become necessary</td></tr>
-        <tr><th scope="row"><a href="../context/foundation/auth-session-model.md">In-memory sessions on one Fly machine</a></th><td>Authenticated requests do not wake Neon with a session lookup</td><td>Redeploys and machine restarts log users out</td><td>The backend runs on more than one machine; move to signed cookies or an external store, never Neon sessions</td></tr>
+        <tr><th scope="row"><a href="../context/foundation/auth-session-model.md">In-memory sessions on one Fly machine</a></th><td>Authenticated requests do not wake Neon with a session lookup</td><td>Sessions die with the JVM. Since DEV-62 that no longer signs anyone out: a <code>remember-me</code> token in Postgres opens a new session on each device's first request after a restart or a browser launch — one lookup per device then, never one per request, which is the line between this and the rejected Neon sessions</td><td>The backend runs on more than one machine; move to signed cookies or an external store, never Neon sessions</td></tr>
+        <tr><th scope="row"><a href="../context/foundation/auth-session-model.md">Remember-me tokens do not rotate</a></th><td>Spring's persistent remember-me rewrites the token on every auto-login and reads a second request with the old value as cookie theft: it wipes every token of the user and answers 500. Two requests carrying one cookie are normal here — two tabs restored together, React StrictMode bootstrapping twice in development</td><td>A stolen cookie stays usable until it expires or the owner logs out, instead of being detected the next time the owner uses theirs. The cookie is <code>HttpOnly; Secure; SameSite=Strict</code> on one origin, and logout and deletion revoke every token at once</td><td>The cookie can leave the origin — a second client, a subdomain, a cross-site embed — or the app starts holding data where a silently stolen session matters more than a signed-out user</td></tr>
         <tr><th scope="row"><a href="../context/foundation/data-model.md">Flyway owns schema; Hibernate validates</a></th><td>One explicit, reviewable source of schema change prevents ORM drift</td><td>Every schema change needs a migration</td><td>The persistence technology itself is replaced</td></tr>
         <tr><th scope="row"><a href="../context/foundation/deployment.md">Expand-only migrations</a></th><td>An older application image can still run after a rollback</td><td>Destructive cleanup takes a later contract step</td><td>Deployment and rollback guarantees are deliberately redesigned</td></tr>
         <tr><th scope="row"><a href="../context/foundation/data-model.md">UUID v7 aggregate identifiers</a></th><td>IDs can be created independently while retaining time-ordered index locality</td><td>Wider, less human-friendly keys than sequences</td><td>A future datastore makes a different identifier strategy materially better</td></tr>
@@ -560,7 +610,7 @@ flowchart LR
         <tr><th scope="row"><a href="../context/foundation/data-model.md">Category labels are columns, not a translation table</a></th><td>The set is eleven rows fixed by a Flyway seed and cannot grow at runtime, so a <code>category_translation</code> table would buy a join and a migration per locale to model a list that has none</td><td>A third language is a third column and a migration, not data</td><td>This row's own trigger — "the UI supports a second language" — fired in DEV-49, and the answer was <code>name_en</code> beside <code>name_pl</code> (<code>V11</code>). It fires again only if locales stop being two: a translator workflow or a growing set is what the table was reserved for, and <code>code</code> being the identity keeps it reachable without a destructive migration</td></tr>
         <tr><th scope="row">Prompts are written in English and <em>name</em> the answer's language</th><td>Text addressed to a model is code, not copy. Writing the persona in the language the answer must come back in makes a second locale a second copy of every instruction, free to drift the first time either is tightened</td><td>One indirection between the instruction and the language it asks for</td><td>Never for the instructions. The parameter this row predicted arrived in DEV-49: <code>ProposalPrompt</code> takes an <code>AppLanguage</code> and interpolates <code>englishName()</code>, and the constant is gone. The template fallback was the named exception and behaved like one — a second language meant a second class, <code>ProposalTemplateEn</code>, because its output <em>is</em> what the user reads</td></tr>
         <tr><th scope="row">At most one pending proposal is an index, not a check</th><td>A service-level "does this user already have one?" races with itself on a double-click and stores both; a partial unique index cannot</td><td>The lost race surfaces as a constraint violation the service must translate into "return the winner"</td><td>Proposals stop being per-user singletons. S-05 was the case this row anticipated — a cycle that must replace an ignored proposal — and the index held: superseding closes the old row <em>before</em> the new insert, so the slot is freed rather than shared</td></tr>
-        <tr><th scope="row">Verification codes are throttled per address, in memory</th><td>The abuse this slice closes is the app mailing a stranger, and the quota it protects is the provider's 100 e-mails a day that real proposals depend on. A map in the JVM costs no dependency and no database touch — the same reasoning as the row below</td><td>It counts addresses, not callers: a bot working through a list is slowed only by the provider, and the map must be capped, not merely expired, because it is keyed on strings an attacker chooses</td><td>The next issue, and it is configuration rather than code — a per-IP rule at Cloudflare and a shared secret between Pages and Fly, so the origin cannot be reached around the proxy at all. Also when the backend stops being one machine: neither the map nor the count survives a second one</td></tr>
+        <tr><th scope="row">Codes are throttled per address and budgeted per day, in memory</th><td>The abuse DEV-51 closed is the app mailing a stranger, and the quota it protects is the provider's 100 e-mails a day that real proposals depend on. A map in the JVM costs no dependency and no database touch — the same reasoning as the row below. Since DEV-62 the code is a sign-in credential any verified account can request, so a daily ceiling on auth mail (<code>AuthMailBudget</code>, 60 by default) sits beside the per-address throttle. The throttle is consulted before the address is looked up, so its 429 is the same for every address; the budget after it, and only for an address with an account, so a spent budget drops the code (logged as <code>auth_mail_code_dropped</code>) behind the same 202 every address gets</td><td>It counts addresses, not callers: a bot working through a list is slowed only by the provider and the budget, and the map must be capped, not merely expired, because it is keyed on strings an attacker chooses. Anyone who knows an address can spend its five codes an hour and overwrite the owner's pending code, blocking that person's sign-in while it lasts; someone who knows enough real addresses can still spend the day's budget, and its codes are then dropped for everyone until midnight UTC. Both reset on a restart</td><td>The next issue, and it is configuration rather than code — a per-IP rule at Cloudflare and a shared secret between Pages and Fly, so the origin cannot be reached around the proxy at all. Also when the backend stops being one machine: neither the map nor the count survives a second one</td></tr>
         <tr><th scope="row">A duplicate address is 409, verified or not</th><td>An earlier cut let a second sign-up take an <em>unverified</em> row over so a typo could not block the real owner. The PR review showed the hole: the code proves the address, but the row's password is whoever wrote last, so a sign-up inside the window put an attacker's credential under a code already in the victim's mailbox. Adding an expiry guard to the takeover write was tried and did not close it</td><td>The case the takeover was written for comes back — a mistyped or abandoned sign-up holds an address nobody can re-register, and there is no password-reset endpoint yet. The recovery is "send again" on <code>/verify</code>, which only helps whoever can read the address</td><td>Password reset lands (then the address is recoverable by its owner), or the code is bound to the sign-up attempt — carry the candidate password hash on <code>issueVerificationCode</code> and promote it in <code>markEmailVerified</code>, one column, and the takeover becomes safe</td></tr>
         <tr><th scope="row">The rhythm's schedule lives in memory, not in a query</th><td>Neon bills metered compute and suspends after ~5 idle minutes, while the Fly machine hosting the tick is always-on. A tick asking the database "is anyone due?" would hold that compute awake 24/7 for roughly one fire per 2–7 days — about 183 CU-h a month to send a handful of emails</td><td>The schedule is authoritative only while the JVM lives; <code>app_user.next_proposal_at</code> is its only backup, reloaded at boot</td><td>The backend runs on more than one machine. Two schedulers over one column would each fire for every account, and the column is a backup rather than a lease</td></tr>
       </tbody>
@@ -586,13 +636,25 @@ flowchart LR
     exactly one account's data and one AI-memory root.</dd>
     <dt>Session</dt>
     <dd>The authenticated login state held in backend memory and referenced by the browser's
-    session cookie. It is not the user's durable application data.</dd>
+    session cookie. It is not the user's durable application data. Since DEV-62 it idles out after 30
+    days and dies with the JVM, but the user does not notice: a remember-me token opens a new one.</dd>
+    <dt>Remember-me token</dt>
+    <dd>A row of <code>remember_me_token</code> named by the browser's <code>remember-me</code> cookie
+    (DEV-62): a random <em>series</em> that finds the row and a secret <em>value</em> that must match it.
+    It is consulted only when a request arrives with no live session — after a browser restart or a
+    backend deploy — and then opens a new session. Valid 90 days from its last use, renewed by every
+    use, never rotated, and revoked for every device by logout and by account deletion. Not a session
+    store: an ordinary request never reads it.</dd>
     <dt>Verification code</dt>
-    <dd>The six digits mailed to an address at sign-up, and the only thing an unconfirmed account is
-    ever sent. Valid fifteen minutes, five wrong guesses, stored as a <code>PasswordEncoder</code>
-    hash and cleared when spent, so it can never be replayed. Until one comes back the account is
-    <em>unverified</em>: it exists, it cannot hold a session, and the natural rhythm does not know it
-    is there.</dd>
+    <dd>The eight digits mailed to an address — at sign-up, and since DEV-62 whenever anybody asks for
+    one to sign in — and the only thing an unconfirmed account is ever sent. Valid fifteen minutes,
+    worth five guesses charged before each comparison, stored as a <code>PasswordEncoder</code> hash
+    and cleared when spent, so it can never be replayed. It carries a purpose
+    (<code>CodePurpose</code>: <code>SIGN_IN</code> today, <code>ACCOUNT_DELETION</code> from release 2)
+    and is refused when redeemed for the other one. The mail adds a link to <code>/verify</code> with
+    the address and code in the fragment, which only prefills the form. The first code an account
+    redeems proves its address; until then the account is <em>unverified</em>: it exists, it cannot
+    sign in with its password, and the natural rhythm does not know it is there.</dd>
     <dt>Account language</dt>
     <dd>The language 2do AI writes to a person in, one of two (<code>AppLanguage.PL</code> /
     <code>EN</code>), stored on the account in <code>app_user.preferred_language</code>. It is the
@@ -744,20 +806,34 @@ flowchart LR
   natural rhythm never writes to it, because the one thing that loop does is send mail to an address
   nobody asked it to. Registration stays open; what it stops being is a way to make the app mail a
   stranger.</p>
-  <p>The writes follow the rule the language setting already set — three targeted
-  <code>@Modifying</code> updates on <code>UserRepository</code>, no setters, each reporting the rows
-  it moved. Every one of them carries a guard rather than only an id, and always in the
-  <code>where</code> clause rather than in the service, so that no later caller can forget it.
-  <code>issueVerificationCode</code>, <code>recordFailedVerificationAttempt</code> and
-  <code>markEmailVerified</code> all carry <code>and u.emailVerifiedAt is null</code>: a proved
-  account may not be handed a code, may not be charged a guess, and may not be proved twice. The last
-  of those is what makes proving an address a <em>single winning write</em> — two requests racing with
-  the same correct code both pass the read, only one passes the update, and <code>UserVerified</code>
-  is published only by that one. <code>scheduleNextProposalAt</code> carries the mirror —
-  <code>and u.emailVerifiedAt is not null</code> — so "the rhythm only ever holds proved addresses" is
-  enforced by the single write all three of its entry points funnel through, not by each of them
-  remembering. Since every one of them can refuse, <em>0 rows</em> stopped meaning only "the account is
-  gone": it means the guard said no as well, and each method's javadoc says which.</p>
+  <p><strong>DEV-62 made the code a sign-in credential</strong> (release 1 of passwordless sign-in: the
+  password still works beside it, and release 2 removes it). Ownership of the address had been proved
+  once at sign-up and never honoured again, so a forgotten password locked the account for good. Three
+  things moved on the aggregate. The code slot is no longer for unverified accounts only — any account
+  can hold one. It gained a purpose (<code>verification_purpose</code>, <code>CodePurpose.SIGN_IN</code>
+  or <code>ACCOUNT_DELETION</code>, the second used from release 2), so one slot serves two jobs and a
+  code redeemed for the other job is refused. And <code>password_hash</code> became nullable
+  (<code>V15</code>): release 1 never writes a null, but it reads one, so a rollback from release 2 still
+  boots and still signs those accounts in by code.</p>
+  <p>The writes follow the rule the language setting already set — targeted <code>@Modifying</code>
+  updates on <code>UserRepository</code>, no setters, each reporting the rows it moved, and every guard
+  in the <code>where</code> clause rather than in the service, so that no later caller can forget it.
+  <code>issueVerificationCode</code> lost its <code>emailVerifiedAt is null</code> guard in DEV-62,
+  because a proved account is now exactly the one that signs in with a code.
+  <code>chargeVerificationAttempt</code> charges a guess <em>before</em> it is compared, and only while
+  the code has guesses left (<code>verificationAttempts &lt; 5</code> in the query), so twenty parallel
+  guesses get five 1s and fifteen 0s — and a 0 means the guess is not compared at all.
+  <code>consumeVerificationCode</code> spends the code keyed on the hash that was checked, so of two
+  requests racing with the same right code only one wins, and a code re-issued between the check and
+  the write is left alone. <code>markEmailVerified</code> keeps <code>and u.emailVerifiedAt is
+  null</code>: it runs on every code sign-in, and its 1 is the only signal that this was the
+  <em>first</em> proof — so <code>UserVerified</code>, and with it <code>user_registered</code> and the
+  rhythm's first moment, is published once per account, not once per sign-in.
+  <code>scheduleNextProposalAt</code> carries the mirror — <code>and u.emailVerifiedAt is not
+  null</code> — so "the rhythm only ever holds proved addresses" is enforced by the single write all
+  three of its entry points funnel through, not by each of them remembering. Since these writes can
+  refuse, <em>0 rows</em> stopped meaning only "the account is gone": it means the guard said no as
+  well, and each method's javadoc says which.</p>
   <p><strong>An address already in <code>app_user</code> is 409, verified or not.</strong> An earlier
   cut of this slice let a second sign-up take an <em>unverified</em> row over — replacing its password
   and language, so a typo'd or abandoned attempt could not block the real owner — and the PR review
@@ -768,12 +844,16 @@ flowchart LR
   same button that answers every other lost code: <em>send again</em> on <code>/verify</code> issues a
   fresh one for the row that is already there.</p>
   <p><code>EmailVerificationService</code> owns two of the three numbers —
-  <code>CODE_LENGTH</code> six and <code>CODE_VALIDITY</code> fifteen minutes — and stores the code
-  the way the password is stored, through the same <code>PasswordEncoder</code>: a secret mailed in
-  the clear is still a credential. The third number belongs to the aggregate:
-  <code>User.MAX_VERIFICATION_ATTEMPTS</code> is five, and <code>User.hasCodeAwaiting(now)</code> is
-  the conjunction of all four verification fields — unproved, a code outstanding, unexpired, guesses
-  left — so a caller cannot get one clause of it wrong. Every way verification can fail is one
+  <code>CODE_LENGTH</code> eight (six until DEV-62: as the only credential, five guesses a code and five
+  codes an hour gave a targeted address about a 20% yearly chance of a correct guess, eight digits
+  about 0.2%) and <code>CODE_VALIDITY</code> fifteen minutes — and stores the code the way the password
+  is stored, through the same <code>PasswordEncoder</code>: a secret mailed in the clear is still a
+  credential. The third number belongs to the aggregate: <code>User.MAX_VERIFICATION_ATTEMPTS</code> is
+  five, and <code>User.hasCodeAwaiting(now, purpose)</code> is the conjunction of the slot's fields — a
+  code outstanding, drawn for this purpose, unexpired, guesses left — so a caller cannot get one clause
+  of it wrong. <code>redeem(email, code, purpose)</code> is the one operation that spends a code, shared
+  by <code>POST /api/sessions</code> and <code>POST /api/verifications</code> today and by account
+  deletion in release 2. Every way it can fail is one
   <code>VerificationFailedException</code> with one fixed detail, so the endpoint cannot be read as
   "that address exists, and only the code was wrong" — and the <em>clock</em> cannot be read that way
   either, because exactly one BCrypt runs per request whatever the answer is, against a hash of
@@ -785,6 +865,12 @@ flowchart LR
   are a class per language (<code>VerificationEmailPl</code> / <code>En</code>) for the reason
   <code>ProposalTemplatePl</code> has a sibling: this is text a user reads, so it cannot be told which
   language to be in.</p>
+  <p>Since DEV-62 the code mail carries a link, <code>{base-url}/verify#email=…&amp;code=…</code>, built by
+  <code>SignInLink</code>. It only prefills the code screen; the user still presses the button, so a
+  mail scanner that follows every URL signs nobody in. Address and code ride in the fragment, which a
+  browser never sends to a server or puts in a <code>Referer</code>. The path and the two names are a
+  contract with the SPA, held by one guard that reads <code>SignInLink</code>, <code>App.tsx</code> and
+  <code>verifyLink.ts</code>.</p>
   <p><code>VerificationThrottle</code> is the other half — one code per address per minute, five per
   hour, held in a map in the JVM like the scheduler's schedule. That map is keyed on strings an
   attacker chooses and reached from a public endpoint, so it is <em>capped</em>, not merely expired:
@@ -796,6 +882,17 @@ flowchart LR
   deliberately per <em>address</em>: a caller with a list of them is slowed only by the provider's own
   quota, and the per-IP rule that would fix that is a Cloudflare rule rather than code — the next
   issue, together with a shared secret between Pages and Fly.</p>
+  <p><code>POST /api/verification-codes</code> answers before it mails. After the throttle has said
+  yes, the lookup, <code>AuthMailBudget</code> (60 auth mails a UTC day by default, so a burst cannot
+  starve proposal mail of the provider's 100), the code write and the send run as one task on the
+  single-worker auth-mail executor. The budget is consulted only for an address with an account, so
+  made-up addresses spend none of it; once it is spent the code is dropped before it is written, so the
+  one already in the inbox stays valid, and the drop is logged as <code>auth_mail_code_dropped</code>. The request thread therefore does identical work for every
+  address, and an SMTP round trip that only known addresses pay cannot show up in the response time.
+  The price is that a provider failure is no longer a 503 there: the task gives back the throttle entry
+  and the budget slot and logs a warning, and the user's recovery is "send again". A full queue is a
+  503 decided before the lookup, the same for every address; an exhausted budget is no 503 at all. Sign-up still mails
+  on its request thread in this release.</p>
   <p>Only <em>"send again"</em> is ever refused. Registration <code>record</code>s its send instead of
   asking to make it: one row per address means a sign-up cannot be replayed to flood a mailbox, so
   refusing it would only strand a committed account with no code — but the send still starts the
@@ -815,16 +912,17 @@ classDiagram
     &lt;&lt;aggregate root&gt;&gt;
     UUID id
     String email
-    String passwordHash
+    String passwordHash — nullable since V15, for an account that signs in by code only
     AppLanguage preferredLanguage — null means never chosen, and reads as PL, which is the FR-004 backfill
     OffsetDateTime nextProposalAt — the rhythm's only durable state, read here and never written here
     OffsetDateTime emailVerifiedAt — null until the address is proved; the whole account gate
     String verificationCodeHash — the outstanding code, PasswordEncoder-hashed, cleared when spent
     OffsetDateTime verificationExpiresAt — null exactly when there is no code
-    int verificationAttempts — wrong guesses spent on it; reset by every new code and when one is spent
-    MAX_VERIFICATION_ATTEMPTS = 5 — what a six-digit secret is worth guessing at
+    CodePurpose verificationPurpose — SIGN_IN or ACCOUNT_DELETION, one slot for both
+    int verificationAttempts — guesses charged to it; reset by every new code and when one is spent
+    MAX_VERIFICATION_ATTEMPTS = 5 — what an eight-digit secret is worth guessing at
     +isEmailVerified() boolean
-    +hasCodeAwaiting(now) boolean — the four fields above only mean anything together
+    +hasCodeAwaiting(now, purpose) boolean — the slot's fields only mean anything together
   }
   class AppLanguage {
     &lt;&lt;domain enumeration&gt;&gt;
@@ -842,10 +940,11 @@ classDiagram
     &lt;&lt;persistence adapter / Spring Data&gt;&gt;
     findByEmail(email) Optional~User~
     updateLanguage(userId, language, now) int
-    issueVerificationCode(id, codeHash, expiresAt, now) int — resets the attempt count with it
-    recordFailedVerificationAttempt(id, now) int
-    markEmailVerified(id, now) int — clears the hash, its expiry and the attempt count
-    the three above are guarded by emailVerifiedAt is null; scheduleNextProposalAt by is not null
+    issueVerificationCode(id, codeHash, purpose, expiresAt, now) int — any account, resets the attempt count
+    chargeVerificationAttempt(id, now) int — before the comparison, only while fewer than 5 are spent
+    consumeVerificationCode(id, codeHash, now) int — only the hash that was checked
+    markEmailVerified(id, now) int — guarded by emailVerifiedAt is null, so 1 means the first proof
+    scheduleNextProposalAt is guarded by emailVerifiedAt is not null
     every one of them targeted: 0 rows means the account is gone or the guard refused, never an insert
   }
   class UserController {
@@ -863,11 +962,11 @@ classDiagram
   class EmailVerificationService {
     &lt;&lt;application service&gt;&gt;
     +issue(userId, email, AppLanguage) — called once the registration transaction has committed
-    +resendCode(email) — the same answer for unknown, verified and waiting
-    +verify(email, code) — markEmailVerified and UserVerified, in one transaction
+    +resendCode(email) — throttle, then lookup, budget and send on the auth-mail executor
+    +redeem(email, code, purpose) User — charge, compare, consume, and UserVerified on the first proof only
     +deleteAllForUser(userId) — FR-019: the address owes the throttle nothing once its account is gone
-    CODE_LENGTH 6, CODE_VALIDITY 15 min; the attempt cap lives on User
-    one exception type for all six failures, and one BCrypt per request whatever the answer
+    CODE_LENGTH 8, CODE_VALIDITY 15 min; the attempt cap lives on User
+    one exception type for every failure, and one BCrypt per request whatever the answer
   }
   class VerificationThrottle {
     &lt;&lt;in-memory guard&gt;&gt;
@@ -878,10 +977,21 @@ classDiagram
     tracked() int — the only way eviction is observable
     60s cooldown, 5 per hour, per address, keys normalized; LRU-capped at 10k, sends expired per key
   }
+  class AuthMailBudget {
+    &lt;&lt;in-memory guard&gt;&gt;
+    admit(now) boolean — after the lookup, accounts only; false once the UTC day's budget is spent
+    refund(sentAt) — a failed send gives its slot back, the same day only
+    app.mail.auth-daily-budget, 60 by default, logs auth_mail_budget_exhausted once a day
+  }
+  class SignInLink {
+    &lt;&lt;value builder&gt;&gt;
+    PATH /verify, EMAIL_PARAM email, CODE_PARAM code — a contract with the SPA
+    +of(baseUrl, email, code) String — address and code in the fragment
+  }
   class VerificationController {
     &lt;&lt;inbound adapter / REST&gt;&gt;
-    +verify(EmailVerificationRequest) POST /api/verifications — 204, the EmailVerification wire schema
-    +sendCode(VerificationCodeRequest) POST /api/verification-codes — 202, always
+    +verify(EmailVerificationRequest) POST /api/verifications — 204, redeem without a session
+    +sendCode(VerificationCodeRequest) POST /api/verification-codes — 202, or a uniform 429 or 503
     public and CSRF-protected, exactly like registration
   }
   class UserVerified {
@@ -916,6 +1026,8 @@ classDiagram
   UserController --> EmailVerificationService : issues the code once the account is committed
   VerificationController --> EmailVerificationService
   EmailVerificationService --> VerificationThrottle
+  EmailVerificationService --> AuthMailBudget
+  EmailVerificationService ..> SignInLink : the link in the mail
   EmailVerificationService --> UserRepository : targeted updates, never save(User)
   EmailVerificationService --> EmailSender : the code — the request's language at sign-up, the account's on a resend
   EmailVerificationService ..> UserVerified : published inside the verifying transaction
@@ -955,6 +1067,45 @@ classDiagram
   403 that shares the number. Spring Security adopts a single <code>AuthenticationProvider</code> bean
   into the global <code>AuthenticationManager</code>; a second one would silently make it adopt
   neither.</p>
+  <p>That last fact is why DEV-62's second credential has <strong>no provider of its own</strong>.
+  <code>LoginRequest</code> carries an address and exactly one of <code>password</code> and
+  <code>code</code> (both or neither is 422). A password still goes through the
+  <code>AuthenticationManager</code>; a code goes to <code>EmailVerificationService.redeem</code>, and
+  <code>SessionController</code> turns the account it returns into an authenticated token for
+  <code>UserPrincipal.from(user)</code>. From there both paths share the same steps — session-id and
+  CSRF rotation, the materialised token, <code>AuthenticatedSession.establish</code> — so
+  <code>POST /api/sessions</code> is still the only place a session is born. The controller does by hand
+  the translation the provider does for passwords: a refused code becomes
+  <code>BadCredentialsException</code>, the generic 401 a wrong password gets, and a database failure
+  becomes <code>AuthenticationServiceException</code>, the 503. The refusal is rethrown
+  <em>without</em> its cause, because Spring MVC matches <code>@ExceptionHandler</code> methods against
+  causes too and would otherwise answer with the address-proof 403. <code>UserPrincipal</code>'s
+  password hash may be null: Spring Security's encoder answers <code>false</code> for a missing hash, so
+  a password tried against a code-only account is the ordinary 401.</p>
+  <p>DEV-62 phase 3 made a sign-in <strong>last</strong>. The session idles out after 30 days instead
+  of 30 minutes, and its cookie still carries no <code>Max-Age</code> — Tomcat fixes one when the
+  session is created and never moves it, so a lifetime there would end a busy user's session N days
+  after sign-in. Persistence across a browser restart or a deploy is a second cookie's job:
+  <code>SessionController</code> calls <code>RememberMeServices.loginSuccess</code> after
+  <code>establish</code> on both credentials (no filter on the JSON path would), and
+  <code>StableTokenRememberMeServices</code> writes a <code>remember_me_token</code> row through
+  <code>JpaPersistentTokenRepository</code>, sweeping the user's expired rows in the same transaction —
+  there is no cleanup job. The chain's <code>RememberMeAuthenticationFilter</code> consults the cookie
+  only when the request has no session; it then runs the chain's own session strategy (fixation,
+  CSRF rotation, the registry) and saves through the chain's repository, so what it opens is an
+  ordinary in-memory session and the next request costs no query. <strong>The token never
+  rotates.</strong> The stock services rewrite it on every auto-login and read a second request with
+  the old value as theft — wiping every token and answering 500 — and two requests carrying one
+  cookie are normal here. So the subclass checks series and value (in constant time), touches
+  <code>last_used_at</code>, and re-sends the same value for another 90 days; every refusal clears the
+  cookie and leaves the request anonymous, a 401, never a 500. Two details the stock class gets wrong
+  for this app are set by hand: <code>SameSite=Strict</code> on the cancel cookie, which ignores the
+  customizer, and <code>Secure</code> from the session cookie's own environment switch. Because an
+  auto-login rotates the CSRF token and only defers the replacement, <code>CsrfCookieFilter</code> now
+  sits <em>after</em> the remember-me filter — otherwise the first response after a deploy would carry
+  a deletion and no token, and the SPA's next save would fail. The services join
+  <code>apiLogoutHandler</code>, so logout and account deletion clear the cookie and delete every token
+  of the user.</p>
   <pre class="mermaid">
 classDiagram
   class SecurityConfig {
@@ -969,16 +1120,38 @@ classDiagram
     &lt;&lt;security model / UserDetails&gt;&gt;
     UUID userId
     String email
-    String passwordHash
+    String passwordHash — null for a code-only account, and then no password matches
     AppLanguage language — the one mutable component, so /me costs no query
     boolean verified — isEnabled(): an unconfirmed address may not hold a session
     +withLanguage(AppLanguage) UserPrincipal
-    compact constructor — every component required, because equals dereferences userId
+    compact constructor — every component but the hash required, because equals dereferences userId
     equals/hashCode on userId alone — see the note below
   }
   class CsrfCookieFilter {
     &lt;&lt;inbound security adapter&gt;&gt;
     materializes XSRF-TOKEN cookie
+    after the remember-me filter, so an auto-login's rotated token reaches the response
+  }
+  class StableTokenRememberMeServices {
+    &lt;&lt;security adapter / RememberMeServices + LogoutHandler&gt;&gt;
+    remember-me cookie, 90 days from last use, alwaysRemember
+    +loginSuccess(request, response, authentication)
+    +autoLogin(request, response) — only when no session is alive
+    never rotates — series + value checked, last_used_at touched, same cookie re-sent
+    +logout() — cancel cookie + every token of the user
+  }
+  class JpaPersistentTokenRepository {
+    &lt;&lt;persistence adapter / PersistentTokenRepository&gt;&gt;
+    maps Spring's username (the e-mail) to user_id
+    createNewToken — sweeps the user's expired rows first
+    also a PerUserDataDeleter
+  }
+  class RememberMeToken {
+    &lt;&lt;entity / UserOwned&gt;&gt;
+    UUID userId
+    String series — unique, what the cookie names
+    String tokenValue
+    OffsetDateTime lastUsedAt
   }
   class ProblemDetailsSecurityHandler {
     &lt;&lt;inbound error adapter&gt;&gt;
@@ -993,8 +1166,13 @@ classDiagram
   }
   class SessionController {
     &lt;&lt;inbound adapter / REST&gt;&gt;
-    +login(LoginRequest) 201
+    +login(LoginRequest) 201 — a password via the AuthenticationManager, or a code via redeem
     +logout() 204
+    a refused code is BadCredentialsException, a database failure AuthenticationServiceException
+  }
+  class EmailVerificationService {
+    &lt;&lt;application service&gt;&gt;
+    +redeem(email, code, SIGN_IN) User
   }
   class AuthenticatedSession {
     &lt;&lt;security adapter&gt;&gt;
@@ -1012,7 +1190,13 @@ classDiagram
   AppUserDetailsService ..> UserPrincipal : creates
   SessionController --> SecurityConfig : uses chain beans (AuthenticationManager, LogoutHandler, ...)
   SessionController --> AuthenticatedSession : write the context back (login)
+  SessionController --> EmailVerificationService : the code path, with no provider bean
   AuthenticatedSession --> SecurityConfig : the chain's own SecurityContextRepository
+  SecurityConfig --> StableTokenRememberMeServices : remember-me filter + apiLogoutHandler
+  SessionController --> StableTokenRememberMeServices : loginSuccess after establish
+  StableTokenRememberMeServices --> JpaPersistentTokenRepository
+  StableTokenRememberMeServices --> AppUserDetailsService : reloads the principal
+  JpaPersistentTokenRepository ..> RememberMeToken : stores
   </pre>
   <p class="note">The record's generated <code>equals</code> was fine only while every component came
   off the same row and never changed. DEV-49 put the account language on the principal and then moved
@@ -1040,6 +1224,10 @@ classDiagram
   class GoalDataDeleter {
     &lt;&lt;module adapter&gt;&gt;
   }
+  class JpaPersistentTokenRepository {
+    &lt;&lt;security adapter&gt;&gt;
+    also a deleter — a remember-me token is a way back into the account
+  }
   class EmailVerificationService {
     &lt;&lt;application service&gt;&gt;
     also a deleter — the throttle's entry for the address is per-user state like the rhythm's map
@@ -1052,6 +1240,7 @@ classDiagram
   PerUserDataDeleter &lt;|.. EmailVerificationService
   PerUserDataDeleter &lt;|.. AiMemoryDataDeleter
   PerUserDataDeleter &lt;|.. GoalDataDeleter
+  PerUserDataDeleter &lt;|.. JpaPersistentTokenRepository
   </pre>
 
   <h3>category</h3>
@@ -1486,7 +1675,16 @@ classDiagram
   live in other packages and have to inject it. There are two of them since DEV-51, and what a failure
   costs is the difference between them: a nudge that will not send is swallowed inside the fire's
   <code>catch</code>, because the proposal is already stored and the card is waiting in the app
-  anyway, while a verification code that will not send <em>is</em> the request and answers 503.</p>
+  anyway, while a verification code that will not send at sign-up <em>is</em> the request and answers
+  503. Since DEV-62 a code request sends on its own thread — the single-worker auth-mail executor
+  <code>MailConfig</code> declares — so its failure has nobody to answer to: it gives back the throttle
+  entry and the budget slot, logs a warning, and leaves "send again" as the recovery.</p>
+  <p><strong>The code mail carries a link since DEV-62, and the link is inert.</strong> Until then it
+  carried none, because a confirmation link is a click somebody else can make on the user's behalf — a
+  scanner following every URL in a mail would have confirmed the address for them. The code is now the
+  sign-in credential, typed on whatever device the mail is read on, so the link earns its place: it
+  opens <code>/verify</code> with the address and code filled in, from the URL fragment, and the user
+  still presses the button. A GET spends nothing.</p>
   <p><strong>Plain SMTP rather than a provider SDK.</strong> Resend speaks it, so the provider stays
   a credentials choice instead of a dependency, and the transport is Jakarta Mail through
   <code>spring-boot-starter-mail</code> — BOM-managed, adding no new supply chain to scan. Swapping
@@ -1515,11 +1713,16 @@ classDiagram
     &lt;&lt;domain exception&gt;&gt;
     recipient domain and subject length only
   }
+  class MailConfig {
+    &lt;&lt;infrastructure configuration&gt;&gt;
+    authMailExecutor — one worker, a queue of 100, finishes queued sends on shutdown
+  }
   EmailSender &lt;|.. SmtpEmailSender
   SmtpEmailSender --> MailboxProperties
   SmtpEmailSender ..> MailDeliveryException
   ProposalScheduler --> EmailSender : the natural-rhythm nudge
-  EmailVerificationService --> EmailSender : the six-digit code (DEV-51)
+  EmailVerificationService --> EmailSender : the code and its link (DEV-51, eight digits since DEV-62)
+  EmailVerificationService --> MailConfig : sends code requests on the auth-mail executor
   </pre>
 
   <h3>observability</h3>
@@ -1971,14 +2174,18 @@ sequenceDiagram
     end
   end
   Note over SPA: the throttle records this send and cannot refuse it —&lt;br/&gt;one row per address means a sign-up cannot flood a mailbox
-  Note over SPA: registration does NOT log in, and the account is inert —&lt;br/&gt;/verify comes next, then POST /api/sessions
+  Note over SPA: registration does NOT log in, and the account is inert —&lt;br/&gt;/verify comes next, and its code goes to POST /api/sessions
   </pre>
 
   <h4>Proving the address <span class="badge badge-live">implemented</span></h4>
   <p>The step between sign-up and the first login (DEV-51). Both resources are public and both are
   CSRF-protected, exactly as registration is — public is not the same as unprotected — and neither
   opens a session: verifying returns 204, and the user then logs in through the one path that creates
-  sessions.</p>
+  sessions. Since DEV-62 that step is optional: the same <code>redeem</code> runs when the code is
+  posted to <code>POST /api/sessions</code>, which proves the address and opens the session at once
+  (next flow), and the code request serves verified accounts too, as their way to sign in. Since
+  DEV-62 phase 2 the SPA takes that route only and never calls <code>POST /api/verifications</code>;
+  the endpoint stays for API clients until release 2 removes it.</p>
   <pre class="mermaid">
 sequenceDiagram
   autonumber
@@ -1990,34 +2197,71 @@ sequenceDiagram
   participant SCH as ProposalScheduler
   participant RAL as RegistrationAuditLogger
   SPA->>VC: POST /api/verifications {email, code}
-  VC->>EVS: verify(email, code)
+  VC->>EVS: redeem(email, code, SIGN_IN)
   EVS->>UR: findByEmail
-  Note over EVS: User.hasCodeAwaiting(now) decides, then exactly one BCrypt runs&lt;br/&gt;— against a hash of nothing when there is nothing to check
-  alt unknown, already verified, expired, or five guesses spent
+  Note over EVS: User.hasCodeAwaiting(now, purpose) decides, then exactly one BCrypt runs&lt;br/&gt;— against a hash of nothing when there is nothing to check
+  alt unknown, no code, another purpose, expired, or five guesses spent
     EVS-->>SPA: 403 urn:2doai:problem:verification-failed, logged with the cause it does not disclose
-  else the code does not match
-    EVS->>UR: recordFailedVerificationAttempt
-    Note over EVS,UR: noRollbackFor — a counter that rolls back&lt;br/&gt;with its own 403 caps nothing
-    EVS-->>SPA: 403, the same body — nothing says which of the six causes it was
-  else it matches
-    EVS->>UR: markEmailVerified — the hash and its expiry are cleared, so no replay
-    Note over EVS,UR: the update carries "and emailVerifiedAt is null" too,&lt;br/&gt;so of two requests racing the same code only one wins
-    EVS->>SCH: UserVerified, published only by the winner, inside the same transaction
-    Note over SCH: the rhythm draws this account's first moment here.&lt;br/&gt;A rolled-back verification takes it with it
-    EVS->>RAL: UserVerified again, delivered only once the transaction has committed
-    Note over RAL: event=user_registered with the account's UUID —&lt;br/&gt;the line the owner's registration alert keys on
-    EVS-->>SPA: 204 — no session, and POST /api/sessions is still the only one
+  else tryable
+    EVS->>UR: chargeVerificationAttempt — BEFORE the comparison, only while fewer than five are spent
+    Note over EVS,UR: noRollbackFor — a counter that rolls back&lt;br/&gt;with its own 403 caps nothing. A 0 here means the guess is not compared
+    alt the code does not match, or the charge was refused
+      EVS-->>SPA: 403, the same body — nothing says which cause it was
+    else it matches
+      EVS->>UR: consumeVerificationCode(hash) — cleared, so no replay, and of two racing requests only one wins
+      EVS->>UR: markEmailVerified — "and emailVerifiedAt is null", so 1 only for the first proof
+      EVS->>SCH: UserVerified, on the first proof only, inside the same transaction
+      Note over SCH: the rhythm draws this account's first moment here.&lt;br/&gt;A rolled-back verification takes it with it
+      EVS->>RAL: UserVerified again, delivered only once the transaction has committed
+      Note over RAL: event=user_registered with the account's UUID —&lt;br/&gt;the line the owner's registration alert keys on
+      EVS-->>SPA: 204 — no session here
+    end
   end
-  SPA->>VC: POST /api/verification-codes {email} — "send again"
+  SPA->>VC: POST /api/verification-codes {email} — "send me a code"
   VC->>EVS: resendCode(email)
   EVS->>TH: admit(email, now) — consulted before the lookup, on purpose
   alt inside the 60s cooldown, or the sixth code this hour
     EVS-->>SPA: 429 + Retry-After — the only part of it a client can act on
+  else the auth-mail queue is full
+    EVS-->>SPA: 503 — the same for every address, and the throttle entry is given back
   else allowed
-    Note over EVS,UR: an unknown or already-verified address&lt;br/&gt;is looked up and quietly sent nothing
-    Note over EVS,TH: a send the provider refuses is refunded,&lt;br/&gt;so an outage cannot turn the 503's "retry" into a 429
-    EVS-->>SPA: 202 Accepted, always — whether a message follows is what it declines to disclose
+    EVS-->>SPA: 202 Accepted — whether a message follows is what it declines to disclose
+    Note over EVS,UR: then, on the auth-mail executor: lookup, a SIGN_IN code for any account,&lt;br/&gt;and the mail with its link. An unknown address is quietly sent nothing
+    Note over EVS,UR: the daily budget is spent only by an account. Once it is gone the code is dropped&lt;br/&gt;and logged as auth_mail_code_dropped, behind the same 202
+    Note over EVS,TH: a send the provider refuses gives back the throttle entry and the budget slot,&lt;br/&gt;so "send again" works at once
   end
+  </pre>
+
+  <h4>Signing in from the SPA <span class="badge badge-live">implemented</span></h4>
+  <p>The screens' side of the next flow (DEV-62 phase 2). Three screens apart now — the bounce, the
+  code request and the sign-in — so the route the visitor asked for rides in router state the whole
+  way. The mail link only prefills; the button is what spends the code.</p>
+  <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor V as Visitor
+  participant L as /login
+  participant VP as /verify
+  participant API as Backend
+  V->>L: a protected deep link bounced here, carrying from
+  V->>L: the address, and "Email me a code"
+  L->>API: POST /api/verification-codes {email}
+  alt 202
+    L->>VP: route state {email, from, resendAfter 60}
+  else 429
+    L->>VP: route state {email, from, the tooMany message, resendAfter = Retry-After}
+  else 503 or 422
+    API-->>L: stays on /login with the message
+  end
+  Note over VP: or opened from the mail link — the fragment prefills both fields,&lt;br/&gt;then a history replace strips it. Nothing is submitted
+  V->>VP: the code, and "Sign in"
+  VP->>API: POST /api/sessions {email, code}
+  alt 401
+    API-->>VP: one message for wrong, expired, spent and unknown
+  else 201
+    VP->>V: navigate to from, else /goals
+  end
+  Note over VP: "Send again" stays locked for 60 s after a send,&lt;br/&gt;or for Retry-After after a 429, with a visible countdown
   </pre>
 
   <h4>Login (session creation) <span class="badge badge-live">implemented</span></h4>
@@ -2028,20 +2272,30 @@ sequenceDiagram
   participant SC as SessionController
   participant AM as AuthenticationManager
   participant UDS as AppUserDetailsService
-  SPA->>SC: POST /api/sessions {email, password}
-  SC->>AM: authenticate(unauthenticated token)
-  AM->>UDS: loadUserByUsername(email)
-  UDS-->>AM: UserPrincipal (userId, email, passwordHash, language, verified)
-  alt bad credentials (unknown email OR wrong password)
-    AM-->>SPA: 401 Problem JSON — identical either way,&lt;br/&gt;reveals nothing about which emails exist
+  participant EVS as EmailVerificationService
+  SPA->>SC: POST /api/sessions {email, password} or {email, code}
+  Note over SC: exactly one credential — both or neither is 422
+  alt a code (DEV-62)
+    SC->>EVS: redeem(email, code, SIGN_IN) — the flow above, minus the 204
+    Note over SC,EVS: a refusal becomes BadCredentialsException, the same 401 as a wrong password.&lt;br/&gt;A database failure becomes the 503. The first code also proves the address
+    EVS-->>SC: the account, re-read after the spend
+    SC->>SC: an authenticated token for UserPrincipal.from(account) — no provider bean
+  else a password
+    SC->>AM: authenticate(unauthenticated token)
+    AM->>UDS: loadUserByUsername(email)
+    UDS-->>AM: UserPrincipal (userId, email, passwordHash, language, verified)
+  end
+  alt bad credentials (unknown email, wrong password, or a refused code)
+    SC-->>SPA: 401 Problem JSON — identical every way,&lt;br/&gt;reveals nothing about which emails exist
   else the password matched, but the address never was proved
     Note over AM: the status check runs AFTER the hash comparison,&lt;br/&gt;so a wrong password cannot reach this branch&lt;br/&gt;and learn that the address is registered
-    AM-->>SPA: 403 urn:2doai:problem:email-not-verified&lt;br/&gt;— the SPA reads the type and goes to /verify
+    AM-->>SPA: 403 urn:2doai:problem:email-not-verified&lt;br/&gt;— an API client only: since DEV-62 phase 2 the SPA sends no password
   else authenticated
     SC->>SC: SessionAuthenticationStrategy.onAuthentication()&lt;br/&gt;rotates session id (fixation) + CSRF token
     SC->>SC: materializeRotatedCsrfToken() — forces new&lt;br/&gt;XSRF-TOKEN cookie onto THIS response
     SC->>SC: AuthenticatedSession.establish()&lt;br/&gt;— saveContext() through the chain's repository,&lt;br/&gt;which is what actually writes the session
-    SC-->>SPA: 201 Created + Set-Cookie (session, XSRF-TOKEN)
+    SC->>SC: RememberMeServices.loginSuccess()&lt;br/&gt;— a new remember_me_token row, the user's expired ones swept (DEV-62)
+    SC-->>SPA: 201 Created + Set-Cookie (session, XSRF-TOKEN, remember-me) — the same steps for either credential
   end
   </pre>
 
@@ -2051,15 +2305,32 @@ sequenceDiagram
   actor SPA
   participant FC as Security filter chain
   participant UC as UserController
-  SPA->>FC: GET /api/users/me + session cookie
-  Note over FC: session validated in-memory —&lt;br/&gt;no DB query, Neon stays suspended
-  alt missing/expired session
-    FC-->>SPA: 401 Problem JSON (ProblemDetailsSecurityHandler)
-  else valid session
+  participant RM as StableTokenRememberMeServices
+  participant DB as remember_me_token
+  SPA->>FC: GET /api/users/me + session cookie (+ remember-me cookie)
+  alt valid session
+    Note over FC: session validated in-memory —&lt;br/&gt;no DB query, the remember-me cookie is never looked at
     FC->>UC: currentUser(@AuthenticationPrincipal UserPrincipal)
     UC-->>SPA: 200 UserResponse — answered from the principal, no query
+  else no session (browser restart or backend deploy), remember-me cookie present
+    FC->>RM: autoLogin(request, response)
+    RM->>DB: find by series, compare value, touch last_used_at
+    alt the token holds
+      FC->>FC: the chain's session strategy + saveContext — a new in-memory session
+      FC->>FC: CsrfCookieFilter — the rotated XSRF-TOKEN onto this response
+      FC->>UC: currentUser(@AuthenticationPrincipal UserPrincipal)
+      UC-->>SPA: 200 + Set-Cookie (session, XSRF-TOKEN, the same remember-me for 90 more days)
+    else unknown, mismatched, expired or unproved
+      FC-->>SPA: 401 Problem JSON + the remember-me cookie cleared — never 500
+    end
+  else neither
+    FC-->>SPA: 401 Problem JSON (ProblemDetailsSecurityHandler)
   end
   </pre>
+  <p>The token table is read once per device per browser launch or backend restart, and from then on
+  the new session answers in memory. <code>RememberMeApiTest</code> pins both halves by counting the
+  connections a request takes from the pool: zero with a live session, and zero on the request after
+  an auto-login.</p>
 
   <h4>Logout <span class="badge badge-live">implemented</span></h4>
   <pre class="mermaid">
@@ -2069,7 +2340,7 @@ sequenceDiagram
   participant LH as LogoutHandler
   SPA->>SC: DELETE /api/sessions/current (+ X-XSRF-TOKEN header)
   SC->>LH: logout(request, response, authentication)
-  Note over LH: invalidates the HttpSession,&lt;br/&gt;clears context + cookies
+  Note over LH: invalidates the HttpSession,&lt;br/&gt;clears context + both cookies,&lt;br/&gt;deletes every remember_me_token of the user (DEV-62)
   SC-->>SPA: 204 No Content
   </pre>
 
@@ -2316,9 +2587,9 @@ sequenceDiagram
   table: <code>app_user.next_proposal_at</code>, and DEV-49 added two more of the same kind —
   <code>app_user.preferred_language</code> and <code>category.name_en</code>. DEV-51 added four,
   all on <code>app_user</code> again, for address verification, plus one <code>CHECK</code> holding
-  two of them together. Nothing in the data
-  model still belongs only to the target diagram, and no slice has yet needed a table for a change
-  that columns on an existing one could carry.</p>
+  two of them together. DEV-62 added the first table since <code>proposal</code>:
+  <code>remember_me_token</code>, because a remembered browser is a row of its own rather than a fact
+  about the account. Nothing in the data model still belongs only to the target diagram.</p>
   <div class="card-grid">
     <div class="card"><strong>Ownership and isolation</strong><br><code>AiMemory</code> is one
     aggregate per user. Child profile facts and episodes are reached through that root.</div>
@@ -2424,7 +2695,7 @@ sequenceDiagram
   <p><code>V14</code> adds the one constraint <code>V13</code> left to convention:
   <code>CHECK ((verification_code_hash IS NULL) = (verification_expires_at IS NULL))</code>, named
   <code>verification_code_pairing</code>. The two columns are one fact — written together by
-  <code>issueVerificationCode</code>, cleared together by <code>markEmailVerified</code> — but they
+  <code>issueVerificationCode</code>, cleared together by <code>markEmailVerified</code> (by <code>consumeVerificationCode</code> since DEV-62) — but they
   were independently nullable, so a half-written pair was a latent <code>NullPointerException</code>
   on the read that null-checks the hash and then dereferences the expiry. It is the same kind of
   backstop <code>proposal</code>'s answer-pair <code>CHECK</code> is, and it validates without
@@ -2432,7 +2703,24 @@ sequenceDiagram
   pairs this one does. Hibernate's <code>ddl-auto=validate</code> does not look at <code>CHECK</code>
   constraints, so no mapping moved with it — the schema is a column wider than the entity knows, on
   purpose.</p>
-  <img class="diagram" src="../context/foundation/data-model-current.svg" width="1082" height="1422" loading="lazy" alt="Current entity relationship model: app user with its next_proposal_at scheduling column, preferred_language setting and four address-verification columns, goal with its three layers, proposal, category with its two label columns, AI memory, profile facts, and episodes">
+  <p>DEV-62 (<code>V15</code>, release 1 of passwordless sign-in) is expand-only again, on the same
+  table. <code>password_hash</code> drops <code>NOT NULL</code>: release 1 never writes a null, but it
+  reads one, so a rollback from release 2 — which does write them — still boots and signs those accounts
+  in by code; the column itself goes in a later change. <code>verification_purpose</code>
+  (<code>VARCHAR(32) NOT NULL DEFAULT 'SIGN_IN'</code>) says what the one outstanding code is for, and
+  the <code>DEFAULT</code> is what makes <code>NOT NULL</code> safe beside an image that inserts rows
+  without naming it — <code>verification_attempts</code>'s argument. No <code>CHECK</code> on its
+  values, so nothing the previous image writes can violate one.</p>
+  <p><code>V16</code> (DEV-62 phase 3) creates <code>remember_me_token</code>: a UUID v7 key, a
+  <code>user_id</code> foreign key with no <code>ON DELETE</code> (so its <code>PerUserDataDeleter</code>
+  is checked like every other), a unique <code>series</code>, the <code>token_value</code>,
+  <code>last_used_at</code> — what the 90-day expiry counts from — and the audit columns. It is
+  <strong>not a session store</strong>: it is read only when a request arrives with no live session,
+  once per device per browser launch or backend restart, so Neon still suspends with a signed-in tab
+  open. The value never rotates, so an auto-login writes <code>last_used_at</code> alone; expired rows
+  go when their owner next signs in, because a cleanup job would wake the database on a timer. A plain
+  <code>CREATE</code>, which the previous image never reads.</p>
+  <img class="diagram" src="../context/foundation/data-model-current.svg" width="1572" height="1422" loading="lazy" alt="Current entity relationship model: app user with its next_proposal_at scheduling column, preferred_language setting, nullable password hash and five code columns, remember-me tokens owned by the user, goal with its three layers, proposal, category with its two label columns, AI memory, profile facts, and episodes">
   <h3>Target model <span class="badge badge-planned">planned</span></h3>
   <p>The target diagram shows the whole shape, migrated and not: solid tables exist today, ghosted
   ones are direction rather than an implemented database contract. After S-07 — and still after
@@ -2440,7 +2728,7 @@ sequenceDiagram
   is <code>task</code>, and it marks a deferred split rather than planned work: current tasks shipped
   as a third <code>goal</code> layer, so that table is the escape hatch for the day tasks earn a
   lifecycle of their own.</p>
-  <img class="diagram" src="../context/foundation/data-model-target.svg" width="2003" height="1268" loading="lazy" alt="Target entity relationship model: migrated app user with its language setting and four address-verification columns, goal, proposal, category with two label columns, and AI memory alongside the deferred task table">
+  <img class="diagram" src="../context/foundation/data-model-target.svg" width="2233" height="1268" loading="lazy" alt="Target entity relationship model: migrated app user with its language setting, nullable password hash and five code columns, remember-me tokens, goal, proposal, category with two label columns, and AI memory alongside the deferred task table">
   <p class="note">Canonical source:
   <a href="../context/foundation/data-model.md"><code>context/foundation/data-model.md</code></a>.
   Editable Draw.io sources live beside the exported SVGs.</p>
@@ -2622,7 +2910,8 @@ flowchart TB
 <section id="roadmap">
   <h2>Roadmap / target state <span class="badge badge-planned">planned</span></h2>
   <p>What exists today is the account/auth slice — with, since DEV-51, a confirmed address as the
-  price of a session, so registration is open without the app becoming a way to mail a stranger —
+  price of a session, so registration is open without the app becoming a way to mail a stranger, and,
+  since DEV-62, a mailed code that signs in beside the password —
   all three task layers on one <code>goal</code>
   aggregate, the complete proposal loop — on demand <em>and</em> on its own natural rhythm, by email
   and in the app — the AI memory and category foundations, since DEV-49 both languages the
@@ -2646,6 +2935,14 @@ flowchart TB
   natural-rhythm e-mail (FR-009), so the protected loop was not touched inside the freeze window —
   until it lands, a scheduled proposal reads Polish for every account, on the pending card as well as
   in the inbox.</div>
+  <div class="card"><strong>Passwordless sign-in</strong> <span class="badge badge-foundation">in progress</span><br>The
+  e-mailed code replaces the password as the sign-in credential (DEV-62), in two releases. Release 1's
+  backend is in: any account can ask for an eight-digit code and sign in with it, the mail carries a
+  link that prefills it, and a daily budget guards the mail quota. So is its screen: <code>/login</code>
+  asks for the address only and <code>/verify</code> opens the session. And sessions now last: 30 days
+  in memory, and a remember-me cookie that survives browser restarts and deploys for 90 days from its
+  last use — which completes release 1. Release 2 removes the password from sign-up, sign-in and
+  account deletion.</div>
   <div class="card"><strong>Observability</strong> <span class="badge badge-live">implemented</span><br>Production
   logs in the owner's shared Grafana Cloud Loki stack, a <code>user_registered</code> line after each
   committed verification and a five-minute heartbeat (DEV-58), so a new account and a silent app both
@@ -2683,14 +2980,17 @@ flowchart TB
         <tr><th scope="row">AiMemory</th><td>Per-user aggregate the AI consults; created atomically with the <code>User</code> at registration ("every user has exactly one memory").</td></tr>
         <tr><th scope="row">Episode</th><td>One append-only AI-memory event; payload stored as <code>jsonb</code>.</td></tr>
         <tr><th scope="row">Profile fact</th><td>A durable statement about the user inside <code>AiMemory</code>, rendered into prompts by <code>AiMemoryRenderer</code>.</td></tr>
-        <tr><th scope="row">Verification code</th><td>The six digits mailed at sign-up, and the only thing an unconfirmed account is ever sent (DEV-51): valid 15 minutes, five wrong guesses, stored as a <code>PasswordEncoder</code> hash and cleared when spent. An account that has not spent one is <em>unverified</em> — it cannot hold a session and the natural rhythm does not know it exists. One code per address per minute and five per hour, from an in-memory throttle — but only "send again" is ever refused: registration records its send without asking, because one row per address means a sign-up cannot flood a mailbox. A per-IP limit is a Cloudflare rule and the next issue.</td></tr>
+        <tr><th scope="row">Verification code</th><td>The eight digits mailed to an address (six until DEV-62), and the only thing an unconfirmed account is ever sent (DEV-51): valid 15 minutes, five guesses charged before each comparison, stored as a <code>PasswordEncoder</code> hash and cleared when spent. Since DEV-62 it is also a sign-in credential: any account can ask for one and redeem it on <code>POST /api/sessions</code>, and the mail carries a link that prefills it without spending it. In the SPA it is the only way in
+  since DEV-62 phase 2: <code>/login</code> asks for the address and <code>/verify</code> takes the
+  code. Each code has a purpose (<code>CodePurpose</code>) and is refused for the other. An account that has not redeemed one is <em>unverified</em> — it cannot sign in with its password and the natural rhythm does not know it exists. One code per address per minute and five per hour, from an in-memory throttle, and a daily budget on sign-in code mail for existing accounts, which drops a code rather than refusing the request — only a code request is ever refused, by the throttle or a full send queue: registration records its send without asking, because one row per address means a sign-up cannot flood a mailbox. A per-IP limit is a Cloudflare rule and the next issue.</td></tr>
         <tr><th scope="row">UserPrincipal</th><td>The authenticated identity (record: userId, email, passwordHash, language, verified) carried by the session—lets <code>/me</code> and re-auth answer without a DB query. The language is the one component that moves mid-session, which is why equality is the user id alone: a post-switch principal must still find its own <code>SessionRegistry</code> entry. <code>verified</code> is what <code>isEnabled()</code> reports, and the account-status check that reads it runs after the password, never before.</td></tr>
         <tr><th scope="row">AppLanguage</th><td>The two languages the app writes to a person in, <code>PL</code> and <code>EN</code>. Persisted by <code>name()</code> in <code>app_user.preferred_language</code> and carried on the wire as the same two letters, not a BCP 47 tag. <code>DEFAULT = EN</code> is what a <em>request</em> naming nothing known resolves to; a null <em>account</em> column reads as Polish instead, and the two rules must stay separate.</td></tr>
         <tr><th scope="row">Accept-Language</th><td>The transport half of localization: the SPA sends whatever it is currently rendering, <code>i18n/LocaleConfig</code>'s resolver negotiates it against the two supported locales, and handlers receive a plain <code>Locale</code>. The account column is the persistence half — the header cannot be asked at a moment when no request exists.</td></tr>
         <tr><th scope="row">The FR-009 gap</th><td>The accepted exception to "no leaked word": <code>ProposalService.proposeScheduled</code> passes <code>AppLanguage.PL</code> literally, so a scheduled proposal is Polish for every account until increment 2. Because the text is stored, it reaches the pending card as well as the e-mail. Pinned by <code>ScheduledProposalTest</code> so it reads as a decision, not a defect.</td></tr>
         <tr><th scope="row">Heartbeat / user_registered</th><td>The two log events the owner's alerts key on (DEV-58), both shipped to Grafana Cloud Loki in production only: <code>heartbeat</code> every five minutes from <code>observability/Heartbeat</code>, whose fifteen-minute absence means the app went quiet, and <code>user_registered</code> from <code>RegistrationAuditLogger</code>, written only after a verification commits. Each carries at most the account's UUID.</td></tr>
         <tr><th scope="row">PerUserDataDeleter</th><td>Interface each module implements so FR-019 account deletion erases its per-user rows; the final user delete's plain FKs fail loudly if one is missing.</td></tr>
-        <tr><th scope="row">Session model</th><td>Server-side session cookie (<code>HttpOnly; Secure; SameSite=Strict</code>), held in-memory on the single Fly machine. Not JWT; never DB-backed (Neon autosuspend).</td></tr>
+        <tr><th scope="row">Session model</th><td>Server-side session cookie (<code>HttpOnly; Secure; SameSite=Strict</code>), held in-memory on the single Fly machine for up to 30 days idle. Not JWT; never DB-backed (Neon autosuspend). Since DEV-62 a <code>remember-me</code> cookie, backed by <code>remember_me_token</code> and read only when no session is alive, opens a new session after a browser restart or a deploy.</td></tr>
+        <tr><th scope="row">Remember-me token</th><td>One remembered browser (DEV-62): a <code>remember_me_token</code> row named by the cookie's series, matched by its value, valid 90 days from last use. It never rotates, because two requests carrying one cookie are normal (restored tabs, StrictMode), and every refusal is an anonymous 401, never a 500. Logout and account deletion revoke every token of the user.</td></tr>
         <tr><th scope="row">Pattern B / unified origin</th><td>Cloudflare serves the SPA and reverse-proxies <code>/api/*</code> to Fly—production is same-origin, no CORS.</td></tr>
         <tr><th scope="row">Expand-only migration</th><td>Flyway migrations stay backward-compatible under image rollback; destructive changes use expand then contract.</td></tr>
         <tr><th scope="row">FR-nnn</th><td>Functional requirement id from the <a href="../context/foundation/prd.md">PRD</a> (for example, FR-019 is account deletion).</td></tr>

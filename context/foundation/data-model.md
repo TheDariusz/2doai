@@ -75,6 +75,16 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
+
+    remember_me_token {
+        uuid id PK "UUID v7"
+        uuid user_id FK "→ app_user(id), NO ACTION"
+        varchar series UK "what the remember-me cookie names"
+        varchar token_value "the secret half; never rotates"
+        timestamptz last_used_at "the 90-day expiry counts from here"
+        timestamptz created_at
+        timestamptz updated_at
+    }
 ```
 
 `category` is the reference table from the persistence baseline (F-01). It is **reference
@@ -216,10 +226,9 @@ cleanup of dead sign-ups would key on if one is ever wanted. `verification_code_
 characters because it holds the same `PasswordEncoder` output `password_hash` does — the code itself
 is never stored — and it is cleared together with `verification_expires_at` when a code is spent, so
 no code can be replayed. All four move only through targeted `@Modifying` updates on
-`UserRepository` (`issueVerificationCode`, `recordFailedVerificationAttempt`, `markEmailVerified`),
-the same rule `next_proposal_at` and `preferred_language` follow — and all three carry
-`and u.emailVerifiedAt is null` in the `where` clause rather than in the caller, so a proved account
-can neither be handed a code nor charged a guess by a request racing the write that proved it.
+`UserRepository`, the same rule `next_proposal_at` and `preferred_language` follow. In DEV-51 every
+one of them carried `and u.emailVerifiedAt is null`; DEV-62 lifted that from the code writes (see
+below), and only `markEmailVerified` keeps it.
 
 Two things about this migration are different from the nullable columns above, and both are
 load-bearing:
@@ -241,13 +250,58 @@ change can bite an operator — an account created under the new image and never
 
 `V14` follows it with the pairing `V13` left to convention: `CHECK ((verification_code_hash IS NULL)
 = (verification_expires_at IS NULL))`, named `verification_code_pairing`. The two columns are one
-fact — written together by `issueVerificationCode` and cleared together by `markEmailVerified` — but
+fact — written together by `issueVerificationCode` and cleared together by `markEmailVerified` (by `consumeVerificationCode` since DEV-62) — but
 they were independently nullable, so a half-written pair was a latent NPE on the read that null-checks
 the hash and then dereferences the expiry (`User.hasCodeAwaiting`). It is the same backstop
 `proposal`'s `CHECK ((answer IS NULL) = (answered_at IS NULL))` is, and safe for a reason worth
 repeating: every row today has both columns null or both set, so the constraint validates without
 rewriting anything, and a rolled-back image writes the same pairs this one does. Hibernate's
 `ddl-auto=validate` ignores `CHECK` constraints, so no mapping moved with it.
+
+DEV-62 (`V15`, passwordless sign-in, release 1) changes **one constraint and adds one column, and no
+table**, again on `app_user`. Both are expand-only:
+
+- **`password_hash` drops `NOT NULL`.** An e-mailed code becomes a sign-in credential beside the
+  password, and release 2 removes the password. Release 1 never writes a null here, but it reads
+  one: a rollback from release 2 must still boot and sign those accounts in by code. The column is
+  dropped in a later, separate change.
+- **`verification_purpose VARCHAR(32) NOT NULL DEFAULT 'SIGN_IN'`** says what the one outstanding code
+  is for (`CodePurpose`: `SIGN_IN`, or `ACCOUNT_DELETION` from release 2). The slot stays single —
+  requesting one kind of code replaces the other — and a code redeemed for the other purpose is
+  refused. `NOT NULL` is safe only because of the `DEFAULT`, the same argument `verification_attempts`
+  made: the previous image inserts rows without naming it. There is no `CHECK` on the values, so
+  nothing the previous image writes can violate one.
+
+The code writes changed with it. `issueVerificationCode` lost its `emailVerifiedAt is null` guard,
+because a proved account is now the one that signs in with a code. The failed-attempt write became
+`chargeVerificationAttempt`, which charges a guess before it is compared and only while fewer than
+five are spent, so parallel guesses cannot exceed the cap. Spending a code is
+`consumeVerificationCode`, keyed on the hash that was checked, and proving the address is a separate
+`markEmailVerified` that keeps its guard — its 1 is the only signal that a redemption was the first
+proof, which is what keeps `user_registered` to once per account.
+
+DEV-62 (`V16`, passwordless sign-in, release 1) adds **one table**, `remember_me_token`, so a user
+stays signed in across a browser restart and a backend deploy, both of which lose the in-memory
+`HttpSession`. A `remember-me` cookie names one row by its `series` (unique) and carries the secret
+`token_value`, compared in constant time. It is **not a session store**, which is the line the
+session decision record draws (`auth-session-model.md`, addendum of 2026-11-14): the row is read only
+when a request arrives with no live session — once per browser launch or backend restart, per
+device — and an ordinary request never touches it, so Neon still suspends with a signed-in tab open.
+
+- **The value never rotates.** Only `last_used_at` moves on an auto-login, and the 90-day expiry
+  counts from it. Spring's stock persistent remember-me rewrites the value every time and reads two
+  requests carrying one cookie (two restored tabs, React StrictMode's double bootstrap) as theft;
+  `StableTokenRememberMeServices` explains the trade.
+- **No cleanup job.** A user's expired rows are deleted when that user next signs in
+  (`JpaPersistentTokenRepository.createNewToken`), in the same transaction as the new row. A user who
+  never comes back leaves at most one row per remembered browser, which is the bounded cost of
+  keeping Neon asleep (lessons.md).
+- **Keyed by `user_id`, not by the address.** Spring Security's `PersistentTokenRepository` contract
+  is keyed by username — here the e-mail — and `JpaPersistentTokenRepository` maps it to `user_id`.
+  That keeps the plain foreign key to `app_user` with no `ON DELETE`, so FR-019 erasure goes through
+  the class's `PerUserDataDeleter` and `AccountDeletionIntegrationTest`'s schema check covers it.
+  Logout deletes every row of the user, so signing out on one device signs out every remembered one.
+- **Expand-only.** A plain `CREATE TABLE`; the previous image never reads it.
 
 ### Internationalization
 

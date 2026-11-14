@@ -1,12 +1,12 @@
 import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Goal } from './GoalsPage'
 import type { Proposal } from './ProposalCard'
 import { AppRoutes } from '../App'
 import i18n from '../i18n'
 import { LOGGED_IN, renderWithAuth, response, stubAuth } from '../test/auth'
+import { LocationProbe } from '../test/LocationProbe'
 import { DOMAINS } from '../test/domains'
 
 const RUN = {
@@ -105,12 +105,6 @@ function stubApi(goals: Goal[]) {
 /** The mutation calls only — the two GETs are setup noise in every mutation assertion. */
 function mutations() {
   return fetchMock.mock.calls.filter(([, init]) => init?.method && init.method !== 'GET')
-}
-
-/** Renders the current URL, so the filters' *writes* can be asserted and not just their reads. */
-function LocationProbe() {
-  const { pathname, search } = useLocation()
-  return <span data-testid="location">{pathname + search}</span>
 }
 
 function renderGoals(path = '/goals') {

@@ -7,27 +7,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * The message a user actually reads. Three things about it are load-bearing: the code is in the
  * subject line — on a phone the notification is often the only place it is read — the body says how
- * long the code lasts, in step with the constant that decides, and there is nothing to click. The
- * last of those is a security property, not an omission: a confirmation link is a click somebody else
- * can make on the user's behalf.
+ * long the code lasts, in step with the constant that decides, and the body carries the link that
+ * prefills the code. The link opens a form and never signs anybody in on its own, so a mail scanner
+ * that follows it spends nothing.
  */
 class VerificationEmailPlTest {
 
+	private static final String LINK = "https://2doai.app/verify#email=ala%40example.pl&code=04231789";
+
 	@Test
 	void carriesTheCodeInTheSubjectLine() {
-		assertThat(VerificationEmailPl.subject("123456")).contains("123456");
+		assertThat(VerificationEmailPl.subject("04231789")).contains("04231789");
 	}
 
 	@Test
 	void namesHowLongTheCodeLasts() {
-		assertThat(VerificationEmailPl.body("123456"))
-				.contains("123456")
+		assertThat(VerificationEmailPl.body("04231789", LINK))
+				.contains("04231789")
 				.contains(String.valueOf(EmailVerificationService.CODE_VALIDITY.toMinutes()));
 	}
 
-	/** Answering happens in the app, and a link in a message is a click somebody else can make. */
 	@Test
-	void offersNoLinkToClick() {
-		assertThat(VerificationEmailPl.body("123456")).doesNotContain("http");
+	void carriesTheLinkThatPrefillsTheCode() {
+		assertThat(VerificationEmailPl.body("04231789", LINK)).contains(LINK);
 	}
 }

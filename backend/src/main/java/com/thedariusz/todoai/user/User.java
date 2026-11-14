@@ -24,11 +24,16 @@ import org.hibernate.annotations.UuidGenerator;
  * points its {@code user_id} FK at. Mirrors the {@code AiMemory} conventions: UUID v7 surrogate
  * PK, {@code timestamptz} audit columns, invariant-in-constructor, getters only.
  *
- * <p>Deliberately <em>minimal identity</em> (YAGNI): email + password hash + the language the
- * account reads in. Display name, flags,
- * preferences are later, expand-only additions. The <b>raw password never enters the domain</b> —
- * the constructor takes an already-encoded hash (the {@code PasswordEncoder} runs in the
- * application layer), so the aggregate never sees or stores a plaintext credential.
+ * <p>Deliberately <em>minimal identity</em> (YAGNI): email + an optional password hash + the language
+ * the account reads in. Display name, flags, preferences are later, expand-only additions. The <b>raw
+ * password never enters the domain</b> — the constructor takes an already-encoded hash (the
+ * {@code PasswordEncoder} runs in the application layer), so the aggregate never sees or stores a
+ * plaintext credential.
+ *
+ * <p><b>The password is optional</b> (passwordless sign-in): an e-mailed code is the other credential,
+ * and from release 2 the only one. {@code V15} drops the column's {@code NOT NULL}, and this class
+ * tolerates a null hash before anything writes one, so a rollback to an image that still knows
+ * passwords can read an account that never had one.
  *
  * <p>Mapped to {@code app_user}, not {@code user}: {@code user} is a reserved word in Postgres
  * (see {@code V4__create_app_user.sql}).
@@ -41,9 +46,11 @@ public class User {
 	static final int MAX_EMAIL_LENGTH = 320;
 
 	/**
-	 * Guesses one verification code is worth (DEV-51). A six-digit secret is 10^6 wide, so the cap is
-	 * what keeps it from being enumerable — and {@code UserRepository.issueVerificationCode} resets the
-	 * count, so a locked address is one "send again" away from a fresh budget rather than dead.
+	 * Guesses one code is worth (DEV-51). The cap is what keeps an eight-digit secret from being
+	 * enumerable, and it is enforced by the database write that charges a guess
+	 * ({@code UserRepository.chargeVerificationAttempt}), so parallel guesses cannot exceed it.
+	 * {@code UserRepository.issueVerificationCode} resets the count, so a locked address is one "send
+	 * again" away from a fresh budget rather than dead.
 	 */
 	public static final int MAX_VERIFICATION_ATTEMPTS = 5;
 
@@ -60,8 +67,8 @@ public class User {
 	@Column(nullable = false, unique = true, length = MAX_EMAIL_LENGTH)
 	private String email;
 
-	@NotBlank
-	@Column(name = "password_hash", nullable = false)
+	/** Null for an account that signs in by code only — see the class javadoc. */
+	@Column(name = "password_hash")
 	private String passwordHash;
 
 	/**
@@ -104,8 +111,9 @@ public class User {
 	/**
 	 * When the owner of this address proved they read it (DEV-51), and null until they do — so this
 	 * one column is the whole answer to "may the app act on this account at all". An unverified
-	 * account cannot log in, and the natural rhythm never writes to it: registration is open, but a
-	 * stranger's mailbox is not a place the app is entitled to send anything but the code itself.
+	 * account cannot sign in with a password, and the natural rhythm never writes to it: registration
+	 * is open, but a stranger's mailbox is not a place the app is entitled to send anything but a code.
+	 * The first code that signs the account in is also what proves the address.
 	 *
 	 * <p>A moment rather than a flag because "when" answers "whether" as well, and additionally says
 	 * how long an account sat unproved — which is what a cleanup of dead sign-ups would key on if one
@@ -120,13 +128,22 @@ public class User {
 	private OffsetDateTime emailVerifiedAt;
 
 	/**
-	 * The outstanding verification code, encoded with the same {@code PasswordEncoder} the password
-	 * is — a 6-digit secret e-mailed in the clear is still a credential, and it is never stored in a
-	 * form that could be read back out of a database dump. Cleared, together with
-	 * {@link #verificationExpiresAt}, the moment the code is spent, so it cannot be replayed.
+	 * The outstanding code, encoded with the same {@code PasswordEncoder} a password is — a secret
+	 * e-mailed in the clear is still a credential, and it is never stored in a form that could be read
+	 * back out of a database dump. Cleared, together with {@link #verificationExpiresAt}, the moment
+	 * the code is spent, so it cannot be replayed.
 	 */
 	@Column(name = "verification_code_hash")
 	private String verificationCodeHash;
+
+	/**
+	 * What the outstanding code is for. One slot, two purposes: issuing one kind overwrites the other,
+	 * and {@link #hasCodeAwaiting} refuses a code redeemed for the purpose it was not drawn for.
+	 * {@code V15} defaults it, so rows the previous image inserted read as {@link CodePurpose#SIGN_IN}.
+	 */
+	@Enumerated(EnumType.STRING)
+	@Column(name = "verification_purpose", nullable = false, length = 32)
+	private CodePurpose verificationPurpose = CodePurpose.SIGN_IN;
 
 	/**
 	 * When the outstanding code stops being accepted. Null exactly when there is no code — a pairing
@@ -137,7 +154,7 @@ public class User {
 	private OffsetDateTime verificationExpiresAt;
 
 	/**
-	 * Wrong guesses spent on the outstanding code — the cap that keeps a six-digit secret from being
+	 * Guesses spent on the outstanding code — the cap that keeps an eight-digit secret from being
 	 * enumerable ({@link #MAX_VERIFICATION_ATTEMPTS}). Reset to zero whenever a new code is issued or
 	 * spent, so a locked-out address is one "send again" away from a fresh budget rather than dead
 	 * forever, and a proved account carries no count for a code it no longer has.
@@ -157,11 +174,15 @@ public class User {
 		// JPA requires a no-arg constructor.
 	}
 
+	/**
+	 * @param passwordHash an already-encoded hash, or {@code null} for an account that signs in by code
+	 *        only. Blank is refused: it is neither a hash nor the absence of one.
+	 */
 	public User(Email email, String passwordHash, AppLanguage language) {
-		// Identity invariants fail fast at construction: no user without a valid email or a hash.
-		// The declarative @NotBlank constraints keep the persist/schema-time guard in step.
+		// Identity invariants fail fast at construction: no user without a valid email. The
+		// declarative @NotBlank constraint keeps the persist/schema-time guard in step.
 		this.email = Objects.requireNonNull(email, "email").value();
-		if (StringUtils.isBlank(passwordHash)) {
+		if (passwordHash != null && StringUtils.isBlank(passwordHash)) {
 			throw new IllegalArgumentException("passwordHash must not be blank");
 		}
 		this.passwordHash = passwordHash;
@@ -209,17 +230,24 @@ public class User {
 		return verificationAttempts;
 	}
 
+	public CodePurpose getVerificationPurpose() {
+		return verificationPurpose;
+	}
+
 	/**
-	 * Whether a code submitted right now is even worth checking: the address is still unproved, a code
-	 * is outstanding, it has not expired, and the guesses it is worth are not spent.
+	 * Whether a code submitted right now for {@code purpose} is even worth checking: a code is
+	 * outstanding, it was drawn for that purpose, it has not expired, and the guesses it is worth are
+	 * not spent. Whether the address is already proved does not matter any more — the code is a
+	 * sign-in credential, and a proved account is exactly the one that signs in with it.
 	 *
 	 * <p>The rule lives here rather than in the service because it is the aggregate's own — four fields
 	 * that only mean anything together, and a caller reading them one at a time is a caller who can get
 	 * the conjunction wrong. What the service still owns is what a failure <em>costs</em>: the write
-	 * that charges a wrong guess, and the {@code where} clauses that hold under a race.
+	 * that charges each guess, and the {@code where} clauses that hold under a race.
 	 */
-	public boolean hasCodeAwaiting(OffsetDateTime now) {
-		return emailVerifiedAt == null && verificationCodeHash != null
+	public boolean hasCodeAwaiting(OffsetDateTime now, CodePurpose purpose) {
+		return verificationCodeHash != null
+				&& verificationPurpose == purpose
 				&& verificationExpiresAt.isAfter(now)
 				&& verificationAttempts < MAX_VERIFICATION_ATTEMPTS;
 	}

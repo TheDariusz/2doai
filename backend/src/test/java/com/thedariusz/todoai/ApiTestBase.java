@@ -18,7 +18,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.test.context.TestPropertySource;
 import org.yaml.snakeyaml.Yaml;
+
+import com.thedariusz.todoai.auth.VerificationThrottle;
 
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,7 +34,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>Everything here mimics what the SPA does, so the tests fail the same way a real client would —
  * in particular the CSRF double-submit, which is easy to satisfy accidentally in a mock and then
  * discover broken in a browser.
+ *
+ * <p>The auth-mail budget is raised for every suite built on this class: one context serves all of
+ * them, and the production ceiling is sized for a day of real sign-ins, not for a test run. The one
+ * case that needs it exhausted drains it explicitly and gives it back.
  */
+@TestPropertySource(properties = "app.mail.auth-daily-budget=100000")
 abstract class ApiTestBase {
 
 	@LocalServerPort
@@ -47,6 +55,10 @@ abstract class ApiTestBase {
 	 * the <em>expected</em> value {@code CookieCsrfTokenRepository} compares the header against.
 	 */
 	private CookieFilter cookies;
+
+	/** Only to drop a cooldown a previous send started, where a case is about something else. */
+	@Autowired
+	private VerificationThrottle codeThrottle;
 
 	private String csrfToken;
 
@@ -115,13 +127,17 @@ abstract class ApiTestBase {
 	 * get is an account produced exactly the way a user's is, not one nudged into shape from the side.
 	 */
 	protected void register(String email, String password) {
-		csrfAware()
+		signUp(email, password).statusCode(201);
+		confirmAddress(email);
+	}
+
+	/** Registration without the verification step {@link #register} adds — several cases need the gap. */
+	protected ValidatableResponse signUp(String email, String password) {
+		return csrfAware()
 				.body(Map.of("email", email, "password", password))
 				.when()
 				.post("/api/users")
-				.then()
-				.statusCode(201);
-		confirmAddress(email);
+				.then();
 	}
 
 	/**
@@ -156,9 +172,60 @@ abstract class ApiTestBase {
 				.when()
 				.post("/api/sessions");
 
-		String rotated = response.getCookie("XSRF-TOKEN");
-		csrfToken = (rotated == null || rotated.isEmpty()) ? null : rotated;
+		adoptRotatedCsrfToken(response);
 		return response.then();
+	}
+
+	/**
+	 * Signs in with a mailed code, picking up the rotated CSRF token exactly as {@link #login} does —
+	 * the two credentials share one session-creation path, so they share one client step too.
+	 */
+	protected ValidatableResponse signInWithCode(String email, String code) {
+		Response response = csrfAware()
+				.body(Map.of("email", email, "code", code))
+				.when()
+				.post("/api/sessions");
+
+		adoptRotatedCsrfToken(response);
+		return response.then();
+	}
+
+	/** "Send me a code", through the public endpoint the login screen uses. */
+	protected ValidatableResponse requestCode(String email) {
+		return csrfAware()
+				.body(Map.of("email", email))
+				.when()
+				.post("/api/verification-codes")
+				.then();
+	}
+
+	/**
+	 * Asks for a sign-in code and returns the one that arrived. The cooldown an earlier send started
+	 * (registration sends one) is dropped first, because the case calling this is never about it.
+	 */
+	protected String mailedSignInCode(String email) {
+		codeThrottle.forget(email);
+		requestCode(email).statusCode(202);
+		return mail.codeFor(email)
+				.orElseThrow(() -> new AssertionError("No code was mailed to " + email));
+	}
+
+	/** Eight digits that are not {@code code} — a wrong guess, not a malformed request. */
+	protected static String wrongCodeFor(String code) {
+		return code.equals("00000000") ? "11111111" : "00000000";
+	}
+
+	/**
+	 * A successful sign-in rotates the token onto its own response; a failed one sends no
+	 * {@code XSRF-TOKEN} cookie at all, and the cached token is still the one in the jar — dropping it
+	 * then would leave the next mutation unable to re-prime, since the server only re-sends a cookie the
+	 * client does not already hold. An empty value means only the deletion arrived.
+	 */
+	private void adoptRotatedCsrfToken(Response response) {
+		String rotated = response.getCookie("XSRF-TOKEN");
+		if (rotated != null) {
+			csrfToken = rotated.isEmpty() ? null : rotated;
+		}
 	}
 
 	/** A client with no cookie jar and no CSRF token at all — a stranger hitting the API cold. */

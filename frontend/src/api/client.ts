@@ -14,18 +14,32 @@ type Method = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
  * RFC 9457 `type` where the server sets one, which is the only sanctioned way to tell two failures
  * sharing a status apart (`detail` is prose and must not be parsed). Optional: failures raised
  * client-side never have one.
+ *
+ * `retryAfter` is the `Retry-After` header in seconds, where the server sent one as a number: the
+ * code throttle's 429 does, and it is the only part of that answer a screen can act on.
  */
 export class ApiError extends Error {
   readonly status: number
 
   readonly type?: string
 
-  constructor(status: number, detail: string, type?: string) {
+  readonly retryAfter?: number
+
+  constructor(status: number, detail: string, type?: string, retryAfter?: number) {
     super(detail)
     this.name = 'ApiError'
     this.status = status
     this.type = type
+    this.retryAfter = retryAfter
   }
+}
+
+/**
+ * The delta-seconds form only. The HTTP-date form is legal too, but this server never sends it, and
+ * a date read against a client clock that may be minutes off would be a worse guess than none.
+ */
+function retryAfterSeconds(header: string | null): number | undefined {
+  return header !== null && /^\d+$/.test(header.trim()) ? Number(header.trim()) : undefined
 }
 
 function csrfToken(): string | undefined {
@@ -86,7 +100,12 @@ export async function api<T = void>(
       // The user gets one generic sentence either way; without this line so does the operator.
       console.error(`No Problem JSON on ${response.status} from ${method} /api${path}`)
     }
-    throw new ApiError(response.status, problem?.detail ?? `HTTP ${response.status}`, problem?.type)
+    throw new ApiError(
+      response.status,
+      problem?.detail ?? `HTTP ${response.status}`,
+      problem?.type,
+      retryAfterSeconds(response.headers.get('Retry-After')),
+    )
   }
   // Keyed on whether there is a body, not on the status: 202 from `/verification-codes` carries
   // none either, and `.json()` on an empty `Response` throws rather than resolving to `undefined`.

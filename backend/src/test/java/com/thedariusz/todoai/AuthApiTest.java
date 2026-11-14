@@ -1,9 +1,12 @@
 package com.thedariusz.todoai;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.thedariusz.todoai.user.AppLanguage;
@@ -24,7 +27,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -149,14 +151,16 @@ class AuthApiTest extends ApiTestBase {
 	void logsOutAndInvalidatesTheSession() {
 		givenLoggedInUser();
 
-		csrfAware()
+		List<String> setCookies = csrfAware()
 				.when()
 				.delete("/api/sessions/current")
 				.then()
 				.statusCode(204)
-				.header("Set-Cookie", allOf(
-						containsString("JSESSIONID="),
-						containsString("Expires=Thu, 01 Jan 1970")));
+				.extract()
+				.headers()
+				.getValues("Set-Cookie");
+
+		assertSessionCookieCancelled(setCookies);
 
 		client()
 				.when()
@@ -222,15 +226,17 @@ class AuthApiTest extends ApiTestBase {
 	void deletesTheAccountInvalidatesTheSessionAndFreesTheEmail() {
 		String email = givenLoggedInUser();
 
-		csrfAware()
+		List<String> setCookies = csrfAware()
 				.body(Map.of("password", "correct-horse"))
 				.when()
 				.delete("/api/users/me")
 				.then()
 				.statusCode(204)
-				.header("Set-Cookie", allOf(
-						containsString("JSESSIONID="),
-						containsString("Expires=Thu, 01 Jan 1970")));
+				.extract()
+				.headers()
+				.getValues("Set-Cookie");
+
+		assertSessionCookieCancelled(setCookies);
 
 		client()
 				.when()
@@ -336,7 +342,7 @@ class AuthApiTest extends ApiTestBase {
 	/**
 	 * FR-019 says the account is erased, so no device may still be holding an authenticated session
 	 * for it. {@code logout} only ends the calling request's session, so without expiring the rest a
-	 * phone keeps returning 200 for a deleted account until its 30-minute idle timeout.
+	 * phone keeps returning 200 for a deleted account until its 30-day idle timeout.
 	 */
 	@Test
 	void endsEverySessionWhenTheAccountIsDeleted() {
@@ -372,7 +378,7 @@ class AuthApiTest extends ApiTestBase {
 	/**
 	 * An anonymous 401 must not cost a server-side session. Spring Security's request cache would
 	 * otherwise call {@code request.getSession()} before the entry point runs, so every unauthenticated
-	 * hit would pin 30 minutes of in-memory session on the single Fly machine — an unauthenticated
+	 * hit would pin 30 days of in-memory session on the single Fly machine — an unauthenticated
 	 * memory-exhaustion lever. {@code Accept: *&#47;*} is the case that matters: it is what {@code fetch()}
 	 * sends, and it passes the request cache's default matcher.
 	 */
@@ -750,6 +756,7 @@ class AuthApiTest extends ApiTestBase {
 	void answers401WhenTheAccountWasErasedUnderTheSession() {
 		String email = givenLoggedInUser();
 		jdbc.update("delete from ai_memory where user_id = (select id from app_user where email = ?)", email);
+		jdbc.update("delete from remember_me_token where user_id = (select id from app_user where email = ?)", email);
 		jdbc.update("delete from app_user where email = ?", email);
 
 		csrfAware()
@@ -809,5 +816,183 @@ class AuthApiTest extends ApiTestBase {
 				.then()
 				.statusCode(422)
 				.contentType("application/problem+json");
+	}
+
+	// --- Sign-in by mailed code (passwordless sign-in, release 1) ---
+
+	/**
+	 * A verified account asks for a code and exchanges it for a session through the same path a
+	 * password takes: the session id rotates, the CSRF token rotates and is usable straight from the
+	 * response, and the session reads as the account it was opened for.
+	 */
+	@Test
+	void signsInAVerifiedAccountWithAMailedCode() {
+		String email = uniqueEmail();
+		register(email, "correct-horse");
+		String passwordSession = login(email, "correct-horse").statusCode(201).extract().cookie("JSESSIONID");
+		String code = mailedSignInCode(email);
+		String preSignInToken = primeCsrfToken();
+
+		var response = signInWithCode(email, code)
+				.statusCode(201)
+				.header("Location", "/api/sessions/current")
+				.body("email", equalTo(email))
+				.extract();
+
+		assertThat(response.cookie("JSESSIONID")).as("the session id rotates")
+				.isNotBlank().isNotEqualTo(passwordSession);
+		String rotated = response.cookie("XSRF-TOKEN");
+		assertThat(rotated).as("a fresh CSRF token rides on the response").isNotBlank()
+				.isNotEqualTo(preSignInToken);
+		client().when().get("/api/users/me").then().statusCode(200).body("email", equalTo(email));
+		client()
+				.header("X-XSRF-TOKEN", rotated)
+				.when()
+				.delete("/api/sessions/current")
+				.then()
+				.statusCode(204);
+	}
+
+	/**
+	 * Every way a code can fail on {@code POST /api/sessions} — wrong, expired, already spent, past its
+	 * fifth guess, or for an address with no account — is the same 401 a wrong password is. Any
+	 * difference in the body would be an oracle for which of them it was.
+	 */
+	@Test
+	void answersEveryFailedCodeWithTheSameGeneric401() {
+		String unknown = signInWithCode(uniqueEmail(), "12345678").statusCode(401).extract().asString();
+
+		String email = uniqueEmail();
+		register(email, "correct-horse");
+		String wrongPassword = login(email, "not-the-password").statusCode(401).extract().asString();
+
+		String code = mailedSignInCode(email);
+		String wrong = signInWithCode(email, wrongCodeFor(code)).statusCode(401).extract().asString();
+
+		signInWithCode(email, code).statusCode(201);
+		newBrowser();
+		String spent = signInWithCode(email, code).statusCode(401).extract().asString();
+
+		String expiring = mailedSignInCode(email);
+		jdbc.update("update app_user set verification_expires_at = now() - interval '1 minute' where email = ?",
+				email);
+		String expired = signInWithCode(email, expiring).statusCode(401).extract().asString();
+
+		String capped = mailedSignInCode(email);
+		for (int guess = 0; guess < 5; guess++) {
+			signInWithCode(email, wrongCodeFor(capped)).statusCode(401);
+		}
+		String sixth = signInWithCode(email, capped).statusCode(401).extract().asString();
+
+		assertThat(List.of(unknown, wrong, spent, expired, sixth))
+				.as("no failed code can be told apart from a wrong password")
+				.containsOnly(wrongPassword);
+	}
+
+	/** Four wrong guesses leave the fifth working — a cap of one would also pass the case above. */
+	@Test
+	void stillSignsInWithTheRightCodeAfterFourWrongOnes() {
+		String email = uniqueEmail();
+		register(email, "correct-horse");
+		String code = mailedSignInCode(email);
+
+		for (int guess = 0; guess < 4; guess++) {
+			signInWithCode(email, wrongCodeFor(code)).statusCode(401);
+		}
+
+		signInWithCode(email, code).statusCode(201);
+	}
+
+	/**
+	 * The cap holds under a race. Twenty guesses fired at once all pass any read-then-check a caller
+	 * could do; only the atomic charge in the database keeps the count at five — and once it is five,
+	 * the right code is refused like any other.
+	 */
+	@Test
+	void neverChargesMoreThanFiveGuessesToOneCodeUnderParallelAttempts() throws Exception {
+		String email = uniqueEmail();
+		register(email, "correct-horse");
+		String code = mailedSignInCode(email);
+		String token = primeCsrfToken();
+		String wrong = wrongCodeFor(code);
+
+		var pool = Executors.newFixedThreadPool(20);
+		try {
+			var guesses = IntStream.range(0, 20)
+					.mapToObj(i -> pool.submit(() -> anonymous()
+							.cookie("XSRF-TOKEN", token)
+							.header("X-XSRF-TOKEN", token)
+							.body(Map.of("email", email, "code", wrong))
+							.post("/api/sessions")
+							.statusCode()))
+					.toList();
+			for (var guess : guesses) {
+				assertThat(guess.get()).isEqualTo(401);
+			}
+		}
+		finally {
+			pool.shutdownNow();
+		}
+
+		assertThat(jdbc.queryForObject("select verification_attempts from app_user where email = ?",
+				Integer.class, email)).isEqualTo(5);
+		signInWithCode(email, code).statusCode(401);
+	}
+
+	/** One credential per request: both, or neither, is a malformed request rather than a guess. */
+	@Test
+	void rejectsASignInCarryingBothOrNeitherCredentialAsUnprocessable() {
+		String email = uniqueEmail();
+
+		csrfAware()
+				.body(Map.of("email", email, "password", "correct-horse", "code", "12345678"))
+				.when()
+				.post("/api/sessions")
+				.then()
+				.statusCode(422)
+				.contentType("application/problem+json");
+		csrfAware()
+				.body(Map.of("email", email))
+				.when()
+				.post("/api/sessions")
+				.then()
+				.statusCode(422)
+				.contentType("application/problem+json");
+	}
+
+	@Test
+	void rejectsACodeThatIsNotEightDigitsAsUnprocessable() {
+		signInWithCode(uniqueEmail(), "1234567")
+				.statusCode(422)
+				.contentType("application/problem+json");
+	}
+
+	/**
+	 * The expand half of the rollout: release 2 writes accounts with no password, and a rollback to
+	 * this image must still sign them in — by code — while a password attempt against them is the
+	 * ordinary 401, never a 500.
+	 */
+	@Test
+	void signsInAnAccountWithNoPasswordByCodeAndRefusesAPasswordForIt() {
+		String email = uniqueEmail();
+		register(email, "correct-horse");
+		jdbc.update("update app_user set password_hash = null where email = ?", email);
+
+		login(email, "correct-horse")
+				.statusCode(401)
+				.contentType("application/problem+json");
+
+		newBrowser();
+		signInWithCode(email, mailedSignInCode(email)).statusCode(201).body("email", equalTo(email));
+	}
+
+	/**
+	 * Picked out by name: the same response also cancels the remember-me cookie, and REST Assured's
+	 * own header matcher only ever reads the last {@code Set-Cookie}.
+	 */
+	private static void assertSessionCookieCancelled(List<String> setCookies) {
+		assertThat(setCookies).anySatisfy(cookie -> assertThat(cookie)
+				.startsWith("JSESSIONID=;")
+				.contains("Expires=Thu, 01 Jan 1970"));
 	}
 }
