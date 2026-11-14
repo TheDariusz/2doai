@@ -5,9 +5,10 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Date;
 
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -107,16 +108,21 @@ public class StableTokenRememberMeServices extends PersistentTokenBasedRememberM
 		return user;
 	}
 
-	/** The base class's cancel cookie, with the attributes it leaves off. */
+	/**
+	 * The base class's cancel cookie, with the attributes it leaves off. Written as a
+	 * {@link ResponseCookie} header, which states {@code SameSite} natively; {@code Secure} follows
+	 * the same environment switch as the cookie it cancels.
+	 */
 	@Override
 	protected void cancelCookie(HttpServletRequest request, HttpServletResponse response) {
-		Cookie cookie = new Cookie(getCookieName(), "");
-		cookie.setMaxAge(0);
-		cookie.setPath(request.getContextPath().isEmpty() ? "/" : request.getContextPath());
-		cookie.setSecure(secureCookie);
-		cookie.setHttpOnly(true);
-		cookie.setAttribute("SameSite", SAME_SITE);
-		response.addCookie(cookie);
+		ResponseCookie cookie = ResponseCookie.from(getCookieName(), "")
+				.maxAge(0)
+				.path(request.getContextPath().isEmpty() ? "/" : request.getContextPath())
+				.secure(secureCookie)
+				.httpOnly(true)
+				.sameSite(SAME_SITE)
+				.build();
+		response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 	}
 
 	private static byte[] bytes(String value) {
