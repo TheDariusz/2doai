@@ -2,8 +2,8 @@
  * Reads the link the code mail carries: `/verify#email=<address>&code=<code>`.
  *
  * The address and code ride in the fragment, which the browser never sends to a server, so neither
- * reaches a log on the way in. The link only prefills the code screen; nothing is spent until the
- * user presses the button, so a mail scanner that follows it signs nobody in.
+ * reaches a log on the way in. The code screen spends it without a press only in the browser that
+ * asked for that address's code (`auth/codeRequest.ts`); anywhere else it prefills and waits.
  *
  * The parameter names are a contract with the backend's `SignInLink`, which writes them;
  * `VerificationApiTest.buildsTheMailLinkTheSpaRoutesAndParses` reads both files, so renaming one side

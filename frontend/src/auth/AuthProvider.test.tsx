@@ -6,6 +6,7 @@ import { AuthProvider } from './AuthProvider'
 import { useAuth } from './auth-context'
 import i18n from '../i18n'
 import { response } from '../test/auth'
+import { awaitsCode, rememberCodeRequest } from './codeRequest'
 
 const fetchMock = vi.fn()
 
@@ -161,6 +162,33 @@ describe('AuthProvider', () => {
     expect(init.method).toBe('POST')
     // The address alone — which account it belongs to is what the 202 declines to disclose.
     expect(JSON.parse(init.body)).toEqual({ email: 'ala@example.pl' })
+  })
+
+  /** The mail link signs in on its own only where the code was asked for — see `codeRequest.ts`. */
+  it('remembers that this device asked for a code, once the server took the request', async () => {
+    fetchMock
+      .mockResolvedValueOnce(response(401, { detail: 'Authentication is required' }))
+      .mockResolvedValueOnce(response(202))
+
+    render(<AuthProvider><Probe /></AuthProvider>)
+    await screen.findByText('status: anonymous')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'ask for another' }))
+
+    await waitFor(() => expect(awaitsCode('ala@example.pl')).toBe(true))
+  })
+
+  it('forgets the request once a code opened a session', async () => {
+    rememberCodeRequest('ala@example.pl')
+    fetchMock
+      .mockResolvedValueOnce(response(401, { detail: 'Authentication is required' }))
+      .mockResolvedValueOnce(response(200, { id: 'u1', email: 'ala@example.pl', language: 'EN' }))
+
+    render(<AuthProvider><Probe /></AuthProvider>)
+    await screen.findByText('status: anonymous')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'spend the code' }))
+
+    await screen.findByText('status: authenticated')
+    expect(awaitsCode('ala@example.pl')).toBe(false)
   })
 
   it('drops to anonymous when a later call reports the session expired', async () => {

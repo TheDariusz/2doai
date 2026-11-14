@@ -312,8 +312,9 @@ class VerificationApiTest extends ApiTestBase {
 
 	/**
 	 * The code is the sign-in credential now, so a proved address is sent one on request — the case
-	 * this endpoint used to answer by sending nothing. The message carries the link that prefills the
-	 * code, in the account's language, and nothing in the response says a message went out.
+	 * this endpoint used to answer by sending nothing. The text and HTML alternatives both carry the
+	 * link to the code screen, in the account's language, and nothing in the response says a message
+	 * went out.
 	 */
 	@Test
 	void mailsASignInCodeAndItsLinkToAVerifiedAddressOnRequest() {
@@ -325,10 +326,11 @@ class VerificationApiTest extends ApiTestBase {
 		requestCode(email).statusCode(202);
 
 		String code = mail.codeFor(email).orElseThrow();
-		assertThat(mail.sent()).singleElement()
-				.extracting(TestcontainersConfiguration.RecordingEmailSender.Sent::text)
-				.asString()
-				.contains(SignInLink.of("http://localhost:5173", email, code));
+		String link = SignInLink.of("http://localhost:5173", email, code);
+		TestcontainersConfiguration.RecordingEmailSender.Sent message = mail.sent().getFirst();
+		assertThat(mail.sent()).hasSize(1);
+		assertThat(message.text()).contains(link);
+		assertThat(message.html()).contains("href=\"" + link.replace("&", "&amp;") + "\"");
 		signInWithCode(email, code).statusCode(201);
 	}
 

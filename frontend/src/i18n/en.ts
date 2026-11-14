@@ -78,7 +78,12 @@ export const en: typeof pl = {
     sendAgain: 'Send the code again',
     resendIn: 'You can ask for another code in {{time}}.',
     sent: 'If this address has an account, a new code is on its way. Check your inbox and spam.',
+    // Shown while the mail link signs in on its own — only in the browser that asked for the code.
+    signingIn: 'Signing you in…',
     errors: {
+      // The link signed in on its own and was refused: most often an older mail, whose code a
+      // newer one replaced, or a link a scanner spent first. Names the link, not a typed code.
+      link: 'This link no longer works — it may have been used, or a newer code has arrived. Open the latest email or ask for a new code.',
       code: 'That code is wrong or no longer valid. Ask for a new one.',
       tooMany: 'Too many code requests. Try again when the countdown ends.',
       unavailable: 'The code could not be sent. Try again in a moment.',

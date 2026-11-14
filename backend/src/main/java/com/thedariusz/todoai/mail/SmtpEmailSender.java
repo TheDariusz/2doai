@@ -4,17 +4,21 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+
 import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
 
 /**
  * {@link EmailSender} over SMTP — Resend today, configured entirely in {@code spring.mail.*}, which
  * is what keeps the provider a credentials choice rather than a dependency.
  *
- * <p>The adapter's whole job is the translation at the boundary: a {@link SimpleMailMessage} going
- * out, a {@link MailDeliveryException} coming back. Retries and timeouts belong to the transport, and
+ * <p>The adapter's whole job is the translation at the boundary: a {@link SimpleMailMessage} (or, with
+ * an HTML alternative, a {@link MimeMessage}) going out, a {@link MailDeliveryException} coming back. Retries and timeouts belong to the transport, and
  * no caller is built to retry: the natural rhythm's fire has the in-app card as its guaranteed
  * channel, so an email that does not arrive costs the user a nudge rather than the proposal, and the
  * verification service answers 503 and leaves the retry to the "send again" the user already has.
@@ -56,8 +60,34 @@ class SmtpEmailSender implements EmailSender {
 		catch (MailException ex) {
 			throw new MailDeliveryException(describe(to, header), ex);
 		}
-		// The app's only unprompted act, and the only evidence it happened: worth an INFO line, in
-		// prod as much as in the local smoke run.
+		delivered(to, header);
+	}
+
+	@Override
+	public void send(String to, String subject, String text, String html) {
+		String header = StringUtils.normalizeSpace(subject);
+		try {
+			MimeMessage message = transport.createMimeMessage();
+			// multipart = true makes the helper write multipart/alternative for setText(plain, html):
+			// the client picks the last part it can render, so the HTML goes second.
+			MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+			helper.setFrom(properties.from());
+			helper.setTo(to);
+			helper.setSubject(header);
+			helper.setText(text, html);
+			transport.send(message);
+		}
+		catch (MailException | MessagingException ex) {
+			throw new MailDeliveryException(describe(to, header), ex);
+		}
+		delivered(to, header);
+	}
+
+	/**
+	 * The app's only unprompted act, and the only evidence it happened: worth an INFO line, in prod as
+	 * much as in the local smoke run.
+	 */
+	private static void delivered(String to, String header) {
 		log.info("Delivered: {}", describe(to, header));
 	}
 

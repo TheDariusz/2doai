@@ -143,11 +143,16 @@ public class TestcontainersConfiguration {
 
 		@Override
 		public void send(String to, String subject, String text) {
+			send(to, subject, text, null);
+		}
+
+		@Override
+		public void send(String to, String subject, String text, String html) {
 			if (this.failNext.compareAndSet(true, false)) {
 				throw new MailDeliveryException("a forced failure to a @"
 						+ StringUtils.substringAfterLast(to, '@') + " address", new IllegalStateException("forced"));
 			}
-			this.sent.add(new Sent(to, subject, text));
+			this.sent.add(new Sent(to, subject, text, html));
 		}
 
 		/**
@@ -180,7 +185,8 @@ public class TestcontainersConfiguration {
 			return this.sent.stream().anyMatch(message -> message.to().equalsIgnoreCase(email));
 		}
 
-		public record Sent(String to, String subject, String text) {
+		/** @param html the HTML alternative, or {@code null} for a text-only message */
+		public record Sent(String to, String subject, String text, String html) {
 		}
 	}
 }

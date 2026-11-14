@@ -92,7 +92,12 @@ export const pl = {
     sendAgain: 'Wyślij kod jeszcze raz',
     resendIn: 'O kolejny kod możesz poprosić za {{time}}.',
     sent: 'Jeśli ten adres ma konto, nowy kod jest w drodze. Sprawdź skrzynkę i folder spam.',
+    // Shown while the mail link signs in on its own — only in the browser that asked for the code.
+    signingIn: 'Logujemy Cię…',
     errors: {
+      // The link signed in on its own and was refused: most often an older mail, whose code a
+      // newer one replaced, or a link a scanner spent first. Names the link, not a typed code.
+      link: 'Ten link już nie działa — mógł zostać użyty albo przyszedł nowszy kod. Otwórz najnowszą wiadomość albo poproś o nowy kod.',
       // The server conflates wrong, expired, spent and unknown on purpose, so this is
       // the one sentence that fits all four - and it names the only remedy there is.
       code: 'Ten kod jest nieprawidłowy albo stracił ważność. Poproś o nowy.',

@@ -1,5 +1,10 @@
 package com.thedariusz.todoai.mail;
 
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+
+import jakarta.mail.Session;
+import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -13,6 +18,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * The boundary, asserted at the boundary: what goes out is the message the caller asked for sent from
@@ -38,6 +44,41 @@ class SmtpEmailSenderTest {
 		assertThat(sent.getValue().getTo()).containsExactly("owner@example.com");
 		assertThat(sent.getValue().getSubject()).isEqualTo("Wróćmy do tego: Oddać książkę");
 		assertThat(sent.getValue().getText()).isEqualTo("Wracamy do tego?");
+	}
+
+	/**
+	 * The code mail goes out as two alternatives of one message: the HTML a modern client renders and
+	 * the plain text a terminal client, a screen reader or a strict corporate filter falls back to.
+	 */
+	@Test
+	void sendsTextAndHtmlAsAlternativesOfOneMessage() throws Exception {
+		when(transport.createMimeMessage()).thenReturn(new MimeMessage((Session) null));
+
+		sender.send("owner@example.com", "Kod do 2do AI: 04231789\r\nBcc: attacker@evil.com",
+				"Twój kod: 04231789", "<p>Twój kod: <b>04231789</b></p>");
+
+		ArgumentCaptor<MimeMessage> sent = ArgumentCaptor.forClass(MimeMessage.class);
+		verify(transport).send(sent.capture());
+		MimeMessage message = sent.getValue();
+		message.saveChanges();
+		ByteArrayOutputStream wire = new ByteArrayOutputStream();
+		message.writeTo(wire);
+		String raw = wire.toString(StandardCharsets.UTF_8);
+		assertThat(message.getFrom()[0].toString()).contains("propozycje@2doai.app");
+		assertThat(message.getAllRecipients()[0].toString()).isEqualTo("owner@example.com");
+		assertThat(message.getSubject()).isEqualTo("Kod do 2do AI: 04231789 Bcc: attacker@evil.com");
+		assertThat(raw).contains("multipart/alternative", "text/plain", "text/html");
+	}
+
+	@Test
+	void translatesAnHtmlSendFailureIntoTheOneFailureCallersHandle() {
+		when(transport.createMimeMessage()).thenReturn(new MimeMessage((Session) null));
+		doThrow(new MailSendException("530 authentication required")).when(transport).send(any(MimeMessage.class));
+
+		assertThatThrownBy(() -> sender.send("nowak@example.com", "Kod", "Twój kod", "<p>Twój kod</p>"))
+				.isInstanceOf(MailDeliveryException.class)
+				.hasMessageContaining("example.com")
+				.hasMessageNotContaining("nowak");
 	}
 
 	/**

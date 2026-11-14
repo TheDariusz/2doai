@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { ApiError, api } from '../api/client'
 import i18n from '../i18n'
 import { ACCOUNT_LANGUAGE, APP_LANGUAGE, AuthContext, type User } from './auth-context'
+import { forgetCodeRequest, rememberCodeRequest } from './codeRequest'
 
 /**
  * Holds the session for the whole app. `undefined` means "not asked yet" — which is what keeps
@@ -53,13 +54,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // it is handed. The answer is the account, adopted the same way a bootstrap adopts one.
         signInWithCode: async (email, code) => {
           adopt(await api<User>('/sessions', { method: 'POST', body: { email, code } }))
+          forgetCodeRequest()
         },
+        // Both requests below mail a code, so both note that this browser asked for one: the link in
+        // that mail may then sign in here without a press (`codeRequest.ts`).
         register: async (email, password) => {
           await api('/users', { method: 'POST', body: { email, password } })
+          rememberCodeRequest(email)
         },
         // Public, and answers 202 with no body for every address — nothing to adopt.
         resendCode: async (email) => {
           await api('/verification-codes', { method: 'POST', body: { email } })
+          rememberCodeRequest(email)
         },
         changeLanguage: async (language) => {
           const chosen = ACCOUNT_LANGUAGE[language]

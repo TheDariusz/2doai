@@ -92,7 +92,7 @@ paths:
 
 
         The account is created **unverified** and an eight-digit code is emailed to the address, in
-        the account's language and valid for 15 minutes, with a link that prefills it: it cannot log
+        the account's language and valid for 15 minutes, with a link to the code screen: it cannot log
         in with its password and the natural rhythm never writes to it until the code has been
         redeemed — by POST /verifications, or by signing in with it on POST /sessions, which proves
         the address and opens a session in one step. Any address already in the table is
