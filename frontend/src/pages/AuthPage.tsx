@@ -6,14 +6,14 @@ import { ApiError } from '../api/client'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
 import { ThemeSwitch } from '../ThemeSwitch'
 import { useAuth } from '../auth/auth-context'
-import { EMAIL_NOT_VERIFIED, isProblem } from '../auth/problems'
+import { RESEND_COOLDOWN_SECONDS, type VerifyHandover } from './verifyHandover'
 
 type Mode = 'login' | 'register'
 
 /**
- * Both credential screens. They differ only in copy, in the password minimum (the server is
- * deliberately looser on login, so as not to leak which submissions could belong to an account)
- * and in where success goes — one component beats two near-copies drifting apart.
+ * Both entry screens. Signing in asks for the address only and sends the user to the code screen
+ * with a code on its way; registering still asks for a password, because the backend requires one
+ * until release 2. One component beats two near-copies drifting apart.
  *
  * Like the public landing page, they are rendered before there is an account to read a language
  * from, so they carry the switch that decides what the app is written in until then (FR-001) — the
@@ -25,58 +25,86 @@ export function AuthPage({ mode }: { mode: Mode }) {
   const { t, i18n } = useTranslation()
   // The two modes are each other's alternative, and `/login` / `/register` are their routes.
   const other = mode === 'login' ? 'register' : 'login'
-  const { login, register } = useAuth()
+  const { register, resendCode } = useAuth()
   const navigate = useNavigate()
-  // Both things a route can hand this screen: where a bounced visitor was going, and the fact that
-  // the address they just confirmed is now theirs.
-  const state = useLocation().state as { from?: Partial<Path>; verified?: boolean } | null
+  // Where a bounced visitor was going: carried on to the code screen, which is where the session
+  // now opens and so where the user is finally sent there.
+  const state = useLocation().state as { from?: Partial<Path> } | null
   const [error, setError] = useState<string | null>(null)
   // The address a 409 just refused, so the screen can offer the one route that can still help it.
   // Set for every 409, proved or not: the server does not say which, and neither may this.
   const [taken, setTaken] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const form = new FormData(event.currentTarget)
-    const email = String(form.get('email') ?? '')
-    const password = String(form.get('password') ?? '')
+  function toVerify(email: string, handover: VerifyHandover) {
+    navigate('/verify', { replace: true, state: { email, from: state?.from, ...handover } })
+  }
 
+  /**
+   * Sign-in's whole job, and the 409's way out. A 429 still goes on to the code screen: it means a
+   * code went out moments ago — possibly the very one in the inbox — and that screen counts down the
+   * wait the server named. Every other failure stays here, where the address can be corrected.
+   */
+  async function requestCode(email: string) {
+    try {
+      await resendCode(email)
+      toVerify(email, { resendAfter: RESEND_COOLDOWN_SECONDS })
+    } catch (failure) {
+      if (!(failure instanceof ApiError) || failure.status !== 429) {
+        throw failure
+      }
+      toVerify(email, {
+        error: 'verify.errors.tooMany',
+        resendAfter: failure.retryAfter ?? RESEND_COOLDOWN_SECONDS,
+      })
+    }
+  }
+
+  /** One shape for every action: clear what the last one said, run it, report what this one says. */
+  async function run(action: () => Promise<void>, messages: Mode) {
     setError(null)
     setTaken(null)
     setPending(true)
     try {
-      if (mode === 'login') {
-        await login(email, password)
-        // The whole location, not just its pathname — a bounced deep link keeps its query and hash.
-        navigate(state?.from ?? '/goals', { replace: true })
-      } else {
-        await register(email, password)
-        navigate('/verify', { replace: true, state: { email } })
-      }
+      await action()
     } catch (failure) {
-      // Two failures are not this screen's to report, because the account is fine and the remedy is
-      // the code. One is a correct password on an address nobody has confirmed yet. The other is a
-      // sign-up past the point of no return: `register` commits the account and *then* asks for a
-      // code, so any failure the server raised after that — the provider refusing (503), a timeout
-      // on the code write escaping as a bare 500 — leaves an account that exists and a screen that
-      // can do nothing for it. The predicate is the whole 5xx range rather than a list of statuses,
-      // because the list is what left the 500 stranding a committed account here. Both continue to
-      // the screen that can act: the code was not sent, whatever the server called it.
-      const problem = failure instanceof ApiError ? failure : null
-      const unconfirmed = isProblem(failure, EMAIL_NOT_VERIFIED)
-      const codeNotSent = mode === 'register' && (problem?.status ?? 0) >= 500
-      if (unconfirmed || codeNotSent) {
-        const reason = unconfirmed ? 'verify.errors.notVerified' : 'verify.errors.unavailable'
-        navigate('/verify', { replace: true, state: { email, error: reason } })
-      } else {
-        setError(messageFor(t, failure, mode))
-        if (mode === 'register' && problem?.status === 409) {
-          setTaken(email)
-        }
-      }
+      setError(messageFor(t, failure, messages))
     } finally {
       setPending(false)
+    }
+  }
+
+  async function signUp(email: string, password: string) {
+    try {
+      await register(email, password)
+      toVerify(email, { resendAfter: RESEND_COOLDOWN_SECONDS })
+    } catch (failure) {
+      // A sign-up past the point of no return is not this screen's to report: `register` commits
+      // the account and *then* asks for a code, so any failure the server raised after that — the
+      // provider refusing (503), a timeout on the code write escaping as a bare 500 — leaves an
+      // account that exists and a screen that can do nothing for it. The predicate is the whole 5xx
+      // range rather than a list of statuses, because the list is what left the 500 stranding a
+      // committed account here. Nothing went out, so the resend is left unlocked.
+      if (failure instanceof ApiError && failure.status >= 500) {
+        toVerify(email, { error: 'verify.errors.unavailable' })
+        return
+      }
+      if (failure instanceof ApiError && failure.status === 409) {
+        setTaken(email)
+      }
+      throw failure
+    }
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    const email = String(form.get('email') ?? '')
+
+    if (mode === 'login') {
+      await run(() => requestCode(email), 'login')
+    } else {
+      await run(() => signUp(email, String(form.get('password') ?? '')), 'register')
     }
   }
 
@@ -89,34 +117,39 @@ export function AuthPage({ mode }: { mode: Mode }) {
         <ThemeSwitch />
       </div>
       <h1>{t(`auth.${mode}.heading`)}</h1>
-      {state?.verified && <p role="status">{t('verify.confirmed')}</p>}
+      {mode === 'login' && <p>{t('auth.login.hint')}</p>}
       <form onSubmit={submit}>
         <label>
           {t('auth.email')}
           <input name="email" type="email" required maxLength={320} autoComplete="email" />
         </label>
-        <label>
-          {t('auth.password')}
-          <input
-            name="password"
-            type="password"
-            required
-            // Mirrors RegisterRequest: min 8 on registration, no minimum on login. The maximum is
-            // BCrypt's 72-byte cap, which both requests carry; counting characters only
-            // approximates bytes, so it never blocks input the server would have accepted.
-            minLength={mode === 'register' ? 8 : undefined}
-            maxLength={72}
-            autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
-          />
-        </label>
+        {mode === 'register' && (
+          <label>
+            {t('auth.password')}
+            <input
+              name="password"
+              type="password"
+              required
+              // Mirrors RegisterRequest: min 8. The maximum is BCrypt's 72-byte cap; counting
+              // characters only approximates bytes, so it never blocks input the server would have
+              // accepted.
+              minLength={8}
+              maxLength={72}
+              autoComplete="new-password"
+            />
+          </label>
+        )}
         {error && <p role="alert">{error}</p>}
         {taken && (
           <p>
-            <Link to="/verify" state={{ email: taken }}>{t('auth.errors.emailTakenUnconfirmed')}</Link>
+            {/* Not a submit: the form still holds the sign-up that was just refused. */}
+            <button type="button" disabled={pending} onClick={() => void run(() => requestCode(taken), 'login')}>
+              {t('auth.errors.emailTakenSignIn')}
+            </button>
           </p>
         )}
         <button type="submit" disabled={pending}>
-          {t(`auth.${mode}.heading`)}
+          {t(`auth.${mode}.submit`)}
         </button>
       </form>
       <p>
@@ -133,15 +166,12 @@ function messageFor(t: TFunction, failure: unknown, mode: Mode): string {
     return t('auth.errors.emailTaken')
   }
   if (status === 422) {
-    // Only RegisterRequest carries @Size(min = 8); LoginRequest is deliberately looser, so quoting
-    // the rule there would be advice the user cannot act on.
-    return mode === 'register' ? t('auth.errors.invalidRegistration') : t('auth.errors.invalidCredentials')
-  }
-  if (status === 401) {
-    // Identical for an unknown email and a wrong password, exactly as the server answers.
-    return t('auth.errors.wrongCredentials')
+    // Only RegisterRequest carries @Size(min = 8); a code request carries the address alone, so
+    // quoting the rule there would be advice the user cannot act on.
+    return mode === 'register' ? t('auth.errors.invalidRegistration') : t('auth.errors.invalidEmail')
   }
   if (status === 503) {
+    // For a code request: today's auth-mail budget is spent. The same answer for every address.
     return t('auth.errors.unavailable')
   }
   return t('auth.errors.generic')

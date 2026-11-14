@@ -532,11 +532,14 @@ Run it after any deploy that touched registration, login or the verification end
 1. Register on <https://2doai.app> with an address you can read. The screen goes to `/verify`.
 2. The code arrives within seconds. `fly logs | grep "verification code"` shows
    `Issued a verification code to a @… address` — the domain, and deliberately nothing else.
-3. Enter it → `/login` reports the address is confirmed. Log in.
-4. Two guards are worth provoking *before* verifying a second throwaway account: logging in with the
-   **right** password answers `403 urn:2doai:problem:email-not-verified` and lands back on `/verify`
-   (a **wrong** password still answers the generic 401), and pressing "send again" twice inside a
-   minute answers `429` with `Retry-After`.
+3. Enter it → the app opens on `/goals`, signed in. Since release 1 of passwordless sign-in the first
+   code an account spends both proves the address and opens the session; there is no separate
+   "confirmed, now log in" step any more.
+4. Two guards are worth provoking *before* verifying a second throwaway account. With `curl` (the
+   SPA no longer offers a password on `/login`): `POST /api/sessions` with the **right** password
+   answers `403 urn:2doai:problem:email-not-verified`, and a **wrong** one the generic 401. In the
+   SPA, the "send again" button is locked for a minute after a send, with a countdown; a `429` from
+   the server would restart that countdown from its `Retry-After`.
 5. Delete the account from the UI afterwards, so the next walk starts clean.
 
 Existing accounts are unaffected — `V13` backfills `email_verified_at = created_at`, so the first
@@ -546,6 +549,36 @@ only** in the first number: an account still holding a code is skipped at boot a
 second, which is the other half of the same rule. The counts are what separates a healthy empty
 database from a botched `email_verified_at` backfill — both used to log the same line, with the
 health indicator UP either way.
+
+#### The code sign-in round trip (passwordless sign-in, release 1)
+
+`/login` asks for the address only. Run this after any deploy that touched sign-in, the code mail or
+`/verify`, on an account that already exists:
+
+1. On <https://2doai.app/login> enter the address → the screen goes to `/verify` with the address
+   filled in and "send again" locked behind a one-minute countdown.
+2. The mail carries the eight-digit code and a link to
+   `https://2doai.app/verify#email=…&code=…`. Type the code and press **Sign in** → `/goals`, with
+   the account's existing entries.
+3. Sign out, request another code, and this time **open the link**: both fields are prefilled, the
+   fragment is already gone from the address bar, and nothing has happened yet. Press **Sign in**.
+   A link that signed in on its own would be spent by any mail scanner that follows it.
+4. Deep link: open `https://2doai.app/domain/leisure` signed out → `/login` → code → you land back
+   on that page, not on `/goals`, the default.
+5. `fly logs | grep "verification code"` shows one `Issued a verification code to a @… address` per
+   request, and never the code or the link.
+
+**The control address.** When "nothing arrived" and the logs are green, bisect the recipient before
+reading the logs harder (`lessons.md`, "Delivered is not delivered"). Keep a Gmail address **with an
+account** as the control: since release 1 a code request for any existing account mails a code,
+while an address with **no** account gets a `202` and no mail at all — by design, it is the
+enumeration guard — so a never-registered control address looks exactly like a broken pipeline.
+Register the control address once, then use it for every walk.
+
+| Recipient | Result of the release 1 walk |
+|---|---|
+| Gmail (control) | _record after the production deploy_ |
+| `outlook.com` | _record after the production deploy; silently discarded as of DEV-51_ |
 
 > **The proposal survives a mail failure.** It is stored before the message is attempted and the send
 > sits inside the fire's `catch`, so a provider outage costs the nudge, not the proposal — the card is

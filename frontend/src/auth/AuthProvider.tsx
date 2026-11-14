@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Bootstrap: who am I? A 401 here is the normal anonymous answer, not a failure — and the
-  // response still carries the XSRF-TOKEN cookie, so the login POST below can already echo it.
+  // response still carries the XSRF-TOKEN cookie, so the sign-in POST below can already echo it.
   // Any other failure is also read as anonymous: the login screen is the one place a user can act
   // from, and stalling on 'loading' would render a permanently blank page.
   useEffect(() => {
@@ -49,17 +49,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user: user ?? null,
         status: user === undefined ? 'loading' : user ? 'authenticated' : 'anonymous',
-        login: async (email, password) => {
-          adopt(await api<User>('/sessions', { method: 'POST', body: { email, password } }))
+        // `POST /sessions` stays the one place a session is born; a code is simply the credential
+        // it is handed. The answer is the account, adopted the same way a bootstrap adopts one.
+        signInWithCode: async (email, code) => {
+          adopt(await api<User>('/sessions', { method: 'POST', body: { email, code } }))
         },
         register: async (email, password) => {
           await api('/users', { method: 'POST', body: { email, password } })
         },
-        // Neither of these touches the session: both are public, both answer with no body, and the
-        // account they move cannot log in until the first of them has succeeded.
-        verify: async (email, code) => {
-          await api('/verifications', { method: 'POST', body: { email, code } })
-        },
+        // Public, and answers 202 with no body for every address — nothing to adopt.
         resendCode: async (email) => {
           await api('/verification-codes', { method: 'POST', body: { email } })
         },

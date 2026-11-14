@@ -9,6 +9,11 @@ import { ApiError } from '../api/client'
  * All of them live here rather than in the screen that reads each: they are one kind of constant,
  * and two homes for it means the next one goes wherever its author last looked — and the guard above
  * is then reading a file the value has moved out of.
+ *
+ * `EMAIL_NOT_VERIFIED` and `VERIFICATION_FAILED` are no longer branched on by any screen: the code
+ * screen opens a session, and `POST /sessions` refuses a code with a plain 401. The backend still
+ * emits both until release 2 removes the password path and `POST /verifications`, and the guard
+ * above holds this file to them until then — so they go with those endpoints, not before.
  */
 export const RE_AUTH_FAILED = 'urn:2doai:problem:re-auth-failed'
 export const EMAIL_NOT_VERIFIED = 'urn:2doai:problem:email-not-verified'

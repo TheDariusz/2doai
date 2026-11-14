@@ -859,42 +859,42 @@ rows 2686-2693, the stamp.
 
 #### Automated
 
-- [x] 1.1 Flyway applies V15 on a database at V14 and Hibernate validation passes
-- [x] 1.2 A verified account signs in with a mailed code and receives a rotated session and CSRF token
-- [x] 1.3 Wrong, expired, spent and sixth-attempt codes all return the same generic 401 on `POST /api/sessions`
-- [x] 1.4 A request with both or neither of `password` and `code` returns 422
-- [x] 1.5 An unverified account's first code sign-in proves the address and logs `user_registered` exactly once
-- [x] 1.6 A code request for a verified address now sends mail; an unknown address still sends none and answers 202
-- [x] 1.7 The budget answers 503 for every address once exhausted and refunds on a failed send
-- [x] 1.8 Parallel wrong guesses never exceed five per code
-- [x] 1.9 A mailed code has eight digits, and the length guards on `VerifyPage.tsx` and `openapi.yaml` pass
-- [x] 1.10 A guard test fails if the mail's link path or fragment names differ from `VerifyPage.tsx`
-- [x] 1.11 `ApiSurfaceTest` passes against `openapi.yaml` 1.9.0
-- [x] 1.12 Password sign-in, registration and deletion tests still pass unchanged
-- [x] 1.13 `node --test docs/index.test.mjs` passes
+- [x] 1.1 Flyway applies V15 on a database at V14 and Hibernate validation passes — ee3d43b
+- [x] 1.2 A verified account signs in with a mailed code and receives a rotated session and CSRF token — ee3d43b
+- [x] 1.3 Wrong, expired, spent and sixth-attempt codes all return the same generic 401 on `POST /api/sessions` — ee3d43b
+- [x] 1.4 A request with both or neither of `password` and `code` returns 422 — ee3d43b
+- [x] 1.5 An unverified account's first code sign-in proves the address and logs `user_registered` exactly once — ee3d43b
+- [x] 1.6 A code request for a verified address now sends mail; an unknown address still sends none and answers 202 — ee3d43b
+- [x] 1.7 The budget answers 503 for every address once exhausted and refunds on a failed send — ee3d43b
+- [x] 1.8 Parallel wrong guesses never exceed five per code — ee3d43b
+- [x] 1.9 A mailed code has eight digits, and the length guards on `VerifyPage.tsx` and `openapi.yaml` pass — ee3d43b
+- [x] 1.10 A guard test fails if the mail's link path or fragment names differ from `VerifyPage.tsx` — ee3d43b
+- [x] 1.11 `ApiSurfaceTest` passes against `openapi.yaml` 1.9.0 — ee3d43b
+- [x] 1.12 Password sign-in, registration and deletion tests still pass unchanged — ee3d43b
+- [x] 1.13 `node --test docs/index.test.mjs` passes — ee3d43b
 
 #### Manual
 
-- [x] 1.14 Local run: request a code for a verified account and sign in with it
-- [x] 1.15 The mail reads correctly in Polish and English and the link has the expected shape
-- [x] 1.16 `docs/index.html` opened in a browser; edited Mermaid diagrams render
+- [x] 1.14 Local run: request a code for a verified account and sign in with it — ee3d43b
+- [x] 1.15 The mail reads correctly in Polish and English and the link has the expected shape — ee3d43b
+- [x] 1.16 `docs/index.html` opened in a browser; edited Mermaid diagrams render — ee3d43b
 
 ### Phase 2: Code sign-in, frontend (release 1)
 
 #### Automated
 
-- [ ] 2.1 Login submits the address, requests a code and lands on `/verify` with the address and `from` preserved
-- [ ] 2.2 `/verify` prefills from the fragment, clears it, and does not sign in without a submit
-- [ ] 2.3 A successful code returns the user to the originally requested route
-- [ ] 2.4 The resend button counts down and honours `Retry-After`
-- [ ] 2.5 `/login` renders no password field; `/register` still does
-- [ ] 2.6 `npm run lint`, `npm test` and `npm run build` pass
-- [ ] 2.7 Backend file guards on `VerifyPage.tsx`, `pl.ts` and `en.ts` pass
-- [ ] 2.8 `/check` is green
+- [x] 2.1 Login submits the address, requests a code and lands on `/verify` with the address and `from` preserved
+- [x] 2.2 `/verify` prefills from the fragment, clears it, and does not sign in without a submit
+- [x] 2.3 A successful code returns the user to the originally requested route
+- [x] 2.4 The resend button counts down and honours `Retry-After`
+- [x] 2.5 `/login` renders no password field; `/register` still does
+- [x] 2.6 `npm run lint`, `npm test` and `npm run build` pass
+- [x] 2.7 Backend file guards on `VerifyPage.tsx`, `pl.ts` and `en.ts` pass
+- [x] 2.8 `/check` is green
 
 #### Manual
 
-- [ ] 2.9 Local: sign in by typed code and by link; the fragment is gone afterwards
+- [x] 2.9 Local: sign in by typed code and by link; the fragment is gone afterwards
 - [ ] 2.10 Link opened on a phone with the PWA installed: the code can be typed into the installed app
 - [ ] 2.11 After the production deploy, the owner signs in with a mailed code and sees their existing goals
 - [ ] 2.12 Control test: Gmail receives the mail; the `outlook.com` result is recorded in the runbook

@@ -1,31 +1,41 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Route, Routes } from 'react-router'
+import { Route, Routes, useLocation, type InitialEntry } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { AuthPage } from './AuthPage'
 import { VerifyPage } from './VerifyPage'
 import { ApiError } from '../api/client'
-import { EMAIL_NOT_VERIFIED } from '../auth/problems'
 import { renderWithAuth, stubAuth } from '../test/auth'
 import { type Auth } from '../auth/auth-context'
 
-function renderAt(path: '/login' | '/register', auth: Auth) {
+/** Prints what the code screen was handed, so the handover itself can be asserted. */
+function HandoverProbe() {
+  return <p data-testid="handover">{JSON.stringify(useLocation().state)}</p>
+}
+
+function renderAt(path: InitialEntry, auth: Auth, verify = <VerifyPage />) {
   renderWithAuth(
     <Routes>
       <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/register" element={<AuthPage mode="register" />} />
-      <Route path="/verify" element={<VerifyPage />} />
+      <Route path="/verify" element={verify} />
       <Route path="/goals" element={<p>the app</p>} />
     </Routes>,
     { path, auth },
   )
 }
 
-async function fillIn(email: string, password: string) {
+async function requestCode(email: string) {
+  const user = userEvent.setup()
+  await user.type(screen.getByLabelText('Email'), email)
+  await user.click(screen.getByRole('button', { name: 'Email me a code' }))
+}
+
+async function signUp(email: string, password: string) {
   const user = userEvent.setup()
   await user.type(screen.getByLabelText('Email'), email)
   await user.type(screen.getByLabelText('Password'), password)
-  await user.click(screen.getByRole('button', { name: /sign in|create account/i }))
+  await user.click(screen.getByRole('button', { name: 'Create account' }))
 }
 
 describe('AuthPage — the language switch (FR-001)', () => {
@@ -58,50 +68,75 @@ describe('AuthPage — the language switch (FR-001)', () => {
 })
 
 describe('AuthPage — signing in', () => {
-  it('submits the credentials and lands in the app', async () => {
-    const auth = stubAuth()
-    renderAt('/login', auth)
+  /**
+   * The code is the only way in on the screen. The backend still accepts a password until release
+   * 2, but the one account that needs this change cannot use its own — and a form built now would
+   * be deleted again with the password.
+   */
+  it('asks for the address only — no password field on /login, while /register keeps one', () => {
+    renderAt('/login', stubAuth())
 
-    await fillIn('ala@example.pl', 'tajnehaslo')
-
-    expect(auth.login).toHaveBeenCalledWith('ala@example.pl', 'tajnehaslo')
-    expect(await screen.findByText('the app')).toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
+    expect(document.querySelector('input[type="password"]')).toBeNull()
   })
 
-  it('shows a generic message on 401 — never which half was wrong', async () => {
-    const auth = stubAuth({ login: async () => { throw new ApiError(401, 'Authentication is required or credentials are invalid') } })
-    renderAt('/login', auth)
+  it('requests a code and lands on the code screen, carrying the address and where the user was going', async () => {
+    const auth = stubAuth()
+    const from = { pathname: '/domain/leisure', search: '?view=week', hash: '' }
+    renderAt({ pathname: '/login', state: { from } }, auth, <HandoverProbe />)
 
-    await fillIn('ala@example.pl', 'zlehaslo')
+    await requestCode('ala@example.pl')
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Incorrect email or password.')
+    expect(auth.resendCode).toHaveBeenCalledWith('ala@example.pl')
+    const handover = JSON.parse(screen.getByTestId('handover').textContent ?? 'null')
+    expect(handover).toMatchObject({ email: 'ala@example.pl', from })
+  })
+
+  it('locks the resend on the code screen, because a code has just been sent', async () => {
+    renderAt('/login', stubAuth())
+
+    await requestCode('ala@example.pl')
+
+    expect(await screen.findByRole('heading', { name: 'Enter the code' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).toHaveValue('ala@example.pl')
+    expect(screen.getByRole('button', { name: 'Send the code again' })).toBeDisabled()
   })
 
   /**
-   * The password was right; only the address was never confirmed. Reporting that as a credentials
-   * failure would send the user back to a form that can never succeed.
+   * A 429 means a code went out moments ago — possibly the one already in the inbox — so the screen
+   * that takes it is still where this user belongs, with the wait the server named.
    */
-  it('sends an unconfirmed account to the code screen instead of reporting bad credentials', async () => {
-    const auth = stubAuth({
-      login: async () => { throw new ApiError(403, 'Email not verified', EMAIL_NOT_VERIFIED) },
-    })
+  it('still goes to the code screen when the request is throttled, counting down the server\'s wait', async () => {
+    const auth = stubAuth({ resendCode: async () => { throw new ApiError(429, 'Slow down', undefined, 42) } })
     renderAt('/login', auth)
 
-    await fillIn('ala@example.pl', 'tajnehaslo')
+    await requestCode('ala@example.pl')
 
-    expect(await screen.findByRole('heading', { name: 'Confirm your address' })).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent(/confirm your address first/i)
-    expect(screen.getByLabelText('Email')).toHaveValue('ala@example.pl')
+    expect(await screen.findByRole('heading', { name: 'Enter the code' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(/too many code requests/i)
+    expect(screen.getByText(/another code in 0:42/)).toBeInTheDocument()
   })
 
-  it('does not quote the registration password rule when login is rejected (422)', async () => {
-    const auth = stubAuth({ login: async () => { throw new ApiError(422, 'Validation failed') } })
+  it('stays on the sign-in screen when no code can be sent today (503)', async () => {
+    const auth = stubAuth({ resendCode: async () => { throw new ApiError(503, 'Auth mail unavailable') } })
     renderAt('/login', auth)
 
-    await fillIn('ala@example.pl', 'x')
+    await requestCode('ala@example.pl')
 
-    // LoginRequest has no minimum — advice the user cannot act on is worse than none.
-    expect(await screen.findByRole('alert')).not.toHaveTextContent(/8 characters/)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/unavailable right now/i)
+    expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+  })
+
+  it('does not quote the registration password rule when the address is rejected (422)', async () => {
+    const auth = stubAuth({ resendCode: async () => { throw new ApiError(422, 'Validation failed') } })
+    renderAt('/login', auth)
+
+    await requestCode('ala@example.pl')
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Check the email address.')
+    expect(alert).not.toHaveTextContent(/8 characters/)
   })
 })
 
@@ -110,10 +145,10 @@ describe('AuthPage — registering', () => {
     const auth = stubAuth()
     renderAt('/register', auth)
 
-    await fillIn('nowa@example.pl', 'tajnehaslo')
+    await signUp('nowa@example.pl', 'tajnehaslo')
 
     expect(auth.register).toHaveBeenCalledWith('nowa@example.pl', 'tajnehaslo')
-    expect(await screen.findByRole('heading', { name: 'Confirm your address' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Enter the code' })).toBeInTheDocument()
     // Carried over, so the address only has to be typed once — and the resend has something to send to.
     expect(screen.getByLabelText('Email')).toHaveValue('nowa@example.pl')
   })
@@ -126,10 +161,12 @@ describe('AuthPage — registering', () => {
     const auth = stubAuth({ register: async () => { throw new ApiError(503, 'Mail provider refused') } })
     renderAt('/register', auth)
 
-    await fillIn('nowa@example.pl', 'tajnehaslo')
+    await signUp('nowa@example.pl', 'tajnehaslo')
 
-    expect(await screen.findByRole('heading', { name: 'Confirm your address' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Enter the code' })).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent(/could not be sent/i)
+    // Nothing went out, so nothing is waiting to be throttled.
+    expect(screen.getByRole('button', { name: 'Send the code again' })).toBeEnabled()
   })
 
   /**
@@ -142,48 +179,35 @@ describe('AuthPage — registering', () => {
     const auth = stubAuth({ register: async () => { throw new ApiError(500, 'Internal Server Error') } })
     renderAt('/register', auth)
 
-    await fillIn('nowa@example.pl', 'tajnehaslo')
+    await signUp('nowa@example.pl', 'tajnehaslo')
 
-    expect(await screen.findByRole('heading', { name: 'Confirm your address' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Enter the code' })).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent(/could not be sent/i)
   })
 
-  /** Login is not that: it commits nothing, so its failures belong on the screen that raised them. */
-  it('keeps a failed sign-in on the sign-in screen', async () => {
-    const auth = stubAuth({ login: async () => { throw new ApiError(429, 'Slow down') } })
-    renderAt('/login', auth)
-
-    await fillIn('nowa@example.pl', 'tajnehaslo')
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(/something went wrong/i)
-    expect(screen.getByRole('heading', { name: /sign in/i })).toBeInTheDocument()
-  })
-
-  it('maps 409 to "email already in use, log in instead"', async () => {
+  it('maps 409 to "email already registered"', async () => {
     const auth = stubAuth({ register: async () => { throw new ApiError(409, 'Email already registered') } })
     renderAt('/register', auth)
 
-    await fillIn('zajety@example.pl', 'tajnehaslo')
+    await signUp('zajety@example.pl', 'tajnehaslo')
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/already registered/i)
   })
 
   /**
-   * A 409 on an address whose code never arrived used to be a dead end: "sign in instead" only
-   * reaches /verify with the password the *first* sign-up used, and any other one is a plain 401.
-   * The link is offered on every 409, proved or not — the server does not say which, and a link
-   * that appeared only for unproved accounts would say it for them.
+   * A taken address is one a code can sign in, proved or not — the first code also proves it. The
+   * offer is made on every 409: the server does not say which, and an offer that appeared only for
+   * unproved accounts would say it for them.
    */
-  it('offers the verify screen after a 409, carrying the address', async () => {
+  it('offers a sign-in code after a 409, for the address that was refused', async () => {
     const auth = stubAuth({ register: async () => { throw new ApiError(409, 'Email already registered') } })
     renderAt('/register', auth)
 
-    await fillIn('zajety@example.pl', 'tajnehaslo')
+    await signUp('zajety@example.pl', 'tajnehaslo')
+    await userEvent.setup().click(await screen.findByRole('button', { name: /sign-in code instead/i }))
 
-    const user = userEvent.setup()
-    await user.click(await screen.findByRole('link', { name: /confirm your address/i }))
-
-    expect(await screen.findByRole('heading', { name: /confirm/i })).toBeInTheDocument()
+    expect(auth.resendCode).toHaveBeenCalledWith('zajety@example.pl')
+    expect(await screen.findByRole('heading', { name: 'Enter the code' })).toBeInTheDocument()
     expect(screen.getByLabelText('Email')).toHaveValue('zajety@example.pl')
   })
 

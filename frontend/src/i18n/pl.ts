@@ -56,44 +56,48 @@ export const pl = {
   },
   theme: { light: 'Jasny', dark: 'Ciemny', auto: 'Automatyczny' },
   auth: {
-    // Each mode's heading doubles as its submit label, and as the other mode's link label.
-    login: { heading: 'Zaloguj się', prompt: 'Nie masz jeszcze konta?' },
-    register: { heading: 'Załóż konto', prompt: 'Masz już konto?' },
+    // Each mode's heading doubles as the other mode's link label.
+    login: {
+      heading: 'Zaloguj się',
+      prompt: 'Nie masz jeszcze konta?',
+      hint: 'Podaj adres email, a wyślemy na niego jednorazowy kod do logowania.',
+      submit: 'Wyślij mi kod',
+    },
+    register: { heading: 'Załóż konto', prompt: 'Masz już konto?', submit: 'Załóż konto' },
     email: 'Email',
     password: 'Hasło',
     errors: {
-      emailTaken: 'Ten adres email jest już zajęty — zaloguj się.',
-      emailTakenUnconfirmed: 'Konto założone, ale kod nie dotarł? Potwierdź adres.',
+      emailTaken: 'Ten adres email jest już zarejestrowany.',
+      // Offered on every 409: the server does not say whether the address was ever proved.
+      emailTakenSignIn: 'Wyślij mi kod do logowania',
       // Only registration carries the 8-character minimum, so only its message may quote it.
       invalidRegistration: 'Sprawdź adres email i hasło (min. 8 znaków).',
-      invalidCredentials: 'Sprawdź adres email i hasło.',
-      wrongCredentials: 'Nieprawidłowy email lub hasło.',
+      invalidEmail: 'Sprawdź adres email.',
       unavailable: 'Logowanie jest chwilowo niedostępne. Spróbuj za moment.',
       generic: 'Coś poszło nie tak. Spróbuj ponownie.',
     },
   },
   verify: {
-    heading: 'Potwierdź swój adres',
-    // Names the address the code went to, because the sign-up screen is the last place it was typed
-    // in full, and the window, because staleness is the only thing that kills a code. The number is
-    // `EmailVerificationService.CODE_VALIDITY`; both catalogs are held against it by
-    // `VerificationApiTest.emitsTheVerificationUrnsTheContractAndTheSpaBothHardcode`.
-    hint: 'Wysłaliśmy ośmiocyfrowy kod na {{email}}. Jest ważny 15 minut.',
+    heading: 'Wpisz kod',
+    // Conditional on purpose: the server mails nothing to an address without an account and will not
+    // say so, so the screen may not claim a code is coming. The window is named because staleness is
+    // what kills a code; the number is `EmailVerificationService.CODE_VALIDITY`, and both catalogs
+    // are held against it by `VerificationApiTest.emitsTheVerificationUrnsTheContractAndTheSpaBothHardcode`.
+    hint: 'Jeśli {{email}} ma konto, wysłaliśmy na ten adres ośmiocyfrowy kod. Jest ważny 15 minut.',
+    // What to do when nothing arrives: a filtered mail is the likeliest cause (lessons.md), and the
+    // resend is locked for the throttle's minute, so the wait is named before the button refuses.
+    missing: 'Nic nie dotarło? Sprawdź folder spam. O nowy kod możesz poprosić po minucie.',
     code: 'Kod z wiadomości',
-    submit: 'Potwierdź adres',
+    submit: 'Zaloguj się',
     sendAgain: 'Wyślij kod jeszcze raz',
-    // Nazywa jedyny przypadek, którego ekran nie widzi: ponowna wysyłka na potwierdzony już
-    // adres jest odfiltrowana po stronie serwera i nic nie wychodzi — czekanie nie miałoby końca.
-    sent: 'Nowy kod jest w drodze — sprawdź skrzynkę. Jeśli adres jest już potwierdzony, po prostu się zaloguj.',
-    // Read on the sign-in screen, right after the address was confirmed.
-    confirmed: 'Adres potwierdzony — możesz się zalogować.',
+    resendIn: 'O kolejny kod możesz poprosić za {{time}}.',
+    sent: 'Jeśli ten adres ma konto, nowy kod jest w drodze. Sprawdź skrzynkę i folder spam.',
     errors: {
       // The server conflates wrong, expired, spent and unknown on purpose, so this is
       // the one sentence that fits all four - and it names the only remedy there is.
       code: 'Ten kod jest nieprawidłowy albo stracił ważność. Poproś o nowy.',
-      notVerified: 'Najpierw potwierdź adres — wpisz kod, który do Ciebie wysłaliśmy.',
-      // The cooldown is 60 s and dominates the hourly cap, so the wait is named rather than counted.
-      tooMany: 'Za dużo próśb o kod. Odczekaj minutę i spróbuj ponownie.',
+      // The countdown beside the button carries the real wait, from the server's Retry-After.
+      tooMany: 'Za dużo próśb o kod. Spróbuj ponownie, gdy skończy się odliczanie.',
       unavailable: 'Nie udało się wysłać kodu. Spróbuj ponownie za chwilę.',
     },
   },
