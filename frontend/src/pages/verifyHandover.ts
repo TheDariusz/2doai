@@ -8,6 +8,7 @@ import type { Path } from 'react-router'
  */
 export type VerifyMessageKey =
   | 'verify.errors.code'
+  | 'verify.errors.link'
   | 'verify.errors.tooMany'
   | 'verify.errors.unavailable'
   | 'auth.errors.invalidEmail'

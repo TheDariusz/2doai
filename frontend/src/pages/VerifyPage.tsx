@@ -1,13 +1,15 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '../api/client'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
 import { useAuth } from '../auth/auth-context'
+import { awaitsCode } from '../auth/codeRequest'
 import { readVerifyLink } from './verifyLink'
 import { RESEND_COOLDOWN_SECONDS, type VerifyHandover, type VerifyMessageKey } from './verifyHandover'
 
-type Action = 'signIn' | 'resend'
+/** `link` is a sign-in the mail link started on its own; it fails with its own message. */
+type Action = 'signIn' | 'link' | 'resend'
 
 /**
  * The code screen — where a session is opened. Reached three ways: from `/login` or `/register`
@@ -17,6 +19,9 @@ type Action = 'signIn' | 'resend'
  * The address is an ordinary editable field rather than a line of text: this is the only route to
  * a fresh code, and a cold arrival has no state at all. Costing a returning user one retyped
  * address beats a screen that can do nothing for them.
+ *
+ * A mail link signs in on its own when this browser asked for that address's code (DEV-62,
+ * `codeRequest.ts`); anywhere else it only prefills, and the button does the rest.
  */
 export function VerifyPage() {
   const { t, i18n } = useTranslation()
@@ -28,7 +33,8 @@ export function VerifyPage() {
   const [code, setCode] = useState('')
   const [message, setMessage] = useState<VerifyMessageKey | null>(handover?.error ?? null)
   const [sent, setSent] = useState(false)
-  const [pending, setPending] = useState(false)
+  // Which action is in flight, if any — so the status line can name the link's own sign-in.
+  const [pending, setPending] = useState<Action | null>(null)
   const [wait, lockResend] = useCountdown(handover?.resendAfter ?? 0)
   const destination = handover?.from ?? '/goals'
 
@@ -38,6 +44,8 @@ export function VerifyPage() {
   // then, a second link was stripped by the effect below with its code still in it. The fragment
   // must not be read at all after that strip, which is why the fields, not the URL, hold its values.
   const [adoptedHash, setAdoptedHash] = useState('')
+  // The link to sign in from without a press, when there is one — see the effect below.
+  const [autoLink, setAutoLink] = useState<{ hash: string; email: string; code: string } | null>(null)
   if (location.hash !== adoptedHash) {
     setAdoptedHash(location.hash)
     if (location.hash) {
@@ -48,6 +56,11 @@ export function VerifyPage() {
       setCode(link.code ?? '')
       setMessage(null)
       setSent(false)
+      setAutoLink(
+        link.email && link.code && awaitsCode(link.email)
+          ? { hash: location.hash, email: link.email, code: link.code }
+          : null,
+      )
     }
   }
 
@@ -59,6 +72,21 @@ export function VerifyPage() {
     }
   }, [location, navigate])
 
+  // The link came back to the browser that asked for its code, so there is nothing left to confirm.
+  // Waits for the bootstrap to settle (a live session needs no code), and fires once per link: the
+  // ref survives StrictMode's second effect run, which would otherwise spend the code twice and show
+  // the second attempt's refusal.
+  const attempted = useRef<string | null>(null)
+  const signInFromLink = useEffectEvent((link: { email: string; code: string }) => {
+    void run('link', () => signInWithCode(link.email, link.code), () => navigate(destination, { replace: true }))
+  })
+  useEffect(() => {
+    if (autoLink && status === 'anonymous' && attempted.current !== autoLink.hash) {
+      attempted.current = autoLink.hash
+      signInFromLink(autoLink)
+    }
+  }, [autoLink, status])
+
   // Already signed in — a mail link opened in a tab that has a session, or the sign-in below having
   // just landed. Either way the same destination, so it does not matter which of the two navigates.
   if (status === 'authenticated') {
@@ -69,7 +97,7 @@ export function VerifyPage() {
   async function run(kind: Action, action: () => Promise<void>, onDone: () => void) {
     setMessage(null)
     setSent(false)
-    setPending(true)
+    setPending(kind)
     try {
       await action()
       onDone()
@@ -79,7 +107,7 @@ export function VerifyPage() {
       }
       setMessage(messageFor(failure, kind))
     } finally {
-      setPending(false)
+      setPending(null)
     }
   }
 
@@ -139,14 +167,16 @@ export function VerifyPage() {
             onChange={(event) => setCode(event.target.value)}
           />
         </label>
+        {/* Only the link's own attempt says "signing in"; a press of the button is an ordinary sign-in. */}
+        {pending === 'link' && <p role="status">{t('verify.signingIn')}</p>}
         {message && <p role="alert">{t(message)}</p>}
         {sent && <p role="status">{t('verify.sent')}</p>}
-        <button type="submit" disabled={pending}>
+        <button type="submit" disabled={pending !== null}>
           {t('verify.submit')}
         </button>
         {/* Not a submit: a resend must work while the code field is empty, which is the whole
             state a user with no code is in. */}
-        <button type="button" disabled={pending || wait > 0} onClick={resend}>
+        <button type="button" disabled={pending !== null || wait > 0} onClick={resend}>
           {t('verify.sendAgain')}
         </button>
         {wait > 0 && <p>{t('verify.resendIn', { time: clock(wait) })}</p>}
@@ -201,13 +231,16 @@ function messageFor(failure: unknown, kind: Action): VerifyMessageKey {
     return 'auth.errors.generic'
   }
   if (failure.status === 401 || failure.status === 422) {
+    if (kind === 'link') {
+      return 'verify.errors.link'
+    }
     return kind === 'signIn' ? 'verify.errors.code' : 'auth.errors.invalidEmail'
   }
   if (failure.status === 429) {
     return 'verify.errors.tooMany'
   }
   if (failure.status === 503) {
-    return kind === 'signIn' ? 'auth.errors.unavailable' : 'verify.errors.unavailable'
+    return kind === 'resend' ? 'verify.errors.unavailable' : 'auth.errors.unavailable'
   }
   return 'auth.errors.generic'
 }

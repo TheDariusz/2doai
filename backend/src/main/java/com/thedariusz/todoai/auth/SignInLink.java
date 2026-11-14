@@ -7,8 +7,10 @@ import org.apache.commons.lang3.StringUtils;
 
 /**
  * The link a code mail carries: {@code {base-url}/verify#email=<address>&code=<code>}. It opens the
- * SPA's code screen with both fields filled in, and the user still presses the button. Nothing is
- * spent on a GET, so a mail scanner that follows the link signs nobody in.
+ * SPA's code screen with both fields filled in. Nothing is spent on a GET: the SPA spends the code
+ * itself, and does so without a press only in the browser that asked for that address's code
+ * (DEV-62, {@code codeRequest.ts}). A mail scanner's browser, another device, or a link somebody else
+ * sent gets the prefilled form and waits for the button.
  *
  * <p>Address and code ride in the <b>fragment</b>, which a browser never sends to a server and never
  * puts in a {@code Referer} — so neither reaches an access log, Cloudflare or Fly on the way in.

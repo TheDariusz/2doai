@@ -8,10 +8,10 @@ package com.thedariusz.todoai.auth;
  * ({@link VerificationEmailEn}) rather than a branch inside this one.
  *
  * <p>The code is in the subject as well as the body, because on a phone the notification is often
- * the only place it is read. The body also carries a {@link SignInLink}, which opens the code screen
- * with the code filled in. The link spends nothing on its own — the user still presses the button —
- * so a mail scanner that follows it signs nobody in. The copy does not assume a sign-up: the same
- * message serves a first code and every sign-in after it.
+ * the only place it is read. Both bodies carry a {@link SignInLink}: plain text for clients that will
+ * not render HTML, and an HTML alternative with the app's mark, a button and the code set large
+ * ({@link VerificationEmailLayout}, DEV-62). The copy does not assume a sign-up: the same message
+ * serves a first code and every sign-in after it.
  */
 final class VerificationEmailPl {
 
@@ -26,10 +26,25 @@ final class VerificationEmailPl {
 		return """
 				Twój kod do 2do AI: %s
 
-				Wpisz go w aplikacji albo otwórz ten link, który uzupełni go za Ciebie:
+				Kliknij link, żeby się zalogować:
 				%s
 
-				Kod jest ważny przez %d minut. Jeśli ta wiadomość nie jest dla Ciebie, zignoruj ją.
-				""".formatted(code, link, EmailVerificationService.CODE_VALIDITY.toMinutes());
+				Albo wpisz kod w aplikacji. Jest ważny przez %d minut i działa tylko raz.
+
+				Jeśli to nie Ty prosisz o kod, zignoruj tę wiadomość.
+				""".formatted(code, link, VerificationEmailLayout.codeMinutes());
+	}
+
+	static String html(String code, String link, String baseUrl) {
+		return VerificationEmailLayout.render(new VerificationEmailLayout.Copy(
+				"pl",
+				"Twój kod: %s · ważny %d minut".formatted(code, VerificationEmailLayout.codeMinutes()),
+				"Zaloguj się do 2do AI",
+				"Kliknij przycisk, żeby się zalogować.",
+				"Zaloguj się",
+				"Albo wpisz ten kod w aplikacji:",
+				"Kod jest ważny przez %d minut i działa tylko raz.".formatted(VerificationEmailLayout.codeMinutes()),
+				"Jeśli to nie Ty prosisz o kod, zignoruj tę wiadomość — bez kodu nikt nie zaloguje się na Twoje konto.",
+				"2do AI · zadania, cele i marzenia w jednym miejscu"), code, link, baseUrl);
 	}
 }

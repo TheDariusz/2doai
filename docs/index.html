@@ -208,7 +208,7 @@
         <tr><th scope="row">Persistence baseline</th><td><span class="badge badge-live">implemented</span></td><td>PostgreSQL 18, Flyway migrations, JPA/Hibernate validation</td></tr>
         <tr><th scope="row">AI provider port</th><td><span class="badge badge-live">implemented</span></td><td><code>LlmClient</code>, Spring AI adapter, structured output support — and, since S-04b, a production caller on both operations</td></tr>
         <tr><th scope="row">AI memory aggregate</th><td><span class="badge badge-foundation">implemented foundation</span></td><td>Per-user root, profile facts, append-only episodes. Proposal answers are its first writer (S-04b); the onboarding profile seed is still S-03</td></tr>
-        <tr><th scope="row">Account and session auth</th><td><span class="badge badge-live">implemented</span></td><td>Spring Security, server-side in-memory sessions, account erasure — and, since DEV-51, a confirmed address as the price of a session at all: sign-up mails a code, until it comes back the account exists and can do nothing, and an address already in the table is 409 whether or not it was ever proved. Since DEV-62 (release 1 of passwordless sign-in) the mailed code is a second credential beside the password: eight digits, with a link that prefills it, requestable for any account on <code>POST /api/verification-codes</code> and exchanged for a session on <code>POST /api/sessions</code>. The first code an unverified account redeems there proves its address too. Since DEV-62 phase 2 the code is the only way in on the screen: <code>/login</code> asks for the address alone and <code>/verify</code> opens the session. The API still accepts a password, and sign-up still sets one, until release 2 removes it. Since DEV-62 phase 3 a sign-in lasts: the in-memory session idles out after 30 days rather than 30 minutes, and every sign-in also sets a <code>remember-me</code> cookie backed by the <code>remember_me_token</code> table, which brings the user back after a browser restart or a backend deploy for 90 days from its last use. The table is read only on a request that arrives with no live session, so an ordinary request still never touches the database</td></tr>
+        <tr><th scope="row">Account and session auth</th><td><span class="badge badge-live">implemented</span></td><td>Spring Security, server-side in-memory sessions, account erasure — and, since DEV-51, a confirmed address as the price of a session at all: sign-up mails a code, until it comes back the account exists and can do nothing, and an address already in the table is 409 whether or not it was ever proved. Since DEV-62 (release 1 of passwordless sign-in) the mailed code is a second credential beside the password: eight digits, in an HTML mail with a sign-in button and a link that signs in on its own in the browser that asked for the code, requestable for any account on <code>POST /api/verification-codes</code> and exchanged for a session on <code>POST /api/sessions</code>. The first code an unverified account redeems there proves its address too. Since DEV-62 phase 2 the code is the only way in on the screen: <code>/login</code> asks for the address alone and <code>/verify</code> opens the session. The API still accepts a password, and sign-up still sets one, until release 2 removes it. Since DEV-62 phase 3 a sign-in lasts: the in-memory session idles out after 30 days rather than 30 minutes, and every sign-in also sets a <code>remember-me</code> cookie backed by the <code>remember_me_token</code> table, which brings the user back after a browser restart or a backend deploy for 90 days from its last use. The table is read only on a request that arrives with no live session, so an ordinary request still never touches the database</td></tr>
         <tr><th scope="row">Categories</th><td><span class="badge badge-live">implemented</span></td><td>Seeded reference table, <code>LifeDomain</code>, startup drift check — and, since DEV-49, a Polish and an English name per row, picked per request</td></tr>
         <tr><th scope="row">Localization (PL + EN)</th><td><span class="badge badge-live">implemented</span></td><td>English-first with Polish preserved (DEV-49): <code>AppLanguage</code> stored on the account (<code>app_user.preferred_language</code>), <code>Accept-Language</code> as the per-request transport, i18next in the SPA, and every server-generated sentence on the on-demand path — the model's answer and the template fallback alike — written in the caller's language. One surface is deliberately excluded: the scheduled proposal stays Polish until FR-009 lands in increment 2</td></tr>
         <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens — a code-first sign-in since DEV-62 phase 2 — a sticky header over a rail of the 11 domains, the two-language catalog behind a switch on the public screens and in that header, and a light / dark / auto theme choice kept on the device — three buttons on the landing and auth screens, one cycling button in the header, where a phone has no room for three beside the account chip; <code>/api</code> proxies in development and production</td></tr>
@@ -243,8 +243,12 @@
   the first one an account spends also proves its address, so there is no separate confirmation
   step and the SPA no longer calls <code>POST /api/verifications</code>. The mail's link opens the
   same screen with both fields filled from the URL fragment, which the page then strips with a
-  history replace; it never submits on its own, so a mail scanner that follows the link spends
-  nothing. "Send again" is locked for a minute after every send, with a visible countdown, and for
+  history replace. Since the DEV-62 follow-up it signs in on its own when this browser asked for that
+  address's code in the last 15 minutes (<code>auth/codeRequest.ts</code>, a <code>localStorage</code>
+  note written by every code request and cleared by every sign-in). Anywhere else (another device, a
+  mail scanner's browser, a link somebody else sent) it waits for the button, so a scanner spends
+  nothing and nobody can sign this browser into their own account by sending a link. A link the server
+  refuses falls back to the form with a message about the link. "Send again" is locked for a minute after every send, with a visible countdown, and for
   as long as a 429's <code>Retry-After</code> says after a refusal — the one header
   <code>ApiError</code> carries. The registration screen keeps its password field until release 2,
   because the API still requires one there.</p>
@@ -306,6 +310,17 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
+  <p class="note">Verified against the DEV-62 mail-and-link follow-up on 2026-11-14 — no schema,
+  endpoint or wire change. The code mail goes out as <code>multipart/alternative</code> with an HTML
+  part (<code>VerificationEmailLayout</code>, the PWA icon as the logo, a button, the code set large)
+  beside the plain text, through a new <code>EmailSender.send(to, subject, text, html)</code>. The mail
+  link now signs in on its own in the browser that asked for that address's code in the last 15
+  minutes (<code>auth/codeRequest.ts</code>) and prefills the form anywhere else. Moved: the overview
+  row and frontend prose, the <code>mail</code> and <code>frontend/src</code> code-map rows, the
+  <code>auth</code> and <code>mail</code> chapter prose and the <code>mail</code> class diagram, the
+  verification-code term, the SPA sign-in flow, the roadmap card and the glossary row;
+  <code>openapi.yaml</code> wording only. No package, table or endpoint appeared. The edited Mermaid
+  diagrams were rendered headlessly and all 27 on the page parse.</p>
   <p class="note">Verified against the DEV-62 review fix on 2026-11-14 — the daily auth-mail budget
   moved after the address lookup. Only an address with an account spends it, so a flood of made-up
   addresses can no longer spend the day's codes for everyone; once it is spent a code is dropped and
@@ -571,11 +586,11 @@ flowchart LR
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/category"><code>backend/…/category</code></a></th><td>Fixed life-domain reference data in two languages, and enum/table drift detection</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/goal"><code>backend/…/goal</code></a></th><td>One aggregate for all three layers — current tasks, goals and dreams — its CRUD API, and its erasure adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/proposal"><code>backend/…/proposal</code></a></th><td>The whole proactive loop: the selection engine, the two Sonnet prompts and their template fallback, the stored <code>proposal</code> aggregate, the four answers, the three endpoints — and, since S-05, the natural-rhythm scheduler that fires without a caller and the email it sends, still Polish for every account until FR-009</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/mail"><code>backend/…/mail</code></a></th><td>The <code>EmailSender</code> outbound port and its SMTP adapter — how the app reaches a user who is not looking at it — and, since DEV-62, the single-worker executor code requests send on</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/mail"><code>backend/…/mail</code></a></th><td>The <code>EmailSender</code> outbound port and its SMTP adapter — how the app reaches a user who is not looking at it, in plain text or with an HTML alternative — and, since DEV-62, the single-worker executor code requests send on</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/observability"><code>backend/…/observability</code></a></th><td>What the app tells the shared Loki stack beyond its ordinary lines: <code>user_registered</code> after a verification commits, the five-minute <code>heartbeat</code>, and the lowercase level the label contract needs. The shipping itself is configuration — <code>logback-spring.xml</code> and <code>logback-loki.xml</code> — under the <code>prod</code> profile only</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai"><code>backend/…/ai</code></a></th><td>Provider-neutral LLM port, schema contract, and Spring AI adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai/memory"><code>backend/…/ai/memory</code></a></th><td>Personal AI-memory aggregate, rendering, persistence, erasure adapter, and the <code>AiMemoryService</code> seam other contexts read and write it through</td><td><span class="badge badge-foundation">foundation</span></td></tr>
-        <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, the public landing page, auth screens (an address-only sign-in, and the code screen <code>/verify</code> that reads the mail link and opens the session), the header-and-rail shell over the 11 domains, the device-level theme switch, the filtered three-layer screen, and the proposal card</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../frontend/src"><code>frontend/src</code></a></th><td>React SPA: routing, route guard, the public landing page, auth screens (an address-only sign-in, and the code screen <code>/verify</code> that reads the mail link and opens the session, on its own in the browser that asked for the code), the header-and-rail shell over the 11 domains, the device-level theme switch, the filtered three-layer screen, and the proposal card</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/src/api"><code>frontend/src/api</code></a></th><td>The one backend boundary: same-origin fetch, CSRF double-submit, RFC 9457 errors with a 429's <code>Retry-After</code> seconds, 401 session-expired signal, and the <code>Accept-Language</code> header every call carries</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/src/i18n"><code>frontend/src/i18n</code></a></th><td>The two catalogs, the i18next instance and its detection order, and the switch the landing page, the auth screens and the app header share</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../frontend/functions/api/[[path]].ts"><code>frontend/functions/api</code></a></th><td>Production same-origin reverse proxy to Fly.io</td><td><span class="badge badge-live">implemented</span></td></tr>
@@ -652,7 +667,8 @@ flowchart LR
     and cleared when spent, so it can never be replayed. It carries a purpose
     (<code>CodePurpose</code>: <code>SIGN_IN</code> today, <code>ACCOUNT_DELETION</code> from release 2)
     and is refused when redeemed for the other one. The mail adds a link to <code>/verify</code> with
-    the address and code in the fragment, which only prefills the form. The first code an account
+    the address and code in the fragment: the SPA spends it without a press only in the browser that
+    asked for that code, and prefills the form everywhere else. The first code an account
     redeems proves its address; until then the account is <em>unverified</em>: it exists, it cannot
     sign in with its password, and the natural rhythm does not know it is there.</dd>
     <dt>Account language</dt>
@@ -864,10 +880,12 @@ flowchart LR
   counter that rolls back with the 403 it belongs to is not a cap on anything. The subject and body
   are a class per language (<code>VerificationEmailPl</code> / <code>En</code>) for the reason
   <code>ProposalTemplatePl</code> has a sibling: this is text a user reads, so it cannot be told which
-  language to be in.</p>
+  language to be in. Each also fills the HTML alternative: <code>VerificationEmailLayout</code> owns
+  the markup once (one table column, inline styles, the PWA icon as the logo, the code set large) and
+  each language hands it its words, so a second locale never copies the layout.</p>
   <p>Since DEV-62 the code mail carries a link, <code>{base-url}/verify#email=…&amp;code=…</code>, built by
-  <code>SignInLink</code>. It only prefills the code screen; the user still presses the button, so a
-  mail scanner that follows every URL signs nobody in. Address and code ride in the fragment, which a
+  <code>SignInLink</code>. A GET spends nothing: the SPA spends the code itself, without a press only
+  in the browser that asked for it, so a mail scanner that follows every URL signs nobody in. Address and code ride in the fragment, which a
   browser never sends to a server or puts in a <code>Referer</code>. The path and the two names are a
   contract with the SPA, held by one guard that reads <code>SignInLink</code>, <code>App.tsx</code> and
   <code>verifyLink.ts</code>.</p>
@@ -1679,12 +1697,19 @@ classDiagram
   503. Since DEV-62 a code request sends on its own thread — the single-worker auth-mail executor
   <code>MailConfig</code> declares — so its failure has nobody to answer to: it gives back the throttle
   entry and the budget slot, logs a warning, and leaves "send again" as the recovery.</p>
-  <p><strong>The code mail carries a link since DEV-62, and the link is inert.</strong> Until then it
+  <p><strong>The code mail carries a link since DEV-62, and a GET spends nothing.</strong> Until then it
   carried none, because a confirmation link is a click somebody else can make on the user's behalf — a
   scanner following every URL in a mail would have confirmed the address for them. The code is now the
   sign-in credential, typed on whatever device the mail is read on, so the link earns its place: it
-  opens <code>/verify</code> with the address and code filled in, from the URL fragment, and the user
-  still presses the button. A GET spends nothing.</p>
+  opens <code>/verify</code> with the address and code filled in, from the URL fragment. The SPA
+  signs in from it on its own only in the browser that asked for the code; everywhere else the user
+  presses the button.</p>
+  <p><strong>Two shapes of message.</strong> A proposal is one sentence and goes out as plain text. The
+  code mail is the first thing a new user gets from the app, so since the DEV-62 follow-up it goes out
+  as <code>multipart/alternative</code>: an HTML part with the app's mark, a button and the code set
+  large, and the plain text beside it for clients that will not render HTML. The port has an overload
+  for it, <code>send(to, subject, text, html)</code>, and the adapter builds a <code>MimeMessage</code>
+  for that one.</p>
   <p><strong>Plain SMTP rather than a provider SDK.</strong> Resend speaks it, so the provider stays
   a credentials choice instead of a dependency, and the transport is Jakarta Mail through
   <code>spring-boot-starter-mail</code> — BOM-managed, adding no new supply chain to scan. Swapping
@@ -1698,10 +1723,11 @@ classDiagram
   class EmailSender {
     &lt;&lt;outbound port&gt;&gt;
     +send(to, subject, text)
+    +send(to, subject, text, html)
   }
   class SmtpEmailSender {
     &lt;&lt;outbound adapter&gt;&gt;
-    SimpleMailMessage over JavaMailSender
+    SimpleMailMessage, or MimeMessage with an HTML alternative
     translates MailException
   }
   class MailboxProperties {
@@ -1721,7 +1747,7 @@ classDiagram
   SmtpEmailSender --> MailboxProperties
   SmtpEmailSender ..> MailDeliveryException
   ProposalScheduler --> EmailSender : the natural-rhythm nudge
-  EmailVerificationService --> EmailSender : the code and its link (DEV-51, eight digits since DEV-62)
+  EmailVerificationService --> EmailSender : the code and its link, text and HTML (DEV-51, DEV-62)
   EmailVerificationService --> MailConfig : sends code requests on the auth-mail executor
   </pre>
 
@@ -2235,7 +2261,8 @@ sequenceDiagram
   <h4>Signing in from the SPA <span class="badge badge-live">implemented</span></h4>
   <p>The screens' side of the next flow (DEV-62 phase 2). Three screens apart now — the bounce, the
   code request and the sign-in — so the route the visitor asked for rides in router state the whole
-  way. The mail link only prefills; the button is what spends the code.</p>
+  way. The mail link signs in on its own only in the browser that asked for the code; anywhere else
+  it prefills and the button spends the code.</p>
   <pre class="mermaid">
 sequenceDiagram
   autonumber
@@ -2253,11 +2280,15 @@ sequenceDiagram
   else 503 or 422
     API-->>L: stays on /login with the message
   end
-  Note over VP: or opened from the mail link — the fragment prefills both fields,&lt;br/&gt;then a history replace strips it. Nothing is submitted
-  V->>VP: the code, and "Sign in"
-  VP->>API: POST /api/sessions {email, code}
+  Note over VP: or opened from the mail link — the fragment prefills both fields,&lt;br/&gt;then a history replace strips it
+  alt this browser asked for that address's code in the last 15 min
+    VP->>API: POST /api/sessions {email, code}, with no press
+  else anywhere else
+    V->>VP: the code, and "Sign in"
+    VP->>API: POST /api/sessions {email, code}
+  end
   alt 401
-    API-->>VP: one message for wrong, expired, spent and unknown
+    API-->>VP: one message for wrong, expired, spent and unknown, or a link-specific one
   else 201
     VP->>V: navigate to from, else /goals
   end
@@ -2938,7 +2969,7 @@ flowchart TB
   <div class="card"><strong>Passwordless sign-in</strong> <span class="badge badge-foundation">in progress</span><br>The
   e-mailed code replaces the password as the sign-in credential (DEV-62), in two releases. Release 1's
   backend is in: any account can ask for an eight-digit code and sign in with it, the mail carries a
-  link that prefills it, and a daily budget guards the mail quota. So is its screen: <code>/login</code>
+  sign-in button whose link signs in on its own in the browser that asked, and a daily budget guards the mail quota. So is its screen: <code>/login</code>
   asks for the address only and <code>/verify</code> opens the session. And sessions now last: 30 days
   in memory, and a remember-me cookie that survives browser restarts and deploys for 90 days from its
   last use — which completes release 1. Release 2 removes the password from sign-up, sign-in and
@@ -2980,7 +3011,7 @@ flowchart TB
         <tr><th scope="row">AiMemory</th><td>Per-user aggregate the AI consults; created atomically with the <code>User</code> at registration ("every user has exactly one memory").</td></tr>
         <tr><th scope="row">Episode</th><td>One append-only AI-memory event; payload stored as <code>jsonb</code>.</td></tr>
         <tr><th scope="row">Profile fact</th><td>A durable statement about the user inside <code>AiMemory</code>, rendered into prompts by <code>AiMemoryRenderer</code>.</td></tr>
-        <tr><th scope="row">Verification code</th><td>The eight digits mailed to an address (six until DEV-62), and the only thing an unconfirmed account is ever sent (DEV-51): valid 15 minutes, five guesses charged before each comparison, stored as a <code>PasswordEncoder</code> hash and cleared when spent. Since DEV-62 it is also a sign-in credential: any account can ask for one and redeem it on <code>POST /api/sessions</code>, and the mail carries a link that prefills it without spending it. In the SPA it is the only way in
+        <tr><th scope="row">Verification code</th><td>The eight digits mailed to an address (six until DEV-62), and the only thing an unconfirmed account is ever sent (DEV-51): valid 15 minutes, five guesses charged before each comparison, stored as a <code>PasswordEncoder</code> hash and cleared when spent. Since DEV-62 it is also a sign-in credential: any account can ask for one and redeem it on <code>POST /api/sessions</code>, and the mail carries a link that signs in on its own only in the browser that asked for the code, and prefills the form everywhere else. In the SPA it is the only way in
   since DEV-62 phase 2: <code>/login</code> asks for the address and <code>/verify</code> takes the
   code. Each code has a purpose (<code>CodePurpose</code>) and is refused for the other. An account that has not redeemed one is <em>unverified</em> — it cannot sign in with its password and the natural rhythm does not know it exists. One code per address per minute and five per hour, from an in-memory throttle, and a daily budget on sign-in code mail for existing accounts, which drops a code rather than refusing the request — only a code request is ever refused, by the throttle or a full send queue: registration records its send without asking, because one row per address means a sign-up cannot flood a mailbox. A per-IP limit is a Cloudflare rule and the next issue.</td></tr>
         <tr><th scope="row">UserPrincipal</th><td>The authenticated identity (record: userId, email, passwordHash, language, verified) carried by the session—lets <code>/me</code> and re-auth answer without a DB query. The language is the one component that moves mid-session, which is why equality is the user id alone: a post-switch principal must still find its own <code>SessionRegistry</code> entry. <code>verified</code> is what <code>isEnabled()</code> reports, and the account-status check that reads it runs after the password, never before.</td></tr>

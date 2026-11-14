@@ -9,17 +9,15 @@ package com.thedariusz.todoai.mail;
  * decision that made that cheap was picking a provider that speaks SMTP at all, which keeps a
  * provider swap a change of credentials rather than of code.
  *
- * <p>Text only, and that is a product decision rather than a missing feature: what this app emails is
- * a proposal's own sentence (S-05) or an eight-digit code (DEV-51, passwordless sign-in), and neither
- * is worth a second MIME part.
+ * <p>Two shapes. A proposal (S-05) is one sentence and goes out as plain text. The sign-in code mail
+ * (DEV-51, DEV-62) is the first thing a new user receives from the app, so it carries an HTML
+ * alternative with the app's mark, a button and the code set large — the plain text stays alongside
+ * it for every client that will not render HTML.
  *
- * <p><b>The code mail carries a link, and the link is inert.</b> Until passwordless sign-in it carried
- * none, because a confirmation link is a click somebody else can make on the user's behalf — a mail
- * scanner following every URL would confirm the address for them. The code is now the sign-in
- * credential, typed on whatever device the mail is read on, so the link earns its place: it opens the
- * code screen with the address and code filled in (in the URL fragment, which never reaches a server
- * log), and the user still presses the button. A GET spends nothing, so a scanner that follows the
- * link still signs nobody in.
+ * <p><b>The code mail's link spends nothing on a GET.</b> It opens the code screen with the address
+ * and code in the URL fragment, which never reaches a server log. The SPA signs in from it on its own
+ * only on the device that asked for the code; anywhere else — a mail scanner's browser included — it
+ * waits for a press. See {@code SignInLink}.
  */
 public interface EmailSender {
 
@@ -39,4 +37,13 @@ public interface EmailSender {
 	 * @throws MailDeliveryException if the message could not be handed to the provider
 	 */
 	void send(String to, String subject, String text);
+
+	/**
+	 * Deliver one message as two alternatives: {@code html} for clients that render it, {@code text}
+	 * for the rest. Same blocking contract and the same single failure as the text-only overload.
+	 *
+	 * @param html the HTML body — a complete document, already escaped by its author
+	 * @throws MailDeliveryException if the message could not be handed to the provider
+	 */
+	void send(String to, String subject, String text, String html);
 }

@@ -1,3 +1,4 @@
+import { StrictMode } from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Link, MemoryRouter, Route, Routes, type InitialEntry } from 'react-router'
@@ -9,6 +10,7 @@ import { AuthProvider } from '../auth/AuthProvider'
 import { LOGGED_IN, renderWithAuth, response, stubAuth } from '../test/auth'
 import { LocationProbe } from '../test/LocationProbe'
 import { type Auth } from '../auth/auth-context'
+import { rememberCodeRequest } from '../auth/codeRequest'
 
 /** The screen, plus the places a session sends the user on to. */
 function renderVerify(auth: Auth, entry: InitialEntry = '/verify') {
@@ -106,10 +108,62 @@ describe('VerifyPage — the mail link', () => {
   })
 
   /**
-   * The link only prefills: nothing is spent until the button is pressed, so a mail scanner that
-   * follows it signs nobody in and burns no guess.
+   * The common case, and the reason the link exists: the code was asked for here, a moment ago, and
+   * the link came back to the same browser. Nothing is left to confirm, so nothing is asked.
    */
-  it('does not sign in on its own — only the button does', async () => {
+  it('signs in on its own when this device asked for the code', async () => {
+    rememberCodeRequest('ala@example.pl')
+    const auth = stubAuth()
+    renderVerify(auth, '/verify#email=ala%40example.pl&code=04231789')
+
+    expect(await screen.findByText('the app')).toBeInTheDocument()
+    expect(auth.signInWithCode).toHaveBeenCalledWith('ala@example.pl', '04231789')
+    expect(auth.signInWithCode).toHaveBeenCalledTimes(1)
+  })
+
+  /** Dev runs under StrictMode, which runs every effect twice; a code spent twice reads as refused. */
+  it('spends the code once under StrictMode', async () => {
+    rememberCodeRequest('ala@example.pl')
+    const auth = stubAuth()
+    renderWithAuth(
+      <StrictMode>
+        <Routes>
+          <Route path="/verify" element={<VerifyPage />} />
+          <Route path="/goals" element={<p>the app</p>} />
+        </Routes>
+      </StrictMode>,
+      { path: '/verify#email=ala%40example.pl&code=04231789', auth },
+    )
+
+    expect(await screen.findByText('the app')).toBeInTheDocument()
+    expect(auth.signInWithCode).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * A spent or superseded code — an older mail, or a scanner that got there first. The form stays,
+   * prefilled, and the message says what to do about a link rather than about a typed code.
+   */
+  it('falls back to the form, naming the link, when signing in from it fails', async () => {
+    rememberCodeRequest('ala@example.pl')
+    const auth = stubAuth({
+      signInWithCode: async () => {
+        throw new ApiError(401, 'Authentication is required or credentials are invalid')
+      },
+    })
+    renderVerify(auth, '/verify#email=ala%40example.pl&code=04231789')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/link no longer works/i)
+    expect(screen.getByLabelText('Code from the email')).toHaveValue('04231789')
+    expect(screen.getByRole('button', { name: 'Send the code again' })).toBeEnabled()
+  })
+
+  /**
+   * Anywhere the code was not asked for — another device, a mail scanner's browser, or a link
+   * somebody else sent to sign this browser into their account — the link only prefills, and
+   * nothing is spent until the button is pressed.
+   */
+  it('waits for the button when this device did not ask for the code', async () => {
+    rememberCodeRequest('ola@example.pl')
     const auth = stubAuth()
     renderVerify(auth, '/verify#email=ala%40example.pl&code=04231789')
 

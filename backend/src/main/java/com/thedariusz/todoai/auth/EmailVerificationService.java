@@ -362,8 +362,9 @@ public class EmailVerificationService implements PerUserDataDeleter {
 				now.plus(CODE_VALIDITY), now) == 0) {
 			return false;
 		}
-		VerificationEmail message = message(language, code, SignInLink.of(mailbox.baseUrl(), email, code));
-		mail.send(email, message.subject(), message.body());
+		VerificationEmail message = message(language, code, SignInLink.of(mailbox.baseUrl(), email, code),
+				mailbox.baseUrl());
+		mail.send(email, message.subject(), message.body(), message.html());
 		log.info("Issued a code to a @{} address", domainOf(email));
 		return true;
 	}
@@ -377,14 +378,16 @@ public class EmailVerificationService implements PerUserDataDeleter {
 	 * locale; nothing guarantees that two of them pick the same class, and {@code case PL ->
 	 * VerificationEmailEn.body(code, link)} compiles perfectly well.
 	 */
-	private static VerificationEmail message(AppLanguage language, String code, String link) {
+	private static VerificationEmail message(AppLanguage language, String code, String link, String baseUrl) {
 		return switch (language) {
-			case PL -> new VerificationEmail(VerificationEmailPl.subject(code), VerificationEmailPl.body(code, link));
-			case EN -> new VerificationEmail(VerificationEmailEn.subject(code), VerificationEmailEn.body(code, link));
+			case PL -> new VerificationEmail(VerificationEmailPl.subject(code), VerificationEmailPl.body(code, link),
+					VerificationEmailPl.html(code, link, baseUrl));
+			case EN -> new VerificationEmail(VerificationEmailEn.subject(code), VerificationEmailEn.body(code, link),
+					VerificationEmailEn.html(code, link, baseUrl));
 		};
 	}
 
-	/** The two halves of one message, so they cannot be drawn from two different locales. */
-	private record VerificationEmail(String subject, String body) {
+	/** The parts of one message, so they cannot be drawn from two different locales. */
+	private record VerificationEmail(String subject, String body, String html) {
 	}
 }

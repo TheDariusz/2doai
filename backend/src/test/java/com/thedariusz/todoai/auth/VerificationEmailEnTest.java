@@ -25,4 +25,19 @@ class VerificationEmailEnTest {
 	void carriesTheLinkThatPrefillsTheCode() {
 		assertThat(VerificationEmailEn.body("04231789", LINK)).contains(LINK);
 	}
+
+	@Test
+	void htmlCarriesTheCodeTheButtonLinkAndTheValidity() {
+		assertThat(VerificationEmailEn.html("04231789", LINK, "https://2doai.app"))
+				.contains("04231789")
+				.contains("href=\"https://2doai.app/verify#email=ala%40example.pl&amp;code=04231789\"")
+				.contains(String.valueOf(EmailVerificationService.CODE_VALIDITY.toMinutes()))
+				.contains("lang=\"en\"");
+	}
+
+	@Test
+	void htmlShowsTheAppLogoFromTheAppItself() {
+		assertThat(VerificationEmailEn.html("04231789", LINK, "https://2doai.app/"))
+				.contains("src=\"https://2doai.app/icon-192.png\"");
+	}
 }
