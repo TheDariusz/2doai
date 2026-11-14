@@ -9,6 +9,12 @@
  * the link in the same browser did — so for them, and only them, the screen signs in without a press.
  * Everyone else gets the prefilled form and one button.
  *
+ * This decides whether a press is skipped, nothing more — it is not a security boundary. The server
+ * still demands the right single-use code, fresh from the owner's mailbox, from any browser, and a
+ * script able to write this entry already runs on the app's origin and owns the session anyway.
+ * Binding the code to a server-issued nonce would add a schema and API change for no protection
+ * beyond what that already concedes.
+ *
  * `localStorage`, not `sessionStorage`: a mail client opens the link in a new tab, and session
  * storage is per tab. Every access is guarded — storage can throw (private mode, blocked site data),
  * and the fallback is the prefilled form, which is always correct.

@@ -2,6 +2,7 @@ package com.thedariusz.todoai.mail;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
@@ -24,11 +25,15 @@ import org.springframework.validation.annotation.Validated;
  * @param from the {@code From:} header, sender name included — must be an address on a domain
  *        verified with the provider, or every message is silently dropped
  * @param baseUrl where the app lives, so the link in an email opens the app the reader actually uses
- *        (a localhost default keeps dev honest; prod sets {@code APP_BASE_URL})
+ *        (a localhost default keeps dev honest; prod sets {@code APP_BASE_URL}). Held to http(s):
+ *        it becomes the code mail's button {@code href} and logo {@code src}, where escaping stops an
+ *        attribute breakout but not a {@code javascript:} or {@code data:} scheme
  * @param authDailyBudget how many sign-in code mails a UTC day may take of the provider's shared
  *        allowance — see {@code AuthMailBudget}
  */
 @ConfigurationProperties(prefix = "app.mail")
 @Validated
-public record MailboxProperties(@NotBlank String from, @NotBlank String baseUrl, @Min(1) int authDailyBudget) {
+public record MailboxProperties(@NotBlank String from,
+		@NotBlank @Pattern(regexp = "https?://\\S+") String baseUrl,
+		@Min(1) int authDailyBudget) {
 }

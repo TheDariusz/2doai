@@ -53,6 +53,21 @@ class MailboxPropertiesTest {
 						.getFailure().hasStackTraceContaining("from"));
 	}
 
+	/**
+	 * The base URL lands in the code mail's button {@code href} and logo {@code src}. Escaping stops
+	 * it breaking out of the attribute, not a {@code javascript:} or {@code data:} scheme a mail
+	 * client might honour — so anything but http(s) fails startup.
+	 */
+	@Test
+	void rejectsALinkBaseThatIsNotAnHttpUrl() {
+		new ApplicationContextRunner()
+				.withUserConfiguration(Config.class)
+				.withPropertyValues("app.mail.from=2do AI <propozycje@2doai.app>",
+						"app.mail.base-url=javascript:alert(1)//")
+				.run(context -> assertThat(context).hasFailed()
+						.getFailure().hasStackTraceContaining("baseUrl"));
+	}
+
 	/** A budget of nothing would silently drop every code from the first one. */
 	@Test
 	void rejectsAnAuthMailBudgetThatCouldNeverSendAnything() {
