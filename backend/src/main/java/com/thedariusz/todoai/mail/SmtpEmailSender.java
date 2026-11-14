@@ -68,8 +68,9 @@ class SmtpEmailSender implements EmailSender {
 		String header = StringUtils.normalizeSpace(subject);
 		try {
 			MimeMessage message = transport.createMimeMessage();
-			// multipart = true makes the helper write multipart/alternative for setText(plain, html):
-			// the client picks the last part it can render, so the HTML goes second.
+			// multipart = true is MULTIPART_MODE_MIXED_RELATED: a multipart/mixed root around a
+			// multipart/related, which setText(plain, html) fills with a multipart/alternative. Inside
+			// it the client picks the last part it can render, so the HTML goes second.
 			MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 			helper.setFrom(properties.from());
 			helper.setTo(to);

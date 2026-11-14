@@ -27,6 +27,11 @@ final class VerificationEmailLayout {
 	private VerificationEmailLayout() {
 	}
 
+	/** How long a code lives, in the whole minutes every locale's copy states it in. */
+	static long codeMinutes() {
+		return EmailVerificationService.CODE_VALIDITY.toMinutes();
+	}
+
 	/**
 	 * The words one locale fills the layout with.
 	 *

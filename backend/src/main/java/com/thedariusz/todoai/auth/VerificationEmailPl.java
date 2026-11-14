@@ -32,23 +32,19 @@ final class VerificationEmailPl {
 				Albo wpisz kod w aplikacji. Jest ważny przez %d minut i działa tylko raz.
 
 				Jeśli to nie Ty prosisz o kod, zignoruj tę wiadomość.
-				""".formatted(code, link, minutes());
+				""".formatted(code, link, VerificationEmailLayout.codeMinutes());
 	}
 
 	static String html(String code, String link, String baseUrl) {
 		return VerificationEmailLayout.render(new VerificationEmailLayout.Copy(
 				"pl",
-				"Twój kod: %s · ważny %d minut".formatted(code, minutes()),
+				"Twój kod: %s · ważny %d minut".formatted(code, VerificationEmailLayout.codeMinutes()),
 				"Zaloguj się do 2do AI",
 				"Kliknij przycisk, żeby się zalogować.",
 				"Zaloguj się",
 				"Albo wpisz ten kod w aplikacji:",
-				"Kod jest ważny przez %d minut i działa tylko raz.".formatted(minutes()),
+				"Kod jest ważny przez %d minut i działa tylko raz.".formatted(VerificationEmailLayout.codeMinutes()),
 				"Jeśli to nie Ty prosisz o kod, zignoruj tę wiadomość — bez kodu nikt nie zaloguje się na Twoje konto.",
 				"2do AI · zadania, cele i marzenia w jednym miejscu"), code, link, baseUrl);
-	}
-
-	private static long minutes() {
-		return EmailVerificationService.CODE_VALIDITY.toMinutes();
 	}
 }

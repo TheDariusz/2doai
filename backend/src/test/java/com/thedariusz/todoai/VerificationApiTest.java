@@ -327,8 +327,8 @@ class VerificationApiTest extends ApiTestBase {
 
 		String code = mail.codeFor(email).orElseThrow();
 		String link = SignInLink.of("http://localhost:5173", email, code);
-		TestcontainersConfiguration.RecordingEmailSender.Sent message = mail.sent().getFirst();
 		assertThat(mail.sent()).hasSize(1);
+		TestcontainersConfiguration.RecordingEmailSender.Sent message = mail.sent().getFirst();
 		assertThat(message.text()).contains(link);
 		assertThat(message.html()).contains("href=\"" + link.replace("&", "&amp;") + "\"");
 		signInWithCode(email, code).statusCode(201);
@@ -619,6 +619,9 @@ class VerificationApiTest extends ApiTestBase {
 					// straight through the guard that exists to catch exactly that.
 					.containsPattern("\\b" + validity + "\\b");
 		}
+		assertThat(read("../frontend/src/auth/codeRequest.ts"))
+				.as("codeRequest.ts trusts a request for as long as its code lives, and CODE_VALIDITY decides")
+				.containsPattern("CODE_VALIDITY_MS = " + validity + " \\* 60_000\\b");
 	}
 
 	/**

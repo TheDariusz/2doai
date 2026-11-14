@@ -33,7 +33,8 @@ export function VerifyPage() {
   const [code, setCode] = useState('')
   const [message, setMessage] = useState<VerifyMessageKey | null>(handover?.error ?? null)
   const [sent, setSent] = useState(false)
-  const [pending, setPending] = useState(false)
+  // Which action is in flight, if any — so the status line can name the link's own sign-in.
+  const [pending, setPending] = useState<Action | null>(null)
   const [wait, lockResend] = useCountdown(handover?.resendAfter ?? 0)
   const destination = handover?.from ?? '/goals'
 
@@ -78,8 +79,6 @@ export function VerifyPage() {
   const attempted = useRef<string | null>(null)
   const signInFromLink = useEffectEvent((link: { email: string; code: string }) => {
     void run('link', () => signInWithCode(link.email, link.code), () => navigate(destination, { replace: true }))
-      // Only this attempt says "signing in"; a later press of the button is an ordinary sign-in.
-      .finally(() => setAutoLink(null))
   })
   useEffect(() => {
     if (autoLink && status === 'anonymous' && attempted.current !== autoLink.hash) {
@@ -98,7 +97,7 @@ export function VerifyPage() {
   async function run(kind: Action, action: () => Promise<void>, onDone: () => void) {
     setMessage(null)
     setSent(false)
-    setPending(true)
+    setPending(kind)
     try {
       await action()
       onDone()
@@ -108,7 +107,7 @@ export function VerifyPage() {
       }
       setMessage(messageFor(failure, kind))
     } finally {
-      setPending(false)
+      setPending(null)
     }
   }
 
@@ -168,15 +167,16 @@ export function VerifyPage() {
             onChange={(event) => setCode(event.target.value)}
           />
         </label>
-        {pending && autoLink && <p role="status">{t('verify.signingIn')}</p>}
+        {/* Only the link's own attempt says "signing in"; a press of the button is an ordinary sign-in. */}
+        {pending === 'link' && <p role="status">{t('verify.signingIn')}</p>}
         {message && <p role="alert">{t(message)}</p>}
         {sent && <p role="status">{t('verify.sent')}</p>}
-        <button type="submit" disabled={pending}>
+        <button type="submit" disabled={pending !== null}>
           {t('verify.submit')}
         </button>
         {/* Not a submit: a resend must work while the code field is empty, which is the whole
             state a user with no code is in. */}
-        <button type="button" disabled={pending || wait > 0} onClick={resend}>
+        <button type="button" disabled={pending !== null || wait > 0} onClick={resend}>
           {t('verify.sendAgain')}
         </button>
         {wait > 0 && <p>{t('verify.resendIn', { time: clock(wait) })}</p>}
