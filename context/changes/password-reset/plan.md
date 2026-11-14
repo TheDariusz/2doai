@@ -903,17 +903,17 @@ rows 2686-2693, the stamp.
 
 #### Automated
 
-- [x] 3.1 Flyway applies V16 and Hibernate validation passes
-- [x] 3.2 Signing in sets a remember-me cookie that is `HttpOnly` and `SameSite=Strict`
-- [x] 3.3 A request carrying only the remember-me cookie is authenticated, and the following request runs zero queries
-- [x] 3.4 That auto-login response carries a fresh `XSRF-TOKEN` cookie, and a mutation sent next succeeds
-- [x] 3.5 Two concurrent requests carrying the same remember-me cookie both succeed and the token survives
-- [x] 3.6 A request with a live session never reads the token table
-- [x] 3.7 The session cookie has no `Max-Age`; the remember-me cookie has 90 days and is renewed by an auto-login
-- [x] 3.8 Logout deletes the token and clears the cookie; the old cookie no longer authenticates
-- [x] 3.9 Account deletion removes the user's tokens
-- [x] 3.10 A forged or unknown token is refused with 401, never 500
-- [x] 3.11 `mvn test` passes; `node --test docs/index.test.mjs` passes
+- [x] 3.1 Flyway applies V16 and Hibernate validation passes — 77dcda4
+- [x] 3.2 Signing in sets a remember-me cookie that is `HttpOnly` and `SameSite=Strict` — 77dcda4
+- [x] 3.3 A request carrying only the remember-me cookie is authenticated, and the following request runs zero queries — 77dcda4
+- [x] 3.4 That auto-login response carries a fresh `XSRF-TOKEN` cookie, and a mutation sent next succeeds — 77dcda4
+- [x] 3.5 Two concurrent requests carrying the same remember-me cookie both succeed and the token survives — 77dcda4
+- [x] 3.6 A request with a live session never reads the token table — 77dcda4
+- [x] 3.7 The session cookie has no `Max-Age`; the remember-me cookie has 90 days and is renewed by an auto-login — 77dcda4
+- [x] 3.8 Logout deletes the token and clears the cookie; the old cookie no longer authenticates — 77dcda4
+- [x] 3.9 Account deletion removes the user's tokens — 77dcda4
+- [x] 3.10 A forged or unknown token is refused with 401, never 500 — 77dcda4
+- [x] 3.11 `mvn test` passes; `node --test docs/index.test.mjs` passes — 77dcda4
 
 #### Manual
 

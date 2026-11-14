@@ -220,8 +220,10 @@ public class SecurityConfig {
 
 	/**
 	 * What both {@code DELETE} endpoints run to end the caller's sign-in: the security context, the
-	 * session cookie, and the remember-me cookie together with every token the user holds — so logging
-	 * out, or deleting the account, signs out every remembered browser too.
+	 * session cookie, and the remember-me cookie together with every token the user holds — so no
+	 * remembered browser can auto-login again. It does not end another browser's live session: that one
+	 * stays signed in until its own session ends (idle timeout, restart, deploy). Account deletion
+	 * ends those separately, by expiring the user's sessions in the registry.
 	 *
 	 * <p>{@code @Primary} because {@link StableTokenRememberMeServices} is a {@code LogoutHandler} too,
 	 * and an injection point asking for "the" logout handler must get all of them, never that one alone.

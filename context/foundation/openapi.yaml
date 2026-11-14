@@ -36,7 +36,7 @@ info:
   # (DEV-49) → 1.7.1 — a PATCH, because it documents behaviour the server already had rather than
   # changing any, +the two address-verification resources and the login gate they exist for
   # (DEV-51) → 1.8.0, +sign-in by mailed code beside the password, the eight-digit code, the code
-  # request open to verified accounts and its daily-budget 503 (passwordless sign-in, DEV-62)
+  # request open to verified accounts and its queue-full 503 (passwordless sign-in, DEV-62)
   # → 1.9.0. The code widening from six to eight digits is incompatible for a client that validates
   # the old pattern; the component-internal exemption below covers it, as it covered 1.4.0.
   # +the remember-me cookie as a second way to be authenticated, the 30-day session and logout
@@ -407,10 +407,13 @@ paths:
         **202 for every address**, including one with no account, which is sent nothing. "Accepted"
         is the honest word: the server has taken the request, the message (if any) is sent afterwards
         off the request thread, and whether one follows is exactly what it declines to disclose. The
-        throttle and the daily budget are consulted before the address is looked up for the same
-        reason — a 429 or 503 that only ever happened to real accounts would answer the question the
-        202 refuses to. Because the send happens after the answer, a provider failure is not reported
-        here: it refunds the throttle and the budget, and the remedy is to ask again.
+        throttle and the queue are checked before the address is looked up for the same reason — a 429
+        or 503 that only ever happened to real accounts would answer the question the 202 refuses to.
+        The daily auth-mail budget (it protects the provider's daily allowance, which proposal mail
+        shares) is checked after the lookup and only for an address with an account, so made-up
+        addresses spend none of it; once it is spent a code is dropped and logged, and the answer is
+        still 202. Because the send happens after the answer, a provider failure is not reported here:
+        it refunds what the request spent, and the remedy is to ask again.
       operationId: createVerificationCode
       security: []                                          # public (the account cannot log in yet)
       parameters:
@@ -439,9 +442,8 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
           description: >
-            Today's auth-mail budget is spent (it protects the provider's daily allowance, which
-            proposal mail shares) or the send queue is full. The same answer for every address; retry
-            later.
+            The send queue is full. Decided before the address is looked up, so the same answer for
+            every address; retry later. (A spent daily budget is not a 503: see the 202.)
 
   /categories:
     get:
@@ -1502,7 +1504,8 @@ components:
         timeout, a database cold start that overran) — deliberately NOT reported as 401, which would
         tell every user their password is wrong during an outage; the credentials were never judged.
         On POST /users: the provider would not take the code's message. On POST /verification-codes:
-        today's auth-mail budget is spent or the send queue is full. Retry in every case.
+        the send queue is full (a spent daily budget is not a 503 — the code is dropped behind the
+        202). Retry in every case.
       content:
         application/problem+json:
           schema:

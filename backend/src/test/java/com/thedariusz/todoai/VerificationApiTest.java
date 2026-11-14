@@ -365,32 +365,75 @@ class VerificationApiTest extends ApiTestBase {
 
 	/**
 	 * The Resend plan is shared with proposal mail, so auth mail has a ceiling of its own. Once it is
-	 * spent the answer is 503 for every address alike — consulted before the lookup, as the throttle
-	 * is, so it says nothing about which addresses have accounts.
+	 * spent a real account's code is dropped, not refused: the answer stays the 202 every address
+	 * gets, so the budget says nothing about which addresses have accounts, and the drop is a log line
+	 * for the operator. It is dropped before the code write, so the code already in the inbox still
+	 * works.
 	 */
 	@Test
-	void refusesEveryCodeRequestOnceTheDailyBudgetIsSpent() {
+	void dropsAKnownAddresssCodeSilentlyOnceTheBudgetIsSpent() {
+		String known = uniqueEmail();
+		register(known, PASSWORD);
+		throttle.forget(known);
+		requestCode(known).statusCode(202);
+		String codeInTheInbox = mail.codeFor(known).orElseThrow();
+		throttle.forget(known);
+		mail.clear();
+		ListAppender<ILoggingEvent> lines = new ListAppender<>();
+		Logger serviceLog = (Logger) LoggerFactory.getLogger(EmailVerificationService.class);
+		lines.start();
+		serviceLog.addAppender(lines);
+		int drained = drainBudget();
+
+		try {
+			String forKnown = requestCode(known).statusCode(202).extract().asString();
+			String forStranger = requestCode(uniqueEmail()).statusCode(202).extract().asString();
+
+			assertThat(forStranger).as("the same 202 whether or not the address has an account")
+					.isEqualTo(forKnown);
+			assertThat(mail.sentAnythingTo(known)).isFalse();
+			List<ILoggingEvent> drops = lines.list.stream()
+					.filter(line -> line.getKeyValuePairs() != null && line.getKeyValuePairs().stream()
+							.anyMatch(pair -> "event".equals(pair.key) && "auth_mail_code_dropped".equals(pair.value)))
+					.toList();
+			assertThat(drops).as("one drop line, for the account only").hasSize(1);
+			assertThat(drops.getFirst().getFormattedMessage())
+					.contains("@" + known.substring(known.indexOf('@') + 1))
+					.doesNotContain(known);
+		}
+		finally {
+			serviceLog.detachAppender(lines);
+			refill(drained);
+		}
+
+		newBrowser();
+		signInWithCode(known, codeInTheInbox).statusCode(201);
+	}
+
+	/**
+	 * The lockout the budget would otherwise hand anyone: requests for addresses with no account
+	 * spend nothing, so a flood of made-up addresses cannot starve a real one.
+	 */
+	@Test
+	void aFloodOfUnknownAddressesDoesNotSpendTheBudget() {
 		String known = uniqueEmail();
 		register(known, PASSWORD);
 		throttle.forget(known);
 		mail.clear();
 		int drained = drainBudget();
+		budget.refund(Instant.now());
 
 		try {
-			String forKnown = requestCode(known).statusCode(503).contentType("application/problem+json")
-					.extract().asString();
-			String forStranger = requestCode(uniqueEmail()).statusCode(503).extract().asString();
-
-			assertThat(forStranger).as("the same 503 whether or not the address has an account")
-					.isEqualTo(forKnown);
-			assertThat(mail.sentAnythingTo(known)).isFalse();
+			for (int stranger = 0; stranger < 5; stranger++) {
+				requestCode(uniqueEmail()).statusCode(202);
+			}
+			requestCode(known).statusCode(202);
+			assertThat(mail.codeFor(known)).as("the one slot left was still there for a real account")
+					.isPresent();
 		}
 		finally {
-			refill(drained);
+			refill(drained - 1);
 		}
-
-		// The refused request was not charged to the throttle either: the user can ask again at once.
-		requestCode(known).statusCode(202);
 	}
 
 	/**

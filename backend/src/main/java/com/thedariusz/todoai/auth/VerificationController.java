@@ -41,7 +41,8 @@ class VerificationController {
 	 * <b>202 for every address</b> — one with no account is sent nothing, and the answer does not say
 	 * so. "Accepted" is the honest word for it: the server has taken the request, the message (if any)
 	 * goes out afterwards on its own thread, and whether one follows is precisely what it declines to
-	 * disclose. 429 and 503 are decided before the address is looked up, so they are uniform too.
+	 * disclose. 429 and 503 (a full send queue) are decided before the address is looked up, so they
+	 * are uniform too; a spent daily budget drops the code after the lookup and still answers 202.
 	 */
 	@PostMapping("/api/verification-codes")
 	ResponseEntity<Void> sendCode(@Valid @RequestBody VerificationCodeRequest request) {

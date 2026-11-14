@@ -171,7 +171,7 @@ function messageFor(t: TFunction, failure: unknown, mode: Mode): string {
     return mode === 'register' ? t('auth.errors.invalidRegistration') : t('auth.errors.invalidEmail')
   }
   if (status === 503) {
-    // For a code request: today's auth-mail budget is spent. The same answer for every address.
+    // For a code request: the send queue is full. The same answer for every address.
     return t('auth.errors.unavailable')
   }
   return t('auth.errors.generic')

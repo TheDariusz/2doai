@@ -4,6 +4,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -155,29 +156,29 @@ public class EmailVerificationService implements PerUserDataDeleter {
 	 * Answers the same whatever the address turns out to be, so the endpoint cannot be used to find
 	 * out which addresses have accounts.
 	 *
-	 * <p>The throttle and the daily budget are consulted <b>before</b> the lookup, and everything after
-	 * them — lookup, code write, send — runs as one task on the auth-mail executor. The request thread
+	 * <p>The throttle is consulted <b>before</b> the lookup, and everything after it — lookup, daily
+	 * budget, code write, send — runs as one task on the auth-mail executor. The request thread
 	 * therefore does identical work for every address, and an SMTP round trip that only known
 	 * addresses pay cannot show up in the response time.
 	 *
+	 * <p><b>The budget is the task's, not the request's.</b> Consulted after the lookup, only an
+	 * address with an account spends it, so a flood of made-up addresses cannot spend the day's mail
+	 * for everyone. Once it is spent a code is dropped and logged rather than refused: the answer is
+	 * still the 202 every address gets, so the budget says nothing about which ones have accounts.
+	 *
 	 * @throws VerificationThrottledException when this address was sent a code too recently
-	 * @throws AuthMailUnavailableException when today's budget is spent or the queue is full
+	 * @throws AuthMailUnavailableException when the auth-mail queue is full
 	 */
 	public void resendCode(String rawEmail) {
 		String email = Email.normalize(rawEmail);
 		Instant sentAt = Instant.now();
 		admit(email, sentAt);
-		if (!budget.admit(sentAt)) {
-			// Refused before anything was sent, so the address owes the throttle nothing either.
-			throttle.refund(email, sentAt);
-			log.info("Refused a code to a @{} address: the daily auth-mail budget is spent", domainOf(email));
-			throw new AuthMailUnavailableException();
-		}
 		try {
 			authMail.execute(() -> deliverSignInCode(email, sentAt));
 		}
 		catch (RejectedExecutionException ex) {
-			giveBack(email, sentAt);
+			// Nothing was queued, so nothing was taken from the budget; only the throttle is owed back.
+			throttle.refund(email, sentAt);
 			log.warn("Refused a code to a @{} address: the auth-mail queue is full", domainOf(email));
 			throw new AuthMailUnavailableException();
 		}
@@ -266,34 +267,49 @@ public class EmailVerificationService implements PerUserDataDeleter {
 	 * The task a code request runs on the auth-mail executor. It answers to nobody — the 202 is already
 	 * on its way — so a failure here is a log line, and whatever the request spent is given back so
 	 * "send again" works at once.
+	 *
+	 * <p>A code the budget drops keeps its throttle entry: the request was accepted and answered, and
+	 * refunding it would only let the same address queue another request that is dropped too. It is
+	 * dropped before the code write, so a code already in the inbox stays valid.
 	 */
 	private void deliverSignInCode(String email, Instant sentAt) {
+		boolean budgetSpent = false;
 		try {
-			users.findByEmail(email).ifPresentOrElse(
-					account -> {
-						if (!send(account.getId(), email, account.getLanguage())) {
-							// Deleted between the lookup and the write; the update cannot re-create it.
-							log.info("Dropped a code for a @{} address: the row is gone", domainOf(email));
-						}
-					},
-					// An enumeration sweep names each address once and passes the throttle every time, so
-					// this is the only line it ever writes.
-					() -> log.info("Asked for a code for a @{} address with no account", domainOf(email)));
+			Optional<User> found = users.findByEmail(email);
+			if (found.isEmpty()) {
+				// An enumeration sweep names each address once and passes the throttle every time, so
+				// this is the only line it ever writes — and it spends no budget.
+				log.info("Asked for a code for a @{} address with no account", domainOf(email));
+				return;
+			}
+			if (!budget.admit(sentAt)) {
+				log.atInfo()
+					.addKeyValue("event", "auth_mail_code_dropped")
+					.log("Dropped a code for a @{} address: the daily auth-mail budget is spent", domainOf(email));
+				return;
+			}
+			budgetSpent = true;
+			User account = found.get();
+			if (!send(account.getId(), email, account.getLanguage())) {
+				// Deleted between the lookup and the write; the update cannot re-create it.
+				log.info("Dropped a code for a @{} address: the row is gone", domainOf(email));
+			}
 		}
 		catch (MailDeliveryException ex) {
-			giveBack(email, sentAt);
-			log.warn("Could not mail a code to a @{} address; the throttle and the budget were refunded",
-					domainOf(email), ex);
+			giveBack(email, sentAt, budgetSpent);
+			log.warn("Could not mail a code to a @{} address; what it spent was refunded", domainOf(email), ex);
 		}
 		catch (RuntimeException ex) {
-			giveBack(email, sentAt);
+			giveBack(email, sentAt, budgetSpent);
 			log.error("Could not issue a code to a @{} address", domainOf(email), ex);
 		}
 	}
 
-	private void giveBack(String email, Instant sentAt) {
+	private void giveBack(String email, Instant sentAt, boolean budgetSpent) {
 		throttle.refund(email, sentAt);
-		budget.refund(sentAt);
+		if (budgetSpent) {
+			budget.refund(sentAt);
+		}
 	}
 
 	/**

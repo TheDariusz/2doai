@@ -172,9 +172,10 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	}
 
 	/**
-	 * A code request could not even be queued → <b>503</b>: today's auth-mail budget is spent, or the
-	 * auth-mail queue is full. Decided before the address is looked up, so it is the same answer for
-	 * every address and says nothing about which ones have accounts.
+	 * A code request could not even be queued → <b>503</b>: the auth-mail queue is full. Decided
+	 * before the address is looked up, so it is the same answer for every address and says nothing
+	 * about which ones have accounts. A spent daily budget is not this: it drops the code after the
+	 * lookup, and the request still answers 202.
 	 */
 	@ExceptionHandler(AuthMailUnavailableException.class)
 	ProblemDetail handleAuthMailUnavailable(AuthMailUnavailableException ex, WebRequest request) {

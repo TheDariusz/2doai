@@ -4,8 +4,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 
-import org.slf4j.Logger;
 import com.thedariusz.todoai.mail.MailboxProperties;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -16,10 +16,11 @@ import org.springframework.stereotype.Component;
  * 100 messages a day for everything; {@code app.mail.auth-daily-budget} (60 in {@code application.properties}) is the share
  * auth mail may take.
  *
- * <p><b>Consulted before the address is looked up</b>, like {@link VerificationThrottle}, so an
- * exhausted budget answers the same 503 for every address and says nothing about which ones have
- * accounts. Only a send the provider would not take is {@linkplain #refund refunded}; a request for an
- * address with no account still spends its slot, exactly as it spends a throttle entry.
+ * <p><b>Consulted after the address is looked up, and only for an address with an account</b>, on
+ * the auth-mail executor, so a flood of made-up addresses spends nothing. An exhausted budget drops
+ * the code and logs it ({@code event=auth_mail_code_dropped}) instead of refusing the request: the
+ * answer stays the 202 every address gets, so it says nothing about which ones have accounts. Only a
+ * send the provider would not take is {@linkplain #refund refunded}.
  *
  * <p>The day is UTC, the provider's quota day. In memory, like the throttle: there is one machine,
  * and a restart that resets the count early is a smaller harm than a database write per code request
@@ -61,7 +62,7 @@ public class AuthMailBudget {
 				log.atWarn()
 					.addKeyValue("event", "auth_mail_budget_exhausted")
 					.addKeyValue("budget", dailyBudget)
-					.log("The daily auth-mail budget is spent; code requests answer 503 until midnight UTC");
+					.log("The daily auth-mail budget is spent; codes for existing accounts are dropped until midnight UTC");
 				exhaustionLogged = true;
 			}
 			return false;
@@ -82,7 +83,9 @@ public class AuthMailBudget {
 
 	private void rollOver(Instant now) {
 		LocalDate today = dayOf(now);
-		if (!today.equals(day)) {
+		// Forward only: a request stamped before midnight can be admitted on the executor after one
+		// stamped after it, and rolling back would hand it yesterday's count and reset today's.
+		if (day == null || today.isAfter(day)) {
 			day = today;
 			spent = 0;
 			exhaustionLogged = false;

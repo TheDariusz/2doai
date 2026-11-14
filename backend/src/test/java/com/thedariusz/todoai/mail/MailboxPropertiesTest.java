@@ -53,7 +53,7 @@ class MailboxPropertiesTest {
 						.getFailure().hasStackTraceContaining("from"));
 	}
 
-	/** A budget of nothing would answer every code request with 503 from the first one. */
+	/** A budget of nothing would silently drop every code from the first one. */
 	@Test
 	void rejectsAnAuthMailBudgetThatCouldNeverSendAnything() {
 		new ApplicationContextRunner()

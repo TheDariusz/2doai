@@ -306,6 +306,13 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
+  <p class="note">Verified against the DEV-62 review fix on 2026-11-14 — the daily auth-mail budget
+  moved after the address lookup. Only an address with an account spends it, so a flood of made-up
+  addresses can no longer spend the day's codes for everyone; once it is spent a code is dropped and
+  logged (<code>auth_mail_code_dropped</code>) and the request still answers 202. The 503 on
+  <code>POST /api/verification-codes</code> now means a full send queue only. No schema change;
+  <code>openapi.yaml</code> wording only. Moved: the throttle decision row, the <code>auth</code>
+  chapter prose and class diagram, and the code-request flow.</p>
   <p class="note">Verified against DEV-62 phase 3 on 2026-11-14 — release 1 of passwordless sign-in,
   long sessions, with schema change <code>V16</code> (<code>remember_me_token</code>) and
   <code>openapi.yaml</code> 1.10.0. The session idles out after 30 days and its cookie carries no
@@ -603,7 +610,7 @@ flowchart LR
         <tr><th scope="row"><a href="../context/foundation/data-model.md">Category labels are columns, not a translation table</a></th><td>The set is eleven rows fixed by a Flyway seed and cannot grow at runtime, so a <code>category_translation</code> table would buy a join and a migration per locale to model a list that has none</td><td>A third language is a third column and a migration, not data</td><td>This row's own trigger — "the UI supports a second language" — fired in DEV-49, and the answer was <code>name_en</code> beside <code>name_pl</code> (<code>V11</code>). It fires again only if locales stop being two: a translator workflow or a growing set is what the table was reserved for, and <code>code</code> being the identity keeps it reachable without a destructive migration</td></tr>
         <tr><th scope="row">Prompts are written in English and <em>name</em> the answer's language</th><td>Text addressed to a model is code, not copy. Writing the persona in the language the answer must come back in makes a second locale a second copy of every instruction, free to drift the first time either is tightened</td><td>One indirection between the instruction and the language it asks for</td><td>Never for the instructions. The parameter this row predicted arrived in DEV-49: <code>ProposalPrompt</code> takes an <code>AppLanguage</code> and interpolates <code>englishName()</code>, and the constant is gone. The template fallback was the named exception and behaved like one — a second language meant a second class, <code>ProposalTemplateEn</code>, because its output <em>is</em> what the user reads</td></tr>
         <tr><th scope="row">At most one pending proposal is an index, not a check</th><td>A service-level "does this user already have one?" races with itself on a double-click and stores both; a partial unique index cannot</td><td>The lost race surfaces as a constraint violation the service must translate into "return the winner"</td><td>Proposals stop being per-user singletons. S-05 was the case this row anticipated — a cycle that must replace an ignored proposal — and the index held: superseding closes the old row <em>before</em> the new insert, so the slot is freed rather than shared</td></tr>
-        <tr><th scope="row">Codes are throttled per address and budgeted per day, in memory</th><td>The abuse DEV-51 closed is the app mailing a stranger, and the quota it protects is the provider's 100 e-mails a day that real proposals depend on. A map in the JVM costs no dependency and no database touch — the same reasoning as the row below. Since DEV-62 the code is a sign-in credential any verified account can request, so a daily ceiling on auth mail (<code>AuthMailBudget</code>, 60 by default) sits beside the per-address throttle; both are consulted before the address is looked up, so their 429 and 503 are the same for every address</td><td>It counts addresses, not callers: a bot working through a list is slowed only by the provider and the budget, and the map must be capped, not merely expired, because it is keyed on strings an attacker chooses. Anyone who knows an address can spend its five codes an hour and overwrite the owner's pending code, blocking that person's sign-in while it lasts; a burst of requests can spend the day's budget for everyone. Both reset on a restart</td><td>The next issue, and it is configuration rather than code — a per-IP rule at Cloudflare and a shared secret between Pages and Fly, so the origin cannot be reached around the proxy at all. Also when the backend stops being one machine: neither the map nor the count survives a second one</td></tr>
+        <tr><th scope="row">Codes are throttled per address and budgeted per day, in memory</th><td>The abuse DEV-51 closed is the app mailing a stranger, and the quota it protects is the provider's 100 e-mails a day that real proposals depend on. A map in the JVM costs no dependency and no database touch — the same reasoning as the row below. Since DEV-62 the code is a sign-in credential any verified account can request, so a daily ceiling on auth mail (<code>AuthMailBudget</code>, 60 by default) sits beside the per-address throttle. The throttle is consulted before the address is looked up, so its 429 is the same for every address; the budget after it, and only for an address with an account, so a spent budget drops the code (logged as <code>auth_mail_code_dropped</code>) behind the same 202 every address gets</td><td>It counts addresses, not callers: a bot working through a list is slowed only by the provider and the budget, and the map must be capped, not merely expired, because it is keyed on strings an attacker chooses. Anyone who knows an address can spend its five codes an hour and overwrite the owner's pending code, blocking that person's sign-in while it lasts; someone who knows enough real addresses can still spend the day's budget, and its codes are then dropped for everyone until midnight UTC. Both reset on a restart</td><td>The next issue, and it is configuration rather than code — a per-IP rule at Cloudflare and a shared secret between Pages and Fly, so the origin cannot be reached around the proxy at all. Also when the backend stops being one machine: neither the map nor the count survives a second one</td></tr>
         <tr><th scope="row">A duplicate address is 409, verified or not</th><td>An earlier cut let a second sign-up take an <em>unverified</em> row over so a typo could not block the real owner. The PR review showed the hole: the code proves the address, but the row's password is whoever wrote last, so a sign-up inside the window put an attacker's credential under a code already in the victim's mailbox. Adding an expiry guard to the takeover write was tried and did not close it</td><td>The case the takeover was written for comes back — a mistyped or abandoned sign-up holds an address nobody can re-register, and there is no password-reset endpoint yet. The recovery is "send again" on <code>/verify</code>, which only helps whoever can read the address</td><td>Password reset lands (then the address is recoverable by its owner), or the code is bound to the sign-up attempt — carry the candidate password hash on <code>issueVerificationCode</code> and promote it in <code>markEmailVerified</code>, one column, and the takeover becomes safe</td></tr>
         <tr><th scope="row">The rhythm's schedule lives in memory, not in a query</th><td>Neon bills metered compute and suspends after ~5 idle minutes, while the Fly machine hosting the tick is always-on. A tick asking the database "is anyone due?" would hold that compute awake 24/7 for roughly one fire per 2–7 days — about 183 CU-h a month to send a handful of emails</td><td>The schedule is authoritative only while the JVM lives; <code>app_user.next_proposal_at</code> is its only backup, reloaded at boot</td><td>The backend runs on more than one machine. Two schedulers over one column would each fire for every account, and the column is a backup rather than a lease</td></tr>
       </tbody>
@@ -875,14 +882,16 @@ flowchart LR
   deliberately per <em>address</em>: a caller with a list of them is slowed only by the provider's own
   quota, and the per-IP rule that would fix that is a Cloudflare rule rather than code — the next
   issue, together with a shared secret between Pages and Fly.</p>
-  <p><code>POST /api/verification-codes</code> answers before it mails. After the throttle and
-  <code>AuthMailBudget</code> (60 auth mails a UTC day by default, so a burst cannot starve proposal
-  mail of the provider's 100) have said yes, the lookup, the code write and the send run as one task on
-  the single-worker auth-mail executor. The request thread therefore does identical work for every
+  <p><code>POST /api/verification-codes</code> answers before it mails. After the throttle has said
+  yes, the lookup, <code>AuthMailBudget</code> (60 auth mails a UTC day by default, so a burst cannot
+  starve proposal mail of the provider's 100), the code write and the send run as one task on the
+  single-worker auth-mail executor. The budget is consulted only for an address with an account, so
+  made-up addresses spend none of it; once it is spent the code is dropped before it is written, so the
+  one already in the inbox stays valid, and the drop is logged as <code>auth_mail_code_dropped</code>. The request thread therefore does identical work for every
   address, and an SMTP round trip that only known addresses pay cannot show up in the response time.
   The price is that a provider failure is no longer a 503 there: the task gives back the throttle entry
-  and the budget slot and logs a warning, and the user's recovery is "send again". An exhausted budget
-  or a full queue is a 503 decided before the lookup, the same for every address. Sign-up still mails
+  and the budget slot and logs a warning, and the user's recovery is "send again". A full queue is a
+  503 decided before the lookup, the same for every address; an exhausted budget is no 503 at all. Sign-up still mails
   on its request thread in this release.</p>
   <p>Only <em>"send again"</em> is ever refused. Registration <code>record</code>s its send instead of
   asking to make it: one row per address means a sign-up cannot be replayed to flood a mailbox, so
@@ -953,7 +962,7 @@ classDiagram
   class EmailVerificationService {
     &lt;&lt;application service&gt;&gt;
     +issue(userId, email, AppLanguage) — called once the registration transaction has committed
-    +resendCode(email) — throttle and budget, then lookup and send on the auth-mail executor
+    +resendCode(email) — throttle, then lookup, budget and send on the auth-mail executor
     +redeem(email, code, purpose) User — charge, compare, consume, and UserVerified on the first proof only
     +deleteAllForUser(userId) — FR-019: the address owes the throttle nothing once its account is gone
     CODE_LENGTH 8, CODE_VALIDITY 15 min; the attempt cap lives on User
@@ -970,7 +979,7 @@ classDiagram
   }
   class AuthMailBudget {
     &lt;&lt;in-memory guard&gt;&gt;
-    admit(now) boolean — false once the UTC day's budget is spent
+    admit(now) boolean — after the lookup, accounts only; false once the UTC day's budget is spent
     refund(sentAt) — a failed send gives its slot back, the same day only
     app.mail.auth-daily-budget, 60 by default, logs auth_mail_budget_exhausted once a day
   }
@@ -2213,11 +2222,12 @@ sequenceDiagram
   EVS->>TH: admit(email, now) — consulted before the lookup, on purpose
   alt inside the 60s cooldown, or the sixth code this hour
     EVS-->>SPA: 429 + Retry-After — the only part of it a client can act on
-  else the daily auth-mail budget is spent, or the queue is full
+  else the auth-mail queue is full
     EVS-->>SPA: 503 — the same for every address, and the throttle entry is given back
   else allowed
     EVS-->>SPA: 202 Accepted — whether a message follows is what it declines to disclose
     Note over EVS,UR: then, on the auth-mail executor: lookup, a SIGN_IN code for any account,&lt;br/&gt;and the mail with its link. An unknown address is quietly sent nothing
+    Note over EVS,UR: the daily budget is spent only by an account. Once it is gone the code is dropped&lt;br/&gt;and logged as auth_mail_code_dropped, behind the same 202
     Note over EVS,TH: a send the provider refuses gives back the throttle entry and the budget slot,&lt;br/&gt;so "send again" works at once
   end
   </pre>
@@ -2972,7 +2982,7 @@ flowchart TB
         <tr><th scope="row">Profile fact</th><td>A durable statement about the user inside <code>AiMemory</code>, rendered into prompts by <code>AiMemoryRenderer</code>.</td></tr>
         <tr><th scope="row">Verification code</th><td>The eight digits mailed to an address (six until DEV-62), and the only thing an unconfirmed account is ever sent (DEV-51): valid 15 minutes, five guesses charged before each comparison, stored as a <code>PasswordEncoder</code> hash and cleared when spent. Since DEV-62 it is also a sign-in credential: any account can ask for one and redeem it on <code>POST /api/sessions</code>, and the mail carries a link that prefills it without spending it. In the SPA it is the only way in
   since DEV-62 phase 2: <code>/login</code> asks for the address and <code>/verify</code> takes the
-  code. Each code has a purpose (<code>CodePurpose</code>) and is refused for the other. An account that has not redeemed one is <em>unverified</em> — it cannot sign in with its password and the natural rhythm does not know it exists. One code per address per minute and five per hour, from an in-memory throttle, and a daily budget on all auth mail — but only a code request is ever refused: registration records its send without asking, because one row per address means a sign-up cannot flood a mailbox. A per-IP limit is a Cloudflare rule and the next issue.</td></tr>
+  code. Each code has a purpose (<code>CodePurpose</code>) and is refused for the other. An account that has not redeemed one is <em>unverified</em> — it cannot sign in with its password and the natural rhythm does not know it exists. One code per address per minute and five per hour, from an in-memory throttle, and a daily budget on sign-in code mail for existing accounts, which drops a code rather than refusing the request — only a code request is ever refused, by the throttle or a full send queue: registration records its send without asking, because one row per address means a sign-up cannot flood a mailbox. A per-IP limit is a Cloudflare rule and the next issue.</td></tr>
         <tr><th scope="row">UserPrincipal</th><td>The authenticated identity (record: userId, email, passwordHash, language, verified) carried by the session—lets <code>/me</code> and re-auth answer without a DB query. The language is the one component that moves mid-session, which is why equality is the user id alone: a post-switch principal must still find its own <code>SessionRegistry</code> entry. <code>verified</code> is what <code>isEnabled()</code> reports, and the account-status check that reads it runs after the password, never before.</td></tr>
         <tr><th scope="row">AppLanguage</th><td>The two languages the app writes to a person in, <code>PL</code> and <code>EN</code>. Persisted by <code>name()</code> in <code>app_user.preferred_language</code> and carried on the wire as the same two letters, not a BCP 47 tag. <code>DEFAULT = EN</code> is what a <em>request</em> naming nothing known resolves to; a null <em>account</em> column reads as Polish instead, and the two rules must stay separate.</td></tr>
         <tr><th scope="row">Accept-Language</th><td>The transport half of localization: the SPA sends whatever it is currently rendering, <code>i18n/LocaleConfig</code>'s resolver negotiates it against the two supported locales, and handlers receive a plain <code>Locale</code>. The account column is the persistence half — the header cannot be asked at a moment when no request exists.</td></tr>

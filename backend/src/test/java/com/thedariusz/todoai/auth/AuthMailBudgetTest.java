@@ -59,6 +59,20 @@ class AuthMailBudgetTest {
 		assertThat(budget.admit(Instant.parse("2026-11-15T00:00:00Z"))).isTrue();
 	}
 
+	/**
+	 * Requests are stamped on the request thread and admitted later on the auth-mail executor, so one
+	 * stamped before midnight can be admitted after one stamped after it. The day only moves forward:
+	 * the late one is charged to today, and today's count is not reset.
+	 */
+	@Test
+	void chargesALateArrivalFromYesterdayToTodayInsteadOfRollingBack() {
+		AuthMailBudget budget = new AuthMailBudget(1);
+		assertThat(budget.admit(Instant.parse("2026-11-15T00:00:01Z"))).isTrue();
+
+		assertThat(budget.admit(Instant.parse("2026-11-14T23:59:59Z"))).isFalse();
+		assertThat(budget.admit(Instant.parse("2026-11-15T00:00:02Z"))).isFalse();
+	}
+
 	/** Yesterday's failed send is not today's credit. */
 	@Test
 	void ignoresARefundForAPreviousDay() {
