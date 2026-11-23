@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.1.2</version>
+		<version>4.2.0</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.thedariusz</groupId>
@@ -28,7 +28,7 @@
 	</scm>
 	<properties>
 		<java.version>25</java.version>
-		<spring-ai.version>2.0.2</spring-ai.version>
+		<spring-ai.version>2.1.0</spring-ai.version>
 		<!-- REST Assured is not managed by the Spring Boot 4 BOM. 6.x targets Hamcrest 3 / Groovy 4 /
 		     Java 17+ — aligned with Boot 4's stack (5.x is built for Hamcrest 2). -->
 		<rest-assured.version>6.3.0</rest-assured.version>
