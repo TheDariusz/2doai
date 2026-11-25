@@ -235,19 +235,14 @@ class ProposalService {
 	 * doing. Runs inside {@code GoalService}'s transaction (a plain {@link EventListener}), so the
 	 * entry and the closure land together or not at all.
 	 *
-	 * <p>Re-read under the write lock, as {@link #supersede} does: the scheduler may be superseding
-	 * this very proposal on its own thread, and whichever closure gets there first stands.
+	 * <p>Read under the write lock, as {@link #supersede} does: the scheduler may be superseding
+	 * this very proposal on its own thread, and whichever closure gets there first stands. The row
+	 * is managed, so the closure is written by the commit {@code GoalService} is already heading for.
 	 */
 	@EventListener
 	void closeProposalAbout(GoalLeftTheRunning event) {
-		proposals.findByUserIdAndAnsweredAtIsNull(event.userId())
-				.filter(proposal -> proposal.getGoalId().equals(event.goalId()))
-				.flatMap(proposal -> proposals.findWithLockByIdAndUserId(proposal.getId(), event.userId()))
-				.filter(Proposal::isPending)
-				.ifPresent(proposal -> {
-					proposal.closeForClosedEntry(OffsetDateTime.now(USER_ZONE));
-					proposals.saveAndFlush(proposal);
-				});
+		proposals.findWithLockByUserIdAndGoalIdAndAnsweredAtIsNull(event.userId(), event.goalId())
+				.ifPresent(proposal -> proposal.closeForClosedEntry(OffsetDateTime.now(USER_ZONE)));
 	}
 
 	/** The user's open proposal, if they have one, rendered with the entry it points at. */

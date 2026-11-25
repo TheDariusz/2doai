@@ -193,18 +193,20 @@ export function ProposalCard({
     onChange()
   }
 
-
   /**
    * A waiting proposal whose entry the user has since completed or withdrawn from the list. The
-   * server closed it in the same transaction (`ENTRY_CLOSED`), so this only stops the card asking
-   * about something already done until the next read — derived from the list rather than refetched,
-   * so a just-answered card and its first step are never thrown away by an unrelated edit.
+   * server closed it in the same transaction (`ENTRY_CLOSED`), so the card drops it for good —
+   * state, not just the view, so restoring the entry cannot bring back answer buttons the server
+   * would refuse. Read off the list rather than refetched, and only while unanswered, so a
+   * just-answered card and its first step are never thrown away by an unrelated edit. Set during
+   * render (React's "adjusting state on a prop change"): the guard is false on the next pass.
    */
-  const overtaken =
-    proposal !== null &&
-    proposal.answer === null &&
+  if (
+    proposal?.answer === null &&
     goals.some((goal) => goal.id === proposal.entry.id && (goal.completed_at || goal.withdrawn_at))
-  const shown = overtaken ? null : proposal
+  ) {
+    setProposal(null)
+  }
 
   return (
     <section className="proposal" aria-label={t('proposal.label')}>
@@ -227,19 +229,19 @@ export function ProposalCard({
       {error && <p role="alert">{error}</p>}
       {nothingWaiting && <p role="status">{t('proposal.nothingWaiting')}</p>}
 
-      {shown && (
+      {proposal && (
         <article>
-          <p className="proposal-message">{shown.message}</p>
+          <p className="proposal-message">{proposal.message}</p>
           {/* The entry verbatim beside the prose that paraphrases it: the message is the engine
               talking, this is which entry it means — in the same chips the rows use, so the two
               read as the same entry. */}
-          <Entry entry={shown.entry} domains={domains} />
+          <Entry entry={proposal.entry} domains={domains} />
 
-          {shown.answer ? (
+          {proposal.answer ? (
             <>
-              <p role="status">{t(`proposal.confirmation.${shown.answer}`)}</p>
-              {shown.first_step && (
-                <FirstStep steps={shown.first_step} saved={saved} save={saveStep} pending={pending} />
+              <p role="status">{t(`proposal.confirmation.${proposal.answer}`)}</p>
+              {proposal.first_step && (
+                <FirstStep steps={proposal.first_step} saved={saved} save={saveStep} pending={pending} />
               )}
             </>
           ) : (

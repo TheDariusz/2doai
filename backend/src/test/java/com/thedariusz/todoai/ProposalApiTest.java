@@ -605,10 +605,15 @@ class ProposalApiTest extends ApiTestBase {
 	private void replaceEntryOf(String proposalId, boolean completed, boolean withdrawn) {
 		String entry = csrfAware().when().get("/api/proposals/pending").then().statusCode(200)
 				.body("id", equalTo(proposalId)).extract().path("entry.id");
-		Map<String, Object> body = task("Oddać książkę", "EDUCATION", LocalDate.now(USER_ZONE).minusDays(2));
+		replaceTask(entry, task("Oddać książkę", "EDUCATION", LocalDate.now(USER_ZONE).minusDays(2)), completed,
+				withdrawn);
+	}
+
+	/** A full-replace PUT of a task, carrying the two closure flags the create body leaves out. */
+	private void replaceTask(String id, Map<String, Object> body, boolean completed, boolean withdrawn) {
 		body.put("completed", completed);
 		body.put("withdrawn", withdrawn);
-		csrfAware().body(body).when().put("/api/goals/" + entry).then().statusCode(200);
+		csrfAware().body(body).when().put("/api/goals/" + id).then().statusCode(200);
 	}
 
 	/**
@@ -644,10 +649,8 @@ class ProposalApiTest extends ApiTestBase {
 		String proposal = pendingProposalFor("Oddać książkę", "EDUCATION");
 		Map<String, Object> other = task("Zapłacić ZUS", "FINANCE", LocalDate.now(USER_ZONE).plusDays(3));
 		String otherId = createTask(other);
-		other.put("completed", true);
-		other.put("withdrawn", false);
 
-		csrfAware().body(other).when().put("/api/goals/" + otherId).then().statusCode(200);
+		replaceTask(otherId, other, true, false);
 
 		csrfAware().when().get("/api/proposals/pending").then().statusCode(200).body("id", equalTo(proposal));
 	}
