@@ -13,12 +13,14 @@ import com.thedariusz.todoai.ai.LlmException;
 import com.thedariusz.todoai.ai.LlmProperties;
 import com.thedariusz.todoai.ai.memory.AiMemoryService;
 import com.thedariusz.todoai.goal.Goal;
+import com.thedariusz.todoai.goal.GoalLeftTheRunning;
 import com.thedariusz.todoai.goal.GoalRepository;
 import com.thedariusz.todoai.proposal.ProposalSelector.Candidate;
 import com.thedariusz.todoai.security.CurrentUser;
 import com.thedariusz.todoai.user.AppLanguage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.event.EventListener;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -225,6 +227,27 @@ class ProposalService {
 			proposals.saveAndFlush(current);
 			recordEpisode(userId, SUPERSEDED, ProposalAnswer.SUPERSEDED, entry);
 		});
+	}
+
+	/**
+	 * The user finished or withdrew an entry, and the proposal still waiting may be about exactly
+	 * that — close it, so the card is gone and the pending slot is free for something that still needs
+	 * doing. Runs inside {@code GoalService}'s transaction (a plain {@link EventListener}), so the
+	 * entry and the closure land together or not at all.
+	 *
+	 * <p>Re-read under the write lock, as {@link #supersede} does: the scheduler may be superseding
+	 * this very proposal on its own thread, and whichever closure gets there first stands.
+	 */
+	@EventListener
+	void closeProposalAbout(GoalLeftTheRunning event) {
+		proposals.findByUserIdAndAnsweredAtIsNull(event.userId())
+				.filter(proposal -> proposal.getGoalId().equals(event.goalId()))
+				.flatMap(proposal -> proposals.findWithLockByIdAndUserId(proposal.getId(), event.userId()))
+				.filter(Proposal::isPending)
+				.ifPresent(proposal -> {
+					proposal.closeForClosedEntry(OffsetDateTime.now(USER_ZONE));
+					proposals.saveAndFlush(proposal);
+				});
 	}
 
 	/** The user's open proposal, if they have one, rendered with the entry it points at. */

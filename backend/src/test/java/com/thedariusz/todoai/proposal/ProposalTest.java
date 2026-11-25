@@ -79,6 +79,28 @@ class ProposalTest {
 		assertThat(proposal.getAnsweredAt()).isEqualTo(NOW);
 	}
 
+	@Test
+	void closesTheSlotWhenItsEntryIsCompletedOrWithdrawn() {
+		Proposal proposal = proposal();
+
+		proposal.closeForClosedEntry(NOW);
+
+		assertThat(proposal.isPending()).isFalse();
+		assertThat(proposal.getAnswer()).isEqualTo(ProposalAnswer.ENTRY_CLOSED);
+		assertThat(proposal.getAnsweredAt()).isEqualTo(NOW);
+	}
+
+	@Test
+	void refusesToCloseForTheEntryOverAnAnswerTheUserAlreadyGave() {
+		Proposal proposal = proposal();
+		proposal.answer(ProposalAnswer.STARTING, NOW);
+
+		assertThatThrownBy(() -> proposal.closeForClosedEntry(NOW.plusMinutes(1)))
+				.isInstanceOf(ProposalAlreadyAnsweredException.class);
+
+		assertThat(proposal.getAnswer()).isEqualTo(ProposalAnswer.STARTING);
+	}
+
 	/**
 	 * The race the scheduler actually runs into: the user answers over HTTP while the rhythm is
 	 * mid-cycle. Their answer is the real one, and a machine closure that overwrote it would silently

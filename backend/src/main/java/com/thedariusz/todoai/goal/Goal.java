@@ -205,6 +205,11 @@ public class Goal implements UserOwned {
 		}
 	}
 
+	/** Neither done nor withdrawn — the entries a proposal may still be about. */
+	public boolean isActive() {
+		return completedAt == null && withdrawnAt == null;
+	}
+
 	/** Back into the running, and the reason a withdrawal is reversible rather than a delete. */
 	public void restore() {
 		this.withdrawnAt = null;

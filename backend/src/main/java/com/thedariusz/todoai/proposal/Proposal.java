@@ -159,6 +159,16 @@ public class Proposal implements UserOwned {
 		answer(ProposalAnswer.SUPERSEDED, at);
 	}
 
+	/**
+	 * Close this proposal because its entry was completed or withdrawn while it waited. The same
+	 * single-write guard as {@link #supersede}: a real answer that landed first stands.
+	 *
+	 * @throws ProposalAlreadyAnsweredException if it was answered first
+	 */
+	public void closeForClosedEntry(OffsetDateTime at) {
+		answer(ProposalAnswer.ENTRY_CLOSED, at);
+	}
+
 	/** Store FR-014's generated bullets, so a reload shows the plan the user already read. */
 	public void recordFirstStep(String stepsJson) {
 		this.firstStep = stepsJson;

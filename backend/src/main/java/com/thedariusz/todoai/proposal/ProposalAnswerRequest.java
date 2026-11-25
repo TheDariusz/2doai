@@ -22,7 +22,8 @@ import jakarta.validation.constraints.NotNull;
  * <p><b>The enum is wider than this request is.</b> {@link ProposalAnswer#SUPERSEDED} is written by
  * the app when a new proposal replaces an unanswered one, so a client sending it would be forging a
  * closure the app owns — and one that quietly snoozes the entry three days without the user ever
- * having said so. 422, by the same mechanism as the rule above.
+ * having said so. 422, by the same mechanism as the rule above. {@link ProposalAnswer#ENTRY_CLOSED}
+ * is refused for the same reason.
  */
 record ProposalAnswerRequest(
 
@@ -42,9 +43,9 @@ record ProposalAnswerRequest(
 				: remindInDays == null;
 	}
 
-	@AssertTrue(message = "answer must be one of the four the user can give; SUPERSEDED is written by the app")
+	@AssertTrue(message = "answer must be one of the four the user can give; SUPERSEDED and ENTRY_CLOSED are written by the app")
 	boolean isAnAnswerTheUserCanGive() {
 		// A missing answer is @NotNull's 422 to report, not this one's.
-		return answer != ProposalAnswer.SUPERSEDED;
+		return answer == null || !answer.isMachineWritten();
 	}
 }

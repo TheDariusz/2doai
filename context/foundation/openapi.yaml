@@ -1363,13 +1363,21 @@ components:
         three days exactly as `NOT_NOW` would. Sending it to the answer endpoint is a 422. A client
         will not see one on a *pending* proposal, since a superseded proposal is by definition no
         longer pending.
-      # #112 open-ended enum: a sixth response must not break existing clients.
+
+
+        `ENTRY_CLOSED` is the sixth, **also written by the server only**: the user completed or
+        withdrew the entry through `PUT /goals/{id}` while the proposal about it was still waiting,
+        so the proposal is closed in the same transaction — no snooze, nothing left to quiet. Sending
+        it to the answer endpoint is a 422, and like `SUPERSEDED` it never appears on a pending
+        proposal.
+      # #112 open-ended enum: a seventh response must not break existing clients.
       x-extensible-enum:
         - STARTING
         - NOT_NOW
         - REMIND_LATER
         - NEVER
         - SUPERSEDED
+        - ENTRY_CLOSED
       example: STARTING
 
     ProposalAnswerRequest:

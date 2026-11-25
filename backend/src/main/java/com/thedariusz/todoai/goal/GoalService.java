@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.thedariusz.todoai.security.CurrentUser;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,9 +24,12 @@ class GoalService {
 
 	private final CurrentUser currentUser;
 
-	GoalService(GoalRepository goals, CurrentUser currentUser) {
+	private final ApplicationEventPublisher events;
+
+	GoalService(GoalRepository goals, CurrentUser currentUser, ApplicationEventPublisher events) {
 		this.goals = goals;
 		this.currentUser = currentUser;
+		this.events = events;
 	}
 
 	@Transactional(readOnly = true)
@@ -46,10 +50,16 @@ class GoalService {
 	 * Full replace: edit, re-categorize, convert between layers, complete and un-complete all arrive
 	 * here. Flushed before mapping so the response carries the {@code @UpdateTimestamp} Hibernate
 	 * assigns at flush time rather than the value the row had on load.
+	 *
+	 * <p>Leaving the running — completed or withdrawn while it was active — is announced as
+	 * {@link GoalLeftTheRunning}, on the transition only: the full-replace PUT re-asserts both flags on
+	 * every edit, and an edit of an entry that was already done has nothing new to tell anyone. The
+	 * listeners run inside this transaction, so the entry and whatever reacts to it land together.
 	 */
 	GoalResponse update(UUID id, GoalUpdate request) {
 		Goal goal = goals.findByIdAndUserId(id, currentUser.requireId())
 				.orElseThrow(() -> new GoalNotFoundException(id));
+		boolean wasActive = goal.isActive();
 
 		goal.update(request.content(), request.layer(), request.horizon(), request.dueDate(),
 				request.categoryCode());
@@ -67,7 +77,11 @@ class GoalService {
 		else {
 			goal.restore();
 		}
-		return GoalResponse.from(goals.saveAndFlush(goal));
+		Goal saved = goals.saveAndFlush(goal);
+		if (wasActive && !saved.isActive()) {
+			events.publishEvent(new GoalLeftTheRunning(saved.getUserId(), saved.getId()));
+		}
+		return GoalResponse.from(saved);
 	}
 
 	/**

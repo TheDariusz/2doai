@@ -66,7 +66,7 @@ function calls() {
 }
 
 function renderCard() {
-  render(<ProposalCard domains={DOMAINS} onChange={onChange} />)
+  render(<ProposalCard domains={DOMAINS} goals={[GUITAR]} onChange={onChange} />)
   return userEvent.setup()
 }
 
@@ -196,6 +196,25 @@ describe('ProposalCard — a proposal already waiting', () => {
     expect(screen.getByRole('button', { name: 'Give me something now' })).toBeEnabled()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  /**
+   * Finishing the entry from the list answers the proposal about it — the server closes it in the
+   * same transaction, and the card must not go on asking about something already done until the
+   * next reload.
+   */
+  it.each([
+    ['completed', { completed_at: '2026-08-27T09:00:00Z' }],
+    ['withdrawn', { withdrawn_at: '2026-08-27T09:00:00Z' }],
+  ])('drops the waiting proposal once its entry is %s in the list', async (_, closed) => {
+    fetchMock.mockResolvedValue(response(200, PROPOSAL))
+    const { rerender } = render(<ProposalCard domains={DOMAINS} goals={[GUITAR]} onChange={onChange} />)
+    await screen.findByText(PROPOSAL.message)
+
+    rerender(<ProposalCard domains={DOMAINS} goals={[{ ...GUITAR, ...closed }]} onChange={onChange} />)
+
+    expect(screen.queryByText(PROPOSAL.message)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Give me something now' })).toBeEnabled()
   })
 
   /**

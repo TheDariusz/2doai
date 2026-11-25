@@ -27,9 +27,10 @@ export type Proposal = {
   message: string
   source: 'LLM' | 'TEMPLATE'
   /**
-   * Only ever one of the four the user can give, or null. The enum has a fifth, `SUPERSEDED`, which
-   * the *server* writes when the natural rhythm replaces a proposal nobody answered — but it cannot
-   * reach this card: a superseded proposal is by definition no longer pending, and the card only
+   * Only ever one of the four the user can give, or null. The enum has two more the *server* writes —
+   * `SUPERSEDED` when the natural rhythm replaces a proposal nobody answered, `ENTRY_CLOSED` when the
+   * entry is completed or withdrawn from the list — but neither can reach this card: both close a
+   * proposal that is then by definition no longer pending, and the card only
    * ever holds a pending one or the one just answered here. Narrowing to `UserAnswer` here is what
    * lets the confirmation copy be a total mapping instead of a guarded one.
    */
@@ -81,7 +82,15 @@ function messageFor(t: TFunction, status: number, failed: Attempt): string {
  * `category_code` and the user reads a name and a colour. Passed rather than read off the outlet, so
  * the card stays renderable outside the shell's route.
  */
-export function ProposalCard({ domains, onChange }: { domains: Domain[]; onChange: () => void }) {
+export function ProposalCard({
+  domains,
+  goals,
+  onChange,
+}: {
+  domains: Domain[]
+  goals: Goal[]
+  onChange: () => void
+}) {
   const { t } = useTranslation()
   const [proposal, setProposal] = useState<Proposal | null>(null)
   // Separate from `proposal === null`, which is also the state before the button is ever pressed:
@@ -184,6 +193,19 @@ export function ProposalCard({ domains, onChange }: { domains: Domain[]; onChang
     onChange()
   }
 
+
+  /**
+   * A waiting proposal whose entry the user has since completed or withdrawn from the list. The
+   * server closed it in the same transaction (`ENTRY_CLOSED`), so this only stops the card asking
+   * about something already done until the next read — derived from the list rather than refetched,
+   * so a just-answered card and its first step are never thrown away by an unrelated edit.
+   */
+  const overtaken =
+    proposal !== null &&
+    proposal.answer === null &&
+    goals.some((goal) => goal.id === proposal.entry.id && (goal.completed_at || goal.withdrawn_at))
+  const shown = overtaken ? null : proposal
+
   return (
     <section className="proposal" aria-label={t('proposal.label')}>
       <div className="proposal-head">
@@ -205,19 +227,19 @@ export function ProposalCard({ domains, onChange }: { domains: Domain[]; onChang
       {error && <p role="alert">{error}</p>}
       {nothingWaiting && <p role="status">{t('proposal.nothingWaiting')}</p>}
 
-      {proposal && (
+      {shown && (
         <article>
-          <p className="proposal-message">{proposal.message}</p>
+          <p className="proposal-message">{shown.message}</p>
           {/* The entry verbatim beside the prose that paraphrases it: the message is the engine
               talking, this is which entry it means — in the same chips the rows use, so the two
               read as the same entry. */}
-          <Entry entry={proposal.entry} domains={domains} />
+          <Entry entry={shown.entry} domains={domains} />
 
-          {proposal.answer ? (
+          {shown.answer ? (
             <>
-              <p role="status">{t(`proposal.confirmation.${proposal.answer}`)}</p>
-              {proposal.first_step && (
-                <FirstStep steps={proposal.first_step} saved={saved} save={saveStep} pending={pending} />
+              <p role="status">{t(`proposal.confirmation.${shown.answer}`)}</p>
+              {shown.first_step && (
+                <FirstStep steps={shown.first_step} saved={saved} save={saveStep} pending={pending} />
               )}
             </>
           ) : (
