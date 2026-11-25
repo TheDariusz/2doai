@@ -316,8 +316,12 @@
   about something already done and the manual button handed it back. <code>GoalService.update</code>
   now publishes <code>GoalLeftTheRunning</code> on the transition, <code>ProposalService</code> closes
   the waiting proposal as <code>ProposalAnswer.ENTRY_CLOSED</code> in the same transaction, the SPA's
-  <code>ProposalCard</code> drops a waiting card whose entry the list shows as done, and
-  <code>V17</code> closes the rows left over from before. Moved: the overview row, the
+  <code>ProposalCard</code> drops a waiting card whose entry the list shows as done or no longer
+  shows at all (deleted, the cascade took the proposal), and
+  <code>V17</code> closes the rows left over from before. The review pass added one lock rule: every
+  rewrite of a <code>goal</code> row — the PUT, an answer, the rhythm's supersede — reads it through
+  <code>GoalRepository.findWithLockByIdAndUserId</code>, goal row before proposal row, so none of them
+  silently undoes another and none can deadlock. Moved: the overview row, the
   <code>goal</code> and <code>proposal</code> code-map rows, both class diagrams, the terms list and
   glossary, the <code>#data</code> migration prose, <code>openapi.yaml</code>'s
   <code>ProposalAnswer</code> anchor. No endpoint added and no flow diagram changed.</p>
@@ -1393,6 +1397,7 @@ classDiagram
   class GoalRepository {
     &lt;&lt;persistence adapter / Spring Data&gt;&gt;
     findByIdAndUserId — no existence oracle
+    findWithLockByIdAndUserId — every rewrite of the row, locked before its proposal
   }
   class GoalDataDeleter {
     &lt;&lt;module adapter&gt;&gt;
