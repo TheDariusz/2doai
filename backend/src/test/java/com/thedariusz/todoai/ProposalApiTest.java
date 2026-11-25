@@ -590,6 +590,71 @@ class ProposalApiTest extends ApiTestBase {
 		csrfAware().when().post("/api/proposals").then().statusCode(200).body("id", equalTo(proposal));
 	}
 
+	/** The same refusal for the other closure the app owns: a client cannot claim an entry it never closed. */
+	@Test
+	void refusesTheClosureTheAppWritesWhenTheEntryLeavesTheRunning() {
+		givenLoggedInUser();
+		String proposal = pendingProposalFor("Oddać książkę", "EDUCATION");
+
+		answer(proposal, Map.of("answer", "ENTRY_CLOSED")).statusCode(422);
+
+		csrfAware().when().post("/api/proposals").then().statusCode(200).body("id", equalTo(proposal));
+	}
+
+	/** The entry the pending proposal points at, written back through the goals API as the SPA does. */
+	private void replaceEntryOf(String proposalId, boolean completed, boolean withdrawn) {
+		String entry = csrfAware().when().get("/api/proposals/pending").then().statusCode(200)
+				.body("id", equalTo(proposalId)).extract().path("entry.id");
+		replaceTask(entry, task("Oddać książkę", "EDUCATION", LocalDate.now(USER_ZONE).minusDays(2)), completed,
+				withdrawn);
+	}
+
+	/** A full-replace PUT of a task, carrying the two closure flags the create body leaves out. */
+	private void replaceTask(String id, Map<String, Object> body, boolean completed, boolean withdrawn) {
+		body.put("completed", completed);
+		body.put("withdrawn", withdrawn);
+		csrfAware().body(body).when().put("/api/goals/" + id).then().statusCode(200);
+	}
+
+	/**
+	 * Done is done: a proposal asking the user to come back to something they have just finished is
+	 * the app not listening. The slot is freed in the same transaction as the completion, so the card
+	 * is gone on the next read and the button is free to look for something that still needs doing.
+	 */
+	@Test
+	void closesTheWaitingProposalWhenItsEntryIsCompleted() {
+		givenLoggedInUser();
+		String proposal = pendingProposalFor("Oddać książkę", "EDUCATION");
+
+		replaceEntryOf(proposal, true, false);
+
+		csrfAware().when().get("/api/proposals/pending").then().statusCode(204);
+		// Not the stale proposal handed back by the pending short-circuit: nothing is left to propose.
+		csrfAware().when().post("/api/proposals").then().statusCode(204);
+	}
+
+	@Test
+	void closesTheWaitingProposalWhenItsEntryIsWithdrawnOutsideTheProposal() {
+		givenLoggedInUser();
+		String proposal = pendingProposalFor("Oddać książkę", "EDUCATION");
+
+		replaceEntryOf(proposal, false, true);
+
+		csrfAware().when().get("/api/proposals/pending").then().statusCode(204);
+	}
+
+	@Test
+	void leavesTheWaitingProposalStandingWhenADifferentEntryIsCompleted() {
+		givenLoggedInUser();
+		String proposal = pendingProposalFor("Oddać książkę", "EDUCATION");
+		Map<String, Object> other = task("Zapłacić ZUS", "FINANCE", LocalDate.now(USER_ZONE).plusDays(3));
+		String otherId = createTask(other);
+
+		replaceTask(otherId, other, true, false);
+
+		csrfAware().when().get("/api/proposals/pending").then().statusCode(200).body("id", equalTo(proposal));
+	}
+
 	@Test
 	void answersNotFoundRatherThanForbiddenForAProposalTheCallerDoesNotOwn() {
 		givenLoggedInUser();

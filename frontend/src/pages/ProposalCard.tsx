@@ -27,9 +27,10 @@ export type Proposal = {
   message: string
   source: 'LLM' | 'TEMPLATE'
   /**
-   * Only ever one of the four the user can give, or null. The enum has a fifth, `SUPERSEDED`, which
-   * the *server* writes when the natural rhythm replaces a proposal nobody answered — but it cannot
-   * reach this card: a superseded proposal is by definition no longer pending, and the card only
+   * Only ever one of the four the user can give, or null. The enum has two more the *server* writes —
+   * `SUPERSEDED` when the natural rhythm replaces a proposal nobody answered, `ENTRY_CLOSED` when the
+   * entry is completed or withdrawn from the list — but neither can reach this card: both close a
+   * proposal that is then by definition no longer pending, and the card only
    * ever holds a pending one or the one just answered here. Narrowing to `UserAnswer` here is what
    * lets the confirmation copy be a total mapping instead of a guarded one.
    */
@@ -73,15 +74,23 @@ function messageFor(t: TFunction, status: number, failed: Attempt): string {
  *
  * <p>A file of its own rather than a section of `GoalsPage`, which is long enough already and owns a
  * different thing — this is one self-contained flow that happens to sit above an entry list. It
- * takes the page's refetch as `onChange` rather than the list itself: every answer changes an entry
- * (three write `remind_after`, the fourth `withdrawn_at`) and so does saving a bullet, but the card
- * never needs to read what is in the list.
+ * takes the page's refetch as `onChange`: every answer changes an entry (three write `remind_after`,
+ * the fourth `withdrawn_at`) and so does saving a bullet. It reads the list only to notice that the
+ * entry a waiting proposal is about has been completed, withdrawn or deleted there.
  *
  * <p>`domains` is handed down for the same reason the rows get it: the entry carries a
  * `category_code` and the user reads a name and a colour. Passed rather than read off the outlet, so
  * the card stays renderable outside the shell's route.
  */
-export function ProposalCard({ domains, onChange }: { domains: Domain[]; onChange: () => void }) {
+export function ProposalCard({
+  domains,
+  goals,
+  onChange,
+}: {
+  domains: Domain[]
+  goals: Goal[]
+  onChange: () => void
+}) {
   const { t } = useTranslation()
   const [proposal, setProposal] = useState<Proposal | null>(null)
   // Separate from `proposal === null`, which is also the state before the button is ever pressed:
@@ -182,6 +191,39 @@ export function ProposalCard({ domains, onChange }: { domains: Domain[]; onChang
     if (!landed.ok) return
     setSaved((all) => [...all, at])
     onChange()
+  }
+
+  // The list as of the previous render, so a missing entry can be told apart from a deleted one.
+  const [previousGoals, setPreviousGoals] = useState(goals)
+  if (goals !== previousGoals) {
+    setPreviousGoals(goals)
+  }
+
+  /**
+   * A waiting proposal whose entry the user has since completed, withdrawn or deleted from the
+   * list. The server closed it in the same transaction (`ENTRY_CLOSED`) or deleted it with the entry
+   * (`ON DELETE CASCADE`), so the card drops it for good — state, not just the view, so restoring the
+   * entry cannot bring back answer buttons the server would refuse. Read off the list rather than
+   * refetched, and only while unanswered, so a just-answered card and its first step are never
+   * thrown away by an unrelated edit. Set during render (React's "adjusting state on a prop
+   * change"): the guard is false on the next pass.
+   *
+   * <p>Deleted means <em>was in the list and is gone</em>, not merely absent: the list starts empty
+   * and fills after the card's own read, and an entry it has never shown is one it has not caught up
+   * with yet.
+   */
+  const waitingOn = proposal?.answer === null ? proposal.entry.id : null
+  const entry = waitingOn === null ? undefined : goals.find((goal) => goal.id === waitingOn)
+  const entryLeft =
+    waitingOn !== null &&
+    (entry
+      ? Boolean(entry.completed_at || entry.withdrawn_at)
+      : previousGoals.some((goal) => goal.id === waitingOn))
+  if (entryLeft) {
+    setProposal(null)
+    // The failure and the half-open term picker belonged to the proposal that just went.
+    setError(null)
+    setAskingTerm(false)
   }
 
   return (

@@ -69,7 +69,7 @@ erDiagram
         text message "the phrased proposal the user read"
         int neglected_days "the engine's reason, frozen at phrasing time"
         varchar source "LLM | TEMPLATE — which arm wrote the message"
-        varchar answer "STARTING | NOT_NOW | REMIND_LATER | NEVER | SUPERSEDED (S-05, app-written); nullable"
+        varchar answer "STARTING | NOT_NOW | REMIND_LATER | NEVER | SUPERSEDED (S-05, app-written) | ENTRY_CLOSED (V17, app-written); nullable"
         timestamptz answered_at "NULL = pending; partial UNIQUE(user_id) over this"
         jsonb first_step "FR-014's 3-5 bullets, a bare array of strings; nullable"
         timestamptz created_at
@@ -203,6 +203,15 @@ cycle replaces it. It is a distinct value rather than a reuse of `NOT_NOW` — a
 episode — because the next prompt has to tell "they said not now" from "they said nothing at all".
 The `CHECK ((answer IS NULL) = (answered_at IS NULL))` above covers it unchanged: superseding fills
 both columns, which is also what frees the FR-018 pending slot before the replacement is inserted.
+
+`ENTRY_CLOSED` (`V17`) is the app's second closure of an unanswered proposal: written when the user
+completes or withdraws the entry it is about. `GoalService.update` publishes `GoalLeftTheRunning` on
+the active → completed/withdrawn transition and `ProposalService` closes the pending row in the same
+transaction — no snooze, no memory episode, since the user answered the entry, not the proposal.
+`V17` itself is data-only: it sweeps the rows already left waiting on closed entries before the event
+existed. The value fits `answer VARCHAR(16)` and the same `CHECK` covers it. It is not rollback-silent,
+though: the previous image's `ProposalAnswer` has no such constant, so answering a stale card whose
+proposal is now `ENTRY_CLOSED` fails with 500 instead of 409 until the image rolls forward again.
 
 DEV-49 (`V10`, `V11`) adds **two nullable columns and no table** — `app_user.preferred_language` and
 `category.name_en`. Both are expand-only, neither rewrites an existing row, and the section below

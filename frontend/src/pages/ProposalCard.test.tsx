@@ -66,7 +66,7 @@ function calls() {
 }
 
 function renderCard() {
-  render(<ProposalCard domains={DOMAINS} onChange={onChange} />)
+  render(<ProposalCard domains={DOMAINS} goals={[GUITAR]} onChange={onChange} />)
   return userEvent.setup()
 }
 
@@ -196,6 +196,55 @@ describe('ProposalCard — a proposal already waiting', () => {
     expect(screen.getByRole('button', { name: 'Give me something now' })).toBeEnabled()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  /**
+   * Finishing the entry from the list answers the proposal about it — the server closes it in the
+   * same transaction, and the card must not go on asking about something already done until the
+   * next reload.
+   */
+  it.each([
+    ['completed', { completed_at: '2026-08-27T09:00:00Z' }],
+    ['withdrawn', { withdrawn_at: '2026-08-27T09:00:00Z' }],
+  ])('drops the waiting proposal once its entry is %s in the list', async (_, closed) => {
+    fetchMock.mockResolvedValue(response(200, PROPOSAL))
+    const { rerender } = render(<ProposalCard domains={DOMAINS} goals={[GUITAR]} onChange={onChange} />)
+    await screen.findByText(PROPOSAL.message)
+
+    rerender(<ProposalCard domains={DOMAINS} goals={[{ ...GUITAR, ...closed }]} onChange={onChange} />)
+
+    expect(screen.queryByText(PROPOSAL.message)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Give me something now' })).toBeEnabled()
+  })
+
+  /**
+   * Deleting the entry deletes the proposal with it (`ON DELETE CASCADE`), so the card must go too —
+   * left up, every one of its answers would come back 404.
+   */
+  it('drops the waiting proposal once its entry is deleted from the list', async () => {
+    fetchMock.mockResolvedValue(response(200, PROPOSAL))
+    const { rerender } = render(<ProposalCard domains={DOMAINS} goals={[GUITAR]} onChange={onChange} />)
+    await screen.findByText(PROPOSAL.message)
+
+    rerender(<ProposalCard domains={DOMAINS} goals={[]} onChange={onChange} />)
+
+    expect(screen.queryByText(PROPOSAL.message)).not.toBeInTheDocument()
+  })
+
+  /**
+   * Absent is not the same as deleted: the list starts empty and fills after the card's own read, so
+   * an entry the list has never shown is one it has not caught up with yet.
+   */
+  it('keeps the waiting proposal while the list has not shown its entry yet', async () => {
+    fetchMock.mockResolvedValue(response(200, PROPOSAL))
+    const { rerender } = render(<ProposalCard domains={DOMAINS} goals={[]} onChange={onChange} />)
+    await screen.findByText(PROPOSAL.message)
+
+    rerender(<ProposalCard domains={DOMAINS} goals={[]} onChange={onChange} />)
+    expect(screen.getByText(PROPOSAL.message)).toBeInTheDocument()
+
+    rerender(<ProposalCard domains={DOMAINS} goals={[GUITAR]} onChange={onChange} />)
+    expect(screen.getByText(PROPOSAL.message)).toBeInTheDocument()
   })
 
   /**

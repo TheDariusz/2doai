@@ -217,7 +217,7 @@
         <tr><th scope="row">Current tasks</th><td><span class="badge badge-live">implemented</span></td><td>A third <code>GoalLayer</code> value plus an optional <code>due_date</code> on the same aggregate and screen (S-07)</td></tr>
         <tr><th scope="row">Unified three-layer view</th><td><span class="badge badge-live">implemented</span></td><td>All three layers on one <code>/goals</code> screen, narrowed by layer and by category from the query string — filtered in the browser, no API change (S-08)</td></tr>
         <tr><th scope="row">Selection engine</th><td><span class="badge badge-live">implemented</span></td><td>Deterministic neglect heuristic and category balancing behind <code>POST /api/proposals</code> (S-04a); the engine itself still holds no clock, no repository and no model — the AI enters after it has picked</td></tr>
-        <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-live">implemented</span></td><td>Sonnet phrases the picked entry, the proposal is stored (at most one pending per user), the four FR-013 answers act on the entry, and <code>STARTING</code> returns FR-014's bullets — all behind the manual trigger on <code>/goals</code> (S-04b)</td></tr>
+        <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-live">implemented</span></td><td>Sonnet phrases the picked entry, the proposal is stored (at most one pending per user), the four FR-013 answers act on the entry, and <code>STARTING</code> returns FR-014's bullets — all behind the manual trigger on <code>/goals</code> (S-04b). Completing or withdrawing an entry from the list closes the proposal waiting on it as <code>ENTRY_CLOSED</code>, in the same transaction</td></tr>
         <tr><th scope="row">Natural-rhythm return</th><td><span class="badge badge-live">implemented</span></td><td>The non-fixed cycle that decides <em>when</em> to ask (S-05): a per-account moment drawn 2–7 days out inside daytime hours, held in memory and backed by <code>app_user.next_proposal_at</code>, firing <code>ProposalService.proposeScheduled</code> without anyone pressing anything. Since DEV-51 an account joins that cycle when its address is proved rather than when it registers, so the one loop that writes unprompted only ever holds mailboxes somebody confirmed. What comes back is emailed and waits in the app at <code>GET /api/proposals/pending</code>. Its text is the one server-generated sentence still Polish for every account — the accepted FR-009 exception, named at that one seam</td></tr>
         <tr><th scope="row">Observability</th><td><span class="badge badge-live">implemented</span></td><td>In production (the <code>prod</code> profile <code>fly.toml</code> switches on) every log line is also pushed as JSON to the shared Grafana Cloud Loki stack, labelled <code>service=2doai</code>, <code>env=prod</code> and a lowercase <code>level</code>. Two lines exist for the owner's alerts: <code>user_registered</code>, after a verification commits, and a five-minute <code>heartbeat</code>, so that silence is visible (DEV-58). Rules, checks and dashboards live in the thedariusz-ops repository, not here</td></tr>
         <tr><th scope="row">PWA/offline behavior</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-10. Installing to the home screen already works — a web manifest and PNG icons, so iOS opens the app standalone — but nothing is cached, so it is still online-only</td></tr>
@@ -310,6 +310,21 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
+  <p class="note">Verified against the <code>close-proposal-on-entry-completion</code> fix on
+  2026-11-25, with data-only migration <code>V17</code> and one new wire literal. Completing or
+  withdrawing an entry closed nothing: the proposal about it stayed pending, so the card kept asking
+  about something already done and the manual button handed it back. <code>GoalService.update</code>
+  now publishes <code>GoalLeftTheRunning</code> on the transition, <code>ProposalService</code> closes
+  the waiting proposal as <code>ProposalAnswer.ENTRY_CLOSED</code> in the same transaction, the SPA's
+  <code>ProposalCard</code> drops a waiting card whose entry the list shows as done or no longer
+  shows at all (deleted, the cascade took the proposal), and
+  <code>V17</code> closes the rows left over from before. The review pass added one lock rule: every
+  rewrite of a <code>goal</code> row — the PUT, an answer, the rhythm's supersede — reads it through
+  <code>GoalRepository.findWithLockByIdAndUserId</code>, goal row before proposal row, so none of them
+  silently undoes another and none can deadlock. Moved: the overview row, the
+  <code>goal</code> and <code>proposal</code> code-map rows, both class diagrams, the terms list and
+  glossary, the <code>#data</code> migration prose, <code>openapi.yaml</code>'s
+  <code>ProposalAnswer</code> anchor. No endpoint added and no flow diagram changed.</p>
   <p class="note">Verified against the DEV-62 mail-and-link follow-up on 2026-11-14 — no schema,
   endpoint or wire change. The code mail goes out as <code>multipart/alternative</code> with an HTML
   part (<code>VerificationEmailLayout</code>, the PWA icon as the logo, a button, the code set large)
@@ -584,8 +599,8 @@ flowchart LR
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/security"><code>backend/…/security</code></a></th><td>Filter chain, CSRF, session identity, and RFC 9457 security errors — and, since DEV-62, remember-me: the <code>remember_me_token</code> aggregate and its store (<code>JpaPersistentTokenRepository</code>, also a <code>PerUserDataDeleter</code>), and <code>StableTokenRememberMeServices</code>, which brings a session back after a restart without rotating the token</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/account"><code>backend/…/account</code></a></th><td>Modular per-user erasure coordinated before the user row is deleted</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/category"><code>backend/…/category</code></a></th><td>Fixed life-domain reference data in two languages, and enum/table drift detection</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/goal"><code>backend/…/goal</code></a></th><td>One aggregate for all three layers — current tasks, goals and dreams — its CRUD API, and its erasure adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/proposal"><code>backend/…/proposal</code></a></th><td>The whole proactive loop: the selection engine, the two Sonnet prompts and their template fallback, the stored <code>proposal</code> aggregate, the four answers, the three endpoints — and, since S-05, the natural-rhythm scheduler that fires without a caller and the email it sends, still Polish for every account until FR-009</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/goal"><code>backend/…/goal</code></a></th><td>One aggregate for all three layers — current tasks, goals and dreams — its CRUD API, its erasure adapter, and the <code>GoalLeftTheRunning</code> event it publishes when an active entry is completed or withdrawn</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/proposal"><code>backend/…/proposal</code></a></th><td>The whole proactive loop: the selection engine, the two Sonnet prompts and their template fallback, the stored <code>proposal</code> aggregate, the four answers and the two closures the app writes itself (<code>SUPERSEDED</code>, <code>ENTRY_CLOSED</code>), the three endpoints — and, since S-05, the natural-rhythm scheduler that fires without a caller and the email it sends, still Polish for every account until FR-009</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/mail"><code>backend/…/mail</code></a></th><td>The <code>EmailSender</code> outbound port and its SMTP adapter — how the app reaches a user who is not looking at it, in plain text or with an HTML alternative — and, since DEV-62, the single-worker executor code requests send on</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/observability"><code>backend/…/observability</code></a></th><td>What the app tells the shared Loki stack beyond its ordinary lines: <code>user_registered</code> after a verification commits, the five-minute <code>heartbeat</code>, and the lowercase level the label contract needs. The shipping itself is configuration — <code>logback-spring.xml</code> and <code>logback-loki.xml</code> — under the <code>prod</code> profile only</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/ai"><code>backend/…/ai</code></a></th><td>Provider-neutral LLM port, schema contract, and Spring AI adapter</td><td><span class="badge badge-live">implemented</span></td></tr>
@@ -736,6 +751,13 @@ flowchart LR
     memory episode, precisely so the next prompt can tell &ldquo;they said not now&rdquo; from
     &ldquo;they said nothing at all&rdquo;. The scheduled path supersedes; the manual button never
     does, because a second press must return the same card rather than replace it.</dd>
+    <dt>Entry closed</dt>
+    <dd>What happens to a waiting proposal when the user completes or withdraws its entry from the
+    list instead of answering the card: <code>GoalService</code> publishes
+    <code>GoalLeftTheRunning</code> and <code>ProposalService</code> closes the proposal as
+    <code>ProposalAnswer.ENTRY_CLOSED</code> in the same transaction. No snooze and no memory
+    episode, since there is nothing left to quiet. The pending slot is free again, so the card stops
+    asking about something already done and the next proposal comes from what is still open.</dd>
     <dt>Snooze</dt>
     <dd>A date before which an entry is not proposed again, held in <code>goal.remind_after</code>.
     Three of the four answers write it and differ only in the term they pick — a short default for
@@ -1339,6 +1361,7 @@ classDiagram
     OffsetDateTime completedAt — null means active
     LocalDate remindAfter — snoozed until
     OffsetDateTime withdrawnAt — null means in play
+    +isActive() boolean — neither done nor withdrawn
     +update(content, layer, horizon, dueDate, category)
     +complete(OffsetDateTime)
     +reopen()
@@ -1364,16 +1387,24 @@ classDiagram
   class GoalService {
     &lt;&lt;application service&gt;&gt;
     scopes every read to CurrentUser
+    +update(id, request) — publishes GoalLeftTheRunning on the transition only
+  }
+  class GoalLeftTheRunning {
+    &lt;&lt;domain event&gt;&gt;
+    UUID userId
+    UUID goalId
   }
   class GoalRepository {
     &lt;&lt;persistence adapter / Spring Data&gt;&gt;
     findByIdAndUserId — no existence oracle
+    findWithLockByIdAndUserId — every rewrite of the row, locked before its proposal
   }
   class GoalDataDeleter {
     &lt;&lt;module adapter&gt;&gt;
   }
   GoalController --> GoalService
   GoalService --> GoalRepository
+  GoalService ..> GoalLeftTheRunning : published inside the updating transaction
   GoalRepository --> Goal
   GoalDataDeleter --> GoalRepository
   Goal --> GoalLayer
@@ -1560,6 +1591,7 @@ classDiagram
     +propose(AppLanguage) — the request's language, never a lookup of the account's
     +answer(id, request, AppLanguage) — the first step is written in the same one
     +proposeScheduled(userId) — no caller, no SecurityContext, AppLanguage.PL literally
+    +closeProposalAbout(GoalLeftTheRunning) — inside GoalService's transaction
     pending proposal short-circuits propose(), never proposeScheduled
     no @Transactional — the model call is outside one
   }
@@ -1616,6 +1648,7 @@ classDiagram
     String firstStep — jsonb
     +answer(ProposalAnswer, OffsetDateTime)
     +supersede(OffsetDateTime)
+    +closeForClosedEntry(OffsetDateTime)
     +recordFirstStep(String)
     +isPending() boolean
   }
@@ -1623,6 +1656,7 @@ classDiagram
     &lt;&lt;wire enumeration&gt;&gt;
     STARTING, NOT_NOW, REMIND_LATER, NEVER
     SUPERSEDED — written by the app, never by the user
+    ENTRY_CLOSED — the entry was completed or withdrawn while it waited
   }
   class Source {
     &lt;&lt;wire enumeration&gt;&gt;
@@ -1672,6 +1706,7 @@ classDiagram
   ProposalService --> GoalRepository : reads every entry the caller owns
   ProposalService --> ProposalSelector
   ProposalService --> ProposalRepository
+  ProposalService ..> GoalLeftTheRunning : listens, closes the proposal waiting on that entry
   ProposalService --> LlmClient : phrase, then first step
   ProposalService --> AiMemoryService : render for the prompt, record the answer
   ProposalService ..> ProposalPrompt
@@ -2751,6 +2786,10 @@ sequenceDiagram
   open. The value never rotates, so an auto-login writes <code>last_used_at</code> alone; expired rows
   go when their owner next signs in, because a cleanup job would wake the database on a timer. A plain
   <code>CREATE</code>, which the previous image never reads.</p>
+  <p><code>V17</code> is data only, with no schema change: it closes as <code>ENTRY_CLOSED</code> every
+  proposal still waiting on an entry that was already completed or withdrawn, the rows written before
+  <code>GoalService</code> started closing them itself. It is idempotent, and the previous image never
+  loads those rows, because it reads only pending proposals.</p>
   <img class="diagram" src="../context/foundation/data-model-current.svg" width="1572" height="1422" loading="lazy" alt="Current entity relationship model: app user with its next_proposal_at scheduling column, preferred_language setting, nullable password hash and five code columns, remember-me tokens owned by the user, goal with its three layers, proposal, category with its two label columns, AI memory, profile facts, and episodes">
   <h3>Target model <span class="badge badge-planned">planned</span></h3>
   <p>The target diagram shows the whole shape, migrated and not: solid tables exist today, ghosted
@@ -3003,6 +3042,7 @@ flowchart TB
         <tr><th scope="row">Life domain</th><td>One of 11 fixed categories every task belongs to: HEALTH, FINANCE, CAREER, EDUCATION, RELATIONSHIPS, HOME, LEISURE, ADMIN, SAFETY, TRANSPORT, INNER_GROWTH. Enum <code>LifeDomain</code> mirrors the seeded <code>category</code> table; <code>CategorySyncCheck</code> fails boot on drift.</td></tr>
         <tr><th scope="row">Natural-rhythm reminder</th><td>A proactive nudge surfaced at a moment nobody set rather than at a fixed alarm time. Uniformly 2–7 days ahead, drawn inside daytime hours, redrawn after every fire; the schedule lives in <code>ProposalScheduler</code>'s map and only its backup in <code>app_user.next_proposal_at</code>. Random rather than periodic on purpose — the unpredictability is the product, which is why <code>ProposalRhythm</code> takes an unseeded <code>Random</code>.</td></tr>
         <tr><th scope="row">Superseding</th><td>What the next cycle does to a proposal the user never answered: <code>ProposalAnswer.SUPERSEDED</code> closes it and its entry is quieted for the same few days a spoken "not now" buys. An answer the <em>app</em> writes — ignoring a proposal is a response to it — kept distinct from <code>NOT_NOW</code> so the next prompt can tell silence from refusal. Only the scheduled path supersedes; the button returns the pending card instead.</td></tr>
+        <tr><th scope="row">Entry closed</th><td>The other closure the app writes: <code>ProposalAnswer.ENTRY_CLOSED</code>, set when the user completes or withdraws an entry through <code>PUT /api/goals/{id}</code> while a proposal about it is still waiting. Reached through the <code>GoalLeftTheRunning</code> event, in the same transaction as the completion; refused from a client with a 422, like <code>SUPERSEDED</code>.</td></tr>
         <tr><th scope="row">Quiet hours</th><td>The part of the day the rhythm will not fire in (<code>proposal.rhythm.window-start-hour</code> / <code>window-end-hour</code>). No moment is ever drawn outside it; the guard is for a fire that arrives late after downtime, which waits for the window to reopen rather than landing at 04:00.</td></tr>
         <tr><th scope="row">Selection engine</th><td>The deterministic pick behind <code>POST /api/proposals</code>: <em>neglect</em> (idle 7 / 14 / 30 days by layer, or a task past its <code>due_date</code>) decides which entries are eligible — withdrawn and still-snoozed ones are not; a missed term ranks ahead of any amount of silence, and below that <em>domain silence</em> (how long since the user touched anything in a life domain — completed entries included) decides which one wins. Pure Java in <code>ProposalSelector</code>; no LLM.</td></tr>
         <tr><th scope="row">Proposal</th><td>The stored row behind FR-013/FR-018: the picked entry, the sentence the model (or the template) phrased around it, and the user's answer. At most one may be pending per user, enforced by a partial unique index rather than a service check, which is why pressing the button twice returns one card and costs one model call.</td></tr>

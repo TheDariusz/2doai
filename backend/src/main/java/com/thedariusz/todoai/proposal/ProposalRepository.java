@@ -12,7 +12,7 @@ import org.springframework.data.repository.Repository;
 /**
  * Spring Data access to the {@code proposal} aggregate. Extends the bare {@link Repository} marker
  * for the reason {@code GoalRepository} spells out: {@code JpaRepository}'s inherited finders are
- * unscoped, and the next caller reaches for whichever one compiles. These five are the entire
+ * unscoped, and the next caller reaches for whichever one compiles. These six are the entire
  * surface, so the {@link com.thedariusz.todoai.security.UserOwned} isolation contract holds by
  * construction.
  */
@@ -36,6 +36,14 @@ public interface ProposalRepository extends Repository<Proposal, UUID> {
 	 */
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	Optional<Proposal> findWithLockByIdAndUserId(UUID id, UUID userId);
+
+	/**
+	 * The pending proposal about one entry, read under the same write lock — so the row checked
+	 * for pending is the row locked, in one query. A closure that lands first while this waits drops
+	 * the row from the result rather than handing back a stale copy.
+	 */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	Optional<Proposal> findWithLockByUserIdAndGoalIdAndAnsweredAtIsNull(UUID userId, UUID goalId);
 
 	/**
 	 * FR-019 erasure, driven by {@code ProposalDataDeleter}.

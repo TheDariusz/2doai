@@ -247,7 +247,7 @@ export function GoalsPage() {
       {/* Above the create form on purpose: FR-015 is the app asking the user a question, and it has
           to be the first thing on a screen whose whole point is that they had stopped looking.
           `load` is the refetch — every answer changes an entry, and so does saving a first step. */}
-      <ProposalCard domains={domains} onChange={load} />
+      <ProposalCard domains={domains} goals={goals} onChange={load} />
 
       <GoalForm
         name={t('goals.createForm')}

@@ -17,6 +17,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -41,6 +44,9 @@ class GoalPersistenceTest {
 
 	@Autowired
 	JdbcTemplate jdbc;
+
+	@Autowired
+	TransactionTemplate transactions;
 
 	private void insertRawGoal(UUID userId, String layer, String horizon, String categoryCode) {
 		insertRawGoal(userId, layer, horizon, categoryCode, null);
@@ -248,5 +254,33 @@ class GoalPersistenceTest {
 		assertThat(goals.findByUserIdOrderByCreatedAtDesc(bob)).isEmpty();
 		assertThat(goals.findByIdAndUserId(goals.findByUserIdOrderByCreatedAtDesc(alice).getFirst().getId(), bob))
 				.isEmpty();
+	}
+
+	/**
+	 * The locked read is what stops a read-modify-write of the entry (a PUT, an answer, a supersede)
+	 * from writing back a copy that another one has already overtaken: the second reader waits for
+	 * the first to commit and then sees its row. Probed from a second connection with {@code NOWAIT},
+	 * so the test fails fast instead of hanging when the lock is not there.
+	 */
+	@Test
+	void theLockedReadHoldsTheRowUntilCommit() {
+		UUID userId = persistedUserId();
+		Goal goal = goals.saveAndFlush(new Goal(userId, "Zamknięty wiersz", GoalLayer.TASK, null, null,
+				null));
+
+		transactions.executeWithoutResult(status -> {
+			assertThat(goals.findWithLockByIdAndUserId(goal.getId(), userId)).isPresent();
+
+			assertThatThrownBy(() -> new TransactionTemplate(transactions.getTransactionManager(),
+					requiresNew()).executeWithoutResult(inner -> jdbc.queryForList(
+							"SELECT id FROM goal WHERE id = ? FOR UPDATE NOWAIT", goal.getId())))
+					.hasMessageContaining("could not obtain lock");
+		});
+	}
+
+	private static TransactionDefinition requiresNew() {
+		DefaultTransactionDefinition definition = new DefaultTransactionDefinition();
+		definition.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+		return definition;
 	}
 }

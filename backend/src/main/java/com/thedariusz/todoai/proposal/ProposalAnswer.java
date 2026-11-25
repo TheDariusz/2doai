@@ -1,7 +1,7 @@
 package com.thedariusz.todoai.proposal;
 
 /**
- * How a proposal was closed — the four responses FR-013 gives the user, plus the one the app writes
+ * How a proposal was closed — the four responses FR-013 gives the user, plus the two the app writes
  * on their behalf. SCREAMING_CASE like {@code GoalLayer}, so the constant names are what the SPA
  * sends and {@code openapi.yaml} publishes.
  *
@@ -14,8 +14,8 @@ package com.thedariusz.todoai.proposal;
  * {@code ProposalAnswer} anchor, and the union in {@code ProposalCard.tsx} — and nothing reads the
  * anchor and compares it to both (lessons.md, "a contract value duplicated across the stack needs one
  * guard that spans the boundary"). Named here because it is unguarded: renaming a value means
- * changing three files by hand. {@link #SUPERSEDED} is the cheapest case of it — the SPA never
- * renders one, since a superseded proposal is by definition no longer pending.
+ * changing three files by hand. {@link #SUPERSEDED} and {@link #ENTRY_CLOSED} are the cheapest cases
+ * of it — the SPA never renders either, since both close a proposal that is then no longer pending.
  */
 public enum ProposalAnswer {
 
@@ -41,5 +41,19 @@ public enum ProposalAnswer {
 	 * latter — and because a memory that recorded silence as an answer the user gave would be lying
 	 * to the next proposal's prompt.
 	 */
-	SUPERSEDED
+	SUPERSEDED,
+
+	/**
+	 * Closed by the app because the user completed or withdrew the entry while the proposal about it
+	 * was still waiting — answered by what they did rather than by a button. Machine-written and
+	 * refused from a client exactly as {@link #SUPERSEDED} is. Unlike that one it neither snoozes the
+	 * entry (there is nothing left to quiet) nor records a memory episode: the completion is already
+	 * on the entry, and the proposal was simply overtaken by it.
+	 */
+	ENTRY_CLOSED;
+
+	/** The two closures only the app may write; a client sending either is a 422. */
+	boolean isMachineWritten() {
+		return this == SUPERSEDED || this == ENTRY_CLOSED;
+	}
 }
