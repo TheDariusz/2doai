@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.repository.Repository;
 
 /**
@@ -15,7 +17,7 @@ import org.springframework.data.repository.Repository;
  * <p>That sentence is only true because this extends the bare {@link Repository} marker rather than
  * {@code JpaRepository}: the convenient inherited finders ({@code findById}, {@code findAll},
  * {@code getReferenceById}, {@code deleteById}) are <b>unscoped</b>, and the next person to need a goal
- * by id would otherwise reach for the one that compiles and skip the ownership check. The five
+ * by id would otherwise reach for the one that compiles and skip the ownership check. The six
  * methods below are the entire surface, so the isolation contract holds by construction instead of by
  * convention.
  *
@@ -30,6 +32,19 @@ public interface GoalRepository extends Repository<Goal, UUID> {
 	List<Goal> findByUserIdOrderByCreatedAtDesc(UUID userId);
 
 	Optional<Goal> findByIdAndUserId(UUID id, UUID userId);
+
+	/**
+	 * The by-id read for a read-modify-write of the entry ({@code SELECT ... FOR UPDATE}). Every
+	 * writer of an existing row goes through it — the PUT, a proposal answer, the rhythm's supersede —
+	 * because each writes the whole row back: without the lock the last one to flush silently undoes
+	 * the others (a snooze cleared by an edit, a completion reopened by a snooze).
+	 *
+	 * <p><b>Lock order: the goal row first, then its proposal.</b> Every path that holds both takes
+	 * them in that order — a {@code DELETE} of the goal cascades into {@code proposal} the same way —
+	 * so two of them can queue but never deadlock.
+	 */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	Optional<Goal> findWithLockByIdAndUserId(UUID id, UUID userId);
 
 	/** Scoped like the finders, so an id the caller does not own deletes nothing and returns 0. */
 	long deleteByIdAndUserId(UUID id, UUID userId);

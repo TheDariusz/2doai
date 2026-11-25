@@ -57,7 +57,10 @@ class GoalService {
 	 * listeners run inside this transaction, so the entry and whatever reacts to it land together.
 	 */
 	GoalResponse update(UUID id, GoalUpdate request) {
-		Goal goal = goals.findByIdAndUserId(id, currentUser.requireId())
+		// Locked, because the row is written back whole: an answer or a rhythm fire landing between
+		// this read and the flush would otherwise be undone by it. The goal row is the first lock on
+		// every path that also takes its proposal's — see GoalRepository#findWithLockByIdAndUserId.
+		Goal goal = goals.findWithLockByIdAndUserId(id, currentUser.requireId())
 				.orElseThrow(() -> new GoalNotFoundException(id));
 		boolean wasActive = goal.isActive();
 
@@ -77,11 +80,10 @@ class GoalService {
 		else {
 			goal.restore();
 		}
-		Goal saved = goals.saveAndFlush(goal);
-		if (wasActive && !saved.isActive()) {
-			events.publishEvent(new GoalLeftTheRunning(saved.getUserId(), saved.getId()));
+		if (wasActive && !goal.isActive()) {
+			events.publishEvent(new GoalLeftTheRunning(goal.getUserId(), goal.getId()));
 		}
-		return GoalResponse.from(saved);
+		return GoalResponse.from(goals.saveAndFlush(goal));
 	}
 
 	/**

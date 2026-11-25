@@ -190,7 +190,7 @@ class ProposalService {
 		return ProposalSelector.select(candidates, now).map(selection -> {
 			// Before the insert, never after: the pending slot is a partial unique index, and the
 			// replacement cannot be written while the proposal it replaces still holds it.
-			ignored.ifPresent(proposal -> supersede(userId, proposal.getId(), now));
+			ignored.ifPresent(proposal -> supersede(userId, proposal.getId(), proposal.getGoalId(), now));
 			// The accepted FR-009 exception, and the whole of it: this text is written once, here, and
 			// stored — it reaches both the e-mail and the pending card — so an account reading the
 			// other language gets this one until FR-009 lands. Named at this one seam so pulling it
@@ -211,15 +211,22 @@ class ProposalService {
 	 * user can answer between the two, over HTTP, while this thread is mid-cycle. Their answer is the
 	 * real one — so a proposal that is no longer pending is left alone and the new proposal simply
 	 * takes the freed slot, instead of {@link Proposal#supersede} throwing and losing the fire.
+	 *
+	 * <p>The entry is locked first, by the id the caller's copy carries ({@code goal_id} never changes),
+	 * and the proposal second — the order every path holding both takes, so a PUT completing the
+	 * entry and this fire queue instead of deadlocking.
 	 */
-	private void supersede(UUID userId, UUID proposalId, OffsetDateTime now) {
+	private void supersede(UUID userId, UUID proposalId, UUID goalId, OffsetDateTime now) {
 		transactions.executeWithoutResult(status -> {
-			Proposal current = proposals.findWithLockByIdAndUserId(proposalId, userId).orElse(null);
+			// A deleted entry took its proposal with it (ON DELETE CASCADE): the same "nothing left to
+			// supersede" as a proposal the user answered first.
+			Goal entry = goals.findWithLockByIdAndUserId(goalId, userId).orElse(null);
+			Proposal current = entry == null ? null
+					: proposals.findWithLockByIdAndUserId(proposalId, userId).orElse(null);
 			if (current == null || !current.isPending()) {
 				log.info("Proposal {} was answered before the rhythm could supersede it", proposalId);
 				return;
 			}
-			Goal entry = entry(userId, current.getGoalId());
 
 			quiet(entry, ProposalAnswer.SUPERSEDED, null, now);
 			current.supersede(now);
@@ -238,6 +245,8 @@ class ProposalService {
 	 * <p>Read under the write lock, as {@link #supersede} does: the scheduler may be superseding
 	 * this very proposal on its own thread, and whichever closure gets there first stands. The row
 	 * is managed, so the closure is written by the commit {@code GoalService} is already heading for.
+	 * {@code GoalService} already holds the entry's lock here, so the order is the shared one: goal,
+	 * then proposal.
 	 */
 	@EventListener
 	void closeProposalAbout(GoalLeftTheRunning event) {
@@ -313,7 +322,8 @@ class ProposalService {
 	 * refusal is the invariant, but by the time it fired the model call would already have been paid
 	 * for. Checking first turns a double-clicked answer into a 409 that costs nothing.
 	 *
-	 * <p><b>Both rows are then read again inside the transaction</b>, the proposal under a write lock.
+	 * <p><b>Both rows are then read again inside the transaction</b>, both under a write lock — the
+	 * entry first, then the proposal, the order every path holding both takes.
 	 * The copies the check above ran against are detached the moment their finders return, and a
 	 * {@code STARTING} answer spends up to a Sonnet timeout in between — so merging those snapshots
 	 * back would overwrite whatever landed during the call: a second answer (a withdrawal quietly
@@ -341,9 +351,11 @@ class ProposalService {
 
 		OffsetDateTime now = OffsetDateTime.now(USER_ZONE);
 		return transactions.execute(status -> {
+			// Deleted since the pre-check: the cascade took the proposal too, so it is a 404 either way.
+			Goal entry = goals.findWithLockByIdAndUserId(shown.getGoalId(), userId)
+					.orElseThrow(() -> new ProposalNotFoundException(id));
 			Proposal current = proposals.findWithLockByIdAndUserId(id, userId)
 					.orElseThrow(() -> new ProposalNotFoundException(id));
-			Goal entry = entry(userId, current.getGoalId());
 
 			quiet(entry, request.answer(), request.remindInDays(), now);
 			current.answer(request.answer(), now);
