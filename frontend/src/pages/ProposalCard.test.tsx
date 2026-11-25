@@ -218,6 +218,36 @@ describe('ProposalCard — a proposal already waiting', () => {
   })
 
   /**
+   * Deleting the entry deletes the proposal with it (`ON DELETE CASCADE`), so the card must go too —
+   * left up, every one of its answers would come back 404.
+   */
+  it('drops the waiting proposal once its entry is deleted from the list', async () => {
+    fetchMock.mockResolvedValue(response(200, PROPOSAL))
+    const { rerender } = render(<ProposalCard domains={DOMAINS} goals={[GUITAR]} onChange={onChange} />)
+    await screen.findByText(PROPOSAL.message)
+
+    rerender(<ProposalCard domains={DOMAINS} goals={[]} onChange={onChange} />)
+
+    expect(screen.queryByText(PROPOSAL.message)).not.toBeInTheDocument()
+  })
+
+  /**
+   * Absent is not the same as deleted: the list starts empty and fills after the card's own read, so
+   * an entry the list has never shown is one it has not caught up with yet.
+   */
+  it('keeps the waiting proposal while the list has not shown its entry yet', async () => {
+    fetchMock.mockResolvedValue(response(200, PROPOSAL))
+    const { rerender } = render(<ProposalCard domains={DOMAINS} goals={[]} onChange={onChange} />)
+    await screen.findByText(PROPOSAL.message)
+
+    rerender(<ProposalCard domains={DOMAINS} goals={[]} onChange={onChange} />)
+    expect(screen.getByText(PROPOSAL.message)).toBeInTheDocument()
+
+    rerender(<ProposalCard domains={DOMAINS} goals={[GUITAR]} onChange={onChange} />)
+    expect(screen.getByText(PROPOSAL.message)).toBeInTheDocument()
+  })
+
+  /**
    * A read nobody asked for must not shout. The button is still there and still works, so a banner
    * would report a failure the user cannot act on and did not cause — recorded in the console
    * instead, which is where a background failure belongs.

@@ -74,9 +74,9 @@ function messageFor(t: TFunction, status: number, failed: Attempt): string {
  *
  * <p>A file of its own rather than a section of `GoalsPage`, which is long enough already and owns a
  * different thing — this is one self-contained flow that happens to sit above an entry list. It
- * takes the page's refetch as `onChange` rather than the list itself: every answer changes an entry
- * (three write `remind_after`, the fourth `withdrawn_at`) and so does saving a bullet, but the card
- * never needs to read what is in the list.
+ * takes the page's refetch as `onChange`: every answer changes an entry (three write `remind_after`,
+ * the fourth `withdrawn_at`) and so does saving a bullet. It reads the list only to notice that the
+ * entry a waiting proposal is about has been completed, withdrawn or deleted there.
  *
  * <p>`domains` is handed down for the same reason the rows get it: the entry carries a
  * `category_code` and the user reads a name and a colour. Passed rather than read off the outlet, so
@@ -193,19 +193,37 @@ export function ProposalCard({
     onChange()
   }
 
+  // The list as of the previous render, so a missing entry can be told apart from a deleted one.
+  const [previousGoals, setPreviousGoals] = useState(goals)
+  if (goals !== previousGoals) {
+    setPreviousGoals(goals)
+  }
+
   /**
-   * A waiting proposal whose entry the user has since completed or withdrawn from the list. The
-   * server closed it in the same transaction (`ENTRY_CLOSED`), so the card drops it for good —
-   * state, not just the view, so restoring the entry cannot bring back answer buttons the server
-   * would refuse. Read off the list rather than refetched, and only while unanswered, so a
-   * just-answered card and its first step are never thrown away by an unrelated edit. Set during
-   * render (React's "adjusting state on a prop change"): the guard is false on the next pass.
+   * A waiting proposal whose entry the user has since completed, withdrawn or deleted from the
+   * list. The server closed it in the same transaction (`ENTRY_CLOSED`) or deleted it with the entry
+   * (`ON DELETE CASCADE`), so the card drops it for good — state, not just the view, so restoring the
+   * entry cannot bring back answer buttons the server would refuse. Read off the list rather than
+   * refetched, and only while unanswered, so a just-answered card and its first step are never
+   * thrown away by an unrelated edit. Set during render (React's "adjusting state on a prop
+   * change"): the guard is false on the next pass.
+   *
+   * <p>Deleted means <em>was in the list and is gone</em>, not merely absent: the list starts empty
+   * and fills after the card's own read, and an entry it has never shown is one it has not caught up
+   * with yet.
    */
-  if (
-    proposal?.answer === null &&
-    goals.some((goal) => goal.id === proposal.entry.id && (goal.completed_at || goal.withdrawn_at))
-  ) {
+  const waitingOn = proposal?.answer === null ? proposal.entry.id : null
+  const entry = waitingOn === null ? undefined : goals.find((goal) => goal.id === waitingOn)
+  const entryLeft =
+    waitingOn !== null &&
+    (entry
+      ? Boolean(entry.completed_at || entry.withdrawn_at)
+      : previousGoals.some((goal) => goal.id === waitingOn))
+  if (entryLeft) {
     setProposal(null)
+    // The failure and the half-open term picker belonged to the proposal that just went.
+    setError(null)
+    setAskingTerm(false)
   }
 
   return (
