@@ -629,10 +629,10 @@ That statement is data-destructive for times only, never for dates.
 
 #### Automated
 
-- [x] 3.1 Frontend tests pass
-- [x] 3.2 Lint and typecheck/build pass
-- [x] 3.3 Full gate green
-- [x] 3.4 Form works end to end at 375px with clean console
+- [x] 3.1 Frontend tests pass — 8513732
+- [x] 3.2 Lint and typecheck/build pass — 8513732
+- [x] 3.3 Full gate green — 8513732
+- [x] 3.4 Form works end to end at 375px with clean console — 8513732
 
 #### Manual
 
@@ -642,11 +642,11 @@ That statement is data-destructive for times only, never for dates.
 
 #### Automated
 
-- [ ] 4.1 Docs structure test passes
-- [ ] 4.2 Mermaid diagrams render
-- [ ] 4.3 Every one of the nine surfaces mentions the change where applicable
-- [ ] 4.4 Full gate green
+- [x] 4.1 Docs structure test passes
+- [x] 4.2 Mermaid diagrams render
+- [x] 4.3 Every one of the nine surfaces mentions the change where applicable
+- [x] 4.4 Full gate green
 
 #### Manual
 
-- [ ] 4.5 The ownership line reads as consistent with the natural-rhythm principle
+- [x] 4.5 The ownership line reads as consistent with the natural-rhythm principle

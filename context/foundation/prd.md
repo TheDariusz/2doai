@@ -51,6 +51,7 @@ Po 6-8 tygodniach pracy działa **pełen flow pierwszej sesji** (logowanie → w
 
 - **Prywatność**: dane użytkownika i pamięć AI są dostępne tylko jemu. Nie wyciekają do osób trzecich, nie są używane do trenowania modeli. Pamięć osobista może być bardzo intymna — to obowiązuje od MVP.
 - **Naturalny rytm proaktywnych przypomnień, NIE harmonogram**: AI wraca do zaniedbanych celów/marzeń z **losowym tempem**, tak jak znajomy, który po miesiącu pyta "hej, ruszyłeś tę rzecz, o której gadaliśmy?". Nie codziennie o tej samej godzinie. Nie powiadomienie przy każdym otwarciu. Częstotliwość ma czuć się **organicznie**, nie jak scheduler. Losowość JEST cechą produktu, nie błędem.
+  > Doprecyzowanie (2026-11-26, DEV-63): przypomnienie o terminie zadania **nie łamie** tej zasady. Wysyła je osobny mechanizm, jeden e-mail w dniu terminu, o chwili, którą **użytkownik** sam ustawił na swoim zadaniu (godzina + wyprzedzenie, albo rano dla zadania bez godziny). To nie jest propozycja: nie zastępuje oczekującej propozycji, nie liczy się do rytmu i nie zapisuje niczego w pamięci AI. **AI jest właścicielem chwili propozycji; użytkownik jest właścicielem chwili przypomnienia.**
 - Trwałość danych — awaria aplikacji ani błąd nie kasuje wpisanych zadań, celów ani pamięci AI.
 
 ## User Stories
@@ -118,6 +119,7 @@ Po 6-8 tygodniach pracy działa **pełen flow pierwszej sesji** (logowanie → w
 
 - FR-011: AI samodzielnie wraca do użytkownika z propozycją podjęcia zaniedbanego celu długoterminowego lub marzenia, używając naturalnego rytmu (losowość — patrz Guardrails). Priority: must-have
   > Socrates: Counter-argument rozważony: "cele terminowe wymagają większej częstotliwości niż marzenia". Rozstrzygnięcie: stoi treścią — AI ma decydować o rytmie z uwzględnieniem terminu (część logiki AI, nie kontraktu FR).
+  > Doprecyzowanie (2026-11-26, DEV-63): FR-011 dotyczy wyłącznie propozycji. Zadanie bieżące z terminem (opcjonalnie z godziną i wyprzedzeniem: w chwili terminu / 15 min / 1 godz. / rano) dostaje jedno przypomnienie e-mail w dniu terminu, w języku konta. To osobny mechanizm — chwilę wybiera użytkownik, nie AI — więc nie podlega naturalnemu rytmowi i nie wpływa na niego.
 
 - FR-012: Wybierając zaniedbaną pozycję do proaktywnej propozycji, AI bilansuje wybór między kategoriami w czasie — nie zalewa użytkownika propozycjami z jednej domeny. Priority: must-have
   > Socrates: Counter-argument rozważony: "AI nie wie co użytkownik priorytetyzuje". Rozstrzygnięcie: stoi + dodano FR-016 (kategorie priorytetowe od usera).

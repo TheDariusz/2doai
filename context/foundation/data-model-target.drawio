@@ -16,7 +16,7 @@
 
         <!-- ============ Life-layer aggregates group (planned) ============ -->
         <mxCell id="lifegrp" value="Life-layer aggregates (FR-007)  —  all three layers share ONE aggregate" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 6;strokeColor=#b3b3b3;strokeWidth=2;fillColor=none;verticalAlign=top;fontStyle=2;fontColor=#777777;fontSize=13;spacingTop=8;" vertex="1" parent="1">
-          <mxGeometry x="560" y="340" width="620" height="350" as="geometry" />
+          <mxGeometry x="560" y="340" width="620" height="380" as="geometry" />
         </mxCell>
 
         <!-- ============ AI-memory aggregate group (F-02, real) ============ -->
@@ -88,10 +88,10 @@
 
         <!-- ============ goal (MIGRATED — S-02, V6: long-term AND dreams layers in one table) ============ -->
         <mxCell id="gl" value="goal  «root · S-02/S-07 · TASK, GOAL or DREAM»" style="swimlane;startSize=26;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;fontStyle=1;align=center;whiteSpace=wrap;" vertex="1" parent="1">
-          <mxGeometry x="830" y="400" width="320" height="262" as="geometry" />
+          <mxGeometry x="830" y="400" width="320" height="292" as="geometry" />
         </mxCell>
-        <mxCell id="gl_b" value="all three layers&#xa;&#xa;PK   id : UUID «v7»&#xa;FK   user_id → app_user  «NO ACTION»&#xa;         content : VARCHAR(500)&#xa;         layer : TASK / GOAL / DREAM  «discriminator»&#xa;         horizon : only for GOAL&#xa;         due_date : only for TASK&#xa;FK   category_code → category  «nullable»&#xa;         completed_at  «null = active»&#xa;         remind_after  «snoozed until, S-04b»&#xa;         withdrawn_at  «null = in play, S-04b»&#xa;         created_at / updated_at&#xa;&#xa;CHK  horizon only on GOAL · due_date only on TASK" style="text;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fontSize=11;whiteSpace=wrap;" vertex="1" parent="gl">
-          <mxGeometry x="0" y="26" width="320" height="236" as="geometry" />
+        <mxCell id="gl_b" value="all three layers&#xa;&#xa;PK   id : UUID «v7»&#xa;FK   user_id → app_user  «NO ACTION»&#xa;         content : VARCHAR(500)&#xa;         layer : TASK / GOAL / DREAM  «discriminator»&#xa;         horizon : only for GOAL&#xa;         due_date : only for TASK&#xa;         due_time + reminder_lead : TASK, DEV-63&#xa;         reminder_sent_at  «reminder went out»&#xa;FK   category_code → category  «nullable»&#xa;         completed_at  «null = active»&#xa;         remind_after  «snoozed until, S-04b»&#xa;         withdrawn_at  «null = in play, S-04b»&#xa;         created_at / updated_at&#xa;&#xa;CHK  horizon only on GOAL · due_* + lead only on TASK" style="text;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fontSize=11;whiteSpace=wrap;" vertex="1" parent="gl">
+          <mxGeometry x="0" y="26" width="320" height="266" as="geometry" />
         </mxCell>
 
 
