@@ -41,6 +41,8 @@ info:
   # the old pattern; the component-internal exemption below covers it, as it covered 1.4.0.
   # +the remember-me cookie as a second way to be authenticated, the 30-day session and logout
   # revoking every remembered browser (long sessions, DEV-62) → 1.10.0.
+  # +a task's optional time of day (`due_time`) and reminder lead (`reminder_lead`), both nullable
+  # and additive (due-date reminder, DEV-63) → 1.11.0.
   #
   # 1.4.0 carries one genuinely *incompatible* change and is not pretending otherwise:
   # `GoalUpdate.withdrawn` is a required boolean (Jackson rejects a null for a primitive), so a
@@ -48,7 +50,7 @@ info:
   # versioning — deliberately not done, because x-audience is component-internal: the only client is
   # the SPA in this repository, and it gained the field in the same commit the server did. The day a
   # second consumer exists, that exemption expires and this is the paragraph that says so.
-  version: 1.10.0
+  version: 1.11.0
   contact:
     name: 2do AI
     email: thedariusz@gmail.com
