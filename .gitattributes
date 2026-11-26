@@ -1,0 +1,4 @@
+# Windows scripts keep CRLF in the working tree and are stored as LF, so core.autocrlf=input
+# does not flag them as modified.
+*.cmd text eol=crlf
+*.bat text eol=crlf
