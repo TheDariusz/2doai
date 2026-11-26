@@ -617,9 +617,9 @@ That statement is data-destructive for times only, never for dates.
 
 #### Automated
 
-- [x] 2.1 Backend suite passes, including all new reminder tests
-- [x] 2.2 Reminder isolation from proposals holds (no proposal, rhythm, memory or goal.updated_at write on fire)
-- [x] 2.3 Liveness group includes the reminder pulse
+- [x] 2.1 Backend suite passes, including all new reminder tests — 3d455d7
+- [x] 2.2 Reminder isolation from proposals holds (no proposal, rhythm, memory or goal.updated_at write on fire) — 3d455d7
+- [x] 2.3 Liveness group includes the reminder pulse — 3d455d7
 
 #### Manual
 
