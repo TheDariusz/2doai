@@ -39,14 +39,19 @@ final class ReminderMoment {
 			Objects.requireNonNull(moment, "moment");
 			Objects.requireNonNull(expiry, "expiry");
 		}
+
+		/** Whether the reminder may still go out at {@code now}; the expiry itself is already too late. */
+		boolean isOpenAt(OffsetDateTime now) {
+			return now.isBefore(expiry);
+		}
 	}
 
 	private ReminderMoment() {
 	}
 
 	/**
-	 * @param lead ignored for a date-only task; defaults to {@link ReminderLead#ONE_HOUR} for a timed
-	 *        one, as the aggregate does
+	 * @param lead ignored for a date-only task; required for a timed one — the default is the
+	 *        aggregate's, and V18's CHECK guarantees a stored time always comes with a lead
 	 * @return the window, or empty when there is no due date and so nothing to remind of
 	 */
 	static Optional<Window> of(LocalDate dueDate, LocalTime dueTime, ReminderLead lead,
@@ -60,7 +65,7 @@ final class ReminderMoment {
 			return Optional.of(window(morning, endOfDay, props));
 		}
 		ZonedDateTime dueAt = dueDate.atTime(dueTime).atZone(UserZone.ZONE);
-		ZonedDateTime moment = switch (Objects.requireNonNullElse(lead, ReminderLead.ONE_HOUR)) {
+		ZonedDateTime moment = switch (Objects.requireNonNull(lead, "lead")) {
 			case AT_TIME -> dueAt;
 			case FIFTEEN_MINUTES -> dueAt.minusMinutes(15);
 			case ONE_HOUR -> dueAt.minusHours(1);

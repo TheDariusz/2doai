@@ -78,7 +78,7 @@ class ReminderScheduler implements HealthIndicator, PerUserDataDeleter {
 		}
 
 		boolean hasExpired(OffsetDateTime now) {
-			return !now.isBefore(window.expiry());
+			return !window.isOpenAt(now);
 		}
 	}
 
@@ -107,7 +107,7 @@ class ReminderScheduler implements HealthIndicator, PerUserDataDeleter {
 	@EventListener(ApplicationReadyEvent.class)
 	void loadPending() {
 		OffsetDateTime now = OffsetDateTime.now(UserZone.ZONE);
-		LocalDate yesterday = now.atZoneSameInstant(UserZone.ZONE).toLocalDate().minusDays(1);
+		LocalDate yesterday = now.toLocalDate().minusDays(1);
 		for (PendingReminderRow row : reminders.pending(yesterday)) {
 			window(row.dueDate(), row.dueTime(), row.lead(), now).ifPresent(window ->
 					pending.putIfAbsent(row.goalId(), new PendingReminder(row.userId(), window, null)));
@@ -184,7 +184,9 @@ class ReminderScheduler implements HealthIndicator, PerUserDataDeleter {
 	 * {@code notBefore} a minute out. Once the row is stamped, a send failure is logged and final.
 	 *
 	 * <p>Nothing escapes: {@code forEach} stops at the first throw, which would cost every entry after
-	 * this one its turn.
+	 * this one its turn. The fire transaction is caught here, and {@link #send} catches its own failure.
+	 * A {@link FireOutcome.Rearm} always carries a different window that is still open, because
+	 * {@link ReminderService#fire} drops an expired one.
 	 */
 	private void fire(UUID goalId, PendingReminder entry, OffsetDateTime now) {
 		if (!pending.remove(goalId, entry)) {
@@ -196,28 +198,19 @@ class ReminderScheduler implements HealthIndicator, PerUserDataDeleter {
 		}
 		catch (RuntimeException ex) {
 			OffsetDateTime retryAt = now.plus(RETRY_AFTER);
-			if (retryAt.isBefore(entry.window().expiry())) {
+			if (entry.window().isOpenAt(retryAt)) {
 				pending.putIfAbsent(goalId, new PendingReminder(entry.userId(), entry.window(), retryAt));
 			}
 			log.error("Could not fire the reminder for goal {} of account {}; retrying at {} if still owed",
 					goalId, entry.userId(), retryAt, ex);
 			return;
 		}
-		try {
-			switch (outcome) {
-				case FireOutcome.Send send -> send(goalId, entry.userId(), send.mail());
-				case FireOutcome.Rearm rearm -> {
-					if (!rearm.window().equals(entry.window()) && now.isBefore(rearm.window().expiry())) {
-						pending.putIfAbsent(goalId, new PendingReminder(entry.userId(), rearm.window(), null));
-					}
-				}
-				case FireOutcome.Drop drop -> {
-				}
+		switch (outcome) {
+			case FireOutcome.Send send -> send(goalId, entry.userId(), send.mail());
+			case FireOutcome.Rearm rearm ->
+					pending.putIfAbsent(goalId, new PendingReminder(entry.userId(), rearm.window(), null));
+			case FireOutcome.Drop _ -> {
 			}
-		}
-		catch (RuntimeException ex) {
-			log.error("The reminder for goal {} of account {} failed after its fire; it is not retried",
-					goalId, entry.userId(), ex);
 		}
 	}
 
@@ -236,6 +229,6 @@ class ReminderScheduler implements HealthIndicator, PerUserDataDeleter {
 	/** The term's window, unless there is none or it has already expired. */
 	private Optional<ReminderMoment.Window> window(LocalDate dueDate, LocalTime dueTime, ReminderLead lead,
 			OffsetDateTime now) {
-		return ReminderMoment.of(dueDate, dueTime, lead, props).filter(window -> now.isBefore(window.expiry()));
+		return ReminderMoment.of(dueDate, dueTime, lead, props).filter(window -> window.isOpenAt(now));
 	}
 }

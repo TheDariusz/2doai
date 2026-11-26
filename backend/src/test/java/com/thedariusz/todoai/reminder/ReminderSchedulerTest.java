@@ -59,6 +59,8 @@ class ReminderSchedulerTest {
 	/** {@link #NOON} with {@link ReminderLead#ONE_HOUR}. */
 	private static final OffsetDateTime ELEVEN = at(11, 0);
 
+	private static final ReminderMail MAIL = new ReminderMail("owner@example.com", "subject", "body");
+
 	private final ReminderService reminders = mock(ReminderService.class);
 
 	private final EmailSender mail = mock(EmailSender.class);
@@ -75,7 +77,7 @@ class ReminderSchedulerTest {
 		scheduler.fireDue(ELEVEN);
 
 		verify(reminders).fire(goal, owner, window(NOON, ReminderLead.ONE_HOUR), ELEVEN);
-		verify(mail).send("owner@example.com", "subject", "body");
+		verify(mail).send(MAIL.to(), MAIL.subject(), MAIL.text());
 	}
 
 	@Test
@@ -248,7 +250,7 @@ class ReminderSchedulerTest {
 		when(reminders.fire(eq(goal), any(), eq(window(NOON, ReminderLead.ONE_HOUR)), any()))
 				.thenAnswer(invocation -> {
 					scheduler.onTermChanged(term(goal, later, ReminderLead.ONE_HOUR, true, false));
-					return new FireOutcome.Send(new ReminderMail("owner@example.com", "subject", "body"));
+					return new FireOutcome.Send(MAIL);
 				});
 		when(reminders.fire(eq(goal), any(), eq(window(later, ReminderLead.ONE_HOUR)), any()))
 				.thenReturn(FireOutcome.DROP);
@@ -326,13 +328,13 @@ class ReminderSchedulerTest {
 		when(reminders.fire(eq(goal), any(), eq(window(NOON, ReminderLead.ONE_HOUR)), any()))
 				.thenReturn(new FireOutcome.Rearm(current));
 		when(reminders.fire(eq(goal), any(), eq(current), any()))
-				.thenReturn(new FireOutcome.Send(new ReminderMail("owner@example.com", "subject", "body")));
+				.thenReturn(new FireOutcome.Send(MAIL));
 
 		scheduler.fireDue(ELEVEN);
 		verifyNoInteractions(mail);
 
 		scheduler.fireDue(at(14, 0));
-		verify(mail).send("owner@example.com", "subject", "body");
+		verify(mail).send(MAIL.to(), MAIL.subject(), MAIL.text());
 	}
 
 	@Test
@@ -413,7 +415,7 @@ class ReminderSchedulerTest {
 
 	/** {@code doReturn}, so it can replace a stub that throws without calling it. */
 	private void sends(UUID goal) {
-		doReturn(new FireOutcome.Send(new ReminderMail("owner@example.com", "subject", "body")))
+		doReturn(new FireOutcome.Send(MAIL))
 				.when(reminders).fire(eq(goal), any(), any(), any());
 	}
 

@@ -62,27 +62,25 @@ class ReminderService {
 	 */
 	@Transactional
 	FireOutcome fire(UUID goalId, UUID userId, ReminderMoment.Window expected, OffsetDateTime now) {
-		Optional<Goal> locked = goals.findWithLockByIdAndUserId(goalId, userId);
-		if (locked.isEmpty()) {
-			return FireOutcome.DROP;
-		}
-		Goal goal = locked.get();
-		if (goal.getLayer() != GoalLayer.TASK || !goal.isActive() || goal.getReminderSentAt() != null) {
+		Goal goal = goals.findWithLockByIdAndUserId(goalId, userId)
+				.filter(g -> g.getLayer() == GoalLayer.TASK && g.isActive() && g.getReminderSentAt() == null)
+				.orElse(null);
+		if (goal == null) {
 			return FireOutcome.DROP;
 		}
 		Optional<ReminderMoment.Window> current =
-				ReminderMoment.of(goal.getDueDate(), goal.getDueTime(), goal.getReminderLead(), props);
-		if (current.isEmpty() || !now.isBefore(current.get().expiry())) {
+				ReminderMoment.of(goal.getDueDate(), goal.getDueTime(), goal.getReminderLead(), props)
+						.filter(window -> window.isOpenAt(now));
+		if (current.isEmpty()) {
 			return FireOutcome.DROP;
 		}
 		if (!current.get().equals(expected)) {
 			return new FireOutcome.Rearm(current.get());
 		}
-		Optional<User> owner = users.findById(userId).filter(User::isEmailVerified);
-		if (owner.isEmpty() || goals.markReminderSent(goalId, userId, now) == 0) {
+		User account = users.findById(userId).filter(User::isEmailVerified).orElse(null);
+		if (account == null || goals.markReminderSent(goalId, userId, now) == 0) {
 			return FireOutcome.DROP;
 		}
-		User account = owner.get();
 		return new FireOutcome.Send(new ReminderMail(account.getEmail(),
 				ReminderEmail.subject(account.getLanguage(), goal.getContent()),
 				ReminderEmail.body(account.getLanguage(), goal.getContent(), goal.getDueDate(),
