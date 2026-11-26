@@ -40,7 +40,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * case that needs it exhausted drains it explicitly and gives it back.
  */
 @TestPropertySource(properties = "app.mail.auth-daily-budget=100000")
-abstract class ApiTestBase {
+public abstract class ApiTestBase {
 
 	@LocalServerPort
 	private int port;

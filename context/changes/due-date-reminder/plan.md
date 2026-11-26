@@ -608,18 +608,18 @@ That statement is data-destructive for times only, never for dates.
 
 #### Automated
 
-- [x] 1.1 Backend suite passes, including the new API/persistence cases and the widened wire-enum guard
-- [x] 1.2 Flyway applies V18 and Hibernate ddl-auto=validate boots
-- [x] 1.3 Frontend typechecks and builds with the extended type
-- [x] 1.4 Frontend lint and tests stay green
+- [x] 1.1 Backend suite passes, including the new API/persistence cases and the widened wire-enum guard — cab1210
+- [x] 1.2 Flyway applies V18 and Hibernate ddl-auto=validate boots — cab1210
+- [x] 1.3 Frontend typechecks and builds with the extended type — cab1210
+- [x] 1.4 Frontend lint and tests stay green — cab1210
 
 ### Phase 2: Reminder Scheduler and Mail
 
 #### Automated
 
-- [ ] 2.1 Backend suite passes, including all new reminder tests
-- [ ] 2.2 Reminder isolation from proposals holds (no proposal, rhythm, memory or goal.updated_at write on fire)
-- [ ] 2.3 Liveness group includes the reminder pulse
+- [x] 2.1 Backend suite passes, including all new reminder tests
+- [x] 2.2 Reminder isolation from proposals holds (no proposal, rhythm, memory or goal.updated_at write on fire)
+- [x] 2.3 Liveness group includes the reminder pulse
 
 #### Manual
 
