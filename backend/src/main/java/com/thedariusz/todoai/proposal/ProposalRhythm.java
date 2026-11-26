@@ -6,6 +6,8 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.Random;
 
+import com.thedariusz.todoai.user.UserZone;
+
 /**
  * When the app comes back on its own (S-05, FR-011) — the natural rhythm as a pure function, in the
  * {@link ProposalSelector} mould: no clock, no database, no scheduler. The moment to draw from and
@@ -29,10 +31,10 @@ import java.util.Random;
  */
 final class ProposalRhythm {
 
-	// ponytail: one hardcoded zone while every account is Polish; a user.timezone column is the
-	// upgrade, and this constant is the only place the app decides whose day it means — both the
-	// window below and ProposalService's clock reads go through it.
-	static final ZoneId USER_ZONE = ZoneId.of("Europe/Warsaw");
+	// An alias, kept so the rhythm's callers read as they did: UserZone is the one place the app
+	// decides whose day it means — both the window below and ProposalService's clock reads go through
+	// it, and so does the due-date reminder.
+	static final ZoneId USER_ZONE = UserZone.ZONE;
 
 	private ProposalRhythm() {
 	}

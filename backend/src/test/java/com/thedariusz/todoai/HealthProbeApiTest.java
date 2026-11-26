@@ -53,6 +53,9 @@ class HealthProbeApiTest extends ApiTestBase {
 				.as("a scheduler thread that died while the web server kept answering is invisible "
 						+ "from every other angle — the symptom is the app doing nothing")
 				.isTrue();
+		assertThat(groups.get("liveness").isMember("reminderScheduler"))
+				.as("the due-date reminder's tick is the same kind of silent loop, on the same thread")
+				.isTrue();
 		assertThat(groups.get("liveness").isMember("db")).isFalse();
 		assertThat(groups.get("readiness").isMember("db")).isTrue();
 	}
@@ -75,5 +78,6 @@ class HealthProbeApiTest extends ApiTestBase {
 				.as("an SMTP handshake per anonymous request, and a Neon wake-up beside it")
 				.isNull();
 		assertThat(contributors.getContributor("proposalScheduler")).isNotNull();
+		assertThat(contributors.getContributor("reminderScheduler")).isNotNull();
 	}
 }

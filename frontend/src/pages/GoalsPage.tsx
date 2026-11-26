@@ -20,7 +20,8 @@ import { NO_CATEGORY } from '../filters'
  *
  * `horizon` and `due_date` are the two time fields, and the layer decides which one an entry may
  * carry: a GOAL always has a horizon and never a term, a DREAM has neither, a TASK may have a term
- * and never a horizon. The server answers 422 for any other combination.
+ * and never a horizon. The server answers 422 for any other combination. A task with a term may
+ * also carry `due_time` (`HH:mm`) and its `reminder_lead`, which always travel together (DEV-63).
  *
  * `remind_after` and `withdrawn_at` are what an answered proposal leaves on the entry (S-04b): the
  * date a quieted entry comes back, and the moment it was withdrawn. `withdrawn_at` has a second
@@ -35,6 +36,8 @@ export type Goal = {
   layer: 'GOAL' | 'DREAM' | 'TASK'
   horizon: 'THIS_YEAR' | 'FEW_MONTHS' | null
   due_date: string | null
+  due_time: string | null
+  reminder_lead: 'AT_TIME' | 'FIFTEEN_MINUTES' | 'ONE_HOUR' | 'MORNING_OF' | null
   category_code: string | null
   completed_at: string | null
   remind_after: string | null
@@ -44,6 +47,19 @@ export type Goal = {
 }
 
 const HORIZONS = ['THIS_YEAR', 'FEW_MONTHS'] as const satisfies readonly NonNullable<Goal['horizon']>[]
+
+/**
+ * The reminder leads in the order the select lists them: nearest the due moment first, the morning
+ * of the day last. `ONE_HOUR` is the default the server fills in for a time sent without a lead, so
+ * the select starts there and the form never relies on that fallback.
+ */
+const LEADS = [
+  'AT_TIME',
+  'FIFTEEN_MINUTES',
+  'ONE_HOUR',
+  'MORNING_OF',
+] as const satisfies readonly NonNullable<Goal['reminder_lead']>[]
+const DEFAULT_LEAD = 'ONE_HOUR' satisfies (typeof LEADS)[number]
 
 /**
  * The three layers, in the order the screen shows them — the layer filter picks from this list, and
@@ -67,7 +83,10 @@ function layerIn(params: URLSearchParams): '' | Goal['layer'] {
 }
 
 /** What both forms send: `GoalCreation` in the spec, and `GoalUpdate` once `completed` is added. */
-export type GoalDraft = Pick<Goal, 'content' | 'layer' | 'horizon' | 'due_date' | 'category_code'>
+export type GoalDraft = Pick<
+  Goal,
+  'content' | 'layer' | 'horizon' | 'due_date' | 'due_time' | 'reminder_lead' | 'category_code'
+>
 
 /**
  * What an entry can do to itself, handed down rather than re-derived per row: which row (if any)
@@ -92,6 +111,8 @@ function draftOf(goal: Goal): GoalDraft {
     layer: goal.layer,
     horizon: goal.horizon,
     due_date: goal.due_date,
+    due_time: goal.due_time,
+    reminder_lead: goal.reminder_lead,
     category_code: goal.category_code,
   }
 }
@@ -318,10 +339,12 @@ function LayerTabs() {
 }
 
 /**
- * The create form and the inline edit form are the same fields, so they are the same component —
- * `layer` is the only value held in React rather than read off the DOM at submit, because it decides
- * which time field is rendered at all: the horizon belongs to a goal, the term to a task, and an
- * entry carrying the other one is a 422 from the server. An invariant we can simply not offer.
+ * The create form and the inline edit form are the same fields, so they are the same component.
+ * Most fields are read off the DOM at submit; the three held in React are the ones that decide which
+ * *other* controls are rendered at all. `layer` picks the time field: the horizon belongs to a goal,
+ * the term to a task, and an entry carrying the other one is a 422 from the server. `dueDate` and
+ * `dueTime` gate the DEV-63 cascade: a time only beside a date, a lead only beside a time — again
+ * invariants the server enforces, and that the form simply does not offer.
  */
 function GoalForm({
   name,
@@ -339,7 +362,16 @@ function GoalForm({
   const { t } = useTranslation()
   const defaultLayer = goal?.layer ?? 'GOAL'
   const [layer, setLayer] = useState<Goal['layer']>(defaultLayer)
+  const [dueDate, setDueDate] = useState(goal?.due_date ?? '')
+  const [dueTime, setDueTime] = useState(goal?.due_time ?? '')
   const [pending, setPending] = useState(false)
+
+  function changeDueDate(value: string) {
+    setDueDate(value)
+    // Not just hidden: a date entered again later must start from an empty time, not resurrect one
+    // the user already took away along with its date.
+    if (!value) setDueTime('')
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -353,17 +385,23 @@ function GoalForm({
       // Neither carries a layer guard: the control the layer does not own is never rendered, so it
       // is absent from the FormData and reads as null. PUT being a full replace is exactly why that
       // matters — a converted entry sends null for the field it just gave up, not its old value.
+      // The same holds for the time and the lead one level down: each is rendered only while the
+      // control it depends on has a value, so a cleared date takes the time and lead out with it.
+      // An untouched or unrendered date or time input reads as '', which the server does not accept.
       horizon: data.get('horizon') as Goal['horizon'],
-      // An untouched or unrendered date input reads as '', which is not a date the server accepts.
       due_date: String(data.get('due_date') ?? '') || null,
+      due_time: String(data.get('due_time') ?? '') || null,
+      reminder_lead: (data.get('reminder_lead') as Goal['reminder_lead']) || null,
       category_code: String(data.get('category_code') ?? '') || null,
     })
     setPending(false)
 
     if (saved) {
       form.reset()
-      // `reset()` restores the DOM defaults; `layer` is React state and has to follow.
+      // `reset()` restores the DOM defaults; the React-held fields have to follow.
       setLayer(defaultLayer)
+      setDueDate(goal?.due_date ?? '')
+      setDueTime(goal?.due_time ?? '')
     }
   }
 
@@ -417,7 +455,37 @@ function GoalForm({
           <span>{t('goals.dueDate')}</span>
           {/* Native control, not a picker library — an ISO `YYYY-MM-DD` value for no bytes.
               Deliberately not `required`: most tasks have no deadline at all. */}
-          <input type="date" name="due_date" defaultValue={goal?.due_date ?? undefined} />
+          <input
+            type="date"
+            name="due_date"
+            value={dueDate}
+            onChange={(event) => changeDueDate(event.target.value)}
+          />
+        </label>
+      )}
+      {layer === 'TASK' && dueDate && (
+        <label className="field">
+          <span>{t('goals.dueTime')}</span>
+          {/* Native as well: its value is already the `HH:mm` the wire carries. Optional — a dated
+              task without a time is reminded on the morning of its day. */}
+          <input
+            type="time"
+            name="due_time"
+            value={dueTime}
+            onChange={(event) => setDueTime(event.target.value)}
+          />
+        </label>
+      )}
+      {layer === 'TASK' && dueDate && dueTime && (
+        <label className="field">
+          <span>{t('goals.reminderLead')}</span>
+          <select name="reminder_lead" defaultValue={goal?.reminder_lead ?? DEFAULT_LEAD}>
+            {LEADS.map((value) => (
+              <option key={value} value={value}>
+                {t(`goals.reminderLeads.${value}`)}
+              </option>
+            ))}
+          </select>
         </label>
       )}
       <label className="field">
@@ -545,7 +613,13 @@ function Item({
       <span className="meta">
         {/* The term is the one chip drawn in its own colour: it is the only piece of an entry that
             can be late, and the rest are facts about the entry rather than about the clock. */}
-        {goal.due_date && <span className="chip due">{t('goals.due', { date: goal.due_date })}</span>}
+        {goal.due_date && (
+          <span className="chip due">
+            {goal.due_time
+              ? t('goals.dueAt', { date: goal.due_date, time: goal.due_time })
+              : t('goals.due', { date: goal.due_date })}
+          </span>
+        )}
         {goal.horizon && <span className="chip">{t(`goals.horizons.${goal.horizon}`)}</span>}
         {domain >= 0 && (
           <span className="chip">

@@ -954,14 +954,20 @@ button.check.done {
     padding-left: 0;
   }
 
-  /* The bar becomes three lines, and the button that finishes the job keeps one to itself. */
-  .quick-add .seg,
-  .quick-add button[type='submit'] {
+  /* The bar becomes three lines, and the button that finishes the job keeps one to itself. The
+     inline edit form is the same fields, so it stacks the same way — the time and lead controls
+     (DEV-63) made it the wider of the two, and it used to push the page sideways. */
+  .entry-form .seg,
+  .entry-form button[type='submit'] {
     flex: 1 1 100%;
   }
 
-  .quick-add .field {
+  .entry-form .field {
     flex: 1 1 auto;
+  }
+
+  .row.editing .entry-form {
+    min-width: 0;
   }
 }
 

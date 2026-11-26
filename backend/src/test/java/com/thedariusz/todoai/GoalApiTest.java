@@ -16,6 +16,7 @@ import java.util.stream.Stream;
 import com.thedariusz.todoai.goal.Goal;
 import com.thedariusz.todoai.goal.GoalHorizon;
 import com.thedariusz.todoai.goal.GoalLayer;
+import com.thedariusz.todoai.goal.ReminderLead;
 import io.restassured.filter.cookie.CookieFilter;
 import io.restassured.response.Response;
 import org.junit.jupiter.api.Test;
@@ -74,6 +75,14 @@ class GoalApiTest extends ApiTestBase {
 	 */
 	private static Map<String, Object> withDueDate(Map<String, Object> payload, String dueDate) {
 		payload.put("due_date", dueDate);
+		return payload;
+	}
+
+	/** A time of day and its reminder lead (DEV-63) — only ever beside a due date, on a TASK. */
+	private static Map<String, Object> withDueTime(Map<String, Object> payload, String dueTime,
+			String reminderLead) {
+		payload.put("due_time", dueTime);
+		payload.put("reminder_lead", reminderLead);
 		return payload;
 	}
 
@@ -163,7 +172,12 @@ class GoalApiTest extends ApiTestBase {
 				goalPayload("Marzenie z horyzontem", "DREAM", "THIS_YEAR", null),
 				goalPayload("Zadanie z horyzontem", "TASK", "THIS_YEAR", null),
 				withDueDate(goalPayload("Cel z terminem", "GOAL", "THIS_YEAR", null), "2026-09-01"),
-				withDueDate(goalPayload("Marzenie z terminem", "DREAM", null, null), "2026-09-01"));
+				withDueDate(goalPayload("Marzenie z terminem", "DREAM", null, null), "2026-09-01"),
+				withDueTime(goalPayload("Cel z godziną", "GOAL", "THIS_YEAR", null), "12:00", null),
+				withDueTime(goalPayload("Marzenie z godziną", "DREAM", null, null), "12:00", null),
+				withDueTime(goalPayload("Godzina bez daty", "TASK", null, null), "12:00", "ONE_HOUR"),
+				withDueTime(withDueDate(goalPayload("Wyprzedzenie bez godziny", "TASK", null, null),
+						"2026-09-01"), null, "AT_TIME"));
 	}
 
 	/**
@@ -221,6 +235,48 @@ class GoalApiTest extends ApiTestBase {
 	}
 
 
+
+	/**
+	 * DEV-63: a time of day rides beside the date as {@code "HH:mm"} — exactly what
+	 * {@code <input type="time">} sends, so an edit round-trips byte-identical. A time sent without a
+	 * lead comes back with the default the reminder will actually use, never a silent null.
+	 */
+	@Test
+	void roundTripsADueTimeAndDefaultsItsReminderLead() {
+		givenLoggedInUser();
+
+		String id = csrfAware()
+				.body(withDueTime(withDueDate(goalPayload("Wizyta u lekarza", "TASK", null, "HEALTH"),
+						"2026-09-01"), "12:00", null))
+				.when()
+				.post("/api/goals")
+				.then()
+				.statusCode(201)
+				.body("due_date", equalTo("2026-09-01"))
+				.body("due_time", equalTo("12:00"))
+				.body("reminder_lead", equalTo("ONE_HOUR"))
+				.extract()
+				.path("id");
+
+		csrfAware()
+				.body(withDueTime(withDueDate(updatePayload("Wizyta u lekarza", "TASK", null, "HEALTH",
+						false), "2026-09-01"), "08:30", "MORNING_OF"))
+				.when()
+				.put("/api/goals/" + id)
+				.then()
+				.statusCode(200)
+				.body("due_time", equalTo("08:30"))
+				.body("reminder_lead", equalTo("MORNING_OF"));
+
+		csrfAware()
+				.body(withDueDate(goalPayload("Kupić chleb", "TASK", null, null), "2026-09-01"))
+				.when()
+				.post("/api/goals")
+				.then()
+				.statusCode(201)
+				.body("due_time", nullValue())
+				.body("reminder_lead", nullValue());
+	}
 
 	/**
 	 * FR-014's soft dependency in miniature: a long-term goal that becomes a concrete next action is
@@ -297,6 +353,14 @@ class GoalApiTest extends ApiTestBase {
 
 		csrfAware()
 				.body(goalPayload("Horoskop", "DREAM", null, "ASTROLOGY"))
+				.when()
+				.post("/api/goals")
+				.then()
+				.statusCode(400);
+
+		csrfAware()
+				.body(withDueTime(withDueDate(goalPayload("Wizyta", "TASK", null, null), "2026-09-01"),
+						"12:00", "DAY_BEFORE"))
 				.when()
 				.post("/api/goals")
 				.then()
@@ -612,6 +676,11 @@ class GoalApiTest extends ApiTestBase {
 		assertThat(unionLiterals(goalType, "horizon"))
 				.as("the SPA's goal type spells out the same horizon literals")
 				.containsExactlyInAnyOrderElementsOf(constantNames(GoalHorizon.values()));
+		assertThat(extensibleEnum(spec, "ReminderLead"))
+				.containsExactlyInAnyOrderElementsOf(constantNames(ReminderLead.values()));
+		assertThat(unionLiterals(goalType, "reminder_lead"))
+				.as("the SPA's goal type spells out the same reminder lead literals")
+				.containsExactlyInAnyOrderElementsOf(constantNames(ReminderLead.values()));
 
 		// The content limit spans four copies, not three. ddl-auto=validate does NOT pin the column
 		// width to the mapping — Hibernate's validator compares JDBC type codes and ignores length,

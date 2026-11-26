@@ -188,7 +188,9 @@
   </div>
   <div class="card-grid">
     <div class="card"><strong>Product differentiator</strong><br>Proactive returns in a natural
-    rhythm, not another fixed-time reminder scheduler.</div>
+    rhythm, not another fixed-time reminder scheduler. The one fixed-time message is the due-date
+    reminder (DEV-63), and its moment is the user's: the AI owns the moment of a proposal, the user
+    owns the moment of a reminder.</div>
     <div class="card"><strong>Memory requirement</strong><br>Structured profile facts plus an
     episodic log let proposals refer to the user's real history.</div>
     <div class="card"><strong>Guardrails</strong><br>Per-user privacy, durable data, and explicit
@@ -214,11 +216,12 @@
         <tr><th scope="row">Frontend auth and shell</th><td><span class="badge badge-live">implemented</span></td><td>Routing, CSRF-aware API client, auth screens — a code-first sign-in since DEV-62 phase 2 — a sticky header over a rail of the 11 domains, the two-language catalog behind a switch on the public screens and in that header, and a light / dark / auto theme choice kept on the device — three buttons on the landing and auth screens, one cycling button in the header, where a phone has no room for three beside the account chip; <code>/api</code> proxies in development and production</td></tr>
         <tr><th scope="row">Public landing page</th><td><span class="badge badge-live">implemented</span></td><td>An anonymous visit to <code>/</code> explains the product before asking for an account: a fictional preview of the three layers and a suggestion, animated in CSS alone and at rest for readers who ask for reduced motion, how it works, an FAQ, and a footer crediting the developer with icon links to their site and profiles, in both languages, in a light or dark palette of its own under the same theme switch the auth screens carry. It issues no request of its own, renders while the session check is still pending, and hands a signed-in visitor on to <code>/goals</code></td></tr>
         <tr><th scope="row">Goals and dreams</th><td><span class="badge badge-live">implemented</span></td><td>One <code>goal</code> aggregate for both layers, <code>/api/goals</code>, and the <code>/goals</code> screen (S-02)</td></tr>
-        <tr><th scope="row">Current tasks</th><td><span class="badge badge-live">implemented</span></td><td>A third <code>GoalLayer</code> value plus an optional <code>due_date</code> on the same aggregate and screen (S-07)</td></tr>
+        <tr><th scope="row">Current tasks</th><td><span class="badge badge-live">implemented</span></td><td>A third <code>GoalLayer</code> value plus an optional <code>due_date</code> on the same aggregate and screen (S-07) — and, since DEV-63, an optional time of day (<code>due_time</code>) and a reminder lead beside it</td></tr>
         <tr><th scope="row">Unified three-layer view</th><td><span class="badge badge-live">implemented</span></td><td>All three layers on one <code>/goals</code> screen, narrowed by layer and by category from the query string — filtered in the browser, no API change (S-08)</td></tr>
         <tr><th scope="row">Selection engine</th><td><span class="badge badge-live">implemented</span></td><td>Deterministic neglect heuristic and category balancing behind <code>POST /api/proposals</code> (S-04a); the engine itself still holds no clock, no repository and no model — the AI enters after it has picked</td></tr>
         <tr><th scope="row">Proactive proposal loop</th><td><span class="badge badge-live">implemented</span></td><td>Sonnet phrases the picked entry, the proposal is stored (at most one pending per user), the four FR-013 answers act on the entry, and <code>STARTING</code> returns FR-014's bullets — all behind the manual trigger on <code>/goals</code> (S-04b). Completing or withdrawing an entry from the list closes the proposal waiting on it as <code>ENTRY_CLOSED</code>, in the same transaction</td></tr>
         <tr><th scope="row">Natural-rhythm return</th><td><span class="badge badge-live">implemented</span></td><td>The non-fixed cycle that decides <em>when</em> to ask (S-05): a per-account moment drawn 2–7 days out inside daytime hours, held in memory and backed by <code>app_user.next_proposal_at</code>, firing <code>ProposalService.proposeScheduled</code> without anyone pressing anything. Since DEV-51 an account joins that cycle when its address is proved rather than when it registers, so the one loop that writes unprompted only ever holds mailboxes somebody confirmed. What comes back is emailed and waits in the app at <code>GET /api/proposals/pending</code>. Its text is the one server-generated sentence still Polish for every account — the accepted FR-009 exception, named at that one seam</td></tr>
+        <tr><th scope="row">Due-date reminder</th><td><span class="badge badge-live">implemented</span></td><td>One e-mail per dated task, in the account's language, at a moment the user set (DEV-63): the morning of the due day for a date-only task, or the due time minus its lead (<code>AT_TIME</code>, <code>FIFTEEN_MINUTES</code>, <code>ONE_HOUR</code>, <code>MORNING_OF</code>) for a timed one. A separate mechanism from the proposal loop — <code>ReminderScheduler</code> holds the pending reminders in memory, kept current by goal events, and stamps <code>goal.reminder_sent_at</code> in a short transaction before it sends. It never touches the pending proposal, the rhythm or AI memory, and a reminder missed past its due moment is dropped, not sent late</td></tr>
         <tr><th scope="row">Observability</th><td><span class="badge badge-live">implemented</span></td><td>In production (the <code>prod</code> profile <code>fly.toml</code> switches on) every log line is also pushed as JSON to the shared Grafana Cloud Loki stack, labelled <code>service=2doai</code>, <code>env=prod</code> and a lowercase <code>level</code>. Two lines exist for the owner's alerts: <code>user_registered</code>, after a verification commits, and a five-minute <code>heartbeat</code>, so that silence is visible (DEV-58). Rules, checks and dashboards live in the thedariusz-ops repository, not here</td></tr>
         <tr><th scope="row">PWA/offline behavior</th><td><span class="badge badge-planned">planned</span></td><td>Roadmap slice S-10. Installing to the home screen already works — a web manifest and PNG icons, so iOS opens the app standalone — but nothing is cached, so it is still online-only</td></tr>
       </tbody>
@@ -258,7 +261,11 @@
   that list sits the proposal card (S-04b): one button
   asks the backend for something to come back to, the returned card carries the AI's sentence and
   the four answers, and <code>STARTING</code> renders the generated bullets, each saveable as a
-  current task with one click.</p>
+  current task with one click.
+  Since DEV-63 a task with a date can also take a time (<code>&lt;input type="time"&gt;</code>,
+  shown only once a date is set) and, once timed, a reminder lead picked from four, preselected to
+  one hour. Clearing the date clears the time, and clearing the time clears the lead, so the form
+  can never send the combination the API refuses. The due chip shows the time beside the date.</p>
   <p>Since S-05 the card no longer waits for that button. On mount it reads
   <code>GET /api/proposals/pending</code>, so a proposal the rhythm opened overnight is on screen
   when the user arrives — which is what makes the emailed nudge a nudge rather than the delivery.
@@ -310,6 +317,17 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
+  <p class="note">Verified against DEV-63 (<code>due-date-reminder</code>) on 2026-11-26, with
+  migration <code>V18</code>, a new <code>reminder</code> package and two new wire fields. A task may
+  carry a time of day and a reminder lead, held by the layer × time-fields rule at all three depths,
+  and every active dated task gets one reminder e-mail at the moment the user set. The line this
+  draws against the natural-rhythm guardrail is now stated in the PRD and here: <em>the AI owns the
+  moment of a proposal; the user owns the moment of a reminder</em>. Moved: the overview card and
+  rows, the <code>goal</code>, <code>user</code> and new <code>reminder</code> code-map rows, the
+  <code>goal</code>, <code>reminder</code> and <code>mail</code> prose and class diagrams, the terms
+  list and glossary, a new flow, the <code>#data</code> prose and both ER exports, the roadmap, the
+  endpoint note, and <code>openapi.yaml</code>'s <code>GoalDueTime</code> and
+  <code>ReminderLead</code> schemas, now <code>openapi.yaml</code> 1.11.0. No endpoint added.</p>
   <p class="note">Verified against the <code>close-proposal-on-entry-completion</code> fix on
   2026-11-25, with data-only migration <code>V17</code> and one new wire literal. Completing or
   withdrawing an entry closed nothing: the proposal about it stayed pending, so the card kept asking
@@ -543,7 +561,8 @@ flowchart LR
   inside the same Fly machine, which is why the diagram has no fourth box: <code>fly.toml</code> pins
   exactly one machine, so there is nothing to elect and nothing to lock. That thread is also the
   <code>proposalScheduler</code> liveness indicator, so a tick that stops while the web server keeps
-  answering becomes a restart rather than silence. Since DEV-58 it carries a second job, the
+  answering becomes a restart rather than silence. Since DEV-63 the due-date reminder's tick runs on
+  the same thread and is the second liveness indicator, <code>reminderScheduler</code>. Since DEV-58 it carries a second job, the
   five-minute <code>Heartbeat</code>, whose absence in Loki is what pages the owner — the outside view
   of the same liveness that the indicator gives Fly from inside.</p>
   <h3>Target MVP runtime <span class="badge badge-planned">planned</span></h3>
@@ -592,14 +611,15 @@ flowchart LR
         <tr><th scope="col">Location</th><th scope="col">Responsibility</th><th scope="col">State</th></tr>
       </thead>
       <tbody>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/user"><code>backend/…/user</code></a></th><td>User aggregate, email value object, repository, the user API, and the account's one setting — <code>AppLanguage</code> and <code>UserSettingsService</code>; since DEV-51 also the verification state every other slice reads through <code>User.isEmailVerified()</code>, and the <code>UserVerified</code> event that replaced <code>UserRegistered</code></td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/user"><code>backend/…/user</code></a></th><td>User aggregate, email value object, repository, the user API, and the account's one setting — <code>AppLanguage</code> and <code>UserSettingsService</code>; since DEV-51 also the verification state every other slice reads through <code>User.isEmailVerified()</code>, and the <code>UserVerified</code> event that replaced <code>UserRegistered</code>; since DEV-63, <code>UserZone</code>, the one place the app decides whose day "today" and "morning" mean</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/i18n"><code>backend/…/i18n</code></a></th><td>How a request says which language to answer in: one <code>AcceptHeaderLocaleResolver</code> bean, and nothing else</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/auth"><code>backend/…/auth</code></a></th><td>Registration, request validation, and the error mapping for it — and, since DEV-51, the e-mailed code: issuing, redeeming and resending it (eight digits since DEV-62, and a sign-in credential as well as the proof of an address), the in-memory per-address throttle and daily budget on it, the link it carries (<code>SignInLink</code>), and the code e-mail in both languages</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/session"><code>backend/…/session</code></a></th><td>Explicit login and logout endpoints — login by password or, since DEV-62, by a mailed code, both through the same session-creation steps, both remembered by a <code>remember-me</code> cookie, and logout revoking every remembered browser</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/security"><code>backend/…/security</code></a></th><td>Filter chain, CSRF, session identity, and RFC 9457 security errors — and, since DEV-62, remember-me: the <code>remember_me_token</code> aggregate and its store (<code>JpaPersistentTokenRepository</code>, also a <code>PerUserDataDeleter</code>), and <code>StableTokenRememberMeServices</code>, which brings a session back after a restart without rotating the token</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/account"><code>backend/…/account</code></a></th><td>Modular per-user erasure coordinated before the user row is deleted</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/category"><code>backend/…/category</code></a></th><td>Fixed life-domain reference data in two languages, and enum/table drift detection</td><td><span class="badge badge-live">implemented</span></td></tr>
-        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/goal"><code>backend/…/goal</code></a></th><td>One aggregate for all three layers — current tasks, goals and dreams — its CRUD API, its erasure adapter, and the <code>GoalLeftTheRunning</code> event it publishes when an active entry is completed or withdrawn</td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/goal"><code>backend/…/goal</code></a></th><td>One aggregate for all three layers — current tasks, goals and dreams — its CRUD API, its erasure adapter, and the <code>GoalLeftTheRunning</code> event it publishes when an active entry is completed or withdrawn — and, since DEV-63, a task's time of day and <code>ReminderLead</code>, the <code>GoalTermChanged</code> and <code>GoalDeleted</code> events the reminder listens to, and the one cross-user read, <code>findPendingReminders</code></td><td><span class="badge badge-live">implemented</span></td></tr>
+        <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/reminder"><code>backend/…/reminder</code></a></th><td>The due-date reminder (DEV-63): <code>ReminderMoment</code>, the pure function from a task's term to when its e-mail goes out and until when it still may; <code>ReminderScheduler</code>, the in-memory map, its 60-second tick and the <code>reminderScheduler</code> liveness indicator; <code>ReminderService</code>, the boot load and the fire transaction; and the reminder e-mail in both languages. It depends on <code>goal</code>, never the reverse, and shares nothing with <code>proposal</code></td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/proposal"><code>backend/…/proposal</code></a></th><td>The whole proactive loop: the selection engine, the two Sonnet prompts and their template fallback, the stored <code>proposal</code> aggregate, the four answers and the two closures the app writes itself (<code>SUPERSEDED</code>, <code>ENTRY_CLOSED</code>), the three endpoints — and, since S-05, the natural-rhythm scheduler that fires without a caller and the email it sends, still Polish for every account until FR-009</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/mail"><code>backend/…/mail</code></a></th><td>The <code>EmailSender</code> outbound port and its SMTP adapter — how the app reaches a user who is not looking at it, in plain text or with an HTML alternative — and, since DEV-62, the single-worker executor code requests send on</td><td><span class="badge badge-live">implemented</span></td></tr>
         <tr><th scope="row"><a href="../backend/src/main/java/com/thedariusz/todoai/observability"><code>backend/…/observability</code></a></th><td>What the app tells the shared Loki stack beyond its ordinary lines: <code>user_registered</code> after a verification commits, the five-minute <code>heartbeat</code>, and the lowercase level the label contract needs. The shipping itself is configuration — <code>logback-spring.xml</code> and <code>logback-loki.xml</code> — under the <code>prod</code> profile only</td><td><span class="badge badge-live">implemented</span></td></tr>
@@ -723,7 +743,9 @@ flowchart LR
     <dt>Task</dt>
     <dd>A current, concrete action — the same <code>goal</code> table with
     <code>layer = TASK</code>, no horizon, and an optional <code>due_date</code>. A task is the only
-    layer that may carry a due date, and the only time field a task may carry.</dd>
+    layer that may carry a due date, and the only time field a task may carry. Since DEV-63 a dated
+    task may also carry a time of day (<code>due_time</code>), and a timed one always carries a
+    reminder lead.</dd>
     <dt>Proposal</dt>
     <dd>One entry the system brings back to the user because it has been neglected, together with
     the sentence it was phrased into and whatever the user answered. It is a stored row, not a
@@ -735,7 +757,20 @@ flowchart LR
     moment drawn uniformly 2–7 days ahead, landing inside daytime hours, redrawn after every fire.
     Random rather than periodic on purpose — a fixed cadence is the alarm clock this product exists
     not to be, and the unpredictability is a product feel, not a secret, which is why
-    <code>ProposalRhythm</code> takes an ordinary unseeded <code>Random</code>.</dd>
+    <code>ProposalRhythm</code> takes an ordinary unseeded <code>Random</code>. The due-date
+    reminder is not part of this cycle and does not count toward it.</dd>
+    <dt>Due-date reminder</dt>
+    <dd>The one e-mail a dated task produces, on its due day, at a moment the <em>user</em> set
+    (DEV-63). It is not a proposal: nothing is selected or phrased, it does not supersede the pending
+    proposal, reset the rhythm or write a memory episode. That is the line against the natural
+    rhythm — the AI owns the moment of a proposal; the user owns the moment of a reminder. Sent at
+    most once per term, marked by <code>goal.reminder_sent_at</code>; a change of date, time or lead
+    is a new term and re-arms it.</dd>
+    <dt>Reminder lead</dt>
+    <dd>How far ahead of a timed task's due moment its reminder goes out: <code>AT_TIME</code>,
+    <code>FIFTEEN_MINUTES</code>, <code>ONE_HOUR</code> (the default) or <code>MORNING_OF</code> (the
+    morning hour of the due day, never later than the due moment). A date-only task has none and is
+    reminded on the morning of its day.</dd>
     <dt>Quiet hours</dt>
     <dd>The part of the day the rhythm will not fire in. <code>ProposalRhythm.next</code> never draws
     outside it, so the guard exists for the moments that arrive <em>late</em> — a machine down across
@@ -1347,6 +1382,18 @@ classDiagram
   instead of a new endpoint. Both are primitives on that record, and Jackson 3 rejects an omitted
   primitive with a 400 rather than defaulting it to false — a loud failure the API test pins, since
   boxing the field later would quietly turn "withdraw this" into "leave it alone".</p>
+  <p>DEV-63 widened the same rule with two fields: <code>due_time</code> only beside a
+  <code>due_date</code>, and <code>reminder_lead</code> exactly when there is a time. The aggregate
+  fills a missing lead with <code>ONE_HOUR</code> and truncates the time to minutes, so the
+  <code>"HH:mm"</code> the SPA sends comes back byte-identical. Both are boxed on the request
+  records, unlike <code>withdrawn</code>, so a client that predates them sends nothing and is not
+  refused. <code>update</code> now returns whether the term changed, and a changed term clears
+  <code>reminderSentAt</code>: the user asked to be reminded of something new. On that, and on a
+  flip between active and done, <code>GoalService</code> publishes <code>GoalTermChanged</code>, and
+  a delete publishes <code>GoalDeleted</code> — value-only records, as
+  <code>GoalLeftTheRunning</code> is. There is deliberately no entity method that stamps the sent
+  marker: <code>GoalRepository.markReminderSent</code> is a bulk update, so the stamp does not move
+  <code>updated_at</code>, the selection engine's neglect clock.</p>
   <pre class="mermaid">
 classDiagram
   class Goal {
@@ -1357,12 +1404,15 @@ classDiagram
     GoalLayer layer
     GoalHorizon horizon — only for a GOAL
     LocalDate dueDate — only for a TASK
+    LocalTime dueTime — only beside a dueDate
+    ReminderLead reminderLead — exactly when timed
+    OffsetDateTime reminderSentAt — null while the term's reminder is owed
     LifeDomain category — optional
     OffsetDateTime completedAt — null means active
     LocalDate remindAfter — snoozed until
     OffsetDateTime withdrawnAt — null means in play
     +isActive() boolean — neither done nor withdrawn
-    +update(content, layer, horizon, dueDate, category)
+    +update(content, layer, horizon, dueDate, dueTime, reminderLead, category) boolean — term changed
     +complete(OffsetDateTime)
     +reopen()
     +snoozeUntil(LocalDate)
@@ -1377,6 +1427,10 @@ classDiagram
     &lt;&lt;wire enumeration&gt;&gt;
     THIS_YEAR, FEW_MONTHS
   }
+  class ReminderLead {
+    &lt;&lt;wire enumeration&gt;&gt;
+    AT_TIME, FIFTEEN_MINUTES, ONE_HOUR, MORNING_OF
+  }
   class GoalController {
     &lt;&lt;inbound adapter / REST&gt;&gt;
     +list() GET /api/goals
@@ -1388,8 +1442,24 @@ classDiagram
     &lt;&lt;application service&gt;&gt;
     scopes every read to CurrentUser
     +update(id, request) — publishes GoalLeftTheRunning on the transition only
+    publishes GoalTermChanged and GoalDeleted for the reminder
   }
   class GoalLeftTheRunning {
+    &lt;&lt;domain event&gt;&gt;
+    UUID userId
+    UUID goalId
+  }
+  class GoalTermChanged {
+    &lt;&lt;domain event&gt;&gt;
+    UUID userId
+    UUID goalId
+    LocalDate dueDate
+    LocalTime dueTime
+    ReminderLead lead
+    boolean active
+    boolean reminderSent
+  }
+  class GoalDeleted {
     &lt;&lt;domain event&gt;&gt;
     UUID userId
     UUID goalId
@@ -1398,6 +1468,8 @@ classDiagram
     &lt;&lt;persistence adapter / Spring Data&gt;&gt;
     findByIdAndUserId — no existence oracle
     findWithLockByIdAndUserId — every rewrite of the row, locked before its proposal
+    findPendingReminders(fromDay) — the one cross-user read, a projection
+    markReminderSent(id, userId, now) — bulk update, leaves updated_at alone
   }
   class GoalDataDeleter {
     &lt;&lt;module adapter&gt;&gt;
@@ -1405,11 +1477,94 @@ classDiagram
   GoalController --> GoalService
   GoalService --> GoalRepository
   GoalService ..> GoalLeftTheRunning : published inside the updating transaction
+  GoalService ..> GoalTermChanged : on a create or a term or state change
+  GoalService ..> GoalDeleted : on a delete
   GoalRepository --> Goal
   GoalDataDeleter --> GoalRepository
   Goal --> GoalLayer
   Goal --> GoalHorizon
+  Goal --> ReminderLead
   Goal ..> LifeDomain : optional category
+  </pre>
+
+  <h3>reminder</h3>
+  <p>The due-date reminder (DEV-63): one e-mail per dated task, at a moment the <strong>user</strong>
+  set. It is the one message this product sends at a fixed time, and the reason that does not
+  contradict the natural rhythm is who chose the time — the AI owns the moment of a proposal; the
+  user owns the moment of a reminder. So it borrows the proposal loop's timer pattern and nothing
+  else: no selection, no model, no supersede, no rhythm reset and no memory episode.</p>
+  <p><strong>The timer is <code>ProposalScheduler</code>'s, for the same bill.</strong> A map from goal
+  id to the pending reminder, loaded by one query at boot, kept current by the goal events with zero
+  queries, and read by an I/O-free 60-second tick. <code>GoalTermChanged</code> and
+  <code>GoalDeleted</code> are heard <code>AFTER_COMMIT</code>, because the map is memory only: a
+  rolled-back write must change nothing in it. Account erasure goes through the same
+  <code>PerUserDataDeleter</code> seam. Writes that bypass <code>GoalService</code> — a proposal
+  answered <code>NEVER</code> — publish nothing, and the fire's re-check drops what they leave
+  behind at the cost of one short query.</p>
+  <p><strong>Nothing about the window is stored.</strong> <code>ReminderMoment</code> derives it from
+  the term in the user's zone: the morning hour (<code>reminder.morning-hour</code>, 08:00) for a
+  date-only task, or the due time minus the lead, clamped to the due moment. The expiry is the due
+  moment plus <code>reminder.late-grace</code> (five minutes, never under four): past it there is
+  nothing left to remind of, so a reminder missed through downtime is dropped rather than sent late,
+  and an unsent expired one is simply not loaded at the next boot. The grace also has to outlast a
+  proposal fire holding the shared scheduler thread, and it is what lets <code>AT_TIME</code> fire
+  at all on a 60-second tick.</p>
+  <p><strong>At most once, on purpose.</strong> The fire locks the goal row, re-checks it (an active,
+  unsent task whose term still yields the armed window), stamps <code>reminder_sent_at</code> and
+  commits — and only then sends, outside any transaction. A send that fails after the stamp is
+  logged at ERROR and not retried, because a retry loop would query Neon every tick for as long as
+  the mail provider was down; the due chip in the app is the second channel. A fire transaction that
+  fails leaves the row unstamped, so that one is re-armed a minute later, while still inside its
+  expiry. A stale entry — the row's term no longer yields it — is re-armed to the row's window
+  instead of being sent early or dropped.</p>
+  <pre class="mermaid">
+classDiagram
+  class ReminderScheduler {
+    &lt;&lt;scheduler + liveness indicator&gt;&gt;
+    Map goalId to PendingReminder — memory only
+    +loadPending() — ApplicationReadyEvent, one query
+    +tick() — every 60s, no I/O unless something fires
+    +onTermChanged(GoalTermChanged) — AFTER_COMMIT
+    +onDeleted(GoalDeleted) — AFTER_COMMIT
+    +deleteAllForUser(userId)
+    +health() the reminderScheduler liveness indicator
+  }
+  class ReminderMoment {
+    &lt;&lt;pure function&gt;&gt;
+    +of(dueDate, dueTime, lead, props) Optional of Window
+  }
+  class ReminderService {
+    &lt;&lt;application service&gt;&gt;
+    +pending(fromDay) — the boot load
+    +fire(goalId, userId, window, now) FireOutcome — lock, re-check, stamp
+  }
+  class FireOutcome {
+    &lt;&lt;sealed&gt;&gt;
+    Send(ReminderMail)
+    Rearm(Window)
+    Drop
+  }
+  class ReminderEmail {
+    &lt;&lt;localized copy&gt;&gt;
+    +subject(language, content)
+    +body(language, content, dueDate, dueTime, baseUrl)
+  }
+  class ReminderProperties {
+    &lt;&lt;configuration&gt;&gt;
+    reminder.morning-hour — 0 to 23
+    reminder.late-grace — at least PT4M
+  }
+  ReminderScheduler --> ReminderService
+  ReminderScheduler --> ReminderMoment
+  ReminderScheduler --> EmailSender : after commit
+  PerUserDataDeleter &lt;|.. ReminderScheduler
+  ReminderScheduler ..> GoalTermChanged : listens
+  ReminderScheduler ..> GoalDeleted : listens
+  ReminderService --> GoalRepository
+  ReminderService --> ReminderEmail
+  ReminderService ..> FireOutcome
+  ReminderMoment --> ReminderProperties
+  ReminderMoment ..> UserZone : Europe/Warsaw
   </pre>
 
   <h3>proposal</h3>
@@ -1501,7 +1656,8 @@ classDiagram
   to the two entry points to remember: <code>scheduleNextProposalAt</code> itself refuses an
   unverified row, and boot's skip is then an optimization rather than the guard.</p>
   <p>The health endpoint is the other door into that bill, and it is the one that opens by accident.
-  The liveness group is careful — it holds the scheduler's own pulse and nothing that touches the
+  The liveness group is careful — it holds the schedulers' own pulses (since DEV-63 the reminder's
+  beside the proposal's) and nothing that touches the
   database — but plain <code>/actuator/health</code> is exposed, unauthenticated (Fly's probe reaches
   the liveness path through the same filter chain), and runs <em>every</em> registered contributor
   regardless of which group names it. So each contributor is not a diagnostic so much as work any
@@ -1731,7 +1887,9 @@ classDiagram
   anyway, while a verification code that will not send at sign-up <em>is</em> the request and answers
   503. Since DEV-62 a code request sends on its own thread — the single-worker auth-mail executor
   <code>MailConfig</code> declares — so its failure has nobody to answer to: it gives back the throttle
-  entry and the budget slot, logs a warning, and leaves "send again" as the recovery.</p>
+  entry and the budget slot, logs a warning, and leaves "send again" as the recovery. DEV-63 added a
+  third caller, the due-date reminder, and it fails like the nudge: the row is already stamped and
+  the due chip is in the app, so a failed send is logged at ERROR and not retried.</p>
   <p><strong>The code mail carries a link since DEV-62, and a GET spends nothing.</strong> Until then it
   carried none, because a confirmation link is a click somebody else can make on the user's behalf — a
   scanner following every URL in a mail would have confirmed the address for them. The code is now the
@@ -1782,6 +1940,7 @@ classDiagram
   SmtpEmailSender --> MailboxProperties
   SmtpEmailSender ..> MailDeliveryException
   ProposalScheduler --> EmailSender : the natural-rhythm nudge
+  ReminderScheduler --> EmailSender : the due-date reminder (DEV-63)
   EmailVerificationService --> EmailSender : the code and its link, text and HTML (DEV-51, DEV-62)
   EmailVerificationService --> MailConfig : sends code requests on the auth-mail executor
   </pre>
@@ -1941,7 +2100,9 @@ classDiagram
   <code>GET /api/categories</code> is the only cacheable response
   (<code>private, max-age=3600</code>: eleven seed-owned rows the SPA refetches on every load);
   every other endpoint keeps Spring Security's <code>no-store</code> default. The goal delete is a
-  hard one and is not FR-019 erasure: that removes the account and every entry at once.</p>
+  hard one and is not FR-019 erasure: that removes the account and every entry at once. DEV-63 added
+  no path: <code>due_time</code> (<code>"HH:mm"</code>) and <code>reminder_lead</code> ride the
+  existing goal payloads, and <code>reminder_sent_at</code> stays off the wire.</p>
 </section>
 
 <section id="ai-communication">
@@ -2641,6 +2802,41 @@ sequenceDiagram
   decision is the liveness indicator, which reports the tick's own pulse from a field rather than a
   query, so the failure this feature is uniquely exposed to — the thread dying while the web server
   keeps answering — becomes a Fly restart instead of silence.</p>
+
+  <h4>Due-date reminder <span class="badge badge-live">implemented</span></h4>
+  <p>DEV-63's flow borrows the shape of the one above and none of its steps. The moment comes from
+  the task, not from a draw, and nothing here touches the pending proposal, the rhythm or AI memory
+  — the AI owns the moment of a proposal; the user owns the moment of a reminder.</p>
+  <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor SPA
+  participant GS as GoalService
+  participant RS as ReminderScheduler — 60s tick
+  participant SVC as ReminderService
+  participant PG as Postgres
+  participant MAIL as EmailSender → Resend
+  actor U as User
+  SPA->>GS: POST or PUT /api/goals {due_date, due_time, reminder_lead}
+  GS->>PG: save the task — a changed term clears reminder_sent_at
+  GS-->>RS: GoalTermChanged, after commit
+  RS->>RS: ReminderMoment — moment and expiry from the term, kept in memory
+  Note over RS: the map answers "is anything due?"&lt;br/&gt;— no query while nothing is
+  RS->>RS: tick — a moment has come, the expiry has not
+  RS->>SVC: fire(goalId, userId, window, now)
+  SVC->>PG: lock the row, re-check it is an active unsent task with this term
+  alt still owed
+    SVC->>PG: stamp reminder_sent_at — a bulk update, updated_at untouched
+    SVC-->>RS: Send — the mail in the account's language
+    RS->>MAIL: subject + body + /goals link, after commit
+    MAIL-->>U: email
+  else the term moved
+    SVC-->>RS: Rearm — the row's current window
+  else done, withdrawn, deleted, sent or expired
+    SVC-->>RS: Drop
+  end
+  Note over RS,MAIL: a failed send is logged and final,&lt;br/&gt;a failed transaction is retried a minute later
+  </pre>
   <!-- planned-flows -->
 </section>
 
@@ -2655,7 +2851,9 @@ sequenceDiagram
   all on <code>app_user</code> again, for address verification, plus one <code>CHECK</code> holding
   two of them together. DEV-62 added the first table since <code>proposal</code>:
   <code>remember_me_token</code>, because a remembered browser is a row of its own rather than a fact
-  about the account. Nothing in the data model still belongs only to the target diagram.</p>
+  about the account. DEV-63 added three columns to <code>goal</code> — a task's time of day, its
+  reminder lead and the marker of the one reminder its term produced. Nothing in the data model still
+  belongs only to the target diagram.</p>
   <div class="card-grid">
     <div class="card"><strong>Ownership and isolation</strong><br><code>AiMemory</code> is one
     aggregate per user. Child profile facts and episodes are reached through that root.</div>
@@ -2693,7 +2891,8 @@ sequenceDiagram
   while every reader called it answered. The other clock decision is
   <code>due_date</code>: it is a <code>LocalDate</code> the user picked off a calendar, so the engine
   reads its clock in the user's zone rather than the server's. There is no <code>user.timezone</code>
-  column yet, so that zone is pinned to Europe/Warsaw in one line of <code>ProposalService</code>;
+  column yet, so that zone is pinned to Europe/Warsaw in one place — <code>UserZone</code> since
+  DEV-63, which lifted it out of the proposal package once the reminder needed it too;
   a UTC comparison would leave a task that fell due at Polish midnight unflagged until 02:00, and the
   endpoint would answer 204 &mdash; the one place a real fault looks like a legitimate empty
   answer.</p>
@@ -2790,7 +2989,20 @@ sequenceDiagram
   proposal still waiting on an entry that was already completed or withdrawn, the rows written before
   <code>GoalService</code> started closing them itself. It is idempotent, and the previous image never
   loads those rows, because it reads only pending proposals.</p>
-  <img class="diagram" src="../context/foundation/data-model-current.svg" width="1572" height="1422" loading="lazy" alt="Current entity relationship model: app user with its next_proposal_at scheduling column, preferred_language setting, nullable password hash and five code columns, remember-me tokens owned by the user, goal with its three layers, proposal, category with its two label columns, AI memory, profile facts, and episodes">
+  <p><code>V18</code> (DEV-63) is expand-only: three nullable columns on <code>goal</code> —
+  <code>due_time TIME</code>, <code>reminder_lead VARCHAR(16)</code> and
+  <code>reminder_sent_at TIMESTAMPTZ</code> — and <code>chk_goal_layer_time_fields</code> dropped and
+  re-added under the same name, layer-major as in <code>V7</code>: a time only beside a date, a time
+  and a lead always together, neither on a goal or a dream. A separate
+  <code>chk_goal_reminder_lead</code> holds the four lead literals. Only
+  <code>reminder_sent_at</code> belongs to the reminder; the moment it goes out is derived from the
+  term and never stored. It is also the first column on <code>goal</code> a background job writes,
+  which is the day the <code>updated_at</code> warning above was about — and the answer is again not
+  a new column: the stamp is a bulk <code>UPDATE</code> that bypasses <code>@UpdateTimestamp</code>,
+  so the neglect clock still only moves when the user does something. The one rollback edge — an
+  old-image edit that clears the date of a timed task trips the widened <code>CHECK</code> — is
+  accepted and described in the change's plan.</p>
+  <img class="diagram" src="../context/foundation/data-model-current.svg" width="1650" height="1422" loading="lazy" alt="Current entity relationship model: app user with its next_proposal_at scheduling column, preferred_language setting, nullable password hash and five code columns, remember-me tokens owned by the user, goal with its three layers, its time of day and reminder columns, proposal, category with its two label columns, AI memory, profile facts, and episodes">
   <h3>Target model <span class="badge badge-planned">planned</span></h3>
   <p>The target diagram shows the whole shape, migrated and not: solid tables exist today, ghosted
   ones are direction rather than an implemented database contract. After S-07 — and still after
@@ -2985,7 +3197,7 @@ flowchart TB
   all three task layers on one <code>goal</code>
   aggregate, the complete proposal loop — on demand <em>and</em> on its own natural rhythm, by email
   and in the app — the AI memory and category foundations, since DEV-49 both languages the
-  product speaks, a public landing page that explains all of it before asking for an account, and, since DEV-58, production logs in Grafana Cloud Loki with the two events the owner's alerts key on. The MVP roadmap builds vertical slices on top:</p>
+  product speaks, a public landing page that explains all of it before asking for an account, since DEV-63 a due-date reminder at a moment the user set, and, since DEV-58, production logs in Grafana Cloud Loki with the two events the owner's alerts key on. The MVP roadmap builds vertical slices on top:</p>
   <div class="card"><strong>Category auto-tag</strong> <span class="badge badge-planned">planned</span><br>AI
   classification into the 11 life domains at capture time. All three layers already ship with a
   manual picker; the auto-tag replaces the picking, not the storage. It is also where Haiku's
@@ -2998,6 +3210,11 @@ flowchart TB
   right entry at a moment nobody set, not a fixed-time alarm: a per-account moment drawn 2–7 days
   out inside daytime hours, held in memory so an idle tick never wakes the database, delivered by
   email and waiting in the app either way. This was the slice the product existed to prove.</div>
+  <div class="card"><strong>Due-date reminder</strong> <span class="badge badge-live">implemented</span><br>The
+  one fixed-time message, and the user's rather than the AI's (DEV-63): a task may carry a time and
+  a lead, and gets one e-mail on its due day at the moment that sets. A separate mechanism from the
+  proposal loop — it does not count toward the rhythm, supersede a proposal or write memory. The AI
+  owns the moment of a proposal; the user owns the moment of a reminder.</div>
   <div class="card"><strong>Two languages, English-first</strong> <span class="badge badge-live">implemented</span><br>Polish
   preserved as a language rather than as the default (DEV-49). The account carries the choice, the
   request carries the transport, and every screen and every server-generated sentence on the
@@ -3038,9 +3255,10 @@ flowchart TB
       </thead>
       <tbody>
         <tr><th scope="row">Task layer</th><td>One of three horizons an item lives in: <em>current</em> (actionable now), <em>long-term</em> (goals) and <em>dreams</em> (aspirations) — all three implemented as one <code>goal</code> table with a <code>layer</code> discriminator.</td></tr>
-        <tr><th scope="row">Layer / horizon</th><td><code>GoalLayer</code> (GOAL, DREAM, TASK) discriminates all three layers; <code>GoalHorizon</code> (THIS_YEAR, FEW_MONTHS) applies only to a goal, and <code>due_date</code> only to a task. All constant names are the wire literals, anchored in <code>openapi.yaml</code> and held against backend and frontend copies by <code>GoalApiTest</code>.</td></tr>
+        <tr><th scope="row">Layer / horizon</th><td><code>GoalLayer</code> (GOAL, DREAM, TASK) discriminates all three layers; <code>GoalHorizon</code> (THIS_YEAR, FEW_MONTHS) applies only to a goal, and <code>due_date</code> only to a task — as do <code>due_time</code> and <code>ReminderLead</code> (AT_TIME, FIFTEEN_MINUTES, ONE_HOUR, MORNING_OF) since DEV-63. All constant names are the wire literals, anchored in <code>openapi.yaml</code> and held against backend and frontend copies by <code>GoalApiTest</code>.</td></tr>
         <tr><th scope="row">Life domain</th><td>One of 11 fixed categories every task belongs to: HEALTH, FINANCE, CAREER, EDUCATION, RELATIONSHIPS, HOME, LEISURE, ADMIN, SAFETY, TRANSPORT, INNER_GROWTH. Enum <code>LifeDomain</code> mirrors the seeded <code>category</code> table; <code>CategorySyncCheck</code> fails boot on drift.</td></tr>
-        <tr><th scope="row">Natural-rhythm reminder</th><td>A proactive nudge surfaced at a moment nobody set rather than at a fixed alarm time. Uniformly 2–7 days ahead, drawn inside daytime hours, redrawn after every fire; the schedule lives in <code>ProposalScheduler</code>'s map and only its backup in <code>app_user.next_proposal_at</code>. Random rather than periodic on purpose — the unpredictability is the product, which is why <code>ProposalRhythm</code> takes an unseeded <code>Random</code>.</td></tr>
+        <tr><th scope="row">Natural-rhythm reminder</th><td>A proactive nudge surfaced at a moment nobody set rather than at a fixed alarm time. Uniformly 2–7 days ahead, drawn inside daytime hours, redrawn after every fire; the schedule lives in <code>ProposalScheduler</code>'s map and only its backup in <code>app_user.next_proposal_at</code>. Random rather than periodic on purpose — the unpredictability is the product, which is why <code>ProposalRhythm</code> takes an unseeded <code>Random</code>. Not to be confused with the due-date reminder, whose moment the user sets.</td></tr>
+        <tr><th scope="row">Due-date reminder</th><td>One e-mail per dated task on its due day, at a moment the user set: the morning hour for a date-only task, the due time minus the <em>reminder lead</em> for a timed one (DEV-63). Not a proposal and not part of the rhythm — the AI owns the moment of a proposal; the user owns the moment of a reminder. Held in <code>ReminderScheduler</code>'s map, sent at most once per term (<code>goal.reminder_sent_at</code>), and dropped rather than sent late once the due moment has passed.</td></tr>
         <tr><th scope="row">Superseding</th><td>What the next cycle does to a proposal the user never answered: <code>ProposalAnswer.SUPERSEDED</code> closes it and its entry is quieted for the same few days a spoken "not now" buys. An answer the <em>app</em> writes — ignoring a proposal is a response to it — kept distinct from <code>NOT_NOW</code> so the next prompt can tell silence from refusal. Only the scheduled path supersedes; the button returns the pending card instead.</td></tr>
         <tr><th scope="row">Entry closed</th><td>The other closure the app writes: <code>ProposalAnswer.ENTRY_CLOSED</code>, set when the user completes or withdraws an entry through <code>PUT /api/goals/{id}</code> while a proposal about it is still waiting. Reached through the <code>GoalLeftTheRunning</code> event, in the same transaction as the completion; refused from a client with a 422, like <code>SUPERSEDED</code>.</td></tr>
         <tr><th scope="row">Quiet hours</th><td>The part of the day the rhythm will not fire in (<code>proposal.rhythm.window-start-hour</code> / <code>window-end-hour</code>). No moment is ever drawn outside it; the guard is for a fire that arrives late after downtime, which waits for the window to reopen rather than landing at 04:00.</td></tr>

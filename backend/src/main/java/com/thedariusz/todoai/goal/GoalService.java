@@ -42,8 +42,15 @@ class GoalService {
 
 	GoalResponse create(GoalCreation request) {
 		Goal goal = new Goal(currentUser.requireId(), request.content(), request.layer(),
-				request.horizon(), request.dueDate(), request.categoryCode());
-		return GoalResponse.from(goals.saveAndFlush(goal));
+				request.horizon(), request.dueDate(), request.dueTime(), request.reminderLead(),
+				request.categoryCode());
+		Goal saved = goals.saveAndFlush(goal);
+		// From the saved entity: the UUID v7 id is assigned on persist, and the event is useless
+		// without it.
+		if (saved.getDueDate() != null) {
+			events.publishEvent(GoalTermChanged.of(saved));
+		}
+		return GoalResponse.from(saved);
 	}
 
 	/**
@@ -55,6 +62,10 @@ class GoalService {
 	 * {@link GoalLeftTheRunning}, on the transition only: the full-replace PUT re-asserts both flags on
 	 * every edit, and an edit of an entry that was already done has nothing new to tell anyone. The
 	 * listeners run inside this transaction, so the entry and whatever reacts to it land together.
+	 *
+	 * <p>A changed term, or a flip between active and done/withdrawn in either direction, is announced
+	 * as {@link GoalTermChanged} (DEV-63), so a pending reminder is re-armed or cancelled. Its listener
+	 * only touches memory and runs after commit.
 	 */
 	GoalResponse update(UUID id, GoalUpdate request) {
 		// Locked, because the row is written back whole: an answer or a rhythm fire landing between
@@ -64,8 +75,8 @@ class GoalService {
 				.orElseThrow(() -> new GoalNotFoundException(id));
 		boolean wasActive = goal.isActive();
 
-		goal.update(request.content(), request.layer(), request.horizon(), request.dueDate(),
-				request.categoryCode());
+		boolean termChanged = goal.update(request.content(), request.layer(), request.horizon(),
+				request.dueDate(), request.dueTime(), request.reminderLead(), request.categoryCode());
 		if (request.completed()) {
 			goal.complete(OffsetDateTime.now());
 		}
@@ -83,6 +94,9 @@ class GoalService {
 		if (wasActive && !goal.isActive()) {
 			events.publishEvent(new GoalLeftTheRunning(goal.getUserId(), goal.getId()));
 		}
+		if (termChanged || wasActive != goal.isActive()) {
+			events.publishEvent(GoalTermChanged.of(goal));
+		}
 		return GoalResponse.from(goals.saveAndFlush(goal));
 	}
 
@@ -92,8 +106,10 @@ class GoalService {
 	 * can introduce that properly if the product turns out to want it.
 	 */
 	void delete(UUID id) {
-		if (goals.deleteByIdAndUserId(id, currentUser.requireId()) == 0) {
+		UUID userId = currentUser.requireId();
+		if (goals.deleteByIdAndUserId(id, userId) == 0) {
 			throw new GoalNotFoundException(id);
 		}
+		events.publishEvent(new GoalDeleted(userId, id));
 	}
 }

@@ -1,6 +1,7 @@
 package com.thedariusz.todoai.goal;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -147,12 +148,13 @@ class GoalPersistenceTest {
 		// The conversion path re-checks: flipping DREAM -> GOAL without supplying a horizon must fail
 		// just as hard as constructing one that way, and so must a task that keeps its term.
 		Goal dream = new Goal(userId, "Pojechać do Japonii", GoalLayer.DREAM, null, null, null);
-		assertThatThrownBy(() -> dream.update("Pojechać do Japonii", GoalLayer.GOAL, null, null, null))
+		assertThatThrownBy(() -> dream.update("Pojechać do Japonii", GoalLayer.GOAL, null, null, null,
+				null, null))
 				.isInstanceOf(IllegalArgumentException.class);
 
 		Goal task = new Goal(userId, "Kupić bilety", GoalLayer.TASK, null, term, null);
 		assertThatThrownBy(() -> task.update("Kupić bilety", GoalLayer.GOAL, GoalHorizon.FEW_MONTHS,
-				term, null))
+				term, null, null, null))
 				.isInstanceOf(IllegalArgumentException.class);
 	}
 
@@ -176,6 +178,104 @@ class GoalPersistenceTest {
 				.hasMessageContaining("chk_goal_layer_time_fields");
 		assertThatThrownBy(() -> insertRawGoal(userId, "DREAM", null, null, term))
 				.hasMessageContaining("chk_goal_layer_time_fields");
+	}
+
+	private void insertRawTask(UUID userId, String layer, String horizon, LocalDate dueDate,
+			LocalTime dueTime, String reminderLead) {
+		jdbc.update("""
+				INSERT INTO goal (id, user_id, content, layer, horizon, due_date, due_time, reminder_lead,
+								  created_at, updated_at)
+				VALUES (?, ?, 'raw', ?, ?, ?, ?, ?, now(), now())
+				""", UUID.randomUUID(), userId, layer, horizon, dueDate, dueTime, reminderLead);
+	}
+
+	/**
+	 * DEV-63's columns: a time of day only beside a date, only on a task, and always paired with a
+	 * reminder lead. The CHECK holds that pairing on its own, so a raw writer cannot leave a time
+	 * with no lead for the reminder scheduler to interpret.
+	 */
+	@Test
+	void theDatabaseRejectsATimeOrALeadOutsideATimedTask() {
+		UUID userId = persistedUserId();
+		LocalDate term = LocalDate.of(2026, 9, 1);
+		LocalTime noon = LocalTime.NOON;
+
+		assertThatThrownBy(() -> insertRawTask(userId, "TASK", null, null, noon, "ONE_HOUR"))
+				.hasMessageContaining("chk_goal_layer_time_fields");
+		assertThatThrownBy(() -> insertRawTask(userId, "TASK", null, term, noon, null))
+				.hasMessageContaining("chk_goal_layer_time_fields");
+		assertThatThrownBy(() -> insertRawTask(userId, "TASK", null, term, null, "ONE_HOUR"))
+				.hasMessageContaining("chk_goal_layer_time_fields");
+		assertThatThrownBy(() -> insertRawTask(userId, "GOAL", "THIS_YEAR", null, noon, "ONE_HOUR"))
+				.hasMessageContaining("chk_goal_layer_time_fields");
+		assertThatThrownBy(() -> insertRawTask(userId, "DREAM", null, null, null, "ONE_HOUR"))
+				.hasMessageContaining("chk_goal_layer_time_fields");
+		assertThatThrownBy(() -> insertRawTask(userId, "TASK", null, term, noon, "DAY_BEFORE"))
+				.hasMessageContaining("chk_goal_reminder_lead");
+
+		insertRawTask(userId, "TASK", null, term, noon, "MORNING_OF");
+	}
+
+	@Test
+	void persistsATimedTaskAndDefaultsItsLead() {
+		UUID userId = persistedUserId();
+
+		goals.saveAndFlush(new Goal(userId, "Wizyta u lekarza", GoalLayer.TASK, null,
+				LocalDate.of(2026, 9, 1), LocalTime.of(12, 0, 42), null, null));
+
+		Goal reloaded = goals.findByUserIdOrderByCreatedAtDesc(userId).getFirst();
+
+		assertThat(reloaded.getDueTime())
+				.as("truncated to minutes, so <input type=time> round-trips byte-identical")
+				.isEqualTo(LocalTime.NOON);
+		assertThat(reloaded.getReminderLead()).isEqualTo(ReminderLead.ONE_HOUR);
+		assertThat(reloaded.getReminderSentAt()).isNull();
+	}
+
+	@Test
+	void rejectsALeadWithoutATimeAndATimeWithoutADate() {
+		UUID userId = UUID.randomUUID();
+		LocalDate term = LocalDate.of(2026, 9, 1);
+
+		assertThatThrownBy(() -> new Goal(userId, "Bez godziny", GoalLayer.TASK, null, term, null,
+				ReminderLead.AT_TIME, null))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new Goal(userId, "Bez daty", GoalLayer.TASK, null, null, LocalTime.NOON,
+				null, null))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new Goal(userId, "Cel z godziną", GoalLayer.GOAL, GoalHorizon.THIS_YEAR,
+				null, LocalTime.NOON, null, null))
+				.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	/**
+	 * The sent marker belongs to one term. A new date, time or lead is a new reminder the user asked
+	 * for, so the marker clears; an edit that leaves the term alone (a typo fix) must not re-arm a
+	 * reminder that already went out.
+	 */
+	@Test
+	void aTermChangeClearsTheSentMarkerAndAnUnchangedTermKeepsIt() {
+		UUID userId = persistedUserId();
+		LocalDate term = LocalDate.of(2026, 9, 1);
+		UUID id = goals.saveAndFlush(new Goal(userId, "Wizyta", GoalLayer.TASK, null, term,
+				LocalTime.NOON, ReminderLead.ONE_HOUR, null)).getId();
+		jdbc.update("UPDATE goal SET reminder_sent_at = now() WHERE id = ?", id);
+
+		boolean typoChanged = transactions.execute(status -> {
+			Goal goal = goals.findByIdAndUserId(id, userId).orElseThrow();
+			return goal.update("Wizyta u lekarza", GoalLayer.TASK, null, term, LocalTime.NOON,
+					ReminderLead.ONE_HOUR, null);
+		});
+		assertThat(typoChanged).isFalse();
+		assertThat(goals.findByIdAndUserId(id, userId).orElseThrow().getReminderSentAt()).isNotNull();
+
+		boolean leadChanged = transactions.execute(status -> {
+			Goal goal = goals.findByIdAndUserId(id, userId).orElseThrow();
+			return goal.update("Wizyta u lekarza", GoalLayer.TASK, null, term, LocalTime.NOON,
+					ReminderLead.FIFTEEN_MINUTES, null);
+		});
+		assertThat(leadChanged).isTrue();
+		assertThat(goals.findByIdAndUserId(id, userId).orElseThrow().getReminderSentAt()).isNull();
 	}
 
 	@Test

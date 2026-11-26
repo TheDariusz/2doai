@@ -41,6 +41,8 @@ info:
   # the old pattern; the component-internal exemption below covers it, as it covered 1.4.0.
   # +the remember-me cookie as a second way to be authenticated, the 30-day session and logout
   # revoking every remembered browser (long sessions, DEV-62) → 1.10.0.
+  # +a task's optional time of day (`due_time`) and reminder lead (`reminder_lead`), both nullable
+  # and additive (due-date reminder, DEV-63) → 1.11.0.
   #
   # 1.4.0 carries one genuinely *incompatible* change and is not pretending otherwise:
   # `GoalUpdate.withdrawn` is a required boolean (Jackson rejects a null for a primitive), so a
@@ -48,7 +50,7 @@ info:
   # versioning — deliberately not done, because x-audience is component-internal: the only client is
   # the SPA in this repository, and it gained the field in the same commit the server did. The day a
   # second consumer exists, that exemption expires and this is the paragraph that says so.
-  version: 1.10.0
+  version: 1.11.0
   contact:
     name: 2do AI
     email: thedariusz@gmail.com
@@ -524,11 +526,13 @@ paths:
       tags: [goals]
       summary: Create a task, a goal or a dream
       description: >
-        Creates an entry in any of the three layers, subject to one rule over the two time fields: a
+        Creates an entry in any of the three layers, subject to one rule over the time fields: a
         GOAL requires a `horizon`, a DREAM and a TASK must omit it, and only a TASK may carry a
-        `due_date` (which is itself optional). Breaking that rule returns 422 (the body parsed, its
-        content is invalid), whereas an unrecognized enum literal in any field — `layer`, `horizon`
-        or `category_code` — never deserializes and returns 400.
+        `due_date` (which is itself optional). A task with a date may also carry a `due_time`, and a
+        `reminder_lead` only beside a time; a time sent without a lead is stored with `ONE_HOUR`.
+        Breaking that rule returns 422 (the body parsed, its content is invalid), whereas an
+        unrecognized enum literal in any field — `layer`, `horizon`, `reminder_lead` or
+        `category_code` — never deserializes and returns 400.
 
 
         **Not idempotent, deliberately** (#229/#231 considered and deferred): two identical POSTs
@@ -573,7 +577,9 @@ paths:
         Full replace (#137 PUT semantics), so one operation covers every write: editing the text,
         re-categorizing, converting between any two layers, and completing or un-completing via
         `completed`. A conversion has to move the time fields in the same request — a goal becoming
-        a task drops its `horizon` and may pick up a `due_date`; sending both is a 422.
+        a task drops its `horizon` and may pick up a `due_date`; sending both is a 422. Leaving the
+        TASK layer or clearing the date means sending null for `due_time` and `reminder_lead` too.
+        A changed date, time or lead re-arms the entry's due-date reminder.
 
 
         A goal owned by another account and a goal that never existed return the **same** 404 with
@@ -1151,6 +1157,34 @@ components:
         layers GOAL and DREAM. Null means the task simply has no deadline, which is the common case.
       example: '2026-09-01'
 
+    GoalDueTime:
+      # DEV-63. A local time of day in the user's zone, like the date it sits beside: the moment is
+      # the pair, never this alone. Minutes only, the shape `<input type="time">` sends.
+      type: [string, 'null']
+      pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+      description: >
+        A timed task's time of day, as `HH:mm`. Allowed only for layer TASK and only together with
+        a `due_date`. Null means the task is due some time that day; its reminder then goes out on
+        the morning of the due day.
+      example: '12:00'
+
+    ReminderLead:
+      # THE ANCHOR for these literals, like GoalLayer above, and held against Java and the SPA by
+      # the same GoalApiTest guard.
+      type: [string, 'null']
+      description: >
+        How far ahead of a timed task's due moment its reminder e-mail goes out: at the time itself,
+        fifteen minutes or one hour before, or on the morning of the due day (never later than the
+        due moment). Allowed only beside a `due_time`. A time sent without a lead is stored with
+        `ONE_HOUR`, and the response always carries the stored value. The reminder is a moment the
+        user set, separate from the natural-rhythm proposal.
+      x-extensible-enum:
+        - AT_TIME
+        - FIFTEEN_MINUTES
+        - ONE_HOUR
+        - MORNING_OF
+      example: ONE_HOUR
+
     GoalContent:
       type: string
       minLength: 1
@@ -1172,7 +1206,8 @@ components:
       description: >
         A current task (FR-003), a long-term goal (FR-004) or a someday dream (FR-005). One
         representation for all three layers: `layer` discriminates, `horizon` is present only for
-        GOAL, and `due_date` only for TASK.
+        GOAL, and `due_date` only for TASK. A TASK with a date may carry a `due_time` and its
+        `reminder_lead`.
       required: [id, content, layer, created_at, updated_at]
       properties:
         id:
@@ -1187,6 +1222,10 @@ components:
           $ref: '#/components/schemas/GoalHorizon'
         due_date:
           $ref: '#/components/schemas/GoalDueDate'
+        due_time:
+          $ref: '#/components/schemas/GoalDueTime'
+        reminder_lead:
+          $ref: '#/components/schemas/ReminderLead'
         category_code:
           $ref: '#/components/schemas/GoalCategoryCode'
         completed_at:
@@ -1230,6 +1269,10 @@ components:
           $ref: '#/components/schemas/GoalHorizon'
         due_date:
           $ref: '#/components/schemas/GoalDueDate'
+        due_time:
+          $ref: '#/components/schemas/GoalDueTime'
+        reminder_lead:
+          $ref: '#/components/schemas/ReminderLead'
         category_code:
           $ref: '#/components/schemas/GoalCategoryCode'
 
@@ -1257,6 +1300,10 @@ components:
           $ref: '#/components/schemas/GoalHorizon'
         due_date:
           $ref: '#/components/schemas/GoalDueDate'
+        due_time:
+          $ref: '#/components/schemas/GoalDueTime'
+        reminder_lead:
+          $ref: '#/components/schemas/ReminderLead'
         category_code:
           $ref: '#/components/schemas/GoalCategoryCode'
         completed:

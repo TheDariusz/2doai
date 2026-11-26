@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Goal } from './GoalsPage'
@@ -15,6 +15,8 @@ const RUN = {
   layer: 'GOAL',
   horizon: 'THIS_YEAR',
   due_date: null,
+  due_time: null,
+  reminder_lead: null,
   category_code: 'HEALTH',
   completed_at: null,
   remind_after: null,
@@ -29,6 +31,8 @@ const JAPAN = {
   layer: 'DREAM',
   horizon: null,
   due_date: null,
+  due_time: null,
+  reminder_lead: null,
   category_code: null,
   completed_at: null,
   remind_after: null,
@@ -63,6 +67,8 @@ const ELECTRICITY = {
   layer: 'TASK',
   horizon: null,
   due_date: '2026-09-01',
+  due_time: null,
+  reminder_lead: null,
   category_code: 'HOME',
   completed_at: null,
   remind_after: null,
@@ -206,6 +212,14 @@ describe('GoalsPage', () => {
     expect(section('Long-term goals').queryByText('Zapłacić za prąd')).not.toBeInTheDocument()
   })
 
+  it('shows the time on the term chip of a timed task', async () => {
+    stubApi([{ ...ELECTRICITY, due_time: '12:00', reminder_lead: 'ONE_HOUR' }])
+
+    renderGoals()
+
+    expect(await section('Current tasks').findByText('due 2026-09-01 at 12:00')).toBeInTheDocument()
+  })
+
   it('says so when the list cannot be loaded, rather than rendering as if it were empty', async () => {
     fetchMock.mockImplementation((url: string) =>
       Promise.resolve(backdrop(url) ?? response(500, { detail: 'boom' })),
@@ -257,6 +271,8 @@ describe('GoalsPage — adding an entry', () => {
       layer: 'GOAL',
       horizon: 'THIS_YEAR',
       due_date: null,
+      due_time: null,
+      reminder_lead: null,
       category_code: 'HEALTH',
     })
     expect(await screen.findByText('Przebiec półmaraton')).toBeInTheDocument()
@@ -316,6 +332,8 @@ describe('GoalsPage — adding an entry', () => {
       layer: 'TASK',
       horizon: null,
       due_date: '2026-09-01',
+      due_time: null,
+      reminder_lead: null,
       category_code: 'HOME',
     })
   })
@@ -339,8 +357,94 @@ describe('GoalsPage — adding an entry', () => {
       layer: 'TASK',
       horizon: null,
       due_date: null,
+      due_time: null,
+      reminder_lead: null,
       category_code: null,
     })
+  })
+
+  /**
+   * DEV-63: a time only means something beside a date, and a lead only beside a time — the server
+   * answers 422 for either alone. So each control appears only once the one it depends on is set,
+   * and clearing that one takes it away again rather than leaving a value the payload cannot carry.
+   */
+  it('asks for a time only once a task has a date, and for a lead only once it has a time', async () => {
+    stubApi([])
+    const user = userEvent.setup()
+
+    renderGoals()
+    const form = await createForm()
+    await user.click(kind(form, 'Task'))
+    expect(form.queryByLabelText('Time')).not.toBeInTheDocument()
+
+    setDate(form.getByLabelText('Due date'), '2026-09-01')
+    expect(form.getByLabelText('Time')).toBeInTheDocument()
+    expect(form.queryByLabelText('Remind me')).not.toBeInTheDocument()
+
+    setDate(form.getByLabelText('Time'), '12:00')
+    // ONE_HOUR is the default the server would fill in anyway — the form says so up front.
+    expect(form.getByLabelText('Remind me')).toHaveValue('ONE_HOUR')
+    expect(
+      within(form.getByLabelText('Remind me'))
+        .getAllByRole('option')
+        .map((option) => option.getAttribute('value')),
+    ).toEqual(['AT_TIME', 'FIFTEEN_MINUTES', 'ONE_HOUR', 'MORNING_OF'])
+
+    setDate(form.getByLabelText('Time'), '')
+    expect(form.queryByLabelText('Remind me')).not.toBeInTheDocument()
+
+    setDate(form.getByLabelText('Time'), '12:00')
+    setDate(form.getByLabelText('Due date'), '')
+    expect(form.queryByLabelText('Time')).not.toBeInTheDocument()
+    expect(form.queryByLabelText('Remind me')).not.toBeInTheDocument()
+
+    // Clearing the date cleared the time too: a new date starts from an empty time, not the old one.
+    setDate(form.getByLabelText('Due date'), '2026-09-02')
+    expect(form.getByLabelText('Time')).toHaveValue('')
+  })
+
+  it('posts a timed task with its time and the lead the user picked', async () => {
+    stubApi([])
+    const user = userEvent.setup()
+
+    renderGoals()
+    const form = await createForm()
+    await user.type(form.getByLabelText('Content'), 'Zapłacić za prąd')
+    await user.click(kind(form, 'Task'))
+    setDate(form.getByLabelText('Due date'), '2026-09-01')
+    setDate(form.getByLabelText('Time'), '12:00')
+    await user.selectOptions(form.getByLabelText('Remind me'), 'FIFTEEN_MINUTES')
+    await user.click(form.getByRole('button', { name: 'Add' }))
+
+    expect(JSON.parse(mutations()[0][1].body)).toEqual({
+      content: 'Zapłacić za prąd',
+      layer: 'TASK',
+      horizon: null,
+      due_date: '2026-09-01',
+      due_time: '12:00',
+      reminder_lead: 'FIFTEEN_MINUTES',
+      category_code: null,
+    })
+  })
+
+  /** A submitted form starts over: the next task must not inherit the last one's date and time. */
+  it('clears the date and time once a timed task is saved', async () => {
+    stubApi([])
+    const user = userEvent.setup()
+
+    renderGoals()
+    const form = await createForm()
+    await user.type(form.getByLabelText('Content'), 'Zapłacić za prąd')
+    await user.click(kind(form, 'Task'))
+    setDate(form.getByLabelText('Due date'), '2026-09-01')
+    setDate(form.getByLabelText('Time'), '12:00')
+    await user.click(form.getByRole('button', { name: 'Add' }))
+
+    await waitFor(() => expect(form.getByLabelText('Content')).toHaveValue(''))
+    // The layer resets to the default too, so the term controls have to be asked for again.
+    await user.click(kind(form, 'Task'))
+    expect(form.getByLabelText('Due date')).toHaveValue('')
+    expect(form.queryByLabelText('Time')).not.toBeInTheDocument()
   })
 
   it('offers the 11 domains plus an explicit "no category" choice', async () => {
@@ -374,6 +478,8 @@ describe('GoalsPage — changing an entry', () => {
       layer: 'GOAL',
       horizon: 'THIS_YEAR',
       due_date: null,
+      due_time: null,
+      reminder_lead: null,
       category_code: 'HEALTH',
       completed: true,
       withdrawn: false,
@@ -444,6 +550,8 @@ describe('GoalsPage — changing an entry', () => {
       layer: 'GOAL',
       horizon: 'FEW_MONTHS',
       due_date: null,
+      due_time: null,
+      reminder_lead: null,
       category_code: null,
       completed: false,
       withdrawn: false,
@@ -474,6 +582,8 @@ describe('GoalsPage — changing an entry', () => {
       layer: 'TASK',
       horizon: null,
       due_date: '2026-09-01',
+      due_time: null,
+      reminder_lead: null,
       category_code: 'HEALTH',
       completed: false,
       withdrawn: false,
@@ -499,6 +609,8 @@ describe('GoalsPage — changing an entry', () => {
       layer: 'GOAL',
       horizon: 'FEW_MONTHS',
       due_date: null,
+      due_time: null,
+      reminder_lead: null,
       category_code: 'HOME',
       completed: false,
       withdrawn: false,
@@ -512,6 +624,44 @@ describe('GoalsPage — changing an entry', () => {
  * drops it, which no amount of clicking through the happy path would reveal.
  */
 describe('GoalsPage — an edit keeps the rest of the entry', () => {
+  /**
+   * DEV-63's time and reminder lead open prefilled on the edit form, so a text edit sends them back
+   * untouched, and clearing the date drops both — a time without a date is a 422.
+   */
+  it("keeps a timed task's time and lead through a text edit, and drops both with the date", async () => {
+    stubApi([{ ...ELECTRICITY, due_time: '12:00', reminder_lead: 'FIFTEEN_MINUTES' }])
+    const user = userEvent.setup()
+
+    renderGoals()
+    await user.click((await item('Zapłacić za prąd')).getByRole('button', { name: 'Edit' }))
+
+    let form = editForm()
+    expect(form.getByLabelText('Time')).toHaveValue('12:00')
+    expect(form.getByLabelText('Remind me')).toHaveValue('FIFTEEN_MINUTES')
+    const content = form.getByLabelText('Content')
+    await user.clear(content)
+    await user.type(content, 'Zapłacić rachunek za prąd')
+    await user.click(form.getByRole('button', { name: 'Save' }))
+
+    expect(JSON.parse(mutations()[0][1].body)).toMatchObject({
+      content: 'Zapłacić rachunek za prąd',
+      due_date: '2026-09-01',
+      due_time: '12:00',
+      reminder_lead: 'FIFTEEN_MINUTES',
+    })
+
+    await user.click((await item('Zapłacić za prąd')).getByRole('button', { name: 'Edit' }))
+    form = editForm()
+    setDate(form.getByLabelText('Due date'), '')
+    await user.click(form.getByRole('button', { name: 'Save' }))
+
+    expect(JSON.parse(mutations()[1][1].body)).toMatchObject({
+      due_date: null,
+      due_time: null,
+      reminder_lead: null,
+    })
+  })
+
   it('keeps a completed entry completed when only its text is edited', async () => {
     stubApi([COOKING])
     const user = userEvent.setup()
@@ -551,6 +701,8 @@ describe('GoalsPage — an edit keeps the rest of the entry', () => {
       layer: 'GOAL',
       horizon: 'THIS_YEAR',
       due_date: null,
+      due_time: null,
+      reminder_lead: null,
       category_code: 'HEALTH',
       completed: false,
       withdrawn: false,
@@ -858,6 +1010,8 @@ describe('GoalsPage — withdrawn entries', () => {
       layer: 'DREAM',
       horizon: null,
       due_date: null,
+      due_time: null,
+      reminder_lead: null,
       category_code: null,
       completed: false,
       withdrawn: false,

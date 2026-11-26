@@ -52,6 +52,9 @@ erDiagram
         varchar layer "GOAL | DREAM | TASK — the discriminator"
         varchar horizon "THIS_YEAR | FEW_MONTHS; only for a GOAL"
         date due_date "optional term; only for a TASK"
+        time due_time "optional time of day; only beside due_date (DEV-63)"
+        varchar reminder_lead "AT_TIME | FIFTEEN_MINUTES | ONE_HOUR | MORNING_OF; set iff due_time (DEV-63)"
+        timestamptz reminder_sent_at "NULL = the current term's reminder is still owed; app-written (DEV-63)"
         varchar category_code FK "→ category.code; nullable (uncategorized)"
         timestamptz completed_at "NULL = active; the completion state itself"
         date remind_after "snoozed until; NULL = never snoozed (S-04b)"
@@ -109,17 +112,17 @@ as the seam for a post-MVP RAG extension.
 > DB backstop that makes an out-of-order delete fail loudly. The `UNIQUE` constraint still
 > enforces one memory per user.
 
-**`goal`** (S-02, Flyway `V6`; widened by S-07 in `V7` and by S-04b in `V8`) holds **all three** layers — long-term
+**`goal`** (S-02, Flyway `V6`; widened by S-07 in `V7`, by S-04b in `V8` and by DEV-63 in `V18`) holds **all three** layers — long-term
 goals (FR-004), someday dreams (FR-005) and current tasks (FR-003) — in one table,
 discriminated by `layer`. One aggregate rather than parallel tables was decided on 2026-08-17
 and extended on 2026-08-24: S-04/S-05/S-08/S-09/S-10 all consume the union, and nothing but the
 two time fields differs. Which one an entry may carry follows from its layer —
 
-| layer   | `horizon` | `due_date` |
-| ------- | --------- | ---------- |
-| `GOAL`  | required  | forbidden  |
-| `DREAM` | forbidden | forbidden  |
-| `TASK`  | forbidden | optional   |
+| layer   | `horizon` | `due_date` | `due_time`              | `reminder_lead`        |
+| ------- | --------- | ---------- | ----------------------- | ---------------------- |
+| `GOAL`  | required  | forbidden  | forbidden               | forbidden              |
+| `DREAM` | forbidden | forbidden  | forbidden               | forbidden              |
+| `TASK`  | forbidden | optional   | optional, needs a date  | exactly when timed     |
 
 — and that one rule is enforced at three depths: the request DTOs (→ 422), the aggregate
 constructor, and the DB constraint `chk_goal_layer_time_fields`, widened and renamed in `V7` and bypassable by
@@ -131,7 +134,17 @@ stay uncategorized, and S-09's auto-tag only ever fills it in. Like `ai_memory.u
 FK to `app_user` is deliberately **not** `ON DELETE CASCADE` — FR-019 deletion is
 app-orchestrated (`GoalDataDeleter`) and the plain FK is the backstop.
 
-S-04b (`V8`) adds the two columns above and the **`proposal`** table. The split between them is
+DEV-63 (`V18`) gives a task an optional **time of day** (`due_time`) and a per-task **reminder
+lead** (`reminder_lead`, one of four literals held by a separate `chk_goal_reminder_lead`), and
+widens `chk_goal_layer_time_fields` so a time only stands beside a date and a time and a lead always
+come together. The aggregate fills a missing lead with `ONE_HOUR`, so the pair is whole by the time
+it reaches the row. The third column, **`reminder_sent_at`**, is the only thing the due-date reminder
+stores: the moment it goes out is derived from the term, never persisted, and a change of date, time
+or lead clears the marker because it is a new term. It is the one column on `goal` the machine writes
+on its own, and it obeys the rule below by other means: the `reminder` module stamps it with a bulk
+`UPDATE` that bypasses `@UpdateTimestamp`, so `updated_at` (the neglect clock) does not move.
+
+S-04b (`V8`) adds `remind_after` and `withdrawn_at` and the **`proposal`** table. The split between them is
 the whole reason `proposal` is its own aggregate rather than more columns on `goal`: `ProposalSelector`
 reads `goal.updated_at` as *"when the user last engaged with this"*, so anything the machine writes on
 its own — the phrased message, the frozen `neglected_days`, the generated `first_step` — would silently

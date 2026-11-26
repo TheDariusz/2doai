@@ -12,6 +12,8 @@ const GUITAR = {
   layer: 'DREAM',
   horizon: null,
   due_date: null,
+  due_time: null,
+  reminder_lead: null,
   category_code: 'LEISURE',
   completed_at: null,
   remind_after: null,
@@ -404,6 +406,8 @@ describe('ProposalCard — the first step', () => {
         horizon: null,
         // A first step is for now, not for a date the app invented on the user's behalf.
         due_date: null,
+        due_time: null,
+        reminder_lead: null,
         // The step belongs to the same part of life the entry does — the one field the card can
         // fill honestly, and the one that decides which domain the task shows up under.
         category_code: 'LEISURE',
