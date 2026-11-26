@@ -183,6 +183,8 @@ export function ProposalCard({
       layer: 'TASK',
       horizon: null,
       due_date: null,
+      due_time: null,
+      reminder_lead: null,
       // The one field the card can fill honestly: the step belongs to the same part of life the
       // entry does, and the category is what decides which domain it shows up under.
       category_code: proposal?.entry.category_code ?? null,

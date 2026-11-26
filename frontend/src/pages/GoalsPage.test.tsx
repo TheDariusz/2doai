@@ -15,6 +15,8 @@ const RUN = {
   layer: 'GOAL',
   horizon: 'THIS_YEAR',
   due_date: null,
+  due_time: null,
+  reminder_lead: null,
   category_code: 'HEALTH',
   completed_at: null,
   remind_after: null,
@@ -29,6 +31,8 @@ const JAPAN = {
   layer: 'DREAM',
   horizon: null,
   due_date: null,
+  due_time: null,
+  reminder_lead: null,
   category_code: null,
   completed_at: null,
   remind_after: null,
@@ -63,6 +67,8 @@ const ELECTRICITY = {
   layer: 'TASK',
   horizon: null,
   due_date: '2026-09-01',
+  due_time: null,
+  reminder_lead: null,
   category_code: 'HOME',
   completed_at: null,
   remind_after: null,
@@ -257,6 +263,8 @@ describe('GoalsPage — adding an entry', () => {
       layer: 'GOAL',
       horizon: 'THIS_YEAR',
       due_date: null,
+      due_time: null,
+      reminder_lead: null,
       category_code: 'HEALTH',
     })
     expect(await screen.findByText('Przebiec półmaraton')).toBeInTheDocument()
@@ -316,6 +324,8 @@ describe('GoalsPage — adding an entry', () => {
       layer: 'TASK',
       horizon: null,
       due_date: '2026-09-01',
+      due_time: null,
+      reminder_lead: null,
       category_code: 'HOME',
     })
   })
@@ -339,6 +349,8 @@ describe('GoalsPage — adding an entry', () => {
       layer: 'TASK',
       horizon: null,
       due_date: null,
+      due_time: null,
+      reminder_lead: null,
       category_code: null,
     })
   })
@@ -374,6 +386,8 @@ describe('GoalsPage — changing an entry', () => {
       layer: 'GOAL',
       horizon: 'THIS_YEAR',
       due_date: null,
+      due_time: null,
+      reminder_lead: null,
       category_code: 'HEALTH',
       completed: true,
       withdrawn: false,
@@ -444,6 +458,8 @@ describe('GoalsPage — changing an entry', () => {
       layer: 'GOAL',
       horizon: 'FEW_MONTHS',
       due_date: null,
+      due_time: null,
+      reminder_lead: null,
       category_code: null,
       completed: false,
       withdrawn: false,
@@ -474,6 +490,8 @@ describe('GoalsPage — changing an entry', () => {
       layer: 'TASK',
       horizon: null,
       due_date: '2026-09-01',
+      due_time: null,
+      reminder_lead: null,
       category_code: 'HEALTH',
       completed: false,
       withdrawn: false,
@@ -499,6 +517,8 @@ describe('GoalsPage — changing an entry', () => {
       layer: 'GOAL',
       horizon: 'FEW_MONTHS',
       due_date: null,
+      due_time: null,
+      reminder_lead: null,
       category_code: 'HOME',
       completed: false,
       withdrawn: false,
@@ -512,6 +532,42 @@ describe('GoalsPage — changing an entry', () => {
  * drops it, which no amount of clicking through the happy path would reveal.
  */
 describe('GoalsPage — an edit keeps the rest of the entry', () => {
+  /**
+   * DEV-63's time and reminder lead have no control on the edit form yet, so a text edit must echo
+   * them back untouched, and clearing the date must drop them — a time without a date is a 422.
+   */
+  it("keeps a timed task's time and lead through a text edit, and drops both with the date", async () => {
+    stubApi([{ ...ELECTRICITY, due_time: '12:00', reminder_lead: 'FIFTEEN_MINUTES' }])
+    const user = userEvent.setup()
+
+    renderGoals()
+    await user.click((await item('Zapłacić za prąd')).getByRole('button', { name: 'Edit' }))
+
+    let form = editForm()
+    const content = form.getByLabelText('Content')
+    await user.clear(content)
+    await user.type(content, 'Zapłacić rachunek za prąd')
+    await user.click(form.getByRole('button', { name: 'Save' }))
+
+    expect(JSON.parse(mutations()[0][1].body)).toMatchObject({
+      content: 'Zapłacić rachunek za prąd',
+      due_date: '2026-09-01',
+      due_time: '12:00',
+      reminder_lead: 'FIFTEEN_MINUTES',
+    })
+
+    await user.click((await item('Zapłacić za prąd')).getByRole('button', { name: 'Edit' }))
+    form = editForm()
+    setDate(form.getByLabelText('Due date'), '')
+    await user.click(form.getByRole('button', { name: 'Save' }))
+
+    expect(JSON.parse(mutations()[1][1].body)).toMatchObject({
+      due_date: null,
+      due_time: null,
+      reminder_lead: null,
+    })
+  })
+
   it('keeps a completed entry completed when only its text is edited', async () => {
     stubApi([COOKING])
     const user = userEvent.setup()
@@ -551,6 +607,8 @@ describe('GoalsPage — an edit keeps the rest of the entry', () => {
       layer: 'GOAL',
       horizon: 'THIS_YEAR',
       due_date: null,
+      due_time: null,
+      reminder_lead: null,
       category_code: 'HEALTH',
       completed: false,
       withdrawn: false,
@@ -858,6 +916,8 @@ describe('GoalsPage — withdrawn entries', () => {
       layer: 'DREAM',
       horizon: null,
       due_date: null,
+      due_time: null,
+      reminder_lead: null,
       category_code: null,
       completed: false,
       withdrawn: false,

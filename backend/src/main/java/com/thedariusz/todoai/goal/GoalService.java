@@ -42,7 +42,8 @@ class GoalService {
 
 	GoalResponse create(GoalCreation request) {
 		Goal goal = new Goal(currentUser.requireId(), request.content(), request.layer(),
-				request.horizon(), request.dueDate(), request.categoryCode());
+				request.horizon(), request.dueDate(), request.dueTime(), request.reminderLead(),
+				request.categoryCode());
 		return GoalResponse.from(goals.saveAndFlush(goal));
 	}
 
@@ -65,7 +66,7 @@ class GoalService {
 		boolean wasActive = goal.isActive();
 
 		goal.update(request.content(), request.layer(), request.horizon(), request.dueDate(),
-				request.categoryCode());
+				request.dueTime(), request.reminderLead(), request.categoryCode());
 		if (request.completed()) {
 			goal.complete(OffsetDateTime.now());
 		}

@@ -1,12 +1,14 @@
 package com.thedariusz.todoai.goal;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.thedariusz.todoai.category.LifeDomain;
 
 /**
@@ -43,6 +45,13 @@ public record GoalUpdate(
 
 		LocalDate dueDate,
 
+		/** {@code "HH:mm"}, the shape {@code <input type="time">} sends; DEV-63. */
+		@JsonFormat(pattern = "HH:mm")
+		LocalTime dueTime,
+
+		/** Optional on input: a time without one is given {@link ReminderLead#ONE_HOUR}. */
+		ReminderLead reminderLead,
+
 		LifeDomain categoryCode,
 
 		boolean completed,
@@ -52,6 +61,6 @@ public record GoalUpdate(
 	/** See {@link GoalCreation#isTimeFieldsConsistentWithLayer()} — conversion re-checks the rule. */
 	@AssertTrue(message = Goal.TIME_FIELDS_RULE)
 	boolean isTimeFieldsConsistentWithLayer() {
-		return Goal.hasConsistentTimeFields(layer, horizon, dueDate);
+		return Goal.hasConsistentTimeFields(layer, horizon, dueDate, dueTime, reminderLead);
 	}
 }

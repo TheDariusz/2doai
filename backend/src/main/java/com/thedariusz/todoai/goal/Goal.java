@@ -1,6 +1,7 @@
 package com.thedariusz.todoai.goal;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
@@ -30,19 +31,22 @@ import org.hibernate.annotations.UuidGenerator;
  * aggregate is worth it when tasks get a different lifecycle (recurrence, overdue alarms), and then
  * it is a migration rather than a rewrite.
  *
- * <p><b>The invariant</b>, one rule over two nullable time fields:
+ * <p><b>The invariant</b>, one rule over four nullable time fields:
  *
  * <table><caption>layer × time fields</caption>
- * <tr><th>layer</th><th>{@code horizon}</th><th>{@code dueDate}</th></tr>
- * <tr><td>{@code GOAL}</td><td>required</td><td>forbidden</td></tr>
- * <tr><td>{@code DREAM}</td><td>forbidden</td><td>forbidden</td></tr>
- * <tr><td>{@code TASK}</td><td>forbidden</td><td>optional</td></tr>
+ * <tr><th>layer</th><th>{@code horizon}</th><th>{@code dueDate}</th><th>{@code dueTime}</th>
+ * <th>{@code reminderLead}</th></tr>
+ * <tr><td>{@code GOAL}</td><td>required</td><td>forbidden</td><td>forbidden</td><td>forbidden</td></tr>
+ * <tr><td>{@code DREAM}</td><td>forbidden</td><td>forbidden</td><td>forbidden</td><td>forbidden</td></tr>
+ * <tr><td>{@code TASK}</td><td>forbidden</td><td>optional</td><td>only with a date</td>
+ * <td>only with a time; defaults to {@link ReminderLead#ONE_HOUR}</td></tr>
  * </table>
  *
  * <p>It is enforced at three depths — the request DTOs ({@code @AssertTrue} → 422), {@link #update}
  * ({@code IllegalArgumentException}, unreachable through the API but binding on every future
  * caller), and the {@code chk_goal_layer_time_fields} CHECK constraint, created in {@code V6} as
- * {@code chk_goal_layer_horizon} and widened under the broader name in {@code V7}.
+ * {@code chk_goal_layer_horizon}, widened under the broader name in {@code V7} and again in
+ * {@code V18} (DEV-63's time of day and reminder lead).
  *
  * <p>Completion is modelled as a nullable timestamp rather than a boolean: {@code completedAt} is
  * both the state (null = active) and the moment S-03's memory enrichment will read.
@@ -66,7 +70,8 @@ public class Goal implements UserOwned {
 
 	/** Stated once: both request DTOs use it as their {@code @AssertTrue} message. */
 	static final String TIME_FIELDS_RULE =
-			"only a GOAL has a horizon, and it always has one; only a TASK may have a due date";
+			"only a GOAL has a horizon, and it always has one; only a TASK may have a due date;"
+					+ " a due time needs a due date, and a reminder lead needs a due time";
 
 	@Id
 	@UuidGenerator(style = UuidGenerator.Style.VERSION_7)
@@ -99,6 +104,27 @@ public class Goal implements UserOwned {
 	@Column(name = "due_date")
 	private LocalDate dueDate;
 
+	/**
+	 * A timed task's time of day (DEV-63), in the user's zone like the date it sits beside. Held to
+	 * whole minutes, because that is all {@code <input type="time">} sends and the wire publishes.
+	 */
+	@Column(name = "due_time")
+	private LocalTime dueTime;
+
+	/** Set exactly when {@link #dueTime} is; see {@link ReminderLead}. */
+	@Enumerated(EnumType.STRING)
+	@Column(name = "reminder_lead", length = 16)
+	private ReminderLead reminderLead;
+
+	/**
+	 * When the reminder for the current term went out, or null while it has not. Cleared by
+	 * {@link #update} when the term changes. Deliberately <b>no</b> method here stamps it: the
+	 * {@code reminder} module writes it with a bulk update so the stamp does not move
+	 * {@code updated_at}, which {@code ProposalSelector} reads as the user's last engagement.
+	 */
+	@Column(name = "reminder_sent_at")
+	private OffsetDateTime reminderSentAt;
+
 	@Enumerated(EnumType.STRING)
 	@Column(name = "category_code", length = 32)
 	private LifeDomain category;
@@ -130,10 +156,16 @@ public class Goal implements UserOwned {
 		// JPA requires a no-arg constructor.
 	}
 
+	/** An entry without a time of day — every layer, and a task that has only a date or none. */
 	public Goal(UUID userId, String content, GoalLayer layer, GoalHorizon horizon, LocalDate dueDate,
 			LifeDomain category) {
+		this(userId, content, layer, horizon, dueDate, null, null, category);
+	}
+
+	public Goal(UUID userId, String content, GoalLayer layer, GoalHorizon horizon, LocalDate dueDate,
+			LocalTime dueTime, ReminderLead reminderLead, LifeDomain category) {
 		this.userId = Objects.requireNonNull(userId, "userId");
-		update(content, layer, horizon, dueDate, category);
+		update(content, layer, horizon, dueDate, dueTime, reminderLead, category);
 	}
 
 	/**
@@ -143,20 +175,42 @@ public class Goal implements UserOwned {
 	 * becomes a task sheds nothing and may gain a term; a goal that becomes one must drop its horizon
 	 * in the same call, which is precisely what re-checking catches.
 	 *
+	 * <p>A time without a lead takes {@link ReminderLead#ONE_HOUR}. A change of date, time or lead is
+	 * a new term, so it clears {@link #reminderSentAt}: the user asked to be reminded of something
+	 * different. An edit that leaves the term alone keeps the marker, so a typo fix never re-sends.
+	 *
 	 * <p>{@code final} because a constructor calls it — Hibernate needs the class and its accessors
 	 * open, never a business method.
+	 *
+	 * @return whether the term (date, time or lead) changed, so the caller knows to announce it
 	 */
-	public final void update(String content, GoalLayer layer, GoalHorizon horizon, LocalDate dueDate,
-			LifeDomain category) {
-		this.content = Objects.requireNonNull(content, "content");
-		this.layer = Objects.requireNonNull(layer, "layer");
-		if (!hasConsistentTimeFields(layer, horizon, dueDate)) {
+	public final boolean update(String content, GoalLayer layer, GoalHorizon horizon, LocalDate dueDate,
+			LocalTime dueTime, ReminderLead reminderLead, LifeDomain category) {
+		Objects.requireNonNull(content, "content");
+		Objects.requireNonNull(layer, "layer");
+		if (!hasConsistentTimeFields(layer, horizon, dueDate, dueTime, reminderLead)) {
 			throw new IllegalArgumentException(TIME_FIELDS_RULE + ", got " + layer
-					+ " with horizon " + horizon + " and due date " + dueDate);
+					+ " with horizon " + horizon + ", due date " + dueDate + ", due time " + dueTime
+					+ " and reminder lead " + reminderLead);
 		}
+		LocalTime minute = dueTime == null ? null : dueTime.truncatedTo(ChronoUnit.MINUTES);
+		ReminderLead lead = minute == null ? null
+				: Objects.requireNonNullElse(reminderLead, ReminderLead.ONE_HOUR);
+		boolean termChanged = !Objects.equals(this.dueDate, dueDate)
+				|| !Objects.equals(this.dueTime, minute)
+				|| this.reminderLead != lead;
+
+		this.content = content;
+		this.layer = layer;
 		this.horizon = horizon;
 		this.dueDate = dueDate;
+		this.dueTime = minute;
+		this.reminderLead = lead;
 		this.category = category;
+		if (termChanged) {
+			this.reminderSentAt = null;
+		}
+		return termChanged;
 	}
 
 	/**
@@ -218,10 +272,14 @@ public class Goal implements UserOwned {
 	/**
 	 * The layer × time-fields rule, stated once in Java so the aggregate and both request DTOs cannot
 	 * drift apart — one conjunct per time field, in the order {@link #TIME_FIELDS_RULE} names them.
+	 * A time without a lead passes: the lead is defaulted, not required, on input.
 	 */
-	static boolean hasConsistentTimeFields(GoalLayer layer, GoalHorizon horizon, LocalDate dueDate) {
+	static boolean hasConsistentTimeFields(GoalLayer layer, GoalHorizon horizon, LocalDate dueDate,
+			LocalTime dueTime, ReminderLead reminderLead) {
 		return (horizon != null) == (layer == GoalLayer.GOAL)
-				&& (dueDate == null || layer == GoalLayer.TASK);
+				&& (dueDate == null || layer == GoalLayer.TASK)
+				&& (dueTime == null || dueDate != null)
+				&& (reminderLead == null || dueTime != null);
 	}
 
 	public UUID getId() {
@@ -247,6 +305,18 @@ public class Goal implements UserOwned {
 
 	public LocalDate getDueDate() {
 		return dueDate;
+	}
+
+	public LocalTime getDueTime() {
+		return dueTime;
+	}
+
+	public ReminderLead getReminderLead() {
+		return reminderLead;
+	}
+
+	public OffsetDateTime getReminderSentAt() {
+		return reminderSentAt;
 	}
 
 	public LifeDomain getCategory() {

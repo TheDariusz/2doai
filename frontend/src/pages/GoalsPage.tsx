@@ -20,7 +20,8 @@ import { NO_CATEGORY } from '../filters'
  *
  * `horizon` and `due_date` are the two time fields, and the layer decides which one an entry may
  * carry: a GOAL always has a horizon and never a term, a DREAM has neither, a TASK may have a term
- * and never a horizon. The server answers 422 for any other combination.
+ * and never a horizon. The server answers 422 for any other combination. A task with a term may
+ * also carry `due_time` (`HH:mm`) and its `reminder_lead`, which always travel together (DEV-63).
  *
  * `remind_after` and `withdrawn_at` are what an answered proposal leaves on the entry (S-04b): the
  * date a quieted entry comes back, and the moment it was withdrawn. `withdrawn_at` has a second
@@ -35,6 +36,8 @@ export type Goal = {
   layer: 'GOAL' | 'DREAM' | 'TASK'
   horizon: 'THIS_YEAR' | 'FEW_MONTHS' | null
   due_date: string | null
+  due_time: string | null
+  reminder_lead: 'AT_TIME' | 'FIFTEEN_MINUTES' | 'ONE_HOUR' | 'MORNING_OF' | null
   category_code: string | null
   completed_at: string | null
   remind_after: string | null
@@ -67,7 +70,10 @@ function layerIn(params: URLSearchParams): '' | Goal['layer'] {
 }
 
 /** What both forms send: `GoalCreation` in the spec, and `GoalUpdate` once `completed` is added. */
-export type GoalDraft = Pick<Goal, 'content' | 'layer' | 'horizon' | 'due_date' | 'category_code'>
+export type GoalDraft = Pick<
+  Goal,
+  'content' | 'layer' | 'horizon' | 'due_date' | 'due_time' | 'reminder_lead' | 'category_code'
+>
 
 /**
  * What an entry can do to itself, handed down rather than re-derived per row: which row (if any)
@@ -92,6 +98,8 @@ function draftOf(goal: Goal): GoalDraft {
     layer: goal.layer,
     horizon: goal.horizon,
     due_date: goal.due_date,
+    due_time: goal.due_time,
+    reminder_lead: goal.reminder_lead,
     category_code: goal.category_code,
   }
 }
@@ -346,6 +354,12 @@ function GoalForm({
     const form = event.currentTarget
     const data = new FormData(form)
 
+    // An untouched or unrendered date input reads as '', which is not a date the server accepts.
+    const dueDate = String(data.get('due_date') ?? '') || null
+    // The form has no time control yet, so an edit echoes the stored time and lead — but only while
+    // the entry stays a dated task: a time without a date is a 422.
+    const timed = layer === 'TASK' && dueDate !== null
+
     setPending(true)
     const saved = await onSubmit({
       content: String(data.get('content') ?? ''),
@@ -354,8 +368,9 @@ function GoalForm({
       // is absent from the FormData and reads as null. PUT being a full replace is exactly why that
       // matters — a converted entry sends null for the field it just gave up, not its old value.
       horizon: data.get('horizon') as Goal['horizon'],
-      // An untouched or unrendered date input reads as '', which is not a date the server accepts.
-      due_date: String(data.get('due_date') ?? '') || null,
+      due_date: dueDate,
+      due_time: timed ? (goal?.due_time ?? null) : null,
+      reminder_lead: timed ? (goal?.reminder_lead ?? null) : null,
       category_code: String(data.get('category_code') ?? '') || null,
     })
     setPending(false)
