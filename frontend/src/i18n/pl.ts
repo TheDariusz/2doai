@@ -138,11 +138,21 @@ export const pl = {
     layer: 'Rodzaj',
     horizon: 'Horyzont',
     dueDate: 'Termin',
+    dueTime: 'Godzina',
+    // The lead is read as the end of "remind me …", so each option completes that sentence.
+    reminderLead: 'Przypomnij',
+    reminderLeads: {
+      AT_TIME: 'O tej godzinie',
+      FIFTEEN_MINUTES: '15 minut wcześniej',
+      ONE_HOUR: 'Godzinę wcześniej',
+      MORNING_OF: 'Rano tego dnia',
+    },
     category: 'Kategoria',
     noCategory: 'Bez kategorii',
     // `n` rather than `count`: this is a tally in brackets, not a sentence that inflects.
     completed: 'Ukończone ({{n}})',
     due: 'do {{date}}',
+    dueAt: 'do {{date}}, godz. {{time}}',
     withdrawnTag: 'wycofane',
     complete: 'Ukończ',
     restore: 'Przywróć',

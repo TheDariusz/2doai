@@ -629,10 +629,10 @@ That statement is data-destructive for times only, never for dates.
 
 #### Automated
 
-- [ ] 3.1 Frontend tests pass
-- [ ] 3.2 Lint and typecheck/build pass
-- [ ] 3.3 Full gate green
-- [ ] 3.4 Form works end to end at 375px with clean console
+- [x] 3.1 Frontend tests pass
+- [x] 3.2 Lint and typecheck/build pass
+- [x] 3.3 Full gate green
+- [x] 3.4 Form works end to end at 375px with clean console
 
 #### Manual
 
