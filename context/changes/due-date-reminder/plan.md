@@ -642,11 +642,11 @@ That statement is data-destructive for times only, never for dates.
 
 #### Automated
 
-- [x] 4.1 Docs structure test passes
-- [x] 4.2 Mermaid diagrams render
-- [x] 4.3 Every one of the nine surfaces mentions the change where applicable
-- [x] 4.4 Full gate green
+- [x] 4.1 Docs structure test passes — b7624f7
+- [x] 4.2 Mermaid diagrams render — b7624f7
+- [x] 4.3 Every one of the nine surfaces mentions the change where applicable — b7624f7
+- [x] 4.4 Full gate green — b7624f7
 
 #### Manual
 
-- [x] 4.5 The ownership line reads as consistent with the natural-rhythm principle
+- [x] 4.5 The ownership line reads as consistent with the natural-rhythm principle — b7624f7
