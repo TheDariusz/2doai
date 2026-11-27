@@ -248,4 +248,18 @@ describe('AuthPage — a browser that is already signed in (DEV-64)', () => {
 
     expect(screen.getByLabelText('Email')).toBeInTheDocument()
   })
+
+  /**
+   * A remember-me bootstrap can be slow (it is the one request that reads the token table), and an
+   * autofilled address can be sent before it answers — which would mail a code the session never
+   * needed, and the in-flight request would then pull the user off the app onto the code screen.
+   */
+  it.each([
+    ['/login', 'Email me a code'],
+    ['/register', 'Create account'],
+  ])('sends nothing from %s until the bootstrap has answered', (path, submit) => {
+    renderAt(path, stubAuth({ status: 'loading' }))
+
+    expect(screen.getByRole('button', { name: submit })).toBeDisabled()
+  })
 })

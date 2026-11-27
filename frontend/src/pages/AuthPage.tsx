@@ -40,7 +40,9 @@ export function AuthPage({ mode }: { mode: Mode }) {
   // back during the bootstrap — has nothing to do here. Rendering the form anyway mailed a code
   // nobody needed, and the code screen then forwarded the session on, which read as a sign-in that
   // skipped the code (DEV-64). While the bootstrap is still out the form stays: most visitors here
-  // are anonymous, and a blank screen until the answer is worse than a form that may yet move.
+  // are anonymous, and a blank screen until the answer is worse than a form that may yet move. It
+  // cannot be sent until then, though: an autofilled address sent ahead of a slow remember-me check
+  // would mail that same unneeded code, and its answer would pull the user off the app onto `/verify`.
   if (status === 'authenticated') {
     return <Navigate to={state?.from ?? '/goals'} replace />
   }
@@ -157,7 +159,7 @@ export function AuthPage({ mode }: { mode: Mode }) {
             </button>
           </p>
         )}
-        <button type="submit" disabled={pending}>
+        <button type="submit" disabled={pending || status === 'loading'}>
           {t(`auth.${mode}.submit`)}
         </button>
       </form>
