@@ -242,7 +242,11 @@
   login and registration: <code>/verify</code> takes the eight-digit code (six until DEV-62).
   Since DEV-62 phase 2 it is where a session opens. <code>/login</code> asks for the address only,
   requests a code and hands over to <code>/verify</code> with the address and the route the visitor
-  was bounced from; sign-up lands there too. The code goes to <code>POST /api/sessions</code>, and
+  was bounced from; sign-up lands there too. Since DEV-64 neither <code>/login</code> nor
+  <code>/register</code> renders for a browser that is already signed in — a live session, or one
+  the remember-me cookie brought back during the session check — it goes on to that route or
+  <code>/goals</code>, much as the landing page goes on to <code>/goals</code>; while that check is
+  still out the form shows but cannot be sent. The code goes to <code>POST /api/sessions</code>, and
   the first one an account spends also proves its address, so there is no separate confirmation
   step and the SPA no longer calls <code>POST /api/verifications</code>. The mail's link opens the
   same screen with both fields filled from the URL fragment, which the page then strips with a
@@ -317,6 +321,13 @@
   canonical in the <a href="../context/foundation/prd.md">PRD</a>,
   <a href="../context/foundation/roadmap.md">roadmap</a>, and
   <a href="../context/foundation/data-model.md">data model</a>.</p>
+  <p class="note">Verified against DEV-64 on 2026-11-27 — a frontend-only fix found in production.
+  A browser signed in by the remember-me cookie could still open <code>/login</code>, ask for a code,
+  and be forwarded into the app by <code>/verify</code>, which read as a sign-in that skipped the code
+  while the code still arrived by mail. <code>AuthPage</code> now sends a signed-in visitor on, as the
+  landing page does, and keeps its form from being sent until the session check has answered. Only
+  the frontend auth prose and the SPA sign-in flow's intro moved; no package, endpoint or table
+  changed, so the DEV-63 note below still holds.</p>
   <p class="note">Verified against DEV-63 (<code>due-date-reminder</code>) on 2026-11-26, with
   migration <code>V18</code>, a new <code>reminder</code> package and two new wire fields. A task may
   carry a time of day and a reminder lead, held by the layer × time-fields rule at all three depths,
@@ -2458,7 +2469,9 @@ sequenceDiagram
   <p>The screens' side of the next flow (DEV-62 phase 2). Three screens apart now — the bounce, the
   code request and the sign-in — so the route the visitor asked for rides in router state the whole
   way. The mail link signs in on its own only in the browser that asked for the code; anywhere else
-  it prefills and the button spends the code.</p>
+  it prefills and the button spends the code. Since DEV-64 the flow below only starts for an
+  anonymous visitor: a browser the session check finds signed in skips <code>/login</code> and goes
+  straight on to <code>from</code> or <code>/goals</code>.</p>
   <pre class="mermaid">
 sequenceDiagram
   autonumber
