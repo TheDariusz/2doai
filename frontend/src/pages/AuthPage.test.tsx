@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { AuthPage } from './AuthPage'
 import { VerifyPage } from './VerifyPage'
 import { ApiError } from '../api/client'
-import { renderWithAuth, stubAuth } from '../test/auth'
+import { LOGGED_IN, renderWithAuth, stubAuth } from '../test/auth'
 import { type Auth } from '../auth/auth-context'
 
 /** Prints what the code screen was handed, so the handover itself can be asserted. */
@@ -20,6 +20,7 @@ function renderAt(path: InitialEntry, auth: Auth, verify = <VerifyPage />) {
       <Route path="/register" element={<AuthPage mode="register" />} />
       <Route path="/verify" element={verify} />
       <Route path="/goals" element={<p>the app</p>} />
+      <Route path="/domain/:code" element={<p>the domain</p>} />
     </Routes>,
     { path, auth },
   )
@@ -216,5 +217,35 @@ describe('AuthPage — registering', () => {
 
     expect(screen.getByLabelText('Email')).toHaveAttribute('type', 'email')
     expect(screen.getByLabelText('Password')).toHaveAttribute('minlength', '8')
+  })
+})
+
+describe('AuthPage — a browser that is already signed in (DEV-64)', () => {
+  /**
+   * A session the bootstrap found — a live one, or one the remember-me cookie brought back — needs
+   * no code. Rendering the form anyway mailed one, and the code screen then forwarded the session
+   * on, which read as a sign-in that skipped the code.
+   */
+  it.each(['/login', '/register'])('sends a signed-in user from %s into the app, with no form', (path) => {
+    const auth = stubAuth(LOGGED_IN)
+    renderAt(path, auth)
+
+    expect(screen.getByText('the app')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Email')).not.toBeInTheDocument()
+    expect(auth.resendCode).not.toHaveBeenCalled()
+    expect(auth.register).not.toHaveBeenCalled()
+  })
+
+  it('goes on to where the user was going, when a guard bounced them here', () => {
+    const from = { pathname: '/domain/leisure', search: '', hash: '' }
+    renderAt({ pathname: '/login', state: { from } }, stubAuth(LOGGED_IN))
+
+    expect(screen.getByText('the domain')).toBeInTheDocument()
+  })
+
+  it('keeps the form while the bootstrap has not answered yet', () => {
+    renderAt('/login', stubAuth({ status: 'loading' }))
+
+    expect(screen.getByLabelText('Email')).toBeInTheDocument()
   })
 })

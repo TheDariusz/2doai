@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
-import { Link, useLocation, useNavigate, type Path } from 'react-router'
+import { Link, Navigate, useLocation, useNavigate, type Path } from 'react-router'
 import { ApiError } from '../api/client'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
 import { ThemeSwitch } from '../ThemeSwitch'
@@ -25,7 +25,7 @@ export function AuthPage({ mode }: { mode: Mode }) {
   const { t, i18n } = useTranslation()
   // The two modes are each other's alternative, and `/login` / `/register` are their routes.
   const other = mode === 'login' ? 'register' : 'login'
-  const { register, resendCode } = useAuth()
+  const { status, register, resendCode } = useAuth()
   const navigate = useNavigate()
   // Where a bounced visitor was going: carried on to the code screen, which is where the session
   // now opens and so where the user is finally sent there.
@@ -35,6 +35,15 @@ export function AuthPage({ mode }: { mode: Mode }) {
   // Set for every 409, proved or not: the server does not say which, and neither may this.
   const [taken, setTaken] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+
+  // A browser that is already signed in — a live session, or one the remember-me cookie brought
+  // back during the bootstrap — has nothing to do here. Rendering the form anyway mailed a code
+  // nobody needed, and the code screen then forwarded the session on, which read as a sign-in that
+  // skipped the code (DEV-64). While the bootstrap is still out the form stays: most visitors here
+  // are anonymous, and a blank screen until the answer is worse than a form that may yet move.
+  if (status === 'authenticated') {
+    return <Navigate to={state?.from ?? '/goals'} replace />
+  }
 
   function toVerify(email: string, handover: VerifyHandover) {
     navigate('/verify', { replace: true, state: { email, from: state?.from, ...handover } })
